@@ -20,8 +20,23 @@ function getBot(): Bot {
   return bot;
 }
 
+// Derived from grammy's own handleUpdate signature rather than importing
+// @grammyjs/types directly (a transitive dependency, not a direct one) — kept
+// in sync with whatever grammy itself expects.
+type IncomingUpdate = Parameters<Bot['handleUpdate']>[0];
+
+type PendingRequest = {
+  sentMessageId: number;
+  resolve: (reply: string) => void;
+};
+
+// One Telegram thread per PipelineRun (Week 2 Task 6) — keyed by threadKey
+// (the run id), correlated to a reply via Telegram's own reply_to_message,
+// not "whichever message arrives next" (Task 2's placeholder, unsafe now
+// that Gate 1 can have more than one gate open at once).
+const pendingByThreadKey = new Map<string, PendingRequest>();
+
 let receiveLoopStarted = false;
-let pendingReplyResolver: ((reply: string) => void) | null = null;
 
 function ensureReceiveLoopStarted(): void {
   if (receiveLoopStarted) return;
@@ -33,10 +48,26 @@ function ensureReceiveLoopStarted(): void {
     console.log(
       `[telegram] received from chat ${ctx.chat.id} (${ctx.from?.username ?? ctx.from?.first_name ?? 'unknown'}): ${ctx.message.text}`,
     );
-    if (pendingReplyResolver) {
-      const resolve = pendingReplyResolver;
-      pendingReplyResolver = null;
-      resolve(ctx.message.text);
+
+    const replyToId = ctx.message.reply_to_message?.message_id;
+    if (replyToId !== undefined) {
+      for (const [threadKey, pending] of pendingByThreadKey) {
+        if (pending.sentMessageId === replyToId) {
+          pendingByThreadKey.delete(threadKey);
+          pending.resolve(ctx.message.text);
+          return;
+        }
+      }
+    }
+
+    // Fallback: no explicit Telegram "reply" match — the founder won't
+    // always remember to tap Reply. Only safe when exactly one gate is
+    // pending; with two or more, an unthreaded message is genuinely
+    // ambiguous, so it's just logged, not resolved against a guess.
+    if (pendingByThreadKey.size === 1) {
+      const [[threadKey, pending]] = pendingByThreadKey;
+      pendingByThreadKey.delete(threadKey);
+      pending.resolve(ctx.message.text);
     }
   });
 
@@ -44,8 +75,8 @@ function ensureReceiveLoopStarted(): void {
     console.error('[telegram] bot error:', err);
   });
 
-  // Long-polling — fine for Week 1/2's single-flat-channel scope. `bot.start()`
-  // resolves only when the bot stops, so this deliberately doesn't await it.
+  // Long-polling — fine for this scale. `bot.start()` resolves only when the
+  // bot stops, so this deliberately doesn't await it.
   void b.start({
     onStart: (botInfo) => {
       console.log(`[telegram] bot @${botInfo.username} started, listening for messages`);
@@ -53,14 +84,6 @@ function ensureReceiveLoopStarted(): void {
   });
 }
 
-// Minimal Week 2 implementation: requestApproval sends a message, then
-// resolves with whatever text message the bot receives next. No reply-command
-// parsing (approve/reject[reason]/edited-text) and no per-run threading yet —
-// those are Gate 1's actual requirements (MVP_ROADMAP_OCT15.md Section 17),
-// not this task's. With one channel/one founder chat and no concurrent gates
-// yet, "the next message is the reply" is a safe simplification; it stops
-// being safe the moment two requestApproval calls can be pending at once,
-// which doesn't happen until Gate 1 exists.
 export class TelegramFounderChannel implements FounderChannel {
   async notify(message: string): Promise<void> {
     if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
@@ -72,11 +95,16 @@ export class TelegramFounderChannel implements FounderChannel {
     await getBot().api.sendMessage(env.TELEGRAM_FOUNDER_CHAT_ID, message);
   }
 
-  async requestApproval(message: string): Promise<{ reply: string }> {
+  async requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }> {
+    if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
+      throw new Error(
+        'TELEGRAM_FOUNDER_CHAT_ID is not set. Message your bot once, then read the chat id from the logged update, and put it in .env.local.',
+      );
+    }
     ensureReceiveLoopStarted();
-    await this.notify(message);
+    const sent = await getBot().api.sendMessage(env.TELEGRAM_FOUNDER_CHAT_ID, params.message);
     const reply = await new Promise<string>((resolve) => {
-      pendingReplyResolver = resolve;
+      pendingByThreadKey.set(params.threadKey, { sentMessageId: sent.message_id, resolve });
     });
     return { reply };
   }
@@ -84,7 +112,53 @@ export class TelegramFounderChannel implements FounderChannel {
 
 // Starts the receive loop without sending anything — used at boot so incoming
 // messages are logged/handled even before the first notify()/requestApproval()
-// call. Equivalent to Week 1's startReceiveLoop().
+// call.
 export function startTelegramReceiveLoop(): void {
   ensureReceiveLoopStarted();
+}
+
+// Test-only: the real Telegram message id a pending requestApproval() call is
+// waiting on a reply to, if any — lets a test target that exact message via
+// reply_to_message rather than relying on the "exactly one pending" fallback,
+// which a real, unrelated incoming message (e.g. the founder's own earlier
+// chat history with the bot) could otherwise race against and consume.
+export function peekPendingMessageId(threadKey: string): number | undefined {
+  return pendingByThreadKey.get(threadKey)?.sentMessageId;
+}
+
+// Test-only: feeds a synthetic Telegram update through the exact same
+// handleUpdate path a real webhook/long-poll update would take, so Gate 1's
+// reply-matching and parsing logic can be verified without waiting on a live
+// human reply (used by scripts/dry-run.ts). Never called from production code.
+export async function simulateIncomingTelegramMessage(params: {
+  chatId: number;
+  text: string;
+  replyToMessageId?: number;
+}): Promise<void> {
+  ensureReceiveLoopStarted();
+  const update: IncomingUpdate = {
+    update_id: Math.floor(Math.random() * 1_000_000_000),
+    message: {
+      message_id: Math.floor(Math.random() * 1_000_000_000),
+      date: Math.floor(Date.now() / 1000),
+      chat: { id: params.chatId, type: 'private', first_name: 'Founder' },
+      from: { id: params.chatId, is_bot: false, first_name: 'Founder' },
+      text: params.text,
+      ...(params.replyToMessageId !== undefined
+        ? {
+            reply_to_message: {
+              message_id: params.replyToMessageId,
+              date: 0,
+              chat: { id: params.chatId, type: 'private', first_name: 'Founder' },
+            },
+          }
+        : {}),
+    },
+  } as IncomingUpdate;
+  const b = getBot();
+  // handleUpdate requires botInfo to already be populated; bot.start()
+  // populates it internally but asynchronously, so explicitly await init()
+  // here rather than racing it (init() is a no-op if already initialized).
+  await b.init();
+  await b.handleUpdate(update);
 }

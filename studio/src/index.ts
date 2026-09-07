@@ -1,6 +1,6 @@
 import { env } from './config/env';
 import { resumeOnStartup } from './run-pipeline/resume-on-startup';
-import { startTelegramReceiveLoop } from './notify-founder/telegram-channel';
+import { startTelegramReceiveLoop } from './notify-founder';
 
 async function main(): Promise<void> {
   console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);

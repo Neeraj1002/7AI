@@ -1,0 +1,72 @@
+import { founderChannel } from '../../notify-founder';
+
+// Approval Gate 1 — MVP_ROADMAP_OCT15.md Section 17's first-pass design,
+// implemented as specified rather than reinvented. Calls only
+// studio/src/notify-founder/'s interface, never grammy directly.
+
+export type Gate1Outcome =
+  | { type: 'approve' }
+  | { type: 'reject'; reason: string }
+  | { type: 'edit'; editedScriptText: string };
+
+// "approve" — case-insensitive, exact match preferred over fuzzy matching:
+// a false-positive fuzzy match (e.g. matching "approved!" or "not approve")
+// would silently pass through a script the founder didn't actually approve,
+// which is a worse failure mode than requiring the exact word. Reject
+// likewise only matches its own command word; anything else, including a
+// typo'd "aprove", falls through to "edit" (the reply becomes the sanctioned
+// script text) — safe by construction, since worst case is an unintended
+// script substitution the founder can see and correct next round, not a
+// silently-approved bad script.
+export function parseGateReply(reply: string): Gate1Outcome {
+  const trimmed = reply.trim();
+
+  if (trimmed.toLowerCase() === 'approve') {
+    return { type: 'approve' };
+  }
+
+  const rejectMatch = trimmed.match(/^reject\b\s*(.*)$/is);
+  if (rejectMatch) {
+    return { type: 'reject', reason: rejectMatch[1].trim() };
+  }
+
+  return { type: 'edit', editedScriptText: trimmed };
+}
+
+// Channel name, the original brief, the full script, and Script Review's
+// score/notes inline — MVP_ROADMAP_OCT15.md Section 17: "so you're not
+// context-switching to see why it passed/what was flagged."
+export function formatGateMessage(params: {
+  channelName: string;
+  briefText: string;
+  scriptText: string;
+  reviewScore: string;
+  reviewNotes: string;
+}): string {
+  return [
+    `Gate 1 — ${params.channelName}`,
+    ``,
+    `Brief: ${params.briefText}`,
+    ``,
+    `Script:`,
+    params.scriptText,
+    ``,
+    `Review score: ${params.reviewScore}/10`,
+    `Review notes: ${params.reviewNotes}`,
+    ``,
+    `Reply "approve", "reject <reason>", or send edited script text.`,
+  ].join('\n');
+}
+
+export async function requestGate1Decision(params: {
+  runId: string;
+  channelName: string;
+  briefText: string;
+  scriptText: string;
+  reviewScore: string;
+  reviewNotes: string;
+}): Promise<Gate1Outcome> {
+  const message = formatGateMessage(params);
+  const { reply } = await founderChannel.requestApproval({ threadKey: params.runId, message });
+  return parseGateReply(reply);
+}

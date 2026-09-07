@@ -33,10 +33,14 @@ Checked `docs/execution/week1/STATUS.md` per the task's instructions: Task 6 is 
 
 - Absorbed `bot.ts` into `telegram-channel.ts` entirely rather than keeping it as a separate file that `telegram-channel.ts` wraps — the task's own Implementation section allowed either shape ("whichever shape keeps the change smallest is fine, as long as the import-boundary rule holds"), and keeping `bot.ts` separate would have put a `grammy` import outside the one file the acceptance criterion names.
 
+## Addendum (2026-09-08, added by Week 2 Task 6)
+
+A real bot token landed in `.env.local` on 2026-09-07, and Task 6 (Gate 1) exercised this interface for real: real messages sent and delivered to the real chat, multiple times. **Partially closes this task's deferred verification**: "send" is confirmed; the reply-handling side was exercised via simulated incoming updates (not a live human reply), since the founder wasn't available for a live round trip that session — see `docs/execution/week2/reports/task6.md` for the precise scope. Also worth noting: `requestApproval`'s signature changed in Task 6 (`{ threadKey, message }` instead of a bare string) — exactly the "revise once Gate 1's real requirements are known" note this report's own "What Was Done" section anticipated.
+
 ## Sign-Off
 
 - Task Objective: Met
 - Schema Impact: No schema changes (matches task spec)
 - Business Logic: No new control flow (matches task spec)
-- Tests: Passing; live Telegram verification still pending the founder's bot-token action from Week 1 Task 6 (not new)
+- Tests: Passing; live send confirmed (Task 6); live human-reply round trip still open (see addendum)
 - Ready for Integration: Yes — Script Review and Gate 1 are the first real callers of `requestApproval`, whenever they're built

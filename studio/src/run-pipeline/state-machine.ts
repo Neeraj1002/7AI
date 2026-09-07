@@ -12,12 +12,13 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
-import { insertReviewLog } from '../models/repositories/review-log.repository';
+import { insertReviewLog, listReviewLogsForRun } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext } from './retry-with-backoff';
 import { isBudgetAvailable } from './budget-gate';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
+import { requestGate1Decision } from '../agents/gate1';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -313,4 +314,96 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     await failStage(stage.id, message);
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
   }
+}
+
+// Runs (or re-runs, on resume) the gate1 stage — Week 2 Task 6. By the time
+// this is called, `PipelineRun.status` is already `paused_gate1` (Task 5's
+// completion sets it); this function sends the gate message, blocks on
+// `requestGate1Decision`, and dispatches one of the three reply outcomes.
+// See docs/execution/week2/BUSINESS_LOGIC.md Section 4.
+export async function runGate1Stage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
+  const scriptGenStage = await findLatestAttempt(runId, 'script_generation');
+  if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed script_generation output — cannot open Gate 1`);
+  }
+  const scriptOutput: ScriptGenerationOutput = ScriptGenerationOutputSchema.parse(scriptGenStage.output);
+
+  const reviewLogs = await listReviewLogsForRun(runId);
+  const latestReview = [...reviewLogs].reverse().find((log) => log.agent === 'script-review');
+  if (!latestReview) {
+    throw new Error(`PipelineRun ${runId} has no script-review ReviewLog — cannot open Gate 1`);
+  }
+
+  const previousAttempt = await findLatestAttempt(runId, 'gate1');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'gate1',
+    attemptNumber,
+    input: { scriptText: scriptOutput.scriptText, reviewScore: latestReview.verdict },
+  });
+
+  // Blocks here until a reply arrives (or, per Task 6's founder-availability
+  // note, a simulated one is fed in for testing) — this is the "pause" that
+  // PipelineRun.status = 'paused_gate1' represents.
+  const outcome = await requestGate1Decision({
+    runId,
+    channelName: channel.name,
+    briefText: run.briefText,
+    scriptText: scriptOutput.scriptText,
+    reviewScore: latestReview.verdict,
+    reviewNotes: latestReview.rationale,
+  });
+
+  if (outcome.type === 'reject') {
+    await insertReviewLog({
+      tenantId: run.tenantId,
+      channelId: run.channelId,
+      pipelineRunId: runId,
+      stageId: stage.id,
+      agent: 'human',
+      verdict: 'reject',
+      rationale: outcome.reason,
+    });
+    await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason });
+    return await updatePipelineRun(runId, {
+      status: 'failed',
+      lastError: `Rejected at Gate 1: ${outcome.reason}`,
+    });
+  }
+
+  // On edit, the edited text — not the original AI output — becomes the
+  // sanctioned input for whatever reads gate1's stage output next. The
+  // original stays in script_generation's own stage row, never overwritten.
+  const sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
+
+  await insertReviewLog({
+    tenantId: run.tenantId,
+    channelId: run.channelId,
+    pipelineRunId: runId,
+    stageId: stage.id,
+    agent: 'human',
+    verdict: outcome.type,
+    rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
+    editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
+  });
+
+  await completeStage(stage.id, { outcome: outcome.type, sanctionedScriptText });
+
+  return await updatePipelineRun(runId, {
+    status: 'running',
+    // Advances to video_generation even though nothing processes it yet —
+    // Week 3 builds it, same "stops here deliberately" pattern as Week 1.
+    currentStage: nextStageAfter('gate1'),
+  });
 }
