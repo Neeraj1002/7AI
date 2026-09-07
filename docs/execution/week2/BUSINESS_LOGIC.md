@@ -60,6 +60,44 @@ One Telegram thread per `PipelineRun` (`MVP_ROADMAP_OCT15.md` Section 17). The g
 ### Logging
 Every gate decision writes a `ReviewLog` row (`agent = 'human'`, `verdict` = `approve`/`edit`/`reject`, `editedOutput` populated only on edit) — per `MVP_ROADMAP_OCT15.md` Section 16, human decisions are logged exactly like agent verdicts, not treated as out-of-band.
 
+## Implementation Reconciliation (added by Week 2 Task 7)
+
+The transition table and Sections 2-4 above were confirmed accurate against what was actually
+built, end-to-end, with real (not stubbed) calls — see `docs/execution/week2/reports/task4.md`
+through `task7.md` for the verification detail. A few deltas worth recording here, since this
+doc is meant to describe reality, not just the plan:
+
+- **`requestApproval`'s signature** evolved from a bare `message: string` (as Task 2 first
+  built it) to `{ threadKey, message }` once Gate 1 (Task 6) needed real per-run threading —
+  anticipated by Task 2's own note that its interface was provisional, not a surprise.
+- **Gate 1 threading mechanism**: implemented via Telegram's own `reply_to_message`
+  correlation (matching an incoming reply to the specific gate message it replied to), not a
+  Telegram "topic"/forum thread — the founder's chat with the bot is a private DM, which
+  doesn't support forum topics. A same-single-pending fallback exists for when the founder
+  doesn't explicitly tap "Reply," scoped to exactly one open gate to avoid guessing when
+  genuinely ambiguous. Verified with two concurrent gates resolving independently, no
+  cross-talk.
+- **`approve` match tolerance**: exact, case-insensitive match only (not fuzzy) — a
+  false-positive fuzzy match risks silently passing through a script the founder didn't
+  actually approve, a worse failure mode than requiring the exact word.
+- **Script Review's "Channel's rubric/brand config"** input: no dedicated rubric field exists
+  on `Channel` — implemented using the existing `nicheDescription` and `styleGuide` fields,
+  consistent with how Script Generation already used them.
+- **`costUsd` computation**, confirmed per Section 2's own forward note: lives in
+  `studio/src/llm/client.ts`, using a pricing table in `registry.ts` sourced from Anthropic's
+  published rates (`claude-sonnet-5`: $2/$10 per M input/output tokens; `claude-haiku-4-5`:
+  $1/$5) — Script Review's cheap tier is `claude-haiku-4-5`, confirmed live via its lower
+  `UsageEvent.costUsd` relative to Script Generation's premium-tier calls.
+- **Idempotent resume across the full sequence** (Week 1 `BUSINESS_LOGIC.md` Section 1's rule,
+  originally only implementable for `intake` since nothing else existed yet): Task 7 extended
+  `resume-on-startup.ts` to dispatch to the correct real stage runner
+  (`script_generation`/`script_review`/`gate1`, not just `intake`) for both the "mid-flight"
+  and "latest stage completed, resume at the next one" cases. Verified with a real
+  kill-mid-`script_generation` test: exactly one `UsageEvent` row survived (tied to the
+  successful resumed attempt), no duplicate billing for the killed attempt. `paused_gate1` is
+  deliberately *not* auto-resumed on restart (a restart doesn't reopen a gate and re-send a
+  message) — that's a scope boundary, not a gap.
+
 ## Reference
 - `MVP_ROADMAP_OCT15.md` Sections 3, 5.6, 6, 12, 17
 - `AGENT_FLEET_DESIGN.md` Sections 4.4, 4.5, 6.2, 8.7

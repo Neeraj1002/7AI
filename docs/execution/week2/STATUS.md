@@ -1,7 +1,7 @@
 # Week 2 Status: Script side
 
-**Week status**: Tasks 1–6 complete. Gate 1 built and verified end-to-end for all three reply outcomes (simulated replies — founder unavailable for a live round trip this session, see Task 6's report).
-**Last updated**: 2026-09-08 (after Task 6)
+**Week status**: All 7 tasks complete. The full text-only loop (brief → intake → script_generation → script_review → Gate 1) runs end-to-end with real calls throughout. Two items intentionally left open, not blocking: a live (non-simulated) Gate 1 round trip, and YouTube OAuth/quota (Week 1 Task 7, founder-only).
+**Last updated**: 2026-09-08 (after Task 7 — week closed)
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -11,12 +11,13 @@
 | 4 | Script Generation Agent | Done | Claude Code | `agent_quotas`/`usage_events` migrated; budget ceiling set to **$2.00** (founder-confirmed). Real end-to-end verified: a real script-generation call (~$0.0047) and the budget-gate refusal path (deliberately exhausted, correctly `skipped` not `failed`). See `reports/task4.md`. |
 | 5 | Script Review Agent | Done | Claude Code | Cheap tier (`claude-haiku-4-5`) confirmed, not left defaulting. Real review scored a real script 7/10 with genuine video-gen-fit flags; a deliberately weak script scored 1/10 without erroring, confirming no score-threshold routes to `needs_attention`. `PipelineRun` → `paused_gate1`/`gate1` verified live. See `reports/task5.md`. |
 | 6 | Approval Gate 1 | Done — action still open | **Founder (whenever convenient)** | Real per-run threading (Telegram `reply_to_message` correlation, verified with two concurrent gates, no cross-talk). All three reply outcomes (approve/reject/edit) verified end-to-end against **simulated** replies — real send confirmed, but no live human-reply round trip yet (founder unavailable this session, per explicit instruction). Do a real one whenever free. See `reports/task6.md`. |
+| 7 | Wire End-to-End + Close Out Week 2 | Done | Claude Code | Full sequence run in one process, no manual step between automated stages. Resumability re-verified with a real kill-mid-`script_generation` test (fixed a real gap: `resume-on-startup.ts` only knew how to resume `intake` before this task). Budget-gate path re-exercised mid-sequence, not just Task 4's isolated test. `SCHEMA.md`/`BUSINESS_LOGIC.md` reconciled against actual implementation. See `reports/task7.md`. |
 
 ## Founder action still needed
 - YouTube OAuth + quota submission (Week 1 Task 7) — steps in `docs/execution/week1/reports/task7.md`.
 - A live Gate 1 round trip (Task 6) — reply for real to an actual gate message, whenever convenient. Not urgent; the mechanism is proven via simulated replies.
 - ~~Telegram bot token~~ — added 2026-09-07, resolved.
-- ~~Real `ANTHROPIC_API_KEY`~~ — added 2026-09-07, resolved; Tasks 4-6 spent real money against it successfully.
+- ~~Real `ANTHROPIC_API_KEY`~~ — added 2026-09-07, resolved; Tasks 4-7 spent real money against it successfully (~$0.06 total across all real verification calls this week, including ~$0.03 incidental spend from `resume` picking up stale leftover test runs — see Task 7's report).
 
 ## Full detail
-Per-task reports: `reports/task1.md` onward. Full narrative (once written): `reports/week2-summary.md`.
+Per-task reports: `reports/task1.md` through `reports/task7.md`. Full narrative: `reports/week2-summary.md`.

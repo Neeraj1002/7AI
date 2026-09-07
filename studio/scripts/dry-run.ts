@@ -15,6 +15,11 @@
 //                                                            REAL Telegram message, then simulates
 //                                                            the given reply type (no live human
 //                                                            round-trip needed/expected)
+//   npx tsx scripts/dry-run.ts full "<brief text>"       -> Week 2 Task 7: chains setup -> intake ->
+//                                                            script_generation -> script_review in one
+//                                                            process invocation, no manual step between
+//                                                            stages (only gate1 needs a human/simulated
+//                                                            decision) — prints the runId at the end
 //   npx tsx scripts/dry-run.ts resume                    -> resumes any running PipelineRuns
 //   npx tsx scripts/dry-run.ts status <runId>             -> prints run + stage + usage_event + review_log rows
 
@@ -116,6 +121,25 @@ async function gate1(runId: string, outcomeArg: string): Promise<void> {
   console.log(`[dry-run] gate1 completed via simulated '${outcomeArg}' reply`);
 }
 
+// Week 2 Task 7 — proves the sequence composes with no manual step between
+// automated stages (the acceptance criterion's "without manual intervention
+// between stages"). gate1 is deliberately not chained in here: it's the one
+// point that's supposed to require an outside decision.
+async function full(briefText: string): Promise<void> {
+  const channelId = await ensureTestChannel();
+  const run = await createRun({ tenantId: MVP_TENANT_ID, channelId, briefText });
+  console.log(`[dry-run] full sequence starting for runId=${run.id}`);
+
+  await runIntakeStage(run.id);
+  console.log('[dry-run] intake -> script_generation');
+  await runScriptGenerationStage(run.id);
+  console.log('[dry-run] script_generation -> script_review');
+  await runScriptReviewStage(run.id);
+  console.log('[dry-run] script_review -> paused_gate1');
+
+  console.log(`runId=${run.id}`);
+}
+
 async function resume(): Promise<void> {
   await resumeOnStartup();
   console.log('[dry-run] resume pass complete');
@@ -162,6 +186,10 @@ async function main(): Promise<void> {
       await gate1(arg, outcomeArg);
       break;
     }
+    case 'full':
+      if (!arg) throw new Error('usage: dry-run.ts full "<brief text>"');
+      await full(arg);
+      break;
     case 'resume':
       await resume();
       break;
@@ -171,7 +199,7 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|full|resume|status`,
       );
   }
 }
