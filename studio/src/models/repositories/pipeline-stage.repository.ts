@@ -78,3 +78,27 @@ export async function failStage(id: string, error: string): Promise<PipelineStag
   });
   return toDomainStage(row);
 }
+
+// Records that a stage attempt was never run (e.g. the budget gate refused it,
+// Week 2 Task 4) — distinct from `failed`, which means an attempt started and
+// errored. `input`/`error` capture what would have run and why it didn't.
+export async function createSkippedStageAttempt(params: {
+  pipelineRunId: string;
+  stageName: StageName;
+  attemptNumber: number;
+  input: Record<string, unknown>;
+  reason: string;
+}): Promise<PipelineStage> {
+  const row = await prisma.pipelineStage.create({
+    data: {
+      pipelineRunId: params.pipelineRunId,
+      stageName: params.stageName,
+      attemptNumber: params.attemptNumber,
+      input: params.input as Prisma.InputJsonValue,
+      status: 'skipped',
+      error: params.reason,
+      completedAt: new Date(),
+    },
+  });
+  return toDomainStage(row);
+}

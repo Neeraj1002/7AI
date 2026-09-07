@@ -6,14 +6,15 @@
 // parse-brief.ts instead of a real Anthropic call.
 //
 // Usage:
-//   npx tsx scripts/dry-run.ts setup                 -> prints a new runId
-//   npx tsx scripts/dry-run.ts start <runId>          -> runs intake (kill me mid-flight)
-//   npx tsx scripts/dry-run.ts resume                 -> resumes any running PipelineRuns
-//   npx tsx scripts/dry-run.ts status <runId>          -> prints run + stage rows
+//   npx tsx scripts/dry-run.ts setup                    -> prints a new runId
+//   npx tsx scripts/dry-run.ts start <runId>             -> runs intake (kill me mid-flight)
+//   npx tsx scripts/dry-run.ts script-gen <runId>        -> runs script_generation (Week 2 Task 4)
+//   npx tsx scripts/dry-run.ts resume                    -> resumes any running PipelineRuns
+//   npx tsx scripts/dry-run.ts status <runId>             -> prints run + stage + usage_event rows
 
 import { prisma } from '../src/models/prisma-client';
 import { MVP_TENANT_ID } from '../src/types';
-import { createRun, runIntakeStage } from '../src/run-pipeline/state-machine';
+import { createRun, runIntakeStage, runScriptGenerationStage } from '../src/run-pipeline/state-machine';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
 
 async function ensureTestChannel(): Promise<string> {
@@ -46,6 +47,12 @@ async function start(runId: string): Promise<void> {
   console.log('[dry-run] intake completed without interruption');
 }
 
+async function scriptGen(runId: string): Promise<void> {
+  console.log(`[dry-run] starting script_generation for ${runId}`);
+  await runScriptGenerationStage(runId);
+  console.log('[dry-run] script_generation completed without interruption');
+}
+
 async function resume(): Promise<void> {
   await resumeOnStartup();
   console.log('[dry-run] resume pass complete');
@@ -57,7 +64,11 @@ async function status(runId: string): Promise<void> {
     where: { pipelineRunId: runId },
     orderBy: { attemptNumber: 'asc' },
   });
-  console.log(JSON.stringify({ run, stages }, null, 2));
+  const usageEvents = await prisma.usageEvent.findMany({
+    where: { pipelineRunId: runId },
+    orderBy: { createdAt: 'asc' },
+  });
+  console.log(JSON.stringify({ run, stages, usageEvents }, null, 2));
 }
 
 async function main(): Promise<void> {
@@ -70,6 +81,10 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts start <runId>');
       await start(arg);
       break;
+    case 'script-gen':
+      if (!arg) throw new Error('usage: dry-run.ts script-gen <runId>');
+      await scriptGen(arg);
+      break;
     case 'resume':
       await resume();
       break;
@@ -78,7 +93,7 @@ async function main(): Promise<void> {
       await status(arg);
       break;
     default:
-      throw new Error(`unknown command '${cmd}' — expected setup|start|resume|status`);
+      throw new Error(`unknown command '${cmd}' — expected setup|start|script-gen|resume|status`);
   }
 }
 

@@ -22,3 +22,26 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
 export function resolvePurpose(purpose: Purpose): RegistryEntry {
   return LLM_REGISTRY[purpose];
 }
+
+// Per-model pricing, sitting alongside the registry since that's already where
+// provider+model gets resolved — see docs/execution/week2/SCHEMA.md's "Where
+// costUsd comes from" note. Sourced from Anthropic's own current published
+// rates (2026-09). Add an entry here before adding a purpose that resolves to
+// a new model — resolvePricing throws rather than silently costing $0.
+export type PricingEntry = {
+  inputPerMillionUsd: number;
+  outputPerMillionUsd: number;
+};
+
+export const MODEL_PRICING: Record<string, PricingEntry> = {
+  'claude-sonnet-5': { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
+  'claude-haiku-4-5': { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
+};
+
+export function resolvePricing(model: string): PricingEntry {
+  const entry = MODEL_PRICING[model];
+  if (!entry) {
+    throw new Error(`No pricing entry for model '${model}' — add one to registry.ts's MODEL_PRICING.`);
+  }
+  return entry;
+}

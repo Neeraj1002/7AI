@@ -2,9 +2,14 @@
 // Defined now as reusable middleware; only the `intake` stage exercises it this
 // week, since it's the only stage that makes a real external (LLM) call.
 
+// Optional extra context a thrower can attach — e.g. studio/src/llm/client.ts
+// attaches { provider, model } so a caller that needs to write a UsageEvent
+// row on failure (Week 2 Task 4) doesn't have to re-resolve the registry.
+export type StageErrorContext = Record<string, unknown>;
+
 // Transient failures (timeout, rate limit, 5xx) retry with exponential backoff.
 export class TransientStageError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(message: string, readonly cause?: unknown, readonly context?: StageErrorContext) {
     super(message);
     this.name = 'TransientStageError';
   }
@@ -13,7 +18,7 @@ export class TransientStageError extends Error {
 // Non-transient failures (a 4xx validation error, an unparseable brief) do not
 // retry — they fail immediately and the caller routes the run to `needs_attention`.
 export class NonTransientStageError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(message: string, readonly cause?: unknown, readonly context?: StageErrorContext) {
     super(message);
     this.name = 'NonTransientStageError';
   }
@@ -29,6 +34,16 @@ export class CircuitBreakerTrippedError extends Error {
     super(message);
     this.name = 'CircuitBreakerTrippedError';
   }
+}
+
+// Pulls the context a thrower attached (e.g. client.ts's { provider, model })
+// off a stage error, if any — used by callers that need to log something
+// (e.g. a UsageEvent row, Week 2 Task 4) even for a failed attempt.
+export function getStageErrorContext(error: unknown): StageErrorContext | undefined {
+  if (error instanceof TransientStageError || error instanceof NonTransientStageError) {
+    return error.context;
+  }
+  return undefined;
 }
 
 export const MAX_RETRIES_PER_STAGE = 3;

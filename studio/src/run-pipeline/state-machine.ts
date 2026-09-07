@@ -5,12 +5,17 @@ import {
 } from '../models/repositories/pipeline-run.repository';
 import {
   completeStage,
+  createSkippedStageAttempt,
   createStageAttempt,
   failStage,
   findLatestAttempt,
 } from '../models/repositories/pipeline-stage.repository';
+import { findChannelById } from '../models/repositories/channel.repository';
+import { insertUsageEvent } from '../models/repositories/usage-event.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
-import { withRetryAndCircuitBreaker } from './retry-with-backoff';
+import { withRetryAndCircuitBreaker, getStageErrorContext } from './retry-with-backoff';
+import { isBudgetAvailable } from './budget-gate';
+import { generateScript, type ScriptGenerationOutput } from '../agents/script-generation';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -74,6 +79,122 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     await failStage(stage.id, message);
     // A bad/unparseable brief, or an exhausted circuit breaker, is a
     // human-fixable input problem — needs_attention, not failed.
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+  }
+}
+
+// Runs (or re-runs, on resume) the script_generation stage — Week 2 Task 4,
+// the first real agent (as opposed to Orchestrator-owned Intake) and the
+// first real money spent in the system. See
+// docs/execution/week2/BUSINESS_LOGIC.md Section 2 for the exact transition
+// and cost-gate rules.
+export async function runScriptGenerationStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+  if (!run.intakeParsed) {
+    throw new Error(`PipelineRun ${runId} has no intakeParsed output — run intake before script_generation`);
+  }
+
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
+  await updatePipelineRun(runId, {
+    status: 'running',
+    currentStage: 'script_generation',
+  });
+
+  const previousAttempt = await findLatestAttempt(runId, 'script_generation');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stageInput = {
+    topic: run.intakeParsed.topic,
+    constraints: run.intakeParsed.constraints,
+    styleGuide: channel.styleGuide,
+  };
+
+  // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
+  // attempt exists at all. A refused call is recorded as `skipped`, never
+  // silently dropped and never a `failed` attempt (nothing actually ran).
+  const budgetOk = await isBudgetAvailable(run.tenantId, channel.platform);
+  if (!budgetOk) {
+    await createSkippedStageAttempt({
+      pipelineRunId: runId,
+      stageName: 'script_generation',
+      attemptNumber,
+      input: stageInput,
+      reason: 'AgentQuota.budgetCeilingUsd would be exceeded',
+    });
+    return await updatePipelineRun(runId, {
+      status: 'needs_attention',
+      lastError: 'Script Generation refused: AgentQuota.budgetCeilingUsd would be exceeded',
+    });
+  }
+
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'script_generation',
+    attemptNumber,
+    input: stageInput,
+  });
+
+  // Every real LLM call this makes — including each retry, not just the final
+  // outcome — writes its own UsageEvent row, success or failure (Design
+  // Principle 7). Wrapping the metering *inside* the retried function (rather
+  // than once around the whole withRetryAndCircuitBreaker call) is what makes
+  // that true instead of undercounting retried spend.
+  const attemptOnce = async (): Promise<ScriptGenerationOutput> => {
+    try {
+      const { output, llm } = await generateScript({
+        topic: stageInput.topic,
+        constraints: stageInput.constraints,
+        styleGuide: stageInput.styleGuide,
+      });
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-generation',
+        provider: llm.provider,
+        model: llm.model,
+        inputTokens: llm.usage.inputTokens,
+        outputTokens: llm.usage.outputTokens,
+        costUsd: llm.costUsd,
+      });
+      return output;
+    } catch (error) {
+      const context = getStageErrorContext(error);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-generation',
+        provider: (context?.provider as string | undefined) ?? 'unknown',
+        model: (context?.model as string | undefined) ?? 'unknown',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: '0.000000',
+      });
+      throw error;
+    }
+  };
+
+  try {
+    const output = await withRetryAndCircuitBreaker(attemptOnce);
+
+    await completeStage(stage.id, output);
+    return await updatePipelineRun(runId, {
+      // Advances to script_review even though Task 5 is what actually
+      // processes it — same "stops here deliberately" pattern as Week 1.
+      currentStage: 'script_review',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failStage(stage.id, message);
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
   }
 }

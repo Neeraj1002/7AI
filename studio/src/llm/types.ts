@@ -28,8 +28,23 @@ export type LLMUsage = {
   outputTokens: number;
 };
 
-export type LLMResponse = {
+// What client.ts returns — provider/model aren't included here since the
+// caller (client.ts) already received them as params; index.ts attaches them
+// to form the public LLMResponse below.
+export type ProviderCallResult = {
   text: string;
   usage: LLMUsage;
   stopReason: string;
+  // NUMERIC as string, matching UsageEvent.costUsd's DB representation —
+  // computed in client.ts from token counts and registry.ts's pricing table,
+  // per docs/execution/week2/SCHEMA.md's "Where costUsd comes from" note.
+  costUsd: string;
+};
+
+// Public response shape from callLLM — includes which provider+model actually
+// resolved for this purpose, so call sites can write a UsageEvent row without
+// importing registry.ts directly (only index.ts/client.ts may).
+export type LLMResponse = ProviderCallResult & {
+  provider: LLMProvider;
+  model: string;
 };

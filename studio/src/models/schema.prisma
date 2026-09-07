@@ -22,6 +22,8 @@ model Tenant {
   channels     Channel[]
   pipelineRuns PipelineRun[]
   reviewLogs   ReviewLog[]
+  agentQuotas  AgentQuota[]
+  usageEvents  UsageEvent[]
 
   @@map("tenants")
 }
@@ -49,6 +51,7 @@ model Channel {
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   pipelineRuns PipelineRun[]
   reviewLogs   ReviewLog[]
+  usageEvents  UsageEvent[]
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
@@ -77,8 +80,9 @@ model PipelineRun {
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
   channel Channel @relation(fields: [channelId], references: [id])
 
-  stages     PipelineStage[]
-  reviewLogs ReviewLog[]
+  stages      PipelineStage[]
+  reviewLogs  ReviewLog[]
+  usageEvents UsageEvent[]
 
   @@index([tenantId, channelId], map: "idx_runs_tenant_channel")
   @@index([status], map: "idx_runs_status")
@@ -101,8 +105,9 @@ model PipelineStage {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @default(now())
 
-  pipelineRun PipelineRun @relation(fields: [pipelineRunId], references: [id])
+  pipelineRun PipelineRun  @relation(fields: [pipelineRunId], references: [id])
   reviewLogs  ReviewLog[]
+  usageEvents UsageEvent[]
 
   @@unique([pipelineRunId, stageName, attemptNumber])
   @@index([pipelineRunId], map: "idx_stages_run")
@@ -131,4 +136,49 @@ model ReviewLog {
   @@index([pipelineRunId], map: "idx_reviewlog_run")
   @@index([channelId, timestamp], map: "idx_reviewlog_channel_time")
   @@map("review_logs")
+}
+
+// Week 2 additions — see docs/execution/week2/SCHEMA.md Sections 1-2.
+
+model AgentQuota {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @db.Uuid
+  platform String @default("youtube") @db.VarChar(20)
+
+  budgetCeilingUsd Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, platform])
+  @@map("agent_quotas")
+}
+
+model UsageEvent {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String  @db.Uuid
+  channelId     String  @db.Uuid
+  pipelineRunId String? @db.Uuid
+  stageId       String? @db.Uuid
+
+  agent    String @db.VarChar(100)
+  provider String @db.VarChar(50)
+  model    String @db.VarChar(100)
+
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Decimal @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  channel     Channel        @relation(fields: [channelId], references: [id])
+  pipelineRun PipelineRun?   @relation(fields: [pipelineRunId], references: [id])
+  stage       PipelineStage? @relation(fields: [stageId], references: [id])
+
+  @@index([tenantId, createdAt], map: "idx_usage_tenant_platform_time")
+  @@index([pipelineRunId], map: "idx_usage_run")
+  @@map("usage_events")
 }

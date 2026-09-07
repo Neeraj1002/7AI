@@ -1,4 +1,4 @@
-import { callLLM } from '../llm';
+import { callLLM, extractJsonText } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
 
@@ -24,11 +24,6 @@ If the brief is too vague or short to identify a topic at all, respond with ONLY
 {"error": "unparseable"}
 
 Respond with raw JSON only — no markdown code fences, no commentary.`;
-
-function extractJsonText(raw: string): string {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  return (fenced ? fenced[1] : raw).trim();
-}
 
 export async function parseBrief(briefText: string): Promise<IntakeParsed> {
   const response = await callLLM({
@@ -70,9 +65,9 @@ export async function parseBrief(briefText: string): Promise<IntakeParsed> {
 // scripts/dry-run.ts (via INTAKE_STAGE_STUB=1) to exercise the state machine's
 // resumability mechanics and error-path plumbing without a live API key.
 //
-// Deliberately minimal, not a realistic extractor — still needed even after
-// the Week 2 Task 3 migration onto studio/src/llm/, since no real Anthropic
-// key has been available in any session so far. A brief containing the word
+// Deliberately minimal, not a realistic extractor — kept around for fast,
+// zero-cost dry runs even now that a real key is configured (see
+// scripts/dry-run.ts's INTAKE_STAGE_STUB flag). A brief containing the word
 // "unparseable" exercises the needs_attention failure path; everything else
 // resolves after an artificial delay long enough to kill-and-resume mid-flight.
 export async function stubParseBrief(briefText: string): Promise<IntakeParsed> {
