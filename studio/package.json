@@ -1,0 +1,43 @@
+{
+  "name": "sevenai",
+  "version": "1.0.0",
+  "description": "7AI autonomous YouTube Shorts content pipeline",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "prisma": {
+    "schema": "src/models/schema.prisma"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
+    "@prisma/client": "6.19.3",
+    "dotenv": "^17.4.2",
+    "google-auth-library": "^11.0.2",
+    "grammy": "^1.46.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.4.1",
+    "eslint": "^10.10.0",
+    "prisma": "6.19.3",
+    "tsc-alias": "^1.9.4",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0"
+  }
+}

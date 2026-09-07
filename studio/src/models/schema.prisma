@@ -1,0 +1,134 @@
+// 7AI — Week 1 Foundation Schema
+// Source of truth for field-level shape: docs/execution/week1/SCHEMA.md
+// Enum strategy: VARCHAR + CHECK constraint, not native Postgres ENUM — see SCHEMA.md
+// "Enum Strategy" section. Prisma enums are deliberately NOT used here because they
+// compile to native Postgres ENUM types.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  channels     Channel[]
+  pipelineRuns PipelineRun[]
+  reviewLogs   ReviewLog[]
+
+  @@map("tenants")
+}
+
+model Channel {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @db.Uuid
+  platform           String   @default("youtube") @db.VarChar(20)
+  name               String   @db.VarChar(255)
+  externalChannelId  String?  @db.VarChar(255)
+
+  nicheDescription   String   @db.Text
+  styleGuide         String?  @db.Text
+
+  brandAssets        Json     @default("{}")
+
+  postingCadence     String?  @db.VarChar(255)
+  approvalGateConfig Json     @default("{\"gate1Enabled\": true, \"gate2Enabled\": true}")
+  priorsScope        String   @default("isolated") @db.VarChar(20)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  pipelineRuns PipelineRun[]
+  reviewLogs   ReviewLog[]
+
+  @@unique([platform, externalChannelId], map: "idx_channels_external")
+  @@index([tenantId, isActive], map: "idx_channels_tenant")
+  @@map("channels")
+}
+
+model PipelineRun {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @db.Uuid
+  channelId    String   @db.Uuid
+
+  status       String   @default("pending") @db.VarChar(20)
+  currentStage String?  @db.VarChar(50)
+
+  briefText    String   @db.Text
+  intakeParsed Json?
+
+  retryCount   Int      @default(0)
+  lastError    String?  @db.Text
+
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  stages     PipelineStage[]
+  reviewLogs ReviewLog[]
+
+  @@index([tenantId, channelId], map: "idx_runs_tenant_channel")
+  @@index([status], map: "idx_runs_status")
+  @@map("pipeline_runs")
+}
+
+model PipelineStage {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pipelineRunId String   @db.Uuid
+  stageName     String   @db.VarChar(50)
+  status        String   @default("pending") @db.VarChar(20)
+  attemptNumber Int      @default(1)
+
+  input  Json?
+  output Json?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+
+  pipelineRun PipelineRun @relation(fields: [pipelineRunId], references: [id])
+  reviewLogs  ReviewLog[]
+
+  @@unique([pipelineRunId, stageName, attemptNumber])
+  @@index([pipelineRunId], map: "idx_stages_run")
+  @@map("pipeline_stages")
+}
+
+model ReviewLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @db.Uuid
+  channelId     String   @db.Uuid
+  pipelineRunId String   @db.Uuid
+  stageId       String?  @db.Uuid
+
+  agent        String  @db.VarChar(100)
+  verdict      String  @db.VarChar(50)
+  rationale    String  @db.Text
+  editedOutput Json?
+
+  timestamp DateTime @default(now())
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  channel     Channel       @relation(fields: [channelId], references: [id])
+  pipelineRun PipelineRun   @relation(fields: [pipelineRunId], references: [id])
+  stage       PipelineStage? @relation(fields: [stageId], references: [id])
+
+  @@index([pipelineRunId], map: "idx_reviewlog_run")
+  @@index([channelId, timestamp], map: "idx_reviewlog_channel_time")
+  @@map("review_logs")
+}
