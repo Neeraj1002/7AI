@@ -15,12 +15,16 @@ This is the standard template for every 7AI execution task, Week 2 onward. It's 
 ```markdown
 # Week [N] Task [ID]: [Task Name]
 
+**Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow (branch/commit/PR steps for this task), the `STATUS.md` update this task must make, and the section structure this file follows. This file states only this task's specifics — the template governs everything else, so don't skip it.
+
 **Objective**: One-sentence description of what this task accomplishes
 **Duration**: Estimated hours
 **Depends On**: Previous tasks (if any)
 **Owning Component**: Orchestrator | [Agent Name] | Shared Schema | Infra
 **Success Criteria**: What makes this task complete
 ```
+
+*(This "read the template first" line is boilerplate — every task file includes it verbatim, right after the title, before `**Objective**`. Its purpose is exactly what you're reading: so nobody has to remember to say "also check TASK_TEMPLATE.md" out loud before handing a task file to Claude Code.)*
 
 ### Task Requirement
 
@@ -251,8 +255,8 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 │   └── reports/
 │       └── week1-summary.md       ← written once Week 1 is done
 ├── week2/
-│   ├── SCHEMA.md                  ← only if Week 2 changes the schema; omit otherwise
-│   ├── BUSINESS_LOGIC.md          ← only if Week 2 adds new control flow; omit otherwise
+│   ├── SCHEMA.md                  ← always present; "No schema changes this week" if none
+│   ├── BUSINESS_LOGIC.md          ← always present; "No new control flow this week" if none
 │   ├── STATUS.md                  ← one row per task, updated as each completes
 │   ├── tasks/
 │   │   ├── task1.md
@@ -265,6 +269,8 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 ```
 
 `SCHEMA.md` and `BUSINESS_LOGIC.md` are **incremental, not cumulative** — a given week's file documents only what changed that week. A running, cumulative picture (all tables, all states, as they currently stand) belongs in `2_Architecture_and_Design`-style living docs once the schema stabilizes past MVP; for now, `AGENT_FLEET_DESIGN.md` Section 6 is that cumulative reference, and each week's `SCHEMA.md` is a diff against it.
+
+Both files are created at the start of every week (alongside `STATUS.md`, by whichever task is first that week) even when nothing's changed yet — write "No schema changes this week" / "No new control flow this week" explicitly rather than omitting the file. A missing file reads as "nobody checked," not as "nothing changed"; an explicit placeholder says the check happened and came back negative. If a later task in the week does introduce a change, that task updates the file in place — replacing the placeholder text with the real delta, not appending around it.
 
 ---
 

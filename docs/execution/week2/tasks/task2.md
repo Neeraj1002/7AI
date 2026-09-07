@@ -1,5 +1,7 @@
 # Week 2 Task 2: Founder Notification / Approval-Gate Interface
 
+**Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow (branch/commit/PR steps for this task), the `STATUS.md` update this task must make, and the section structure this file follows. This file states only this task's specifics — the template governs everything else, so don't skip it.
+
 **Objective**: Split `studio/src/notify-founder/` into an interface (`requestApproval`, `notify`) and a Telegram adapter underneath, per `docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md`, so future call sites (Script Review, Gate 1) never import `grammy` directly.
 **Duration**: 2–3 hours
 **Depends On**: Week 1 Task 6 (Telegram bot scaffold — code exists; live bot-token verification may still be a founder-pending item, check `docs/execution/week1/STATUS.md`)

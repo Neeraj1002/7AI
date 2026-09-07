@@ -1,5 +1,7 @@
 # Week 2 Task 3: Migrate Intake Parsing onto the LLM Layer (closes Week 1's deferred verification)
 
+**Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow (branch/commit/PR steps for this task), the `STATUS.md` update this task must make, and the section structure this file follows. This file states only this task's specifics — the template governs everything else, so don't skip it.
+
 **Objective**: Migrate `studio/src/run-pipeline/parse-brief.ts` off its direct `@anthropic-ai/sdk` call onto `studio/src/llm/` (Task 1), and close out the real-LLM verification criterion that Week 1 Task 4 and Task 5 deliberately left pending.
 **Duration**: 1–2 hours
 **Depends On**: Task 1 (LLM layer) — cannot start before it.
