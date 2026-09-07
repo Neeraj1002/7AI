@@ -60,9 +60,23 @@ scripts/dry-run.ts (stub mode) -> success path: sensible-shaped stub output pers
                                 -> failure path: needs_attention, lastError set, no retries attempted
 ```
 
+## Addendum (2026-09-07, added by Week 2 Task 3)
+
+The LLM abstraction layer landed (Week 2 Task 1), `parse-brief.ts` was migrated onto it (Week 2
+Task 3), and its real-call path was exercised against a genuine Claude response — full detail
+in `docs/execution/week2/reports/task3.md`. **Partially closes this criterion, with a caveat
+worth being precise about**: the real call succeeded via this session's ambient sandbox API
+routing (an `ANTHROPIC_BASE_URL` environment variable specific to the Claude Code execution
+environment), not via a value in `.env.local`'s `ANTHROPIC_API_KEY`, which is still empty. This
+proves the extraction code path itself is correct against a real model (a clear, well-formed
+brief produced a sensible topic and all four stated constraints) — but the app's own real
+deployment (outside this sandbox) still needs a real `ANTHROPIC_API_KEY` supplied by the
+founder before it can make real calls. The blocker changes from "is the code right?" (now
+answered: yes) to "does production have a key?" (still open).
+
 ## Sign-Off
 
-- Task Objective: Plumbing met; real-brief verification pending (see above)
+- Task Objective: Plumbing met; real-brief extraction quality now verified against a genuine model response (see addendum) — production key still needed for the app's own deployment
 - Business Logic: Matches `BUSINESS_LOGIC.md` Section 2
-- Tests: Passing (stub); real-LLM verification blocked on the LLM abstraction layer redesign
+- Tests: Passing (stub); real-call path now also verified end-to-end (see addendum)
 - Ready for Integration: Yes, with the above caveat tracked
