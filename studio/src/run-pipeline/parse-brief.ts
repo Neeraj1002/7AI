@@ -1,13 +1,16 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env';
+import { callLLM } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
-import { NonTransientStageError, TransientStageError } from './retry-with-backoff';
+import { NonTransientStageError } from './retry-with-backoff';
 
 // Intake parsing — BUSINESS_LOGIC.md Section 2. Owned directly by the
 // Orchestrator, not a separate agent. A single LLM call: extraction only, no
 // niche-matching, no auto-discovery (explicitly out of scope).
-
-const MODEL = 'claude-sonnet-5';
+//
+// Calls through studio/src/llm/ (Week 2 Task 1) rather than a provider SDK
+// directly — see docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
+// callLLM already normalizes provider failures to TransientStageError/
+// NonTransientStageError at the client.ts boundary, so there's no
+// provider-specific error handling left to do here.
 
 const SYSTEM_PROMPT = `You extract structured information from a short video-content brief.
 Given the human's brief text, respond with ONLY a JSON object of the shape:
@@ -22,39 +25,19 @@ If the brief is too vague or short to identify a topic at all, respond with ONLY
 
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
-let client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  }
-  return client;
-}
-
 function extractJsonText(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   return (fenced ? fenced[1] : raw).trim();
 }
 
 export async function parseBrief(briefText: string): Promise<IntakeParsed> {
-  let raw: string;
-  try {
-    const response = await getClient().messages.create({
-      model: MODEL,
-      max_tokens: 512,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: briefText }],
-    });
-    const textBlock = response.content.find((block) => block.type === 'text');
-    raw = textBlock && 'text' in textBlock ? textBlock.text : '';
-  } catch (error) {
-    if (error instanceof Anthropic.APIConnectionError || error instanceof Anthropic.InternalServerError) {
-      throw new TransientStageError('Anthropic API connection/server error', error);
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      throw new TransientStageError('Anthropic API rate limited', error);
-    }
-    throw new NonTransientStageError('Anthropic API call failed', error);
-  }
+  const response = await callLLM({
+    purpose: 'intake-parsing',
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: briefText }],
+    maxTokens: 512,
+  });
+  const raw = response.text;
 
   let parsedJson: unknown;
   try {
@@ -87,10 +70,9 @@ export async function parseBrief(briefText: string): Promise<IntakeParsed> {
 // scripts/dry-run.ts (via INTAKE_STAGE_STUB=1) to exercise the state machine's
 // resumability mechanics and error-path plumbing without a live API key.
 //
-// Deliberately minimal, not a realistic extractor: the plan is to replace this
-// module's direct Anthropic SDK call with a provider-agnostic, per-capability
-// LLM abstraction layer, so polishing this stub further isn't worth it — it
-// will be replaced along with the real call. A brief containing the word
+// Deliberately minimal, not a realistic extractor — still needed even after
+// the Week 2 Task 3 migration onto studio/src/llm/, since no real Anthropic
+// key has been available in any session so far. A brief containing the word
 // "unparseable" exercises the needs_attention failure path; everything else
 // resolves after an artificial delay long enough to kill-and-resume mid-flight.
 export async function stubParseBrief(briefText: string): Promise<IntakeParsed> {

@@ -72,9 +72,25 @@ scripts/dry-run.ts setup/start/kill/resume  -> resumed cleanly, no duplication, 
   but nothing writes to it yet. Not required by this week's acceptance criteria; flagging so
   it isn't assumed to be live.
 
+## Addendum (2026-09-07, added by Week 2 Task 3)
+
+The LLM layer landed and `parse-brief.ts` was migrated onto it (Week 2 Tasks 1 and 3), and its
+real-call path was verified against a genuine Claude response (see
+`docs/execution/week1/reports/task5.md`'s addendum and
+`docs/execution/week2/reports/task3.md` for the full caveat about *how* — a sandbox-specific
+`ANTHROPIC_BASE_URL`, not a production key). **The kill-mid-stage resumability test itself was
+not re-attempted against a real call** — a real call now completes in ~2 seconds versus the
+stub's deliberate 8-second delay, making a reliable mid-flight kill meaningfully harder to time
+without adding an artificial delay back in, and Week 2 Task 3 explicitly marked this
+re-verification optional, not required for its own completion. The mechanism this task actually
+tests (persist-before-advance, stage-attempt bookkeeping, idempotent resume) doesn't depend on
+which function fills in the stage's `output` — it was already proven correct with a stub
+standing in for *any* slow external call — so this is a nice-to-have re-confirmation, not an
+open gap in confidence.
+
 ## Sign-Off
 
 - Task Objective: Met
 - Business Logic: Matches `BUSINESS_LOGIC.md` Section 1
-- Tests: Passing (real kill-and-restart performed, not simulated)
+- Tests: Passing (real kill-and-restart performed, not simulated); real-call variant of the same test remains optional/not done, see addendum
 - Ready for Integration: Yes
