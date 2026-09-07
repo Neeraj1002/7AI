@@ -12,10 +12,12 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
+import { insertReviewLog } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext } from './retry-with-backoff';
 import { isBudgetAvailable } from './budget-gate';
-import { generateScript, type ScriptGenerationOutput } from '../agents/script-generation';
+import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
+import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -191,6 +193,120 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
       // Advances to script_review even though Task 5 is what actually
       // processes it — same "stops here deliberately" pattern as Week 1.
       currentStage: 'script_review',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failStage(stage.id, message);
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+  }
+}
+
+// Runs (or re-runs, on resume) the script_review stage — Week 2 Task 5.
+// Deliberately lightweight: a rubric score + notes, no auto-revision loop —
+// a low score is a review outcome, not a stage failure, so only a genuine
+// technical failure (LLM error, malformed output) routes to needs_attention.
+// See docs/execution/week2/BUSINESS_LOGIC.md Section 3.
+export async function runScriptReviewStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
+  const scriptGenStage = await findLatestAttempt(runId, 'script_generation');
+  if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
+    throw new Error(
+      `PipelineRun ${runId} has no completed script_generation output — run script_generation before script_review`,
+    );
+  }
+  const scriptOutput: ScriptGenerationOutput = ScriptGenerationOutputSchema.parse(scriptGenStage.output);
+
+  await updatePipelineRun(runId, {
+    status: 'running',
+    currentStage: 'script_review',
+  });
+
+  const previousAttempt = await findLatestAttempt(runId, 'script_review');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stageInput = {
+    scriptText: scriptOutput.scriptText,
+    captions: scriptOutput.captions,
+    nicheDescription: channel.nicheDescription,
+    styleGuide: channel.styleGuide,
+  };
+
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'script_review',
+    attemptNumber,
+    input: stageInput,
+  });
+
+  // Same per-attempt metering pattern as Script Generation — every real LLM
+  // call, including retries, writes its own UsageEvent row.
+  const attemptOnce = async (): Promise<ScriptReviewOutput> => {
+    try {
+      const { output, llm } = await reviewScript(stageInput);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-review',
+        provider: llm.provider,
+        model: llm.model,
+        inputTokens: llm.usage.inputTokens,
+        outputTokens: llm.usage.outputTokens,
+        costUsd: llm.costUsd,
+      });
+      return output;
+    } catch (error) {
+      const context = getStageErrorContext(error);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-review',
+        provider: (context?.provider as string | undefined) ?? 'unknown',
+        model: (context?.model as string | undefined) ?? 'unknown',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: '0.000000',
+      });
+      throw error;
+    }
+  };
+
+  try {
+    const output = await withRetryAndCircuitBreaker(attemptOnce);
+
+    // The stage always completes once a well-formed review comes back — no
+    // score threshold gates this. Persist-before-advance, same as every
+    // other stage.
+    await completeStage(stage.id, output);
+
+    const flagsNote =
+      output.videoGenFit.flags.length > 0
+        ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
+        : '';
+    await insertReviewLog({
+      tenantId: run.tenantId,
+      channelId: run.channelId,
+      pipelineRunId: runId,
+      stageId: stage.id,
+      agent: 'script-review',
+      verdict: String(output.score),
+      rationale: `${output.notes}${flagsNote}`,
+    });
+
+    return await updatePipelineRun(runId, {
+      status: 'paused_gate1',
+      currentStage: nextStageAfter('script_review'),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

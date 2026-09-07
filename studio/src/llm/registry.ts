@@ -9,14 +9,19 @@ export type RegistryEntry = {
 // config map, not env vars or a config file — see the "Registry shape"
 // rationale in docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 //
-// Both purposes resolve to Anthropic for now, matching what Week 1's
-// parse-brief.ts already used — not yet a deliberate model-tiering decision
-// per AGENT_FLEET_DESIGN.md Section 8.1 (see Week 2 Task 3's report for that
-// discussion). Changing a purpose's model or provider is a one-line edit here,
-// never a call-site change.
+// `intake-parsing`/`script-generation` resolve to Anthropic's premium tier,
+// matching what Week 1's parse-brief.ts already used — `intake-parsing`'s
+// tiering was never a deliberate choice (see Week 2 Task 3's report), but
+// `script-generation`'s is correct as-is per AGENT_FLEET_DESIGN.md 8.1
+// ("the one place quality directly drives views, don't cost-optimize").
+// `script-review` deliberately resolves to the cheap/fast tier
+// (`claude-haiku-4-5`) per 8.1's classification/scoring row — Week 2 Task 5's
+// first real consumer. Changing a purpose's model or provider is a one-line
+// edit here, never a call-site change.
 export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   'intake-parsing': { provider: 'anthropic', model: 'claude-sonnet-5' },
   'script-generation': { provider: 'anthropic', model: 'claude-sonnet-5' },
+  'script-review': { provider: 'anthropic', model: 'claude-haiku-4-5' },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {
