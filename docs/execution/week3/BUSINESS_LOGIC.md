@@ -66,3 +66,58 @@ Every gate decision writes a `ReviewLog` row (`agent = 'human'`), same conventio
 - `AGENT_FLEET_DESIGN.md` Sections 4.2, 4.6, 8.6
 - `docs/execution/week2/BUSINESS_LOGIC.md` (the pattern this extends)
 - `docs/execution/week1/BUSINESS_LOGIC.md` Section 4 (circuit breaker, scaffolded not yet exercised)
+
+## Implementation Reconciliation (added by Week 3 Task 5)
+
+The transition table and Sections 2-4 above were confirmed accurate against what was actually
+built, end-to-end, with real (not simulated-transport) calls — see `docs/execution/week3/
+reports/task1.md` through `task5.md` for the verification detail. Deltas and confirmations
+worth recording here, since this doc is meant to describe reality, not just the plan:
+
+- **`MAX_VIDEO_REGEN_ATTEMPTS`**: proposed value **2** confirmed as-implemented (Task 3), and
+  tripped for real twice this week — once by three genuine automatic `video_review` fails in a
+  row (Task 3, run `b3109735-…`), once by a founder-requested `revise` arriving on an already
+  attempt-3 run (Task 4, same run) — confirming the shared cap applies identically to both the
+  automatic and human-triggered regen paths, per this doc's own Section 1 note.
+- **Gate 2 threading**: confirmed to reuse Gate 1's `threadKey` (the `PipelineRun.id`)
+  unchanged — no second-thread concept was needed or built, exactly as this doc's Section 4
+  anticipated.
+- **A real bug found while wiring Gate 2** (Task 4): `runVideoGenerationStage`'s fix-notes
+  lookup originally only matched a `video_review` `fail` verdict, silently missing Gate 2's own
+  `revise` verdict — a founder-requested revision's notes would never have reached the next
+  `video_generation` attempt. Fixed; see `reports/task4.md`.
+- **Idempotent resume extended to the Week 3 stages** (Task 5, same method as Week 2 Task 7):
+  `resume-on-startup.ts`'s `STAGE_RESUMERS` map now also dispatches `video_generation`,
+  `video_review`, and `gate2` (previously only `intake`/`script_generation`/`script_review`/
+  `gate1`). Verified live: a real mid-`video_generation` process kill (the actual OS process
+  tree, not just its shell wrapper — a first kill attempt that only stopped the wrapper let the
+  underlying render finish in the background undetected, a real finding in its own right) left
+  a stage row stuck at `status: 'running'` with no `UsageEvent` row; a subsequent `resume()`
+  call correctly started a fresh attempt (not a duplicate) and completed cleanly, with exactly
+  one `UsageEvent` row for the successful attempt. The failed attempt's own artifacts (a
+  truncated `.mp4`, a complete-but-orphaned `.srt`) were left in place as harmless debris — the
+  pipeline's own output pointer moves on to the new attempt's files and never reads the old
+  ones again — same accepted-debris posture as an orphaned `pipeline_stages` row elsewhere in
+  this system, not something new cleanup logic was written for.
+- **A real, wider-blast-radius recurrence of Week 2 Task 7's known finding**: `resume()`'s
+  sweep (`listRunsByStatus('running')`) picks up *every* stale running run, not just an
+  intended target — now with a larger surface, since Task 5 wired three more resumable stages.
+  Running it unscoped against a dev database with several old test fixtures still sitting at
+  `status: 'running'` re-triggered real Anthropic `video_review` calls on runs that had nothing
+  to do with the test at hand. Worked around for this task's own verification by explicitly
+  closing out unrelated stale runs first (see `scripts/close-stale-test-runs.ts`) rather than
+  changing `resume()`'s scope — the sweep-everything behavior is arguably correct for
+  production (a real crash should resume every affected run), the risk is specific to a dev
+  database accumulating manual test runs across many sessions.
+- **A related design note for whoever builds Week 4's Publishing stage**: `resume()`'s sweep
+  query (`status = 'running'`) cannot distinguish a run genuinely stuck mid-stage from one that
+  is deliberately, successfully waiting at an unbuilt frontier stage — e.g. a Gate-2-approved
+  run sitting at `currentStage = 'publishing'` with nothing to resume yet also reads as
+  `status: 'running'`. Currently harmless (no `publishing` resumer exists, so `resume()` just
+  logs and moves on for that run), but once one is added, every already-approved run will fire
+  it automatically on the next resume — likely the desired behavior, but worth a deliberate
+  decision rather than an accidental one.
+- **Video Intelligence's real verdict is not always a fail**: an organic (non-fixture) real
+  `video_review` pass was observed this task (run `c88772a8-…`, midpoint frame landed on the
+  word "feels," judged as a reasonable MVP visual for that run's topic) — confirming Task 3's
+  flashing-caption finding is a real, frequent risk, not a guaranteed failure on every run.

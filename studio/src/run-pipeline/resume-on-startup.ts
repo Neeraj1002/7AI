@@ -5,6 +5,9 @@ import {
   runScriptGenerationStage,
   runScriptReviewStage,
   runGate1Stage,
+  runVideoGenerationStage,
+  runVideoReviewStage,
+  runGate2Stage,
 } from './state-machine';
 import type { PipelineRun, StageName } from '../types';
 
@@ -27,6 +30,9 @@ const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<Pipel
   script_generation: runScriptGenerationStage,
   script_review: runScriptReviewStage,
   gate1: runGate1Stage,
+  video_generation: runVideoGenerationStage,
+  video_review: runVideoReviewStage,
+  gate2: runGate2Stage,
 };
 
 export async function resumeOnStartup(): Promise<void> {
