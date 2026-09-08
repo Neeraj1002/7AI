@@ -20,6 +20,7 @@ import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutp
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
+import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -525,6 +526,115 @@ export async function runVideoGenerationStage(runId: string): Promise<PipelineRu
     await completeStage(stage.id, output);
     return await updatePipelineRun(runId, {
       currentStage: 'video_review',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failStage(stage.id, message);
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+  }
+}
+
+// Runs (or re-runs) the video_review stage — Week 3 Task 3. Deterministic
+// checks (zero LLM cost) gate the multimodal pass; a deterministic-only fail
+// writes no UsageEvent row at all, since no LLM call happened. The regen
+// circuit breaker (BUSINESS_LOGIC.md Section 1) counts the just-reviewed
+// video_generation attempt's own attemptNumber — no new counter field needed,
+// per this task's own instruction.
+export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+  if (!run.intakeParsed) {
+    throw new Error(`PipelineRun ${runId} has no intakeParsed output`);
+  }
+
+  const videoGenStage = await findLatestAttempt(runId, 'video_generation');
+  if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run video_review`);
+  }
+  const videoOutput = videoGenStage.output as { videoPath?: string };
+  if (!videoOutput.videoPath) {
+    throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
+  }
+
+  const gate1Stage = await findLatestAttempt(runId, 'gate1');
+  const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
+    ?.sanctionedScriptText;
+  if (!sanctionedScriptText) {
+    throw new Error(`PipelineRun ${runId} has no sanctioned script text from gate1`);
+  }
+
+  await updatePipelineRun(runId, {
+    status: 'running',
+    currentStage: 'video_review',
+  });
+
+  const previousAttempt = await findLatestAttempt(runId, 'video_review');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stageInput = { videoPath: videoOutput.videoPath, topic: run.intakeParsed.topic };
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'video_review',
+    attemptNumber,
+    input: stageInput,
+  });
+
+  try {
+    const outcome = await reviewVideo({
+      videoPath: videoOutput.videoPath,
+      topic: run.intakeParsed.topic,
+      scriptText: sanctionedScriptText,
+    });
+
+    // A UsageEvent row only when the multimodal pass actually ran — a
+    // deterministic-only fail has no LLM cost to meter.
+    if (outcome.multimodalRan && outcome.llm) {
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-intelligence-own-draft',
+        provider: outcome.llm.provider,
+        model: outcome.llm.model,
+        inputTokens: outcome.llm.usage.inputTokens,
+        outputTokens: outcome.llm.usage.outputTokens,
+        costUsd: outcome.llm.costUsd,
+      });
+    }
+
+    await insertReviewLog({
+      tenantId: run.tenantId,
+      channelId: run.channelId,
+      pipelineRunId: runId,
+      stageId: stage.id,
+      agent: 'video-intelligence-own-draft',
+      verdict: outcome.verdict,
+      rationale: outcome.rationale,
+    });
+
+    await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale });
+
+    if (outcome.verdict === 'pass') {
+      return await updatePipelineRun(runId, {
+        status: 'paused_gate2',
+        currentStage: nextStageAfter('video_review'),
+      });
+    }
+
+    // Fail — regen if the just-reviewed video_generation attempt hasn't used
+    // up the regen budget yet, otherwise the circuit breaker trips.
+    if (videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS) {
+      return await updatePipelineRun(runId, {
+        status: 'running',
+        currentStage: 'video_generation',
+      });
+    }
+
+    return await updatePipelineRun(runId, {
+      status: 'needs_attention',
+      lastError: `Video Intelligence regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.rationale}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

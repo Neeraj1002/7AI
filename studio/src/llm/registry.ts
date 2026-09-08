@@ -14,14 +14,15 @@ export type RegistryEntry = {
 // tiering was never a deliberate choice (see Week 2 Task 3's report), but
 // `script-generation`'s is correct as-is per AGENT_FLEET_DESIGN.md 8.1
 // ("the one place quality directly drives views, don't cost-optimize").
-// `script-review` deliberately resolves to the cheap/fast tier
-// (`claude-haiku-4-5`) per 8.1's classification/scoring row — Week 2 Task 5's
-// first real consumer. Changing a purpose's model or provider is a one-line
-// edit here, never a call-site change.
+// `script-review` and `video-intelligence-own-draft` deliberately resolve to
+// the cheap/fast tier (`claude-haiku-4-5`, which supports image input) per
+// 8.1's classification/scoring row. Changing a purpose's model or provider
+// is a one-line edit here, never a call-site change.
 export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   'intake-parsing': { provider: 'anthropic', model: 'claude-sonnet-5' },
   'script-generation': { provider: 'anthropic', model: 'claude-sonnet-5' },
   'script-review': { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  'video-intelligence-own-draft': { provider: 'anthropic', model: 'claude-haiku-4-5' },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {

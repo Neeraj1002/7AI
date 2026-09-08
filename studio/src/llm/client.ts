@@ -40,6 +40,30 @@ function computeCostUsd(model: string, inputTokens: number, outputTokens: number
   return cost.toFixed(6);
 }
 
+// Translates this project's own LLMMessage (text + optional attachments)
+// into the AI SDK's message shape. A message with no attachments passes
+// through as a plain string (unchanged behavior for every pre-Week-3-Task-3
+// call site); one with attachments becomes a content-part array using
+// `FilePart` (not the deprecated `ImagePart`).
+function toModelMessages(messages: LLMMessage[]) {
+  return messages.map((message) => {
+    if (!message.attachments || message.attachments.length === 0) {
+      return { role: message.role, content: message.content };
+    }
+    return {
+      role: message.role,
+      content: [
+        { type: 'text' as const, text: message.content },
+        ...message.attachments.map((attachment) => ({
+          type: 'file' as const,
+          data: attachment.dataBase64,
+          mediaType: attachment.mediaType,
+        })),
+      ],
+    };
+  });
+}
+
 export async function callProviderModel(params: {
   provider: LLMProvider;
   model: string;
@@ -51,7 +75,7 @@ export async function callProviderModel(params: {
     const result = await generateText({
       model: resolveModel(params.provider, params.model),
       system: params.system,
-      messages: params.messages,
+      messages: toModelMessages(params.messages),
       maxOutputTokens: params.maxTokens,
     });
 
