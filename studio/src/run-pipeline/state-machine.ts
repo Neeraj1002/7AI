@@ -21,6 +21,7 @@ import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
+import { requestGate2Decision } from '../agents/gate2';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -433,13 +434,18 @@ export async function runVideoGenerationStage(runId: string): Promise<PipelineRu
   }
 
   // On a regen attempt, forward the most recent video_review fail's fix
-  // notes (Task 3) or a founder's Gate 2 revision notes (Task 4) — absent on
-  // a fresh run, since neither of those exists yet the first time through.
+  // notes (Task 3, verdict='fail') or a founder's Gate 2 revision notes
+  // (Task 4, verdict='revise') — absent on a fresh run, since neither of
+  // those exists yet the first time through.
   const reviewLogs = await listReviewLogsForRun(runId);
-  const latestVideoReviewFail = [...reviewLogs]
+  const latestFixNotesLog = [...reviewLogs]
     .reverse()
-    .find((log) => (log.agent === 'video-intelligence-own-draft' || log.agent === 'human') && log.verdict === 'fail');
-  const fixNotes = latestVideoReviewFail?.rationale;
+    .find(
+      (log) =>
+        (log.agent === 'video-intelligence-own-draft' && log.verdict === 'fail') ||
+        (log.agent === 'human' && log.verdict === 'revise'),
+    );
+  const fixNotes = latestFixNotesLog?.rationale;
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -641,4 +647,119 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     await failStage(stage.id, message);
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
   }
+}
+
+// Runs (or re-runs) the gate2 stage — Week 3 Task 4. By the time this runs,
+// PipelineRun.status is already `paused_gate2` (Task 3's pass verdict sets
+// it). Reuses Gate 1's notification interface and threading (same threadKey
+// = the run id) — no new transport code. See
+// docs/execution/week3/BUSINESS_LOGIC.md Section 4.
+export async function runGate2Stage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
+  const videoGenStage = await findLatestAttempt(runId, 'video_generation');
+  if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot open Gate 2`);
+  }
+  const videoPath = (videoGenStage.output as { videoPath?: string }).videoPath;
+  if (!videoPath) {
+    throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
+  }
+
+  const videoReviewStage = await findLatestAttempt(runId, 'video_review');
+  if (!videoReviewStage || videoReviewStage.status !== 'completed' || !videoReviewStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed video_review output — cannot open Gate 2`);
+  }
+  const reviewOutput = videoReviewStage.output as { verdict?: string; rationale?: string };
+  if (!reviewOutput.verdict || !reviewOutput.rationale) {
+    throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
+  }
+
+  const previousAttempt = await findLatestAttempt(runId, 'gate2');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'gate2',
+    attemptNumber,
+    input: { videoPath, verdict: reviewOutput.verdict, rationale: reviewOutput.rationale },
+  });
+
+  // Blocks here until a reply arrives (or, per Task 6/Week 2's
+  // founder-availability convention, a simulated one for testing).
+  const outcome = await requestGate2Decision({
+    runId,
+    channelName: channel.name,
+    videoPath,
+    verdict: reviewOutput.verdict,
+    rationale: reviewOutput.rationale,
+  });
+
+  if (outcome.type === 'reject') {
+    await insertReviewLog({
+      tenantId: run.tenantId,
+      channelId: run.channelId,
+      pipelineRunId: runId,
+      stageId: stage.id,
+      agent: 'human',
+      verdict: 'reject',
+      rationale: outcome.reason,
+    });
+    await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason });
+    return await updatePipelineRun(runId, {
+      status: 'failed',
+      lastError: `Rejected at Gate 2: ${outcome.reason}`,
+    });
+  }
+
+  if (outcome.type === 'approve') {
+    await insertReviewLog({
+      tenantId: run.tenantId,
+      channelId: run.channelId,
+      pipelineRunId: runId,
+      stageId: stage.id,
+      agent: 'human',
+      verdict: 'approve',
+      rationale: 'Approved as-is',
+    });
+    await completeStage(stage.id, { outcome: 'approve' });
+    return await updatePipelineRun(runId, {
+      status: 'running',
+      // Advances to publishing even though nothing processes it yet — Week 4
+      // builds it, same "stops here deliberately" pattern as every prior week.
+      currentStage: nextStageAfter('gate2'),
+    });
+  }
+
+  // Revise — a founder-requested regen respects the same attempt cap as
+  // Task 3's automatic regen loop; it doesn't bypass it.
+  await insertReviewLog({
+    tenantId: run.tenantId,
+    channelId: run.channelId,
+    pipelineRunId: runId,
+    stageId: stage.id,
+    agent: 'human',
+    verdict: 'revise',
+    rationale: outcome.notes,
+  });
+  await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes });
+
+  if (videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS) {
+    return await updatePipelineRun(runId, {
+      status: 'running',
+      currentStage: 'video_generation',
+    });
+  }
+
+  return await updatePipelineRun(runId, {
+    status: 'needs_attention',
+    lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
+  });
 }

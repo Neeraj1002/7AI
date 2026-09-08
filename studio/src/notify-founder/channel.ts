@@ -7,11 +7,18 @@
 // PipelineRun id) so an adapter can correlate a reply with the specific gate
 // it belongs to — real per-run threading, not Task 2's original "the next
 // message is the reply" placeholder, which stopped being safe the moment two
-// gates could be pending at once (now true with Gate 1 built). The reply
-// grammar itself (approve/reject[reason]/edited-text) lives in
-// studio/src/agents/gate1/, not here — this interface only carries a
-// message in and a raw reply string out.
+// gates could be pending at once (now true with Gate 1 built). Gate 2 (Week
+// 3 Task 4) reuses the same `threadKey` (the run id) as Gate 1 for the same
+// run — there's no separate "second thread" concept, both gates key off the
+// same run. The reply grammar itself (approve/reject[reason]/edited-text or
+// revision notes) lives in studio/src/agents/gate1//gate2/, not here — this
+// interface only carries a message (optionally with a local file attachment)
+// in and a raw reply string out.
 export interface FounderChannel {
   notify(message: string): Promise<void>;
-  requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }>;
+  requestApproval(params: {
+    threadKey: string;
+    message: string;
+    attachmentPath?: string;
+  }): Promise<{ reply: string }>;
 }

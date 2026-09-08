@@ -34,6 +34,7 @@ import {
   runGate1Stage,
   runVideoGenerationStage,
   runVideoReviewStage,
+  runGate2Stage,
 } from '../src/run-pipeline/state-machine';
 import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
@@ -121,6 +122,46 @@ async function gate1(runId: string, outcomeArg: string): Promise<void> {
 
   await gate1Promise;
   console.log(`[dry-run] gate1 completed via simulated '${outcomeArg}' reply`);
+}
+
+// Same no-live-round-trip convention as gate1: sends one real Telegram
+// message (with the video attached, or a too-large notice), then targets a
+// simulated reply at that exact message id.
+async function gate2(runId: string, outcomeArg: string): Promise<void> {
+  const replyText =
+    outcomeArg === 'approve'
+      ? 'approve'
+      : outcomeArg === 'reject'
+        ? 'reject dry-run test rejection reason'
+        : 'Please brighten the background and re-render.';
+
+  if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
+    throw new Error('TELEGRAM_FOUNDER_CHAT_ID not set in .env.local');
+  }
+  const chatId = Number(env.TELEGRAM_FOUNDER_CHAT_ID);
+
+  console.log(
+    `[dry-run] starting gate2 for ${runId} — sending a real Telegram message, then simulating a '${outcomeArg}' reply (no live human round-trip)`,
+  );
+
+  const gate2Promise = runGate2Stage(runId);
+
+  // Gate 2's requestApproval uploads the actual video file via sendVideo
+  // (not a lightweight sendMessage like Gate 1) — a real multi-MB upload
+  // takes longer than gate1's 10s polling window, so this waits up to 60s.
+  let sentMessageId: number | undefined;
+  for (let i = 0; i < 120 && sentMessageId === undefined; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    sentMessageId = peekPendingMessageId(runId);
+  }
+  if (sentMessageId === undefined) {
+    throw new Error('Timed out waiting for the real gate2 message to send');
+  }
+
+  await simulateIncomingTelegramMessage({ chatId, text: replyText, replyToMessageId: sentMessageId });
+
+  await gate2Promise;
+  console.log(`[dry-run] gate2 completed via simulated '${outcomeArg}' reply`);
 }
 
 // Week 2 Task 7 — proves the sequence composes with no manual step between
@@ -212,6 +253,12 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts video-review <runId>');
       await videoReview(arg);
       break;
+    case 'gate2': {
+      const outcomeArg = process.argv[4];
+      if (!arg || !outcomeArg) throw new Error('usage: dry-run.ts gate2 <runId> <approve|reject|revise>');
+      await gate2(arg, outcomeArg);
+      break;
+    }
     case 'resume':
       await resume();
       break;
@@ -221,12 +268,12 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|full|video-gen|video-review|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|full|video-gen|video-review|gate2|resume|status`,
       );
   }
 }
 
-const startedLongPollingBot = process.argv[2] === 'gate1';
+const startedLongPollingBot = process.argv[2] === 'gate1' || process.argv[2] === 'gate2';
 
 main()
   .catch((error) => {
