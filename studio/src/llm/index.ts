@@ -10,6 +10,7 @@ import { resolvePurpose } from './registry';
 import type { LLMMessage, LLMResponse, Purpose } from './types';
 
 export type { Purpose, LLMMessage, LLMResponse, LLMUsage, LLMRequest } from './types';
+export { extractJsonText } from './extract-json';
 
 export async function callLLM(req: {
   purpose: Purpose;
@@ -18,11 +19,12 @@ export async function callLLM(req: {
   maxTokens: number;
 }): Promise<LLMResponse> {
   const { provider, model } = resolvePurpose(req.purpose);
-  return callProviderModel({
+  const result = await callProviderModel({
     provider,
     model,
     system: req.system,
     messages: req.messages,
     maxTokens: req.maxTokens,
   });
+  return { ...result, provider, model };
 }

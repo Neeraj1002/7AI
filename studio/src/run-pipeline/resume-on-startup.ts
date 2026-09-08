@@ -1,13 +1,34 @@
 import { listRunsByStatus } from '../models/repositories/pipeline-run.repository';
 import { findLatestStageForRun } from '../models/repositories/pipeline-stage.repository';
-import { runIntakeStage } from './state-machine';
+import {
+  runIntakeStage,
+  runScriptGenerationStage,
+  runScriptReviewStage,
+  runGate1Stage,
+} from './state-machine';
+import type { PipelineRun, StageName } from '../types';
 
 // Idempotent resume — BUSINESS_LOGIC.md Section 1. On process start, for every
 // PipelineRun with status = 'running', look at its latest PipelineStage:
-//   - status = 'completed' -> resume at the next stage (unreachable this week —
-//     no processor exists yet for anything after intake).
-//   - status = 'running'   -> the process died mid-stage; re-run that same stage
-//     from its persisted input rather than assuming partial work happened.
+//   - status = 'completed' -> resume at the next stage (Week 1 only had
+//     `intake` real, so this branch was unreachable; Week 2 Task 7 is what
+//     makes it real, now that script_generation/script_review/gate1 exist).
+//   - status = 'running'   -> the process died mid-stage; re-run that same
+//     stage from its persisted input rather than assuming partial work
+//     happened.
+//
+// A run sitting at `paused_gate1` is NOT picked up here (only `status =
+// running` is queried) — a restart while waiting on a Telegram reply does not
+// automatically reopen the gate. That's a deliberate scope boundary, not an
+// oversight: re-sending a gate message on every restart would be surprising
+// founder-facing behavior, and nothing schedules a re-check yet this week.
+const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<PipelineRun>>> = {
+  intake: runIntakeStage,
+  script_generation: runScriptGenerationStage,
+  script_review: runScriptReviewStage,
+  gate1: runGate1Stage,
+};
+
 export async function resumeOnStartup(): Promise<void> {
   const runningRuns = await listRunsByStatus('running');
   if (runningRuns.length === 0) {
@@ -30,20 +51,29 @@ export async function resumeOnStartup(): Promise<void> {
       console.log(
         `[resume] run ${run.id}: stage '${latestStage.stageName}' (attempt ${latestStage.attemptNumber}) was mid-flight when the process stopped — re-running it from its persisted input`,
       );
-      if (latestStage.stageName === 'intake') {
-        await runIntakeStage(run.id);
+      const resumer = STAGE_RESUMERS[latestStage.stageName];
+      if (resumer) {
+        await resumer(run.id);
       } else {
         console.log(
-          `[resume] run ${run.id}: no processor wired up for stage '${latestStage.stageName}' yet (Week 1 skeleton) — leaving as-is`,
+          `[resume] run ${run.id}: no processor wired up for stage '${latestStage.stageName}' yet — leaving as-is`,
         );
       }
       continue;
     }
 
     if (latestStage.status === 'completed') {
-      console.log(
-        `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — currentStage='${run.currentStage}' has no processor wired up yet this week`,
-      );
+      const nextResumer = run.currentStage ? STAGE_RESUMERS[run.currentStage] : undefined;
+      if (nextResumer) {
+        console.log(
+          `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — resuming at '${run.currentStage}'`,
+        );
+        await nextResumer(run.id);
+      } else {
+        console.log(
+          `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — currentStage='${run.currentStage}' has no processor wired up yet`,
+        );
+      }
       continue;
     }
 

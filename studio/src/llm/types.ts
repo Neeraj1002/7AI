@@ -1,11 +1,10 @@
 // This project's own LLM request/response/purpose types — never the underlying
 // library's. See docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 
-// Seeded with the two purposes that exist or are about to (Intake parsing, and
-// Script Generation coming later this week) — not the full set the decision
-// doc names as eventually coming (script-review, video-intelligence-own-draft).
+// Seeded with the purposes that exist so far — not the full set the decision
+// doc names as eventually coming (video-intelligence-own-draft, etc).
 // Add a purpose here, plus a registry.ts entry, when its call site actually exists.
-export const PURPOSES = ['intake-parsing', 'script-generation'] as const;
+export const PURPOSES = ['intake-parsing', 'script-generation', 'script-review'] as const;
 export type Purpose = (typeof PURPOSES)[number];
 
 export const LLM_PROVIDERS = ['anthropic'] as const;
@@ -28,8 +27,23 @@ export type LLMUsage = {
   outputTokens: number;
 };
 
-export type LLMResponse = {
+// What client.ts returns — provider/model aren't included here since the
+// caller (client.ts) already received them as params; index.ts attaches them
+// to form the public LLMResponse below.
+export type ProviderCallResult = {
   text: string;
   usage: LLMUsage;
   stopReason: string;
+  // NUMERIC as string, matching UsageEvent.costUsd's DB representation —
+  // computed in client.ts from token counts and registry.ts's pricing table,
+  // per docs/execution/week2/SCHEMA.md's "Where costUsd comes from" note.
+  costUsd: string;
+};
+
+// Public response shape from callLLM — includes which provider+model actually
+// resolved for this purpose, so call sites can write a UsageEvent row without
+// importing registry.ts directly (only index.ts/client.ts may).
+export type LLMResponse = ProviderCallResult & {
+  provider: LLMProvider;
+  model: string;
 };

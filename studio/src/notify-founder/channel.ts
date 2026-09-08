@@ -3,12 +3,15 @@
 // on this, never on a specific channel (e.g. Telegram) directly — see
 // docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 //
-// Deliberately minimal for Week 2: "send the founder a message, optionally
-// wait for and return a reply" — not the full Gate 1 UX (the three-reply-command
-// grammar, per-run threading). This gets revised once Gate 1's actual
-// requirements are known (MVP_ROADMAP_OCT15.md Section 17); treat this
-// signature as provisional, not final.
+// `requestApproval` takes a `threadKey` (Week 2 Task 6: Gate 1 passes the
+// PipelineRun id) so an adapter can correlate a reply with the specific gate
+// it belongs to — real per-run threading, not Task 2's original "the next
+// message is the reply" placeholder, which stopped being safe the moment two
+// gates could be pending at once (now true with Gate 1 built). The reply
+// grammar itself (approve/reject[reason]/edited-text) lives in
+// studio/src/agents/gate1/, not here — this interface only carries a
+// message in and a raw reply string out.
 export interface FounderChannel {
   notify(message: string): Promise<void>;
-  requestApproval(message: string): Promise<{ reply: string }>;
+  requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }>;
 }
