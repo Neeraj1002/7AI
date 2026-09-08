@@ -14,7 +14,10 @@ function toDomainUsageEvent(row: PrismaUsageEvent): UsageEvent {
     model: row.model,
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
+    characterCount: row.characterCount,
+    audioDurationSeconds: row.audioDurationSeconds ? row.audioDurationSeconds.toString() : null,
     costUsd: row.costUsd.toString(),
+    metadata: (row.metadata as Record<string, unknown> | null) ?? null,
     createdAt: row.createdAt,
   };
 }
@@ -31,7 +34,10 @@ export async function insertUsageEvent(input: CreateUsageEventInput): Promise<Us
       model: input.model,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
+      characterCount: input.characterCount,
+      audioDurationSeconds: input.audioDurationSeconds as Prisma.Decimal.Value | undefined,
       costUsd: input.costUsd as Prisma.Decimal.Value,
+      metadata: input.metadata as Prisma.InputJsonValue | undefined,
     },
   });
   return toDomainUsageEvent(row);

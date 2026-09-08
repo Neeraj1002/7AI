@@ -32,6 +32,7 @@ import {
   runScriptGenerationStage,
   runScriptReviewStage,
   runGate1Stage,
+  runVideoGenerationStage,
 } from '../src/run-pipeline/state-machine';
 import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
@@ -140,6 +141,12 @@ async function full(briefText: string): Promise<void> {
   console.log(`runId=${run.id}`);
 }
 
+async function videoGen(runId: string): Promise<void> {
+  console.log(`[dry-run] starting video_generation for ${runId}`);
+  await runVideoGenerationStage(runId);
+  console.log('[dry-run] video_generation completed without interruption');
+}
+
 async function resume(): Promise<void> {
   await resumeOnStartup();
   console.log('[dry-run] resume pass complete');
@@ -190,6 +197,10 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts full "<brief text>"');
       await full(arg);
       break;
+    case 'video-gen':
+      if (!arg) throw new Error('usage: dry-run.ts video-gen <runId>');
+      await videoGen(arg);
+      break;
     case 'resume':
       await resume();
       break;
@@ -199,7 +210,7 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|full|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|full|video-gen|resume|status`,
       );
   }
 }

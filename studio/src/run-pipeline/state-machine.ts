@@ -19,6 +19,7 @@ import { isBudgetAvailable } from './budget-gate';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
+import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -402,8 +403,132 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
 
   return await updatePipelineRun(runId, {
     status: 'running',
-    // Advances to video_generation even though nothing processes it yet —
-    // Week 3 builds it, same "stops here deliberately" pattern as Week 1.
     currentStage: nextStageAfter('gate1'),
   });
+}
+
+// Runs (or re-runs, on resume/regen) the video_generation stage — Week 3 Task
+// 2. Same budget-gate + per-attempt-metering pattern as Script Generation
+// (Week 2 Task 4), now also gating the pipeline's most expensive stage. See
+// docs/execution/week3/BUSINESS_LOGIC.md Section 2.
+export async function runVideoGenerationStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
+  const gate1Stage = await findLatestAttempt(runId, 'gate1');
+  if (!gate1Stage || gate1Stage.status !== 'completed' || !gate1Stage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed gate1 output — cannot run video_generation`);
+  }
+  const sanctionedScriptText = (gate1Stage.output as { sanctionedScriptText?: string }).sanctionedScriptText;
+  if (!sanctionedScriptText) {
+    throw new Error(`PipelineRun ${runId}'s gate1 output has no sanctionedScriptText`);
+  }
+
+  // On a regen attempt, forward the most recent video_review fail's fix
+  // notes (Task 3) or a founder's Gate 2 revision notes (Task 4) — absent on
+  // a fresh run, since neither of those exists yet the first time through.
+  const reviewLogs = await listReviewLogsForRun(runId);
+  const latestVideoReviewFail = [...reviewLogs]
+    .reverse()
+    .find((log) => (log.agent === 'video-intelligence-own-draft' || log.agent === 'human') && log.verdict === 'fail');
+  const fixNotes = latestVideoReviewFail?.rationale;
+
+  await updatePipelineRun(runId, {
+    status: 'running',
+    currentStage: 'video_generation',
+  });
+
+  const previousAttempt = await findLatestAttempt(runId, 'video_generation');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stageInput = {
+    scriptText: sanctionedScriptText,
+    brandAssets: channel.brandAssets,
+    fixNotes: fixNotes ?? null,
+  };
+
+  // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
+  // Script Generation, now also covering the pipeline's most expensive stage.
+  const budgetOk = await isBudgetAvailable(run.tenantId, channel.platform);
+  if (!budgetOk) {
+    await createSkippedStageAttempt({
+      pipelineRunId: runId,
+      stageName: 'video_generation',
+      attemptNumber,
+      input: stageInput,
+      reason: 'AgentQuota.budgetCeilingUsd would be exceeded',
+    });
+    return await updatePipelineRun(runId, {
+      status: 'needs_attention',
+      lastError: 'Video Generation refused: AgentQuota.budgetCeilingUsd would be exceeded',
+    });
+  }
+
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'video_generation',
+    attemptNumber,
+    input: stageInput,
+  });
+
+  // Same per-attempt metering pattern as Script Generation/Review — every
+  // real attempt, including retries, writes its own (aggregated) UsageEvent
+  // row.
+  const attemptOnce = async (): Promise<VideoGenerationOutput> => {
+    try {
+      const { output, usage } = await generateVideo({
+        pipelineRunId: runId,
+        attemptNumber,
+        scriptText: sanctionedScriptText,
+        brandAssets: channel.brandAssets,
+        fixNotes: fixNotes ?? undefined,
+      });
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-generation',
+        provider: usage.provider,
+        model: usage.model,
+        characterCount: usage.characterCount,
+        audioDurationSeconds: usage.audioDurationSeconds.toFixed(2),
+        costUsd: usage.costUsd,
+        metadata: usage.metadata,
+      });
+      return output;
+    } catch (error) {
+      const context = getStageErrorContext(error);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-generation',
+        provider: (context?.provider as string | undefined) ?? 'unknown',
+        model: (context?.model as string | undefined) ?? 'unknown',
+        costUsd: '0.000000',
+      });
+      throw error;
+    }
+  };
+
+  try {
+    const output = await withRetryAndCircuitBreaker(attemptOnce);
+
+    await completeStage(stage.id, output);
+    return await updatePipelineRun(runId, {
+      currentStage: 'video_review',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failStage(stage.id, message);
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+  }
 }
