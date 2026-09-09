@@ -47,6 +47,49 @@ Two distinct behaviors, not one: (a) an initial snapshot taken right after Publi
 ### Output
 A `PerformanceSnapshot` row per poll, per `docs/execution/week4/SCHEMA.md`.
 
+## Implementation Reconciliation (added by Week 4 Task 4)
+
+The transition table and Sections 2-3 above were confirmed accurate against what was actually
+built and exercised — see `docs/execution/week4/reports/task1.md` through `task4.md`. Deltas and
+confirmations worth recording here, since this doc is meant to describe reality, not just the plan:
+
+- **`metadata-generation`'s tier**: resolved to `claude-haiku-4-5`, not a new mid-tier model —
+  the registry's existing mid-tier example (`script-review`'s revision notes) already resolves to
+  the cheap/fast model, so this followed that precedent rather than introducing a third pricing
+  tier unprompted. Same judgment call made for Task 1's `video-production-planning` purpose. See
+  `reports/task1.md`/`task2.md`.
+- **Publishing's real, non-repeatable side effect required a new resumability mechanism** not
+  anticipated when this doc was first written: every earlier stage's resumability story was
+  "redo the work, it's idempotent-enough." A second `videos.insert` call is a genuinely duplicate
+  video, not just wasted spend. `pipeline-stage.repository.ts` gained `recordStageProgress` — a
+  durable mid-attempt checkpoint written the moment a real upload succeeds, before the stage is
+  marked complete. `runPublishingStage` checks for this checkpoint before ever calling
+  `uploadVideo` again. See `reports/task2.md`.
+- **`completed` reached for real for the first time** (Task 3): `runAnalyticsStage`'s initial
+  snapshot confirmed to advance `PipelineRun.status` to `completed`, `currentStage` to `null`,
+  exactly as Section 1's transition table specifies.
+- **Idempotent resume extended to `publishing`/`analytics`** (Task 4, same method as Week 2 Task 7
+  and Week 3 Task 5): `resume-on-startup.ts`'s `STAGE_RESUMERS` map now dispatches both. Verified
+  live with a genuine mid-`publishing` process kill — see the note below on this project's
+  recurring "kill the wrapper, not the real process" pitfall, which bit again here exactly as it
+  did in Week 3 Task 5, and was caught and corrected the same way.
+- **A real, live recurrence of the already-flagged "`resume()` sweeps every stale running run"
+  risk** (`docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §2): two genuine leftover Week 3 test runs,
+  sitting at `currentStage = 'publishing'` since before this week's resumer existed (exactly the
+  scenario that entry predicted), were swept up and completed for real by this task's `resume()`
+  calls — a small amount of unintended real Anthropic spend (`metadata-generation` calls) and two
+  stub YouTube uploads for runs that were never meant to publish. Harmless in outcome (both
+  completed cleanly, no duplicate uploads), but a live confirmation that the flagged risk is now
+  materially live, not theoretical, now that a `publishing` resumer exists. Still not fixed —
+  remains a deliberate product decision to make, per that doc's own framing.
+- **The "kill the wrapper, not the real process" pitfall recurred, and was caught.** A first kill
+  attempt used `TaskStop` against the backgrounded shell task; the actual `node.exe` several
+  layers deep (npx → tsx CLI → the real runtime) kept running undetected and completed the test
+  delay on its own, exactly the same failure mode Week 3 Task 5 already hit once. Caught by
+  checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing all
+  three node processes in the tree directly. Worth a permanent note: on Windows, stopping a
+  background *task* here does not reliably stop the *process tree* it spawned.
+
 ## Reference
 - `MVP_ROADMAP_OCT15.md` Sections 5.1 (Intake), 8.3, 12, 13
 - `AGENT_FLEET_DESIGN.md` Sections 4.7, 4.8, 8.1

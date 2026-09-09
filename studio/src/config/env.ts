@@ -47,6 +47,12 @@ const EnvSchema = z.object({
   // real-time"). Defaults to 6 hours; a dry-run/test invocation calls the
   // poll function directly rather than waiting on this interval.
   ANALYTICS_POLL_INTERVAL_MS: z.coerce.number().optional().default(6 * 60 * 60 * 1000),
+  // Testing-only: when > 0, runPublishingStage sleeps this long after
+  // checkpointing a successful upload (recordStageProgress) but before
+  // completing the stage — a deliberate window to kill the process in and
+  // verify resume doesn't re-upload. Zero (default) in every real run; only
+  // ever set by a live Week 4 Task 4 kill/resume test.
+  PUBLISHING_TEST_KILL_DELAY_MS: z.coerce.number().optional().default(0),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

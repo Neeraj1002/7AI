@@ -952,6 +952,15 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const fullOutput = { youtubeVideoId: uploadResult.youtubeVideoId, privacyStatus: uploadResult.privacyStatus, metadata };
     await recordStageProgress(stage.id, fullOutput);
 
+    // Test-only: see PUBLISHING_TEST_KILL_DELAY_MS's own comment in env.ts.
+    // Zero (a no-op) in every real run.
+    if (env.PUBLISHING_TEST_KILL_DELAY_MS > 0) {
+      console.log(
+        `[publishing] TEST MODE: sleeping ${env.PUBLISHING_TEST_KILL_DELAY_MS}ms after checkpointing youtubeVideoId=${uploadResult.youtubeVideoId}, before completing the stage — kill the process now to test resume-safety`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, env.PUBLISHING_TEST_KILL_DELAY_MS));
+    }
+
     await completeStage(stage.id, fullOutput);
     return await updatePipelineRun(runId, {
       currentStage: 'analytics',
