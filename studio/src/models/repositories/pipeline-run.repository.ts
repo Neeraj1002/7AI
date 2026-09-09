@@ -49,6 +49,27 @@ export async function listRunsByStatus(status: PipelineRunStatus): Promise<Pipel
   return rows.map(toDomainRun);
 }
 
+// Backs the API's GET /runs (frontend track Task 1) and the Queue screen
+// (Task 2), which both need multi-status filtering (e.g. "any of
+// paused_gate1/paused_gate2/needs_attention") — listRunsByStatus above only
+// takes one status, kept as-is since resume-on-startup.ts already depends on
+// its exact signature.
+export async function listRuns(params: {
+  statuses?: PipelineRunStatus[];
+  stage?: StageName;
+  channelId?: string;
+}): Promise<PipelineRun[]> {
+  const rows = await prisma.pipelineRun.findMany({
+    where: {
+      ...(params.statuses && params.statuses.length > 0 && { status: { in: params.statuses } }),
+      ...(params.stage && { currentStage: params.stage }),
+      ...(params.channelId && { channelId: params.channelId }),
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+  return rows.map(toDomainRun);
+}
+
 export type PipelineRunPatch = Partial<{
   status: PipelineRunStatus;
   currentStage: StageName | null;

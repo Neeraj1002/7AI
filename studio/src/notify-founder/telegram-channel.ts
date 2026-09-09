@@ -116,6 +116,20 @@ export class TelegramFounderChannel implements FounderChannel {
     });
     return { reply };
   }
+
+  // Frontend track Task 1 — see FounderChannel.resolvePendingApproval's own
+  // comment. Checks and deletes `pendingByThreadKey` in one synchronous pass
+  // (no `await` in between), so a Telegram reply arriving in the same tick
+  // can't interleave with this and double-resolve the same gate.
+  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
+    const pending = pendingByThreadKey.get(threadKey);
+    if (!pending) {
+      return { resolved: false };
+    }
+    pendingByThreadKey.delete(threadKey);
+    pending.resolve(reply);
+    return { resolved: true };
+  }
 }
 
 // Starts the receive loop without sending anything — used at boot so incoming

@@ -30,6 +30,18 @@ export async function findLatestStageForRun(pipelineRunId: string): Promise<Pipe
   return row ? toDomainStage(row) : null;
 }
 
+// Full stage history for a run (every attempt, every stage name) — backs the
+// API's run-detail endpoint (frontend track Task 1), which needs the whole
+// timeline, not just the latest attempt per stage the way the state machine
+// itself does.
+export async function listStagesForRun(pipelineRunId: string): Promise<PipelineStage[]> {
+  const rows = await prisma.pipelineStage.findMany({
+    where: { pipelineRunId },
+    orderBy: [{ createdAt: 'asc' }],
+  });
+  return rows.map(toDomainStage);
+}
+
 export async function findLatestAttempt(
   pipelineRunId: string,
   stageName: StageName,
