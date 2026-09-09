@@ -1,16 +1,16 @@
 # Frontend Track Status: Mobile App (API Layer, App Scaffold, Dashboard)
 
-**Track status**: Task 1 (API layer) complete and proven end-to-end against the real orchestrator, Postgres, and Telegram bot. Tasks 2–3 not started.
-**Last updated**: 2026-09-09 (after Task 1)
+**Track status**: Tasks 1–2 complete, both proven end-to-end against the real orchestrator, Postgres, and (Task 1) the Telegram bot. Task 3 not started.
+**Last updated**: 2026-09-09 (after Task 2)
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
 | 1 | API Layer (tRPC + Fastify, Auth, Gate Resolution, Run Creation) | Done | Claude Code | Gate 2 endpoint implemented but not independently proven end-to-end this session (video-generation stub kept tripping the 60s Shorts-length check before reaching Gate 2) — see `reports/task1.md` Deviation 7. |
-| 2 | App Scaffold + Core Screens | Not started | — | Blocked on nothing — Task 1's API is live and documented. |
-| 3 | Dashboard Screen | Not started | — | Blocked on Task 2 (shares its app shell/nav/auth). |
+| 2 | App Scaffold + Core Screens | Done | Claude Code | Real E2E proof (New Brief → Gate 1 approve → Postgres-confirmed advance) done via `expo start --web` in the Browser tool, not a real Expo Go simulator/device (none available in this environment) — see `reports/task2.md` Deviation 1. Gate 2/video playback UI implemented and type-checked but not live-proven, same underlying reason as Task 1. |
+| 3 | Dashboard Screen | Not started | — | Blocked on nothing — Task 2's app shell/nav/auth are in place. |
 
 ## Full detail
-Per-task reports: `reports/task1.md`. Full narrative (once the initial three tasks close out): `reports/frontend-summary.md`.
+Per-task reports: `reports/task1.md`, `reports/task2.md`. Full narrative (once the initial three tasks close out): `reports/frontend-summary.md`.
 
 ## Working-directory note
 
