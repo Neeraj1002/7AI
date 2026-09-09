@@ -120,10 +120,11 @@ const MultimodalVerdictSchema = z.object({
 
 const SYSTEM_PROMPT = `You are reviewing a single representative frame from a short vertical video
 (a YouTube Short) before it's approved for publishing, alongside the topic and script it's
-based on. Judge whether the frame is reasonable for this content — not blank, not corrupted,
-and roughly consistent with the described topic and tone (a solid-color template background is
-an acceptable, deliberately simple MVP visual — judge whether it's a *reasonable* backdrop, not
-whether it's visually impressive).
+based on. Judge whether the frame is reasonable for this content — not blank, not corrupted, not
+showing only a fragment of a caption word, and roughly consistent with the described topic and
+tone (the background is real licensed stock footage chosen for the topic, not a custom shoot —
+judge whether it's a *reasonable* backdrop for this content, not whether it's visually
+impressive).
 
 Respond with ONLY a JSON object: {"verdict": "pass" | "fail", "notes": string}
 "notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.

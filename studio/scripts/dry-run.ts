@@ -35,7 +35,11 @@ import {
   runVideoGenerationStage,
   runVideoReviewStage,
   runGate2Stage,
+  runPublishingStage,
+  runAnalyticsStage,
 } from '../src/run-pipeline/state-machine';
+import { runPeriodicPoll } from '../src/agents/performance-analytics';
+import type { ProductionPlan } from '../src/agents/video-generation/plan';
 import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
 
@@ -85,13 +89,13 @@ async function scriptReview(runId: string): Promise<void> {
 // reply. It sends one real message (proving the "send" half works), then
 // feeds a simulated incoming update through the real handleUpdate path
 // (proving the parsing/resume logic works) — never both halves faked.
-async function gate1(runId: string, outcomeArg: string): Promise<void> {
+async function gate1(runId: string, outcomeArg: string, editText?: string): Promise<void> {
   const replyText =
     outcomeArg === 'approve'
       ? 'approve'
       : outcomeArg === 'reject'
         ? 'reject dry-run test rejection reason'
-        : 'This is a dry-run edited script, replacing the original AI draft.';
+        : (editText ?? 'This is a dry-run edited script, replacing the original AI draft.');
 
   if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
     throw new Error('TELEGRAM_FOUNDER_CHAT_ID not set in .env.local');
@@ -122,6 +126,19 @@ async function gate1(runId: string, outcomeArg: string): Promise<void> {
 
   await gate1Promise;
   console.log(`[dry-run] gate1 completed via simulated '${outcomeArg}' reply`);
+}
+
+// Week 2 Task 6's still-open criterion, closed for real here: sends the real
+// Telegram message and then genuinely blocks on requestApproval's real
+// pending-reply promise — no simulateIncomingTelegramMessage call at all.
+// Resolves only when an actual human reply arrives via the bot's real
+// long-polling handleUpdate path.
+async function gate1Live(runId: string): Promise<void> {
+  console.log(
+    `[dry-run] starting REAL gate1 round trip for ${runId} — sending a real Telegram message and waiting for an actual human reply (no simulation)`,
+  );
+  const run = await runGate1Stage(runId);
+  console.log(`[dry-run] gate1 resolved via a REAL human reply — PipelineRun.status=${run.status}, currentStage=${run.currentStage}`);
 }
 
 // Same no-live-round-trip convention as gate1: sends one real Telegram
@@ -195,6 +212,75 @@ async function videoReview(runId: string): Promise<void> {
   console.log('[dry-run] video_review completed without interruption');
 }
 
+// Week 4 Task 1's actual regression test: deliberately reproduces Week 3
+// Task 3's real failure (word-flash captions + midpoint-frame sampling
+// reading as a partial word), by forcing attempt 1's production plan rather
+// than hoping a real, unbiased planning call happens to reproduce it (the
+// new planning prompt actively steers away from word-flash by default, which
+// is the fix — so it shouldn't be relied on to fail organically anymore).
+// Attempt 2, by contrast, is NOT forced — it's a fully real planning call
+// driven by real fixNotes from the real video_review failure this produces,
+// which is what actually proves the loop closes.
+async function videoGenRegression(runId: string): Promise<void> {
+  const run = await prisma.pipelineRun.findUnique({ where: { id: runId } });
+  if (!run) throw new Error(`PipelineRun ${runId} not found`);
+  const topic = (run.intakeParsed as { topic?: string } | null)?.topic ?? 'abstract background';
+
+  const forcedPlan: ProductionPlan = {
+    stockFootageQuery: topic.split(/\s+/).slice(0, 4).join(' ') || 'abstract background',
+    captionStyle: 'word-flash',
+    pacingNotes: 'flash each word individually for punchy pacing',
+    rationale:
+      "Regression-test forced plan (dry-run.ts video-gen-regression) — deterministically reproduces Week 3 Task 3's flashing-caption/partial-word review failure so the real regen loop can be exercised against it.",
+  };
+
+  console.log('[dry-run] video-gen-regression: forcing attempt 1 to word-flash captions (test override, not a real planning call)');
+  await runVideoGenerationStage(runId, { forcedPlan });
+  console.log('[dry-run] attempt 1 (forced word-flash) rendered — running video_review');
+  const run1 = await runVideoReviewStage(runId);
+  console.log(`[dry-run] attempt 1 review verdict -> PipelineRun.status=${run1.status}, currentStage=${run1.currentStage}`);
+
+  if (run1.status !== 'running' || run1.currentStage !== 'video_generation') {
+    console.log(
+      '[dry-run] attempt 1 did NOT fail review (or the regen cap was already exhausted) — no regen to observe on this run. Reporting the actual outcome rather than forcing a narrative.',
+    );
+    return;
+  }
+
+  console.log('[dry-run] attempt 1 failed review as expected — running a REAL attempt 2 (no override), driven by real fixNotes');
+  await runVideoGenerationStage(runId);
+  const run2 = await runVideoReviewStage(runId);
+  console.log(`[dry-run] attempt 2 review verdict -> PipelineRun.status=${run2.status}, currentStage=${run2.currentStage}`);
+
+  const attempts = await prisma.pipelineStage.findMany({
+    where: { pipelineRunId: runId, stageName: 'video_generation' },
+    orderBy: { attemptNumber: 'asc' },
+  });
+  for (const attempt of attempts) {
+    const output = attempt.output as { plan?: ProductionPlan; videoPath?: string } | null;
+    console.log(
+      `[dry-run] video_generation attempt ${attempt.attemptNumber}: captionStyle=${output?.plan?.captionStyle}, stockFootageQuery="${output?.plan?.stockFootageQuery}", videoPath=${output?.videoPath}`,
+    );
+  }
+}
+
+async function publish(runId: string): Promise<void> {
+  console.log(`[dry-run] starting publishing for ${runId}`);
+  await runPublishingStage(runId);
+  console.log('[dry-run] publishing completed without interruption');
+}
+
+async function analytics(runId: string): Promise<void> {
+  console.log(`[dry-run] starting analytics for ${runId}`);
+  await runAnalyticsStage(runId);
+  console.log('[dry-run] analytics completed without interruption');
+}
+
+async function poll(): Promise<void> {
+  const result = await runPeriodicPoll();
+  console.log(`[dry-run] periodic poll: polled=${result.polled}, skipped=${result.skipped}`);
+}
+
 async function resume(): Promise<void> {
   await resumeOnStartup();
   console.log('[dry-run] resume pass complete');
@@ -237,10 +323,15 @@ async function main(): Promise<void> {
       break;
     case 'gate1': {
       const outcomeArg = process.argv[4];
-      if (!arg || !outcomeArg) throw new Error('usage: dry-run.ts gate1 <runId> <approve|reject|edit>');
-      await gate1(arg, outcomeArg);
+      const editText = process.argv[5];
+      if (!arg || !outcomeArg) throw new Error('usage: dry-run.ts gate1 <runId> <approve|reject|edit> ["<edit text>"]');
+      await gate1(arg, outcomeArg, editText);
       break;
     }
+    case 'gate1-live':
+      if (!arg) throw new Error('usage: dry-run.ts gate1-live <runId>');
+      await gate1Live(arg);
+      break;
     case 'full':
       if (!arg) throw new Error('usage: dry-run.ts full "<brief text>"');
       await full(arg);
@@ -253,12 +344,27 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts video-review <runId>');
       await videoReview(arg);
       break;
+    case 'video-gen-regression':
+      if (!arg) throw new Error('usage: dry-run.ts video-gen-regression <runId>');
+      await videoGenRegression(arg);
+      break;
     case 'gate2': {
       const outcomeArg = process.argv[4];
       if (!arg || !outcomeArg) throw new Error('usage: dry-run.ts gate2 <runId> <approve|reject|revise>');
       await gate2(arg, outcomeArg);
       break;
     }
+    case 'publish':
+      if (!arg) throw new Error('usage: dry-run.ts publish <runId>');
+      await publish(arg);
+      break;
+    case 'analytics':
+      if (!arg) throw new Error('usage: dry-run.ts analytics <runId>');
+      await analytics(arg);
+      break;
+    case 'poll':
+      await poll();
+      break;
     case 'resume':
       await resume();
       break;
@@ -268,12 +374,13 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|full|video-gen|video-review|gate2|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|publish|analytics|poll|resume|status`,
       );
   }
 }
 
-const startedLongPollingBot = process.argv[2] === 'gate1' || process.argv[2] === 'gate2';
+const startedLongPollingBot =
+  process.argv[2] === 'gate1' || process.argv[2] === 'gate1-live' || process.argv[2] === 'gate2';
 
 main()
   .catch((error) => {

@@ -151,6 +151,7 @@ Each agent below follows the same template: **Mission → Pipeline Position → 
 - **Core responsibilities** *(updated)*: Score against the quality/engagement/clarity/brand rubric; **also check the script is actually producible by Video Generation** — runtime fits the platform's length limit, pacing (beats/scene changes) is realistic for a Short, and any described visuals/shots are things the video-gen toolchain can actually generate — flagging anything that would pass a quality bar but fail or blow the budget at rendering.
 - **Cost notes**: cheap-tier rubric scoring, gates the expensive Video Generation step — the video-generation-fit check specifically is what keeps 4.6 from discovering a problem only after spending render cost on it.
 - **MVP status**: **In MVP, kept lightweight** — a rubric score + notes, not an auto-revision loop, for the first test. Auto-revision can be added once the basic gate is proven.
+- **Open questions** *(new, 2026-09-08)*: the rubric (quality/engagement/clarity/brand/video-gen-fit) does not check **factual accuracy**. Surfaced by a real Week 2 test run — a script about hummingbird flight biomechanics — that happened to hold up under a manual fact-check, but nothing in the pipeline would have caught it if it hadn't. For a "science/nature educational" niche in particular, an unreviewed factual error reaching Gate 1 (or worse, publication) is a real reputational risk, not a hypothetical one. Not yet decided whether this becomes a rubric addition (a documentation/search-grounded fact-check pass, likely cheap/fast tier per 8.1 for narrow factual claims) or stays the founder's manual responsibility at the approval gates — worth deciding before autonomy is increased on any channel, since the human gate is currently the only fact-check that exists.
 
 ### 4.6 Video Generation Agent
 
@@ -159,6 +160,7 @@ Each agent below follows the same template: **Mission → Pipeline Position → 
 - **Cost notes**: dominant cost center in the fleet (unchanged reasoning).
 - **MVP status**: **In MVP, deliberately simplified.** For the first test: TTS voiceover + auto-captions + simple visual assembly (stock imagery/template motion, not generative AI video) — see the roadmap doc's risk section for why this is the recommended MVP approach rather than a full AI-video pipeline.
 - **Open questions**: which TTS + assembly toolchain to spike first (roadmap doc, this week).
+- **Update (2026-09-09)**: real Week 3 testing showed the review→regen loop wasn't actually closing — Video Generation had no decision-making step for a review's `fixNotes` to change, so a rejected video just re-ran the identical deterministic pipeline (a real run failed the same way three times in a row before hitting the circuit breaker). See `docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md` for the fix (a production-planning LLM step ahead of assembly) and the two-path visual strategy this section's "stock imagery" framing is now made concrete by: Path A (stock footage + TTS, approved as the near-term build target) vs. Path B (generative/character-consistent video, deliberately deferred).
 
 ### 4.7 Publishing Agent
 
@@ -272,10 +274,12 @@ Unchanged design from prior revision. **MVP status: deferred** — this exists t
 
 | Task shape | Example agents/steps | Model tier | Why |
 |---|---|---|---|
-| Classification / scoring / extraction | Trend scoring, Video Intelligence pattern tagging, Script Review rubric scoring, Video Intelligence own-draft pass/fail | Cheap/fast | High call volume, low marginal value per call. |
+| Classification / scoring / extraction | Intake parsing, Trend scoring, Video Intelligence pattern tagging, Script Review rubric scoring, Video Intelligence own-draft pass/fail | Cheap/fast | High call volume, low marginal value per call. |
 | Reasoning / explanation | Content Prediction's "why," Script Review's revision notes | Mid-tier | Read by a human or another agent, not the end viewer. |
 | Creative generation | Script Generation | **Premium** | The one place quality directly drives views. Don't cost-optimize this step. |
 | Media generation | Video Generation (TTS, visuals, rendering) | N/A — dominated by provider/render cost, not tokens | See 8.4. |
+
+**Known deviation from this table** *(flagged 2026-09-08, by Week 2 Task 3)*: `intake-parsing` is classified above as extraction → cheap/fast tier, but `studio/src/llm/registry.ts`'s actual entry still resolves it to `claude-sonnet-5` (premium) — inherited unchanged from Week 1's original default, never a deliberate tiering choice. Not corrected as part of Task 3 (flagged as a note for whoever picks up model-tiering work, not a scope change for that task). Low cost impact today — Intake is one small call per run — but worth fixing before call volume grows, and before Script Review's own tier gets re-examined for the same reason (Script Review is already on `claude-haiku-4-5`, correctly, so this deviation is Intake-specific, not systemic).
 
 ### 8.2 Shared ingestion & caching (Section 7)
 

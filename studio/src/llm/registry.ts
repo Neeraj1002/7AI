@@ -18,11 +18,24 @@ export type RegistryEntry = {
 // the cheap/fast tier (`claude-haiku-4-5`, which supports image input) per
 // 8.1's classification/scoring row. Changing a purpose's model or provider
 // is a one-line edit here, never a call-site change.
+//
+// `video-production-planning` (Week 4 Task 1) and `metadata-generation`
+// (Week 4 Task 2) are both "reasoning/explanation"-shaped per 8.1's table
+// (read by the assembler/founder, not the end viewer) — nominally mid-tier,
+// not cheap/fast classification and not Script Generation's premium
+// creative-generation tier. But 8.1's own mid-tier example ("Script Review's
+// revision notes") already resolves to `claude-haiku-4-5` in this registry —
+// no distinct mid-tier model has ever actually been added. Rather than
+// introduce a third pricing tier unprompted, both follow that same existing
+// precedent. Flagged in both tasks' reports as a judgment call, same
+// treatment as `intake-parsing`'s tier before it.
 export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   'intake-parsing': { provider: 'anthropic', model: 'claude-sonnet-5' },
   'script-generation': { provider: 'anthropic', model: 'claude-sonnet-5' },
   'script-review': { provider: 'anthropic', model: 'claude-haiku-4-5' },
   'video-intelligence-own-draft': { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  'video-production-planning': { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  'metadata-generation': { provider: 'anthropic', model: 'claude-haiku-4-5' },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {

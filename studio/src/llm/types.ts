@@ -8,6 +8,8 @@ export const PURPOSES = [
   'script-generation',
   'script-review',
   'video-intelligence-own-draft',
+  'video-production-planning',
+  'metadata-generation',
 ] as const;
 export type Purpose = (typeof PURPOSES)[number];
 
