@@ -25,6 +25,7 @@ import { planVideoProduction, type ProductionPlan } from '../agents/video-genera
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
 import { generatePublishingMetadata, uploadVideo, type PublishingMetadata, type UploadResult } from '../agents/publishing';
+import { recordSnapshot } from '../agents/performance-analytics';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -954,6 +955,73 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     await completeStage(stage.id, fullOutput);
     return await updatePipelineRun(runId, {
       currentStage: 'analytics',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failStage(stage.id, message);
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+  }
+}
+
+// Runs (or re-runs) the analytics stage — Week 4 Task 3. The initial
+// post-publish snapshot; this is what advances PipelineRun.status to
+// `completed` for the first time in the project (`completed` is terminal —
+// see docs/execution/week4/BUSINESS_LOGIC.md Section 1). Ongoing polling
+// afterward (runPeriodicPoll, studio/src/agents/performance-analytics/) is
+// NOT part of this state machine — it runs independently, on a schedule,
+// against every `completed` run, per Section 8.3.
+export async function runAnalyticsStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+
+  const publishingStage = await findLatestAttempt(runId, 'publishing');
+  if (!publishingStage || publishingStage.status !== 'completed' || !publishingStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed publishing output — cannot run analytics`);
+  }
+  const youtubeVideoId = (publishingStage.output as { youtubeVideoId?: string }).youtubeVideoId;
+  if (!youtubeVideoId) {
+    throw new Error(`PipelineRun ${runId}'s publishing output has no youtubeVideoId`);
+  }
+
+  await updatePipelineRun(runId, {
+    status: 'running',
+    currentStage: 'analytics',
+  });
+
+  const previousAttempt = await findLatestAttempt(runId, 'analytics');
+  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const stageInput = { youtubeVideoId };
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'analytics',
+    attemptNumber,
+    input: stageInput,
+  });
+
+  try {
+    // No UsageEvent row — the YouTube Data API's videos.list call isn't
+    // LLM/media-shaped (no token/character/duration cost to meter), same
+    // reasoning as Pexels' $0 stock-footage search.
+    const snapshot = await recordSnapshot({
+      tenantId: run.tenantId,
+      channelId: run.channelId,
+      pipelineRunId: runId,
+      youtubeVideoId,
+    });
+
+    await completeStage(stage.id, {
+      snapshotId: snapshot.id,
+      views: snapshot.views,
+      likes: snapshot.likes,
+      comments: snapshot.comments,
+    });
+
+    return await updatePipelineRun(runId, {
+      status: 'completed',
+      currentStage: nextStageAfter('analytics'),
+      completedAt: new Date(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

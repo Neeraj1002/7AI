@@ -4,3 +4,4 @@ export * from './pipeline.types';
 export * from './review-log.types';
 export * from './agent-quota.types';
 export * from './usage-event.types';
+export * from './performance-snapshot.types';

@@ -36,7 +36,9 @@ import {
   runVideoReviewStage,
   runGate2Stage,
   runPublishingStage,
+  runAnalyticsStage,
 } from '../src/run-pipeline/state-machine';
+import { runPeriodicPoll } from '../src/agents/performance-analytics';
 import type { ProductionPlan } from '../src/agents/video-generation/plan';
 import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
@@ -268,6 +270,17 @@ async function publish(runId: string): Promise<void> {
   console.log('[dry-run] publishing completed without interruption');
 }
 
+async function analytics(runId: string): Promise<void> {
+  console.log(`[dry-run] starting analytics for ${runId}`);
+  await runAnalyticsStage(runId);
+  console.log('[dry-run] analytics completed without interruption');
+}
+
+async function poll(): Promise<void> {
+  const result = await runPeriodicPoll();
+  console.log(`[dry-run] periodic poll: polled=${result.polled}, skipped=${result.skipped}`);
+}
+
 async function resume(): Promise<void> {
   await resumeOnStartup();
   console.log('[dry-run] resume pass complete');
@@ -345,6 +358,13 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts publish <runId>');
       await publish(arg);
       break;
+    case 'analytics':
+      if (!arg) throw new Error('usage: dry-run.ts analytics <runId>');
+      await analytics(arg);
+      break;
+    case 'poll':
+      await poll();
+      break;
     case 'resume':
       await resume();
       break;
@@ -354,7 +374,7 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|publish|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|publish|analytics|poll|resume|status`,
       );
   }
 }

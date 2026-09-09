@@ -9,6 +9,7 @@ import {
   runVideoReviewStage,
   runGate2Stage,
   runPublishingStage,
+  runAnalyticsStage,
 } from './state-machine';
 import type { PipelineRun, StageName } from '../types';
 
@@ -39,6 +40,7 @@ const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<Pipel
   // youtubeVideoId before ever calling uploadVideo again — see its own
   // comment in state-machine.ts. Nothing extra is needed here.
   publishing: runPublishingStage,
+  analytics: runAnalyticsStage,
 };
 
 export async function resumeOnStartup(): Promise<void> {
