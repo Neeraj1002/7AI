@@ -167,9 +167,12 @@ model UsageEvent {
   provider String @db.VarChar(50)
   model    String @db.VarChar(100)
 
-  inputTokens  Int
-  outputTokens Int
-  costUsd      Decimal @db.Decimal(10, 4)
+  inputTokens          Int?
+  outputTokens         Int?
+  characterCount       Int?
+  audioDurationSeconds Decimal? @db.Decimal(10, 2)
+  costUsd              Decimal  @db.Decimal(10, 4)
+  metadata             Json?
 
   createdAt DateTime @default(now())
 

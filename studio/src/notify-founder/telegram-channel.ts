@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InputFile } from 'grammy';
 import { env } from '../config/env';
 import type { FounderChannel } from './channel';
 
@@ -95,14 +95,22 @@ export class TelegramFounderChannel implements FounderChannel {
     await getBot().api.sendMessage(env.TELEGRAM_FOUNDER_CHAT_ID, message);
   }
 
-  async requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }> {
+  async requestApproval(params: {
+    threadKey: string;
+    message: string;
+    attachmentPath?: string;
+  }): Promise<{ reply: string }> {
     if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
       throw new Error(
         'TELEGRAM_FOUNDER_CHAT_ID is not set. Message your bot once, then read the chat id from the logged update, and put it in .env.local.',
       );
     }
     ensureReceiveLoopStarted();
-    const sent = await getBot().api.sendMessage(env.TELEGRAM_FOUNDER_CHAT_ID, params.message);
+    const sent = params.attachmentPath
+      ? await getBot().api.sendVideo(env.TELEGRAM_FOUNDER_CHAT_ID, new InputFile(params.attachmentPath), {
+          caption: params.message,
+        })
+      : await getBot().api.sendMessage(env.TELEGRAM_FOUNDER_CHAT_ID, params.message);
     const reply = await new Promise<string>((resolve) => {
       pendingByThreadKey.set(params.threadKey, { sentMessageId: sent.message_id, resolve });
     });

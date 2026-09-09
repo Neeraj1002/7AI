@@ -1,18 +1,35 @@
 // This project's own LLM request/response/purpose types — never the underlying
 // library's. See docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 
-// Seeded with the purposes that exist so far — not the full set the decision
-// doc names as eventually coming (video-intelligence-own-draft, etc).
-// Add a purpose here, plus a registry.ts entry, when its call site actually exists.
-export const PURPOSES = ['intake-parsing', 'script-generation', 'script-review'] as const;
+// Seeded with the purposes that exist so far. Add a purpose here, plus a
+// registry.ts entry, when its call site actually exists.
+export const PURPOSES = [
+  'intake-parsing',
+  'script-generation',
+  'script-review',
+  'video-intelligence-own-draft',
+] as const;
 export type Purpose = (typeof PURPOSES)[number];
 
 export const LLM_PROVIDERS = ['anthropic'] as const;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 
+// A media attachment alongside a message's text — Week 3 Task 3's multimodal
+// extension (a frame image, for Video Intelligence's own-draft check). Kept
+// deliberately minimal (base64 data + media type only) rather than a second,
+// speculative multimodal contract — see
+// docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md's reasoning for
+// why media generation stayed out of this layer; media *analysis* is shaped
+// exactly like a normal chat completion; it just needs one more input part.
+export type LLMAttachment = {
+  mediaType: string; // IANA media type, e.g. 'image/jpeg'
+  dataBase64: string;
+};
+
 export type LLMMessage = {
   role: 'user' | 'assistant';
   content: string;
+  attachments?: LLMAttachment[];
 };
 
 export type LLMRequest = {

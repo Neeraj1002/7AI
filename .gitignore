@@ -14,6 +14,11 @@ Thumbs.db
 *.tsbuildinfo
 coverage/
 
+# Generated media (audio/video) — Week 3's media/video-generation layers
+# write real files here (studio/data/media-tmp/, studio/data/videos/); never
+# committed, same reasoning as node_modules/dist.
+data/
+
 .vscode/*
 !.vscode/extensions.json
 .idea/
