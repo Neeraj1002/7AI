@@ -25,6 +25,9 @@ export default function QueueScreen() {
 
   return (
     <View style={styles.container}>
+      <Pressable style={styles.dashboardLink} onPress={() => router.push('/dashboard')}>
+        <Text style={styles.dashboardLinkText}>View Dashboard →</Text>
+      </Pressable>
       <FlatList
         data={data ?? []}
         keyExtractor={(run) => run.id}
@@ -58,6 +61,8 @@ export default function QueueScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  dashboardLink: { padding: 12, alignItems: 'flex-end' },
+  dashboardLinkText: { fontSize: 13, fontWeight: '600', color: '#3b6fd6' },
   empty: { padding: 24, textAlign: 'center', color: '#888' },
   row: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ddd' },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
