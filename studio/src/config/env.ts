@@ -25,6 +25,28 @@ const EnvSchema = z.object({
   // already-running shells.
   FFMPEG_PATH: z.string().optional().default('ffmpeg'),
   FFPROBE_PATH: z.string().optional().default('ffprobe'),
+  // Week 4 Task 1 (studio/src/stock-footage/) — real stock-footage search/download.
+  PEXELS_API_KEY: z.string().optional().default(''),
+  // Testing-only: when '1', studio/src/stock-footage/ uses a stub instead of a
+  // real Pexels call — no PEXELS_API_KEY has existed in any session so far.
+  // Same pattern as MEDIA_STUB.
+  STOCK_FOOTAGE_STUB: z.string().optional().default(''),
+  // Week 4 Task 2/3 — YouTube Data API v3 (upload + statistics). Stopgap env-var
+  // credentials per docs/execution/week1/SCHEMA.md Section 2 (still one channel).
+  YOUTUBE_CLIENT_ID: z.string().optional().default(''),
+  YOUTUBE_CLIENT_SECRET: z.string().optional().default(''),
+  YOUTUBE_REDIRECT_URI: z.string().optional().default('http://localhost:3000/oauth2callback'),
+  YOUTUBE_REFRESH_TOKEN: z.string().optional().default(''),
+  // Testing-only: when '1', Publishing's upload and Performance Analytics'
+  // stats polling both use a stub instead of a real YouTube Data API v3 call —
+  // no YOUTUBE_REFRESH_TOKEN has existed in any session so far (Week 1 Task 7
+  // OAuth still open). One flag, not two, since both are blocked by the exact
+  // same missing credential. Same pattern as MEDIA_STUB.
+  YOUTUBE_STUB: z.string().optional().default(''),
+  // Performance Analytics' periodic poll cadence (Section 8.3 "batch over
+  // real-time"). Defaults to 6 hours; a dry-run/test invocation calls the
+  // poll function directly rather than waiting on this interval.
+  ANALYTICS_POLL_INTERVAL_MS: z.coerce.number().optional().default(6 * 60 * 60 * 1000),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

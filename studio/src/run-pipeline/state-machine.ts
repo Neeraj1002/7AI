@@ -20,6 +20,7 @@ import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutp
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
+import { planVideoProduction, type ProductionPlan } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
 import { env } from '../config/env';
@@ -410,13 +411,29 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
 }
 
 // Runs (or re-runs, on resume/regen) the video_generation stage — Week 3 Task
-// 2. Same budget-gate + per-attempt-metering pattern as Script Generation
-// (Week 2 Task 4), now also gating the pipeline's most expensive stage. See
+// 2, extended by Week 4 Task 1 with a production-planning step ahead of
+// assembly (docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md).
+// Same budget-gate + per-attempt-metering pattern as Script Generation (Week
+// 2 Task 4), now also gating the pipeline's most expensive stage. See
 // docs/execution/week3/BUSINESS_LOGIC.md Section 2.
-export async function runVideoGenerationStage(runId: string): Promise<PipelineRun> {
+//
+// `testOverrides.forcedPlan` exists solely for scripts/dry-run.ts's
+// regression-test command (Week 4 Task 1's acceptance criterion: reproduce
+// Week 3 Task 3's real flashing-caption failure). It skips the real planning
+// LLM call — and writes no UsageEvent row for it — to deterministically
+// reproduce a known-bad plan shape on attempt 1; every other caller
+// (resume-on-startup.ts, every other dry-run command) never passes it, so a
+// real run always makes a real planning call, including on regen.
+export async function runVideoGenerationStage(
+  runId: string,
+  testOverrides?: { forcedPlan?: ProductionPlan },
+): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
     throw new Error(`PipelineRun ${runId} not found`);
+  }
+  if (!run.intakeParsed) {
+    throw new Error(`PipelineRun ${runId} has no intakeParsed output — cannot plan video production`);
   }
 
   const channel = await findChannelById(run.channelId);
@@ -484,17 +501,62 @@ export async function runVideoGenerationStage(runId: string): Promise<PipelineRu
     input: stageInput,
   });
 
+  // Production-planning call (Week 4 Task 1) — metered as its own agent
+  // ('video-production-planning'), distinct from the aggregated
+  // TTS+transcription+footage row below, since it's a separate purpose that
+  // may not even run (forcedPlan test override).
+  const attemptPlanOnce = async (): Promise<ProductionPlan> => {
+    if (testOverrides?.forcedPlan) {
+      return testOverrides.forcedPlan;
+    }
+    try {
+      const { plan, llm } = await planVideoProduction({
+        scriptText: sanctionedScriptText,
+        topic: run.intakeParsed!.topic,
+        fixNotes: fixNotes ?? undefined,
+      });
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-production-planning',
+        provider: llm.provider,
+        model: llm.model,
+        inputTokens: llm.usage.inputTokens,
+        outputTokens: llm.usage.outputTokens,
+        costUsd: llm.costUsd,
+      });
+      return plan;
+    } catch (error) {
+      const context = getStageErrorContext(error);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-production-planning',
+        provider: (context?.provider as string | undefined) ?? 'unknown',
+        model: (context?.model as string | undefined) ?? 'unknown',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: '0.000000',
+      });
+      throw error;
+    }
+  };
+
   // Same per-attempt metering pattern as Script Generation/Review — every
   // real attempt, including retries, writes its own (aggregated) UsageEvent
   // row.
-  const attemptOnce = async (): Promise<VideoGenerationOutput> => {
+  const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
     try {
       const { output, usage } = await generateVideo({
         pipelineRunId: runId,
         attemptNumber,
         scriptText: sanctionedScriptText,
         brandAssets: channel.brandAssets,
-        fixNotes: fixNotes ?? undefined,
+        plan,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -527,9 +589,10 @@ export async function runVideoGenerationStage(runId: string): Promise<PipelineRu
   };
 
   try {
-    const output = await withRetryAndCircuitBreaker(attemptOnce);
+    const plan = await withRetryAndCircuitBreaker(attemptPlanOnce);
+    const output = await withRetryAndCircuitBreaker(() => attemptVideoOnce(plan));
 
-    await completeStage(stage.id, output);
+    await completeStage(stage.id, { ...output, plan });
     return await updatePipelineRun(runId, {
       currentStage: 'video_review',
     });

@@ -6,14 +6,20 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { synthesizeSpeech, transcribe, type TranscriptSegment } from '../../media';
 import { resolveMediaPurpose } from '../../media/registry';
+import { searchStockFootage } from '../../stock-footage';
 import { env } from '../../config/env';
 import type { BrandAssets } from '../../types';
+import { ProductionPlanSchema, type CaptionStyle, type ProductionPlan } from './plan';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. Deliberately
 // the simplified approach (Section 14 of the roadmap): TTS voiceover + burned
-// word-level captions + a template/solid background + optional brand overlay,
-// assembled with FFmpeg scripted directly — no generative AI video, no
-// rendering SaaS, per Task 8's toolchain choice.
+// captions + real stock footage (Week 4 Task 1, Path A of
+// docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md) + optional
+// brand overlay, assembled with FFmpeg scripted directly — no generative AI
+// video, no rendering SaaS, per Task 8's toolchain choice. The production
+// plan (caption style, footage search terms) comes from plan.ts's LLM call,
+// made by the caller (state-machine.ts) — this file is the deterministic
+// assembly half only.
 
 const execFileAsync = promisify(execFile);
 
@@ -21,14 +27,16 @@ export const VideoGenerationOutputSchema = z.object({
   videoPath: z.string().min(1),
   durationSeconds: z.number(),
   aspectRatio: z.string(),
+  plan: ProductionPlanSchema.optional(),
 });
 export type VideoGenerationOutput = z.infer<typeof VideoGenerationOutputSchema>;
 
-// One aggregated UsageEvent per invocation (TTS + transcription costs summed,
-// FFmpeg cost $0) — docs/execution/week3/SCHEMA.md's "one row per agent
-// invocation, not three" design. provider/model on the aggregated row are a
-// composite ("tts-1-hd+whisper-1") since two different (provider, model)
-// pairs contributed; the full breakdown lives in `metadata`.
+// One aggregated UsageEvent per invocation for the TTS+transcription+footage
+// half (FFmpeg/Pexels cost $0) — docs/execution/week3/SCHEMA.md's "one row
+// per agent invocation, not three" design. The production-planning LLM call
+// is metered separately by the caller (its own agent='video-production-planning'
+// row), since it's a distinct purpose or may be skipped entirely (test
+// overrides) — see state-machine.ts's runVideoGenerationStage.
 export type VideoGenerationUsage = {
   provider: string;
   model: string;
@@ -36,6 +44,11 @@ export type VideoGenerationUsage = {
   audioDurationSeconds: number;
   costUsd: string;
   metadata: {
+    captionStyle: CaptionStyle;
+    stockFootageProvider: string;
+    stockFootageQuery: string;
+    stockFootageSourceId: string;
+    stockFootageCostUsd: string;
     ttsProvider: string;
     ttsModel: string;
     ttsCharacterCount: number;
@@ -55,7 +68,6 @@ export type VideoGenerationResult = {
 
 const VIDEO_WIDTH = 1080;
 const VIDEO_HEIGHT = 1920;
-const BACKGROUND_COLOR = '0x1a1a2e';
 
 function formatSrtTimestamp(ms: number): string {
   const clamped = Math.max(0, ms);
@@ -67,16 +79,92 @@ function formatSrtTimestamp(ms: number): string {
   return `${pad(h)}:${pad(m)}:${pad(s)},${pad(msRemainder, 3)}`;
 }
 
-// One SRT cue per word — a "flashing word" caption style, which is both the
-// simplest possible burn-in and a natural fit for word-level timestamps
-// (Task 8's explicit requirement for "captions land on the right word").
-function buildWordLevelSrt(segments: TranscriptSegment[]): string {
+function buildSrt(segments: TranscriptSegment[]): string {
   return segments
     .map(
       (seg, i) =>
         `${i + 1}\n${formatSrtTimestamp(seg.startMs)} --> ${formatSrtTimestamp(seg.endMs)}\n${seg.text}\n`,
     )
     .join('\n');
+}
+
+// Groups consecutive word-level segments into N-word caption cues.
+function groupWordsByCount(segments: TranscriptSegment[], wordsPerGroup: number): TranscriptSegment[] {
+  const groups: TranscriptSegment[] = [];
+  for (let i = 0; i < segments.length; i += wordsPerGroup) {
+    const slice = segments.slice(i, i + wordsPerGroup);
+    if (slice.length === 0) continue;
+    groups.push({
+      text: slice.map((s) => s.text).join(' '),
+      startMs: slice[0].startMs,
+      endMs: slice[slice.length - 1].endMs,
+    });
+  }
+  return groups;
+}
+
+// Groups words into a cue per sentence (ending on ./!/?), falling back to
+// maxWordsPerGroup for long or unpunctuated runs so a cue never grows
+// unbounded.
+function groupWordsBySentence(segments: TranscriptSegment[], maxWordsPerGroup: number): TranscriptSegment[] {
+  const groups: TranscriptSegment[] = [];
+  let current: TranscriptSegment[] = [];
+  for (const seg of segments) {
+    current.push(seg);
+    const endsSentence = /[.!?]$/.test(seg.text.trim());
+    if (endsSentence || current.length >= maxWordsPerGroup) {
+      groups.push({
+        text: current.map((s) => s.text).join(' '),
+        startMs: current[0].startMs,
+        endMs: current[current.length - 1].endMs,
+      });
+      current = [];
+    }
+  }
+  if (current.length > 0) {
+    groups.push({
+      text: current.map((s) => s.text).join(' '),
+      startMs: current[0].startMs,
+      endMs: current[current.length - 1].endMs,
+    });
+  }
+  return groups;
+}
+
+// Caption grouping per the production plan's captionStyle (plan.ts) — this
+// is the concrete mechanism Video Generation now has for a regen attempt to
+// actually produce a different result, per
+// docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md Section 2.
+function buildCaptionSegments(segments: TranscriptSegment[], style: CaptionStyle): TranscriptSegment[] {
+  switch (style) {
+    case 'word-flash':
+      return segments;
+    case 'phrase-grouped':
+      return groupWordsByCount(segments, 4);
+    case 'sentence-grouped':
+      return groupWordsBySentence(segments, 8);
+    default: {
+      const exhaustive: never = style;
+      throw new Error(`Unknown caption style '${exhaustive as string}'`);
+    }
+  }
+}
+
+// Smaller cues (word-flash) read fine at a large size; multi-word cues need a
+// smaller font to fit the 1080px-wide frame without wrapping awkwardly.
+function captionFontSize(style: CaptionStyle): number {
+  switch (style) {
+    case 'word-flash':
+      return 64;
+    case 'phrase-grouped':
+      return 48;
+    case 'sentence-grouped':
+      return 40;
+    default: {
+      const exhaustive: never = style;
+      throw new Error(`Unknown caption style '${exhaustive as string}'`);
+    }
+  }
 }
 
 async function probeDurationSeconds(filePath: string): Promise<number> {
@@ -97,45 +185,55 @@ export async function generateVideo(params: {
   attemptNumber: number;
   scriptText: string;
   brandAssets: BrandAssets;
-  fixNotes?: string;
+  plan: ProductionPlan;
 }): Promise<VideoGenerationResult> {
-  // `fixNotes` (from a failed Video Intelligence pass or a founder's Gate 2
-  // revision notes) is recorded on the stage input for traceability. Video
-  // Generation doesn't rewrite the sanctioned script itself — Script
-  // Generation/Gate 1 already own that — so at MVP scale a regen attempt's
-  // real value is "try the same script again" (a fresh TTS take can render
-  // differently), not automated interpretation of free-text notes.
+  // The production plan (plan.ts, called by state-machine.ts before this
+  // function) is what makes a regen attempt actually different now — the
+  // caption style and stock-footage search terms both come from it, per
+  // docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md Section 2.
   const tts = await synthesizeSpeech(params.scriptText, {});
   const asr = await transcribe(tts.audioPath);
+  const clip = await searchStockFootage({ query: params.plan.stockFootageQuery, orientation: 'portrait' });
 
   const outputDir = path.resolve(process.cwd(), 'data', 'videos', params.pipelineRunId);
   await fs.mkdir(outputDir, { recursive: true });
 
   const srtFilename = `${params.attemptNumber}.srt`;
   const videoFilename = `${params.attemptNumber}.mp4`;
-  await fs.writeFile(path.join(outputDir, srtFilename), buildWordLevelSrt(asr.segments), 'utf-8');
+  const captionSegments = buildCaptionSegments(asr.segments, params.plan.captionStyle);
+  await fs.writeFile(path.join(outputDir, srtFilename), buildSrt(captionSegments), 'utf-8');
 
   const watermarkPath = params.brandAssets.watermarkUrl;
   const hasLocalWatermark = Boolean(watermarkPath && fsSync.existsSync(watermarkPath));
+  const fontSize = captionFontSize(params.plan.captionStyle);
 
-  // Background + audio, burned captions, optional watermark overlay — run
-  // from `outputDir` as cwd so the caption file can be referenced by its
-  // plain filename, avoiding FFmpeg's notoriously fiddly colon/backslash
-  // escaping for the `subtitles` filter's path argument on Windows.
-  const filterGraph = hasLocalWatermark
-    ? `[0:v]subtitles=${srtFilename}:force_style='Fontsize=64,PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'[captioned];[captioned][2:v]overlay=W-w-40:40[outv]`
-    : `subtitles=${srtFilename}:force_style='Fontsize=64,PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`;
+  // Stock footage scaled/cropped to fill the 9:16 frame exactly (a Pexels
+  // clip's native size rarely matches 1080x1920), looped if shorter than the
+  // voiceover — `-shortest` still cuts the output to the audio's real
+  // length, so looping never over-extends the video. Run from `outputDir` as
+  // cwd so the caption file can be referenced by its plain filename,
+  // avoiding FFmpeg's notoriously fiddly colon/backslash escaping for the
+  // `subtitles` filter's path argument on Windows.
+  const captionedFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},subtitles=${srtFilename}:force_style='Fontsize=${fontSize},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`;
+  const filterComplex = hasLocalWatermark
+    ? `${captionedFilter}[captioned];[captioned][2:v]overlay=W-w-40:40[outv]`
+    : `${captionedFilter}[outv]`;
 
   const ffmpegArgs = [
     '-y',
-    '-f',
-    'lavfi',
+    '-stream_loop',
+    '-1',
     '-i',
-    `color=c=${BACKGROUND_COLOR}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT}:d=${asr.audioDurationSeconds}`,
+    clip.clipPath,
     '-i',
     tts.audioPath,
     ...(hasLocalWatermark ? ['-i', watermarkPath as string] : []),
-    ...(hasLocalWatermark ? ['-filter_complex', filterGraph, '-map', '[outv]', '-map', '1:a'] : ['-vf', filterGraph]),
+    '-filter_complex',
+    filterComplex,
+    '-map',
+    '[outv]',
+    '-map',
+    '1:a',
     '-c:v',
     'libx264',
     '-c:a',
@@ -151,13 +249,14 @@ export async function generateVideo(params: {
 
   const ttsEntry = resolveMediaPurpose('tts');
   const transcriptionEntry = resolveMediaPurpose('transcription');
-  const costUsd = (Number(tts.costUsd) + Number(asr.costUsd)).toFixed(6);
+  const costUsd = (Number(tts.costUsd) + Number(asr.costUsd) + Number(clip.costUsd)).toFixed(6);
 
   return {
     output: {
       videoPath,
       durationSeconds,
       aspectRatio: '9:16',
+      plan: params.plan,
     },
     usage: {
       provider: 'openai',
@@ -166,6 +265,11 @@ export async function generateVideo(params: {
       audioDurationSeconds: asr.audioDurationSeconds,
       costUsd,
       metadata: {
+        captionStyle: params.plan.captionStyle,
+        stockFootageProvider: 'pexels',
+        stockFootageQuery: params.plan.stockFootageQuery,
+        stockFootageSourceId: clip.sourceId,
+        stockFootageCostUsd: clip.costUsd,
         ttsProvider: ttsEntry.provider,
         ttsModel: ttsEntry.model,
         ttsCharacterCount: tts.characterCount,
