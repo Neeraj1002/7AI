@@ -1,8 +1,8 @@
 # Known Issues & Blockers Tracker
 
-**Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–3 (all complete) as of this doc's last update. Week 4 has task docs written but **zero reports exist yet — not started**.
+**Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–3 (all complete) plus Week 4 in progress, as of this doc's last update.
 
-**Last updated**: 2026-09-08, after Week 3 close-out (Task 5) and Week 1's `BUSINESS_LOGIC.md`/`AGENT_FLEET_DESIGN.md` doc-reconciliation pass.
+**Last updated**: 2026-09-09, after Week 4 Task 2 (Publishing).
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -33,6 +33,8 @@
 - **Video Intelligence's multimodal call isn't wrapped in retry-with-backoff** — every other LLM call site uses `withRetryAndCircuitBreaker`; `runVideoReviewStage` doesn't, because the deterministic-check path returns normally rather than throwing, which doesn't compose cleanly with the retry wrapper's assumptions. A transient LLM failure during video review currently routes straight to `needs_attention` instead of retrying. Flagged as a real gap, not fixed. — *`week3/reports/task3.md`*
 
 - **No lint rule enforces the "only `client.ts`/`registry.ts` are imported directly" boundary** in either `studio/src/llm/` or `studio/src/media/` — held by convention and manual grep-checks only so far, correctly followed each time but not mechanically enforced. — *`week2/reports/task1.md`*
+
+- **Publishing's upload has no idempotency guarantee for the exact moment the HTTP request is in flight.** Week 4 Task 2 added a durable checkpoint (`recordStageProgress`) that closes the much more likely crash window — after a real `youtubeVideoId` comes back but before the stage/run rows are marked complete — so a resume never re-uploads in that case. But if the process dies while the upload request has been sent and no response has come back yet, there's no way to know whether YouTube received it; the simple multipart `videos.insert` endpoint doesn't accept a client-supplied idempotency key. Narrow window, not closed this task. — *`week4/reports/task2.md`*
 
 - **7-channel cap has no automated test** — verified by code review and live exercise, never by a dedicated "create 7, assert the 8th throws" test. Same root cause as the missing test runner above. — *`week1/reports/task3.md`*
 

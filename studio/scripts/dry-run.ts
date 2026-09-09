@@ -35,6 +35,7 @@ import {
   runVideoGenerationStage,
   runVideoReviewStage,
   runGate2Stage,
+  runPublishingStage,
 } from '../src/run-pipeline/state-machine';
 import type { ProductionPlan } from '../src/agents/video-generation/plan';
 import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
@@ -261,6 +262,12 @@ async function videoGenRegression(runId: string): Promise<void> {
   }
 }
 
+async function publish(runId: string): Promise<void> {
+  console.log(`[dry-run] starting publishing for ${runId}`);
+  await runPublishingStage(runId);
+  console.log('[dry-run] publishing completed without interruption');
+}
+
 async function resume(): Promise<void> {
   await resumeOnStartup();
   console.log('[dry-run] resume pass complete');
@@ -334,6 +341,10 @@ async function main(): Promise<void> {
       await gate2(arg, outcomeArg);
       break;
     }
+    case 'publish':
+      if (!arg) throw new Error('usage: dry-run.ts publish <runId>');
+      await publish(arg);
+      break;
     case 'resume':
       await resume();
       break;
@@ -343,7 +354,7 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|publish|resume|status`,
       );
   }
 }

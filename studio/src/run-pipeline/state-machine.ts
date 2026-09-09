@@ -9,6 +9,7 @@ import {
   createStageAttempt,
   failStage,
   findLatestAttempt,
+  recordStageProgress,
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
@@ -23,6 +24,7 @@ import { generateVideo, type VideoGenerationOutput } from '../agents/video-gener
 import { planVideoProduction, type ProductionPlan } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
+import { generatePublishingMetadata, uploadVideo, type PublishingMetadata, type UploadResult } from '../agents/publishing';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
@@ -795,8 +797,6 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     await completeStage(stage.id, { outcome: 'approve' });
     return await updatePipelineRun(runId, {
       status: 'running',
-      // Advances to publishing even though nothing processes it yet — Week 4
-      // builds it, same "stops here deliberately" pattern as every prior week.
       currentStage: nextStageAfter('gate2'),
     });
   }
@@ -825,4 +825,139 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     status: 'needs_attention',
     lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
   });
+}
+
+// Runs (or re-runs, on resume) the publishing stage — Week 4 Task 2. By the
+// time this runs, PipelineRun.status is already `running`/currentStage =
+// `publishing` (Gate 2's approve outcome sets it). Two sub-steps: metadata
+// generation (its own UsageEvent row, agent='metadata-generation', safe to
+// redo on any resume) and the YouTube upload itself — the pipeline's first
+// stage with a real, non-repeatable external side effect. See
+// docs/execution/week4/BUSINESS_LOGIC.md Sections 1-2.
+export async function runPublishingStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
+  const gate2Stage = await findLatestAttempt(runId, 'gate2');
+  if (!gate2Stage || gate2Stage.status !== 'completed' || !gate2Stage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed gate2 output — cannot run publishing`);
+  }
+  const gate2Outcome = (gate2Stage.output as { outcome?: string }).outcome;
+  if (gate2Outcome !== 'approve') {
+    throw new Error(`PipelineRun ${runId}'s gate2 outcome is '${gate2Outcome}', not 'approve' — cannot run publishing`);
+  }
+
+  const videoGenStage = await findLatestAttempt(runId, 'video_generation');
+  if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run publishing`);
+  }
+  const videoPath = (videoGenStage.output as { videoPath?: string }).videoPath;
+  if (!videoPath) {
+    throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
+  }
+
+  const gate1Stage = await findLatestAttempt(runId, 'gate1');
+  const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
+    ?.sanctionedScriptText;
+  if (!sanctionedScriptText) {
+    throw new Error(`PipelineRun ${runId} has no sanctioned script text from gate1`);
+  }
+
+  const scriptGenStage = await findLatestAttempt(runId, 'script_generation');
+  if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
+    throw new Error(`PipelineRun ${runId} has no completed script_generation output — cannot run publishing`);
+  }
+  const hashtags = (scriptGenStage.output as { hashtags?: string[] }).hashtags ?? [];
+
+  await updatePipelineRun(runId, {
+    status: 'running',
+    currentStage: 'publishing',
+  });
+
+  // Resume-safety: if a prior invocation of this exact attempt already
+  // checkpointed a successful upload (recordStageProgress, below) before the
+  // process stopped, reuse it rather than uploading a second time — unlike
+  // every earlier stage, redoing this one has a real, user-visible duplicate
+  // side effect (a second YouTube upload), not just wasted spend.
+  const existingAttempt = await findLatestAttempt(runId, 'publishing');
+  const existingOutput = existingAttempt?.output as { youtubeVideoId?: string } | null;
+  if (existingAttempt && existingAttempt.status === 'running' && existingOutput?.youtubeVideoId) {
+    console.log(
+      `[publishing] run ${runId}: attempt ${existingAttempt.attemptNumber} already recorded a successful upload before the process stopped — completing the stage without uploading again`,
+    );
+    await completeStage(existingAttempt.id, existingAttempt.output as Record<string, unknown>);
+    return await updatePipelineRun(runId, { currentStage: 'analytics' });
+  }
+
+  const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
+  const stageInput = { videoPath, scriptText: sanctionedScriptText, hashtags };
+  const stage = await createStageAttempt({
+    pipelineRunId: runId,
+    stageName: 'publishing',
+    attemptNumber,
+    input: stageInput,
+  });
+
+  const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
+    try {
+      const { metadata, llm } = await generatePublishingMetadata({ scriptText: sanctionedScriptText, hashtags });
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'metadata-generation',
+        provider: llm.provider,
+        model: llm.model,
+        inputTokens: llm.usage.inputTokens,
+        outputTokens: llm.usage.outputTokens,
+        costUsd: llm.costUsd,
+      });
+      return metadata;
+    } catch (error) {
+      const context = getStageErrorContext(error);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'metadata-generation',
+        provider: (context?.provider as string | undefined) ?? 'unknown',
+        model: (context?.model as string | undefined) ?? 'unknown',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: '0.000000',
+      });
+      throw error;
+    }
+  };
+
+  try {
+    const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
+
+    const attemptUploadOnce = async (): Promise<UploadResult> => uploadVideo({ videoPath, metadata });
+    const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
+
+    // Durable checkpoint — see recordStageProgress's own comment. Written
+    // before completeStage so a crash in the gap between "upload succeeded"
+    // and "stage marked complete" is recoverable without re-uploading.
+    const fullOutput = { youtubeVideoId: uploadResult.youtubeVideoId, privacyStatus: uploadResult.privacyStatus, metadata };
+    await recordStageProgress(stage.id, fullOutput);
+
+    await completeStage(stage.id, fullOutput);
+    return await updatePipelineRun(runId, {
+      currentStage: 'analytics',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failStage(stage.id, message);
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+  }
 }
