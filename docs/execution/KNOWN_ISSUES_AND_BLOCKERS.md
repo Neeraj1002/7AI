@@ -1,8 +1,8 @@
 # Known Issues & Blockers Tracker
 
-**Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–3 (all complete) plus Week 4 in progress, as of this doc's last update.
+**Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
 
-**Last updated**: 2026-09-09, after Week 4 Task 4 (Week 4 close-out).
+**Last updated**: 2026-09-10, after Week 5 Task 1 (the first genuinely real end-to-end run).
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -10,12 +10,27 @@
 
 ## 1. Founder action required (external, blocking)
 
-| Item | Status | Why it matters | Source |
-|---|---|---|---|
-| **YouTube OAuth + quota submission** | Still open — Google Cloud Console steps (project, consent screen, OAuth client, quota increase request) never done. Approval has historically taken 1–2 weeks. | **Hard blocker for a genuinely real Week 4 Task 2/3/4** — without it, Publishing/Performance Analytics run against `YOUTUBE_STUB=1` (fake `youtubeVideoId`, fake stats) and the first real end-to-end dry run (brief → published-private video) can't happen for real yet. Expected to land "tonight" per the founder as of 2026-09-09. | `week1/reports/task7.md`, carried in every subsequent week's STATUS.md |
-| **Live Gate 1 human-reply round trip** | Still open as of Week 4's close — every Gate 1/Gate 2 test through Week 4 continued to use a simulated reply (a `gate1-live` dry-run command exists, ready whenever the founder is on Telegram). | Low urgency — the mechanism is proven — but it's the one criterion nobody has actually closed by doing it for real. Worth 60 seconds whenever you're on Telegram: run any brief to `paused_gate1` and reply for real. | `week2/reports/task6.md`, `week3/reports/task5.md` |
-| **Real `OPENAI_API_KEY`/`PEXELS_API_KEY`** | Not in `.env.local` as of Week 4's close. All of Weeks 3–4's TTS/transcription runs against `MEDIA_STUB=1`; all of Week 4's stock-footage fetches against `STOCK_FOOTAGE_STUB=1` (a synthetic moving test pattern, not real footage). | Blocks closing Week 3 Task 1/2's and Week 4 Task 1's "real call succeeds" acceptance criteria — **no real audio or real stock footage has ever been produced**. Also blocks a genuinely real Week 4 Task 4 dry run alongside the YouTube key above. Expected "tonight" per the founder as of 2026-09-09. | `week3/reports/task1.md`, `task2.md`, `week4/reports/task1.md` |
-| **The first genuinely real end-to-end dry run** (Week 4 Task 4) | Not done — depends on all three credentials above landing. Everything through Week 4 close-out ran against stubs (`MEDIA_STUB=1`/`STOCK_FOOTAGE_STUB=1`/`YOUTUBE_STUB=1`); the full nine-stage chain and the mid-`publishing` kill/resume test are both proven mechanically, but not with real audio, real footage, or a real upload, and not with the founder answering the gates live. | This is the actual milestone `MVP_ROADMAP_OCT15.md` Section 12 calls for — code-complete is not the same as proven. | `week4/reports/task4.md` |
+**All four rows previously here are now closed** — Week 5 Task 1 ran a real, credentialed,
+founder-gated end-to-end test: real YouTube OAuth (upload confirmed `private` via a direct API
+check), real `OPENAI_API_KEY`/`PEXELS_API_KEY` (real TTS + real, on-topic Pexels footage), and both
+Gate 1/Gate 2 answered live by the founder over actual Telegram (`"Approve"`, in real time) —
+closing the live-human-reply item open since Week 2 as well. See `week5/reports/task1.md` for the
+full evidence trail (real `youtubeVideoId`, real review verdicts, real spend).
+
+Nothing founder-blocking remains open as of this update. New items, if any arise, get a fresh row
+here rather than reviving the closed ones below (kept for history):
+
+<details>
+<summary>Closed items (click to expand)</summary>
+
+| Item | Status | Closed by |
+|---|---|---|
+| YouTube OAuth + quota submission | Closed — real upload + real privacy-status check succeeded | `week5/reports/task1.md` |
+| Live Gate 1/Gate 2 human-reply round trip | Closed — both gates answered live over real Telegram | `week5/reports/task1.md` |
+| Real `OPENAI_API_KEY`/`PEXELS_API_KEY` | Closed — real TTS + real stock footage used and verified | `week5/reports/task1.md` |
+| The first genuinely real end-to-end dry run | Closed — `PipelineRun.status='completed'` reached for real | `week5/reports/task1.md` |
+
+</details>
 
 ---
 
@@ -25,7 +40,13 @@
 
 - **`resume()` sweeps every stale `running` run, not just the intended target** — by design (that's what resumability means), but it's bitten real testing three times now. Week 2 Task 7 incurred ~$0.03 of incidental spend resuming leftover test runs; Week 3 Task 5 hit a "wider blast radius" recurrence; **Week 4 Task 4 is the predicted scenario actually happening**: two genuine leftover Week 3 test runs, sitting at `currentStage='publishing'` since before any resumer existed for that stage, were swept up and completed for real (a small real `metadata-generation` Anthropic spend plus two stub YouTube uploads) the moment a `publishing` resumer got wired in — exactly what this entry predicted before Week 4 started. Outcome was harmless (both completed cleanly, no duplicate uploads — Task 2's checkpoint mechanism, below, held), but the risk is now demonstrated live, not theoretical. **Still not fixed** — nothing yet distinguishes "genuinely stuck mid-stage" from "deliberately waiting at a stage that just didn't have a processor wired up yet at the time it stalled." Worth a real decision (e.g. a max-staleness window, or an explicit "abandoned" status) before a channel #2 or higher call volume makes accidental resumes costlier. — *`week2/reports/task7.md`, `week3/reports/task5.md`, `week3/STATUS.md`, `week4/reports/task4.md`*
 
-- **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`*
+- **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Correctly applied on the first attempt in Week 5 Task 1's real re-run of this same test. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`, `week5/reports/task1.md`*
+
+- **`runPeriodicPoll` had no per-target error isolation** — it iterated every "completed run with a published video" and let the first failure abort the whole tick. Only surfaced once real and stub-completed data coexisted (Week 5 Task 1): an old Week 4 run with a fake `youtubeVideoId` (`stub-...`) threw on the real `videos.list` call, silently starving every other, genuinely real video of its snapshot. **Fixed** — each target is now individually try/caught and logged; one bad target no longer blocks the rest. — *`week5/reports/task1.md`*
+
+- **`dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) can't coexist with a persistent `npm run dev` instance** on the same Telegram bot token — both start a long-poll loop, and Telegram allows only one active `getUpdates` poller per token, so the second one to start gets a `409 Conflict`. Worked around in Week 5 Task 1 by stopping the persistent instance for the duration of testing and restarting it after. Not fixed — worth a real fix (detect an already-running poller and defer to it, or share one process) if live-gate testing becomes routine rather than occasional. — *`week5/reports/task1.md`*
+
+- **`videos.delete` needs a broader OAuth scope than what's currently granted** — the token only has `youtube.upload`/`youtube.readonly` (Week 1 Task 7's original scope request), so a throwaway test video uploaded during Week 5 Task 1's real kill-test (`nnY46b0vOCw`, private, harmless) couldn't be cleaned up programmatically. Low priority — a manual YouTube Studio delete closes it, or a future task can re-request the broader `youtube`/`youtube.force-ssl` scope if programmatic video cleanup becomes worth having. — *`week5/reports/task1.md`*
 
 - **Intake-parsing is on the wrong model tier** — `AGENT_FLEET_DESIGN.md` Section 8.1 classifies extraction tasks as cheap/fast, but `intake-parsing`'s registry entry still resolves to premium `claude-sonnet-5`, inherited from Week 1's original default and never a deliberate choice. Low cost impact today (one small call per run), flagged for whoever picks up model-tiering work. — *`week2/reports/task3.md`, now noted in `AGENT_FLEET_DESIGN.md` 8.1*
 
@@ -65,5 +86,6 @@
 
 ## 5. Not yet built
 
-- **A genuinely real Week 4 end-to-end run** — Week 4 (Publishing, Performance Analytics, video-generation loop fix + stock footage) is code-complete and tested against stubs (see Section 1's founder-action rows above); the real run itself is what's not yet done.
 - **Deferred agents per the locked design** (not gaps — deliberately out of MVP scope): Trend Identification, Content Prediction, Continuous Learning, and Video Intelligence's "competitor" mode. All wait on real performance history or later product phases — see `AGENT_FLEET_DESIGN.md` Section 3 for the full status table.
+- **Real YouTube Analytics API integration** (`watchTimeMinutes`/`retentionPct`) — deliberately deferred; needs a separate `yt-analytics.readonly` OAuth scope never requested. `views`/`likes`/`comments` (Data API) are real and working as of Week 5.
+- **`videos.delete` scope** — see Section 2. Not a blocker, just unavailable with the current token.
