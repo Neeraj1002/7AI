@@ -25,6 +25,13 @@ const EnvSchema = z.object({
   // already-running shells.
   FFMPEG_PATH: z.string().optional().default('ffmpeg'),
   FFPROBE_PATH: z.string().optional().default('ffprobe'),
+  // Frontend track Task 1 — the single shared token every studio/src/api/
+  // request is checked against (SCHEMA.md: no session table, a lock on the
+  // door, per Design Principle 10). Empty by default so the orchestrator
+  // still boots without it; src/api/server.ts itself refuses to start with
+  // an empty token rather than silently accepting every request.
+  API_AUTH_TOKEN: z.string().optional().default(''),
+  API_PORT: z.coerce.number().optional().default(4000),
   // Week 4 Task 1 (studio/src/stock-footage/) — real stock-footage search/download.
   PEXELS_API_KEY: z.string().optional().default(''),
   // Testing-only: when '1', studio/src/stock-footage/ uses a stub instead of a

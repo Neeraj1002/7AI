@@ -1,6 +1,7 @@
 import { env } from './config/env';
 import { resumeOnStartup } from './run-pipeline/resume-on-startup';
 import { startTelegramReceiveLoop } from './notify-founder';
+import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
 
 // Performance Analytics' periodic poll (AGENT_FLEET_DESIGN.md 8.3, "batch
@@ -31,6 +32,8 @@ async function main(): Promise<void> {
   }
 
   startPerformanceAnalyticsPoller();
+
+  await startApiServer();
 
   console.log('[boot] 7AI orchestrator ready');
 }

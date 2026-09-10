@@ -21,4 +21,13 @@ export interface FounderChannel {
     message: string;
     attachmentPath?: string;
   }): Promise<{ reply: string }>;
+  // Frontend track Task 1: a second caller (the API) resolving the same
+  // pending gate a Telegram reply would otherwise resolve. Fulfills the same
+  // underlying promise `requestApproval` is blocked on — whichever caller
+  // (Telegram or this) arrives first wins; the other gets `resolved: false`
+  // rather than double-resolving or silently overwriting the first decision.
+  // Synchronous by design: the resolution itself is an in-memory map
+  // check-and-delete with no I/O, so there's no `await` gap for a race to
+  // land in between the check and the delete.
+  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean };
 }
