@@ -19,11 +19,12 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  channels     Channel[]
-  pipelineRuns PipelineRun[]
-  reviewLogs   ReviewLog[]
-  agentQuotas  AgentQuota[]
-  usageEvents  UsageEvent[]
+  channels             Channel[]
+  pipelineRuns         PipelineRun[]
+  reviewLogs           ReviewLog[]
+  agentQuotas          AgentQuota[]
+  usageEvents          UsageEvent[]
+  performanceSnapshots PerformanceSnapshot[]
 
   @@map("tenants")
 }
@@ -48,10 +49,11 @@ model Channel {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  pipelineRuns PipelineRun[]
-  reviewLogs   ReviewLog[]
-  usageEvents  UsageEvent[]
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id])
+  pipelineRuns         PipelineRun[]
+  reviewLogs           ReviewLog[]
+  usageEvents          UsageEvent[]
+  performanceSnapshots PerformanceSnapshot[]
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
@@ -80,9 +82,10 @@ model PipelineRun {
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
   channel Channel @relation(fields: [channelId], references: [id])
 
-  stages      PipelineStage[]
-  reviewLogs  ReviewLog[]
-  usageEvents UsageEvent[]
+  stages               PipelineStage[]
+  reviewLogs           ReviewLog[]
+  usageEvents          UsageEvent[]
+  performanceSnapshots PerformanceSnapshot[]
 
   @@index([tenantId, channelId], map: "idx_runs_tenant_channel")
   @@index([status], map: "idx_runs_status")
@@ -184,4 +187,32 @@ model UsageEvent {
   @@index([tenantId, createdAt], map: "idx_usage_tenant_platform_time")
   @@index([pipelineRunId], map: "idx_usage_run")
   @@map("usage_events")
+}
+
+// Week 4 addition — see docs/execution/week4/SCHEMA.md Section 1.
+model PerformanceSnapshot {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String @db.Uuid
+  channelId     String @db.Uuid
+  pipelineRunId String @db.Uuid
+
+  youtubeVideoId String @db.VarChar(255)
+
+  views    BigInt @default(0)
+  likes    BigInt @default(0)
+  comments BigInt @default(0)
+
+  watchTimeMinutes Decimal? @db.Decimal(10, 2)
+  retentionPct     Decimal? @db.Decimal(5, 2)
+
+  snapshotAt DateTime
+  createdAt  DateTime @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  channel     Channel     @relation(fields: [channelId], references: [id])
+  pipelineRun PipelineRun @relation(fields: [pipelineRunId], references: [id])
+
+  @@index([youtubeVideoId, snapshotAt], map: "idx_snapshots_video_time")
+  @@index([pipelineRunId], map: "idx_snapshots_run")
+  @@map("performance_snapshots")
 }

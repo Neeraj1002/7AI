@@ -1,7 +1,7 @@
 # Frontend Track Status: Mobile App (API Layer, App Scaffold, Dashboard)
 
-**Track status**: All three initial tasks (API layer, app scaffold, dashboard) complete, each proven end-to-end against the real orchestrator, Postgres, and (Task 1) the Telegram bot. PR marked ready for review.
-**Last updated**: 2026-09-09 (after Task 3)
+**Track status**: All three initial tasks (API layer, app scaffold, dashboard) complete, each proven end-to-end against the real orchestrator, Postgres, and (Task 1) the Telegram bot. PR marked ready for review. Merged `origin/main` (which now includes `WEEK4_BE`) on 2026-09-10 — see "Merge history" below.
+**Last updated**: 2026-09-10 (post-merge with `WEEK4_BE`)
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -11,6 +11,18 @@
 
 ## Founder action needed
 None of the three tasks require founder action to be considered done — all deviations above are environment constraints (no simulator/device in this dev environment), not missing credentials or blocked decisions. **Recommended founder follow-up, not blocking**: a real device/simulator pass through Expo Go to close Task 2/3's one open gap (Gate 2 resolution + video playback have never been exercised live, only Gate 1's identical mechanism has) — see `reports/task1.md` Deviation 7 and `reports/task2.md` Deviation 3.
+
+## Merge history
+
+**2026-09-10 — merged `origin/main` (`WEEK4_BE` merged, PR #5) into `FRONTEND_FE`.** `WEEK4_BE` had already merged to `main` by the time this happened; `FRONTEND_FE` and `main` had diverged from the same base (the Week 3 merge, `4c6b4c4`). A real `git merge` (not a rebase — this branch was already pushed with an open PR, and rebasing would have required a force-push, which is never authorized on this track) resolved three genuine content conflicts, all the same shape — both tracks independently appended new content at the same insertion point in a shared file:
+
+- `studio/src/config/env.ts` — both sides added new env-schema fields (this track: `API_AUTH_TOKEN`, `API_PORT`; Week 4: `PEXELS_API_KEY`, `STOCK_FOOTAGE_STUB`, `YOUTUBE_*`, `ANALYTICS_POLL_INTERVAL_MS`, `PUBLISHING_TEST_KILL_DELAY_MS`). No semantic overlap — kept both blocks.
+- `studio/src/index.ts` — both sides added a new boot-sequence call right before the final "orchestrator ready" log line (this track: `await startApiServer()`; Week 4: `startPerformanceAnalyticsPoller()`, a new `setInterval`-based poller). No semantic overlap — kept both; verified post-merge that the orchestrator boots with both subsystems live (`[boot] Performance Analytics poller started...` and `[api] listening on port 4000...` both appear in the same boot log).
+- `studio/src/types/index.ts` — both sides appended one new `export *` line at the end of the file (this track's `dashboard.types`, Week 4's `performance-snapshot.types`). Kept both.
+
+One more file both tracks touched (`studio/src/models/repositories/pipeline-stage.repository.ts`) merged automatically with no conflict — the two additions (`listStagesForRun` here, `recordStageProgress` from Week 4) landed far enough apart in the file. `package.json`/`package-lock.json` and `schema.prisma` did **not** conflict at all: Week 4 added no new npm dependencies, and this track has never touched `schema.prisma` (Task 1 deliberately reads Week 4's `performance_snapshots` table via raw SQL rather than adding a Prisma model, specifically to avoid this kind of collision — see `reports/task1.md` Deviation 5). Prisma's migration state was already in sync with the shared dev database (`prisma migrate status` reported "up to date") — no migration action was needed.
+
+Post-merge, everything this track had already proven was re-verified and still passes: `npm run build`/`lint`/`typecheck` clean in both `studio/` and `app/`; the double-resolution race test (`scripts/test-double-resolution-race.ts`) still PASSes against the real DB and Telegram bot; a fresh brief submitted via `POST /runs` still reaches and resolves Gate 1 through the API with the advance confirmed directly in Postgres; all four `/dashboard/*` endpoints still return real data, cross-checked against a direct Postgres query (`totalSpendUsd` matched exactly: `$0.9345` both ways). One new, unrelated observation surfaced during re-verification, not a merge regression: Week 4 rewrote `video-generation`'s agent to use a real Pexels stock-footage call instead of a plain background, so a run now fails at `video_generation` with `Pexels API call failed: 401 Unauthorized` in this environment (no `PEXELS_API_KEY` configured) — this happens *after* Gate 1 correctly resolves and advances the run, so it doesn't affect anything this track owns; noting it here so it isn't mistaken for merge fallout later.
 
 ## Full detail
 Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`. Full narrative: `reports/frontend-summary.md` (not yet written — optional given the per-task reports already cover the full track).

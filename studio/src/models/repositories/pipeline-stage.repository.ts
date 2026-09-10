@@ -83,6 +83,25 @@ export async function completeStage(
   return toDomainStage(row);
 }
 
+// Overwrites a still-`running` stage's `output` without marking it complete —
+// a durable mid-attempt checkpoint. Week 4 Task 2's publishing stage is the
+// first stage with a real, non-repeatable external side effect (a YouTube
+// upload): if the process crashes between a successful upload and the
+// stage's normal completion, resume-on-startup.ts would otherwise re-run the
+// whole stage and upload a second time. Checkpointing the youtubeVideoId here
+// as soon as the upload call returns lets a resumed run detect "this already
+// happened" and skip straight to completion instead of re-uploading.
+export async function recordStageProgress(
+  id: string,
+  partialOutput: Record<string, unknown>,
+): Promise<PipelineStage> {
+  const row = await prisma.pipelineStage.update({
+    where: { id },
+    data: { output: partialOutput as Prisma.InputJsonValue },
+  });
+  return toDomainStage(row);
+}
+
 export async function failStage(id: string, error: string): Promise<PipelineStage> {
   const row = await prisma.pipelineStage.update({
     where: { id },

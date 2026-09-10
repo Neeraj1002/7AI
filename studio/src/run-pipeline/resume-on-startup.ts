@@ -8,6 +8,8 @@ import {
   runVideoGenerationStage,
   runVideoReviewStage,
   runGate2Stage,
+  runPublishingStage,
+  runAnalyticsStage,
 } from './state-machine';
 import type { PipelineRun, StageName } from '../types';
 
@@ -33,6 +35,12 @@ const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<Pipel
   video_generation: runVideoGenerationStage,
   video_review: runVideoReviewStage,
   gate2: runGate2Stage,
+  // publishing's resumer is safe against a mid-upload crash specifically
+  // because runPublishingStage itself checks for an already-checkpointed
+  // youtubeVideoId before ever calling uploadVideo again — see its own
+  // comment in state-machine.ts. Nothing extra is needed here.
+  publishing: runPublishingStage,
+  analytics: runAnalyticsStage,
 };
 
 export async function resumeOnStartup(): Promise<void> {

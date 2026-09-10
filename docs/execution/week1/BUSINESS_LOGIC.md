@@ -51,8 +51,8 @@ On startup, for every `PipelineRun` with `status = running`, look at its latest 
 ### Logic
 A single LLM call: given the brief text, extract a structured topic and any explicit constraints (e.g. "keep it under 45 seconds," "no profanity," a specific angle the founder mentioned). This is intentionally the simplest possible extraction — no validation against a taxonomy, no niche-matching logic. If the brief is too vague to extract a topic at all, the stage fails (see transition table above) rather than guessing.
 
-### Resolved (2026-09-08, by Week 2 Task 3)
-This stage previously called `@anthropic-ai/sdk` directly, per the "Known temporary coupling" note this section used to carry — that coupling is now gone. `parse-brief.ts` calls through `studio/src/llm/` (the provider-agnostic LLM layer, `docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md`) like every other real agent call in the system. See `docs/execution/week2/reports/task3.md`.
+### Known temporary coupling
+This stage's implementation currently calls `@anthropic-ai/sdk` directly, not through a provider-agnostic LLM layer. That's deliberate for Week 1, not an oversight — see `docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md`. It gets refactored to call through `studio/src/llm/` once that layer exists, likely alongside the work that builds it for Script Generation (Week 2), since that's the first genuinely new consumer.
 
 ### Explicitly not in Week 1 scope
 Anything resembling Trend Identification, Content Prediction, or auto-discovery — per the roadmap's Section 2 core simplification, the human's brief *is* the trend understanding and content prediction for the MVP. Intake parses what the human already decided; it doesn't decide anything itself.
