@@ -28,17 +28,46 @@ function getOAuthClient(): OAuth2Client {
   return client;
 }
 
-// 401 (bad/expired credentials) and 403 (quota exhausted, forbidden) are both
-// non-transient per docs/execution/week4/BUSINESS_LOGIC.md Section 1 —
-// neither resolves by retrying. 429/5xx are transient.
-function mapGoogleError(error: unknown, context: Record<string, unknown>): Error {
-  const status =
-    (error as { response?: { status?: number } })?.response?.status ?? (error as { status?: number })?.status;
+// B4 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2, "Publishing upload retry could
+// double-upload"): a `videos.insert` is not idempotent — retrying it after
+// an ambiguous failure risks creating a second real video, unlike a read
+// (videos.list) where a 429/5xx is always safe to retry. This deliberately
+// classifies far more narrowly than mapGoogleError elsewhere in this
+// project: only an error that *proves* the request never reached YouTube at
+// all (the TCP connection itself couldn't be established) is treated as
+// safe to retry. Everything else — including a 429/5xx HTTP response, which
+// for a read would be the textbook retryable case — is treated as
+// non-transient here specifically because the video may already have been
+// created server-side before the error surfaced on this end. A
+// non-transient upload failure routes straight to `needs_attention` (never
+// auto-retried within withRetryAndCircuitBreaker), for a human to check
+// YouTube Studio for a duplicate before deciding whether to resume the run.
+// The crash-resume checkpoint (recordStageProgress, runPublishingStage) is
+// a separate, already-correct mechanism for a *different* gap — a crash
+// between a successful upload and the stage being marked complete — and is
+// untouched by this change.
+const PRE_SEND_NETWORK_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN']);
+
+// Exported for direct verification of the transient/non-transient
+// classification with realistic error shapes — see Week 5 Task 2's report
+// for the manual test this backs (forcing a live ambiguous network failure
+// against the real YouTube API isn't practical, same posture already
+// accepted project-wide for the transient-error path — KNOWN_ISSUES_AND_BLOCKERS.md §4).
+export function mapGoogleError(error: unknown, context: Record<string, unknown>): Error {
+  const code = (error as { code?: string })?.code;
   const message = error instanceof Error ? error.message : String(error);
-  if (status === 429 || (typeof status === 'number' && status >= 500)) {
-    return new TransientStageError(`YouTube upload failed (retryable): ${message}`, error, context);
+  if (code && PRE_SEND_NETWORK_CODES.has(code)) {
+    return new TransientStageError(
+      `YouTube upload failed before the request could be sent (retryable): ${message}`,
+      error,
+      context,
+    );
   }
-  return new NonTransientStageError(`YouTube upload failed: ${message}`, error, context);
+  return new NonTransientStageError(
+    `YouTube upload failed ambiguously — the request may have already reached YouTube before this error surfaced, so it is not safe to auto-retry: ${message}`,
+    error,
+    context,
+  );
 }
 
 export async function uploadVideoViaProvider(params: UploadParams): Promise<UploadResult> {

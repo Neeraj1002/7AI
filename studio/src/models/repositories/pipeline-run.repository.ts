@@ -1,6 +1,7 @@
 import { prisma } from '../prisma-client';
 import { Prisma } from '@prisma/client';
 import type { PipelineRun as PrismaPipelineRun } from '@prisma/client';
+import type { DbClient } from './pipeline-stage.repository';
 import type {
   CreatePipelineRunInput,
   IntakeParsed,
@@ -80,7 +81,11 @@ export type PipelineRunPatch = Partial<{
   completedAt: Date;
 }>;
 
-export async function updatePipelineRun(id: string, patch: PipelineRunPatch): Promise<PipelineRun> {
+export async function updatePipelineRun(
+  id: string,
+  patch: PipelineRunPatch,
+  client: DbClient = prisma,
+): Promise<PipelineRun> {
   const data: Prisma.PipelineRunUpdateInput = {
     ...(patch.status !== undefined && { status: patch.status }),
     ...(patch.currentStage !== undefined && { currentStage: patch.currentStage }),
@@ -93,6 +98,6 @@ export async function updatePipelineRun(id: string, patch: PipelineRunPatch): Pr
     ...(patch.startedAt !== undefined && { startedAt: patch.startedAt }),
     ...(patch.completedAt !== undefined && { completedAt: patch.completedAt }),
   };
-  const row = await prisma.pipelineRun.update({ where: { id }, data });
+  const row = await client.pipelineRun.update({ where: { id }, data });
   return toDomainRun(row);
 }

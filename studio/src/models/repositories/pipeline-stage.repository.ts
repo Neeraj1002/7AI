@@ -2,6 +2,14 @@ import { prisma } from '../prisma-client';
 import type { Prisma, PipelineStage as PrismaPipelineStage } from '@prisma/client';
 import type { PipelineStage, StageName, StageStatus } from '../../types';
 
+// Accepts either the singleton client or an interactive-transaction client
+// (`prisma.$transaction(async (tx) => ...)`) — B1's fix for the
+// completeStage/currentStage write race (KNOWN_ISSUES_AND_BLOCKERS.md §2):
+// call sites that need a stage-completion write and the PipelineRun advance
+// to commit atomically pass `tx`; everything else keeps using the singleton
+// via the default parameter, unchanged.
+export type DbClient = Prisma.TransactionClient | typeof prisma;
+
 function toDomainStage(row: PrismaPipelineStage): PipelineStage {
   return {
     id: row.id,
@@ -75,8 +83,9 @@ export async function createStageAttempt(params: {
 export async function completeStage(
   id: string,
   output: Record<string, unknown>,
+  client: DbClient = prisma,
 ): Promise<PipelineStage> {
-  const row = await prisma.pipelineStage.update({
+  const row = await client.pipelineStage.update({
     where: { id },
     data: { status: 'completed', output: output as Prisma.InputJsonValue, completedAt: new Date() },
   });
@@ -102,8 +111,12 @@ export async function recordStageProgress(
   return toDomainStage(row);
 }
 
-export async function failStage(id: string, error: string): Promise<PipelineStage> {
-  const row = await prisma.pipelineStage.update({
+export async function failStage(
+  id: string,
+  error: string,
+  client: DbClient = prisma,
+): Promise<PipelineStage> {
+  const row = await client.pipelineStage.update({
     where: { id },
     data: { status: 'failed', error, completedAt: new Date() },
   });

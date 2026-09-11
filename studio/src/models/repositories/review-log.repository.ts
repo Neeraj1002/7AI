@@ -1,5 +1,6 @@
 import { prisma } from '../prisma-client';
 import type { Prisma, ReviewLog as PrismaReviewLog } from '@prisma/client';
+import type { DbClient } from './pipeline-stage.repository';
 import type { CreateReviewLogInput, ReviewLog } from '../../types';
 
 function toDomainReviewLog(row: PrismaReviewLog): ReviewLog {
@@ -17,8 +18,8 @@ function toDomainReviewLog(row: PrismaReviewLog): ReviewLog {
   };
 }
 
-export async function insertReviewLog(input: CreateReviewLogInput): Promise<ReviewLog> {
-  const row = await prisma.reviewLog.create({
+export async function insertReviewLog(input: CreateReviewLogInput, client: DbClient = prisma): Promise<ReviewLog> {
+  const row = await client.reviewLog.create({
     data: {
       tenantId: input.tenantId,
       channelId: input.channelId,

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { z } from 'zod';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { env } from '../../config/env';
-import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { NonTransientStageError, withRetryAndCircuitBreaker } from '../../run-pipeline/retry-with-backoff';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
 // 4.2. Deterministic checks (ffprobe/FFmpeg, zero LLM cost) run first and
@@ -94,23 +94,40 @@ export async function runDeterministicChecks(videoPath: string): Promise<Determi
   return { passed: true, meta };
 }
 
-async function extractMiddleFrameBase64(videoPath: string, durationSeconds: number): Promise<string> {
-  const midpoint = Math.max(0, durationSeconds / 2);
-  const framePath = `${videoPath}.frame.jpg`;
-  await execFileAsync(env.FFMPEG_PATH, [
-    '-y',
-    '-ss',
-    midpoint.toFixed(2),
-    '-i',
-    videoPath,
-    '-frames:v',
-    '1',
-    '-q:v',
-    '3',
-    framePath,
-  ]);
-  const buffer = await fs.readFile(framePath);
-  return buffer.toString('base64');
+// B5 fix, part 2 (KNOWN_ISSUES_AND_BLOCKERS.md §3, the caption/frame-sampling
+// conflict): a single midpoint frame is a single point of failure — a
+// caption cue's own timing landing that exact instant can show a partial
+// word even when the video as a whole is fine, and word-flash is still a
+// selectable (if discouraged) choice in plan.ts. The real fix is sampling
+// multiple frames spread across the video and having the multimodal prompt
+// judge the whole set, not further suppressing one caption style — that
+// only reduces the odds of tripping the bug, it doesn't fix the underlying
+// single-frame vulnerability, and doesn't help if a *different* momentary
+// artifact (a stock-footage transition, a dropped frame) lands on the one
+// sampled instant.
+const SAMPLE_FRACTIONS = [0.25, 0.5, 0.75];
+
+async function extractSampleFramesBase64(videoPath: string, durationSeconds: number): Promise<string[]> {
+  const frames: string[] = [];
+  for (const [index, fraction] of SAMPLE_FRACTIONS.entries()) {
+    const timestamp = Math.max(0, durationSeconds * fraction);
+    const framePath = `${videoPath}.frame${index}.jpg`;
+    await execFileAsync(env.FFMPEG_PATH, [
+      '-y',
+      '-ss',
+      timestamp.toFixed(2),
+      '-i',
+      videoPath,
+      '-frames:v',
+      '1',
+      '-q:v',
+      '3',
+      framePath,
+    ]);
+    const buffer = await fs.readFile(framePath);
+    frames.push(buffer.toString('base64'));
+  }
+  return frames;
 }
 
 const MultimodalVerdictSchema = z.object({
@@ -118,13 +135,19 @@ const MultimodalVerdictSchema = z.object({
   notes: z.string().min(1),
 });
 
-const SYSTEM_PROMPT = `You are reviewing a single representative frame from a short vertical video
-(a YouTube Short) before it's approved for publishing, alongside the topic and script it's
-based on. Judge whether the frame is reasonable for this content — not blank, not corrupted, not
-showing only a fragment of a caption word, and roughly consistent with the described topic and
-tone (the background is real licensed stock footage chosen for the topic, not a custom shoot —
-judge whether it's a *reasonable* backdrop for this content, not whether it's visually
-impressive).
+const SYSTEM_PROMPT = `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
+(roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's
+approved for publishing, alongside the topic and script it's based on. Judge the video as a whole
+across all the frames together — not blank, not corrupted, and roughly consistent with the
+described topic and tone (the background is real licensed stock footage chosen for the topic, not
+a custom shoot — judge whether it's a *reasonable* backdrop for this content, not whether it's
+visually impressive).
+
+A single frame catching a momentary presentation artifact (e.g. burned-in captions caught
+mid-transition between cues, showing a partial word) should NOT by itself fail the video if the
+other sampled frames look reasonable — judge the overall impression across all frames, not a
+single worst instant. Only fail if the pattern is consistent across the frames, or if a frame
+shows something genuinely wrong (blank/corrupted footage, content unrelated to the topic).
 
 Respond with ONLY a JSON object: {"verdict": "pass" | "fail", "notes": string}
 "notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.
@@ -147,20 +170,31 @@ export async function reviewVideo(params: {
     return { verdict: 'fail', rationale: deterministic.reason, multimodalRan: false };
   }
 
-  const frameBase64 = await extractMiddleFrameBase64(params.videoPath, deterministic.meta.durationSeconds);
+  const framesBase64 = await extractSampleFramesBase64(params.videoPath, deterministic.meta.durationSeconds);
 
-  const llm = await callLLM({
-    purpose: 'video-intelligence-own-draft',
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: `Topic: ${params.topic}\nScript: ${params.scriptText}`,
-        attachments: [{ mediaType: 'image/jpeg', dataBase64: frameBase64 }],
-      },
-    ],
-    maxTokens: 512,
-  });
+  // B3 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2): only this one call is wrapped,
+  // not the whole function — runDeterministicChecks above returns a result
+  // object rather than throwing, which is exactly why a whole-function wrap
+  // wouldn't compose with withRetryAndCircuitBreaker's retry-on-throw
+  // semantics. A transient provider error here retries with backoff; a real
+  // 'fail' verdict never throws at all (unaffected); the JSON/schema
+  // validation below still throws NonTransientStageError, still uncaught by
+  // this retry wrapper, still propagating to runVideoReviewStage's own
+  // catch exactly as before.
+  const llm = await withRetryAndCircuitBreaker(() =>
+    callLLM({
+      purpose: 'video-intelligence-own-draft',
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `Topic: ${params.topic}\nScript: ${params.scriptText}`,
+          attachments: framesBase64.map((dataBase64) => ({ mediaType: 'image/jpeg', dataBase64 })),
+        },
+      ],
+      maxTokens: 512,
+    }),
+  );
 
   let parsedJson: unknown;
   try {

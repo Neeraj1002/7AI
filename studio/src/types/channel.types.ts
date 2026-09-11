@@ -20,6 +20,11 @@ export type BrandAssets = {
   outroUrl?: string;
   watermarkUrl?: string;
   voiceProfileId?: string;
+  // B5 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2/§3) — default true, preserving
+  // existing behavior: Video Generation burns captions unless a channel
+  // explicitly opts out. No migration needed; brandAssets is an existing
+  // Json column.
+  captionsEnabled?: boolean;
 };
 
 export type Channel = {

@@ -44,6 +44,7 @@ export type VideoGenerationUsage = {
   audioDurationSeconds: number;
   costUsd: string;
   metadata: {
+    captionsEnabled: boolean;
     captionStyle: CaptionStyle;
     stockFootageProvider: string;
     stockFootageQuery: string;
@@ -200,12 +201,20 @@ export async function generateVideo(params: {
 
   const srtFilename = `${params.attemptNumber}.srt`;
   const videoFilename = `${params.attemptNumber}.mp4`;
-  const captionSegments = buildCaptionSegments(asr.segments, params.plan.captionStyle);
-  await fs.writeFile(path.join(outputDir, srtFilename), buildSrt(captionSegments), 'utf-8');
+
+  // B5 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2/§3): captions are optional per
+  // channel, default on (BrandAssets.captionsEnabled defaults to true if
+  // unset — see channel.types.ts). When off, no SRT is written and no
+  // `subtitles` stage is added to the filter graph at all — not just an
+  // empty/invisible caption track.
+  const captionsEnabled = params.brandAssets.captionsEnabled !== false;
+  if (captionsEnabled) {
+    const captionSegments = buildCaptionSegments(asr.segments, params.plan.captionStyle);
+    await fs.writeFile(path.join(outputDir, srtFilename), buildSrt(captionSegments), 'utf-8');
+  }
 
   const watermarkPath = params.brandAssets.watermarkUrl;
   const hasLocalWatermark = Boolean(watermarkPath && fsSync.existsSync(watermarkPath));
-  const fontSize = captionFontSize(params.plan.captionStyle);
 
   // Stock footage scaled/cropped to fill the 9:16 frame exactly (a Pexels
   // clip's native size rarely matches 1080x1920), looped if shorter than the
@@ -214,10 +223,13 @@ export async function generateVideo(params: {
   // cwd so the caption file can be referenced by its plain filename,
   // avoiding FFmpeg's notoriously fiddly colon/backslash escaping for the
   // `subtitles` filter's path argument on Windows.
-  const captionedFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},subtitles=${srtFilename}:force_style='Fontsize=${fontSize},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`;
+  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT}`;
+  const baseFilter = captionsEnabled
+    ? `${scaleCropFilter},subtitles=${srtFilename}:force_style='Fontsize=${captionFontSize(params.plan.captionStyle)},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`
+    : scaleCropFilter;
   const filterComplex = hasLocalWatermark
-    ? `${captionedFilter}[captioned];[captioned][2:v]overlay=W-w-40:40[outv]`
-    : `${captionedFilter}[outv]`;
+    ? `${baseFilter}[framed];[framed][2:v]overlay=W-w-40:40[outv]`
+    : `${baseFilter}[outv]`;
 
   const ffmpegArgs = [
     '-y',
@@ -265,6 +277,7 @@ export async function generateVideo(params: {
       audioDurationSeconds: asr.audioDurationSeconds,
       costUsd,
       metadata: {
+        captionsEnabled,
         captionStyle: params.plan.captionStyle,
         stockFootageProvider: 'pexels',
         stockFootageQuery: params.plan.stockFootageQuery,

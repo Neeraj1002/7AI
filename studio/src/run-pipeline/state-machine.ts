@@ -1,3 +1,4 @@
+import { prisma } from '../models/prisma-client';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -44,6 +45,27 @@ function nextStageAfter(stage: StageName): StageName | null {
   return idx >= 0 && idx + 1 < STAGE_NAMES.length ? STAGE_NAMES[idx + 1] : null;
 }
 
+// B1 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2, "completeStage/currentStage write
+// race"): a stage's completion and the PipelineRun's advance to the next
+// stage (or, on the error path below, to `needs_attention`) were two
+// separate awaited writes — a crash between them could leave `currentStage`
+// one step behind what `pipeline_stages` actually shows. Every call site
+// below now wraps both writes (and, where one sits between them, a
+// `ReviewLog` insert that's part of the same "this stage's outcome is now
+// durable" unit) in a single Prisma interactive transaction, so they commit
+// or roll back together.
+//
+// Every function's error path does the exact same thing (fail the stage,
+// escalate the run to `needs_attention`), so it's pulled into one shared,
+// transactional helper rather than repeated nine times.
+async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
+  const message = error instanceof Error ? error.message : String(error);
+  return prisma.$transaction(async (tx) => {
+    await failStage(stageId, message, tx);
+    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);
+  });
+}
+
 // Runs (or re-runs, on resume) the intake stage for a run. Safe to call again on
 // the same run: it always reads `run.briefText` fresh and starts a new stage
 // attempt, so a crash-and-retry never assumes partial work happened
@@ -75,21 +97,26 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     const output = await withRetryAndCircuitBreaker(() => intakeProcessor(run.briefText));
 
     // Persist-before-advance: the stage's completion and the run's advance are
-    // written together, never inferred from in-memory state alone — this is what
-    // makes resumability possible after a restart.
-    await completeStage(stage.id, output);
-    return await updatePipelineRun(runId, {
-      intakeParsed: output,
-      // Advances to the next stage in sequence even though no processor exists
-      // for it yet this week — a Week 1 test run stops here deliberately.
-      currentStage: nextStageAfter('intake'),
+    // written together, in one transaction — this is what makes resumability
+    // possible after a restart, without a window where currentStage lags what
+    // pipeline_stages actually shows (B1 fix).
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(stage.id, output, tx);
+      return await updatePipelineRun(
+        runId,
+        {
+          intakeParsed: output,
+          // Advances to the next stage in sequence even though no processor exists
+          // for it yet this week — a Week 1 test run stops here deliberately.
+          currentStage: nextStageAfter('intake'),
+        },
+        tx,
+      );
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
     // A bad/unparseable brief, or an exhausted circuit breaker, is a
     // human-fixable input problem — needs_attention, not failed.
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
 
@@ -196,16 +223,20 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   try {
     const output = await withRetryAndCircuitBreaker(attemptOnce);
 
-    await completeStage(stage.id, output);
-    return await updatePipelineRun(runId, {
-      // Advances to script_review even though Task 5 is what actually
-      // processes it — same "stops here deliberately" pattern as Week 1.
-      currentStage: 'script_review',
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(stage.id, output, tx);
+      return await updatePipelineRun(
+        runId,
+        {
+          // Advances to script_review even though Task 5 is what actually
+          // processes it — same "stops here deliberately" pattern as Week 1.
+          currentStage: 'script_review',
+        },
+        tx,
+      );
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
 
@@ -294,32 +325,41 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     const output = await withRetryAndCircuitBreaker(attemptOnce);
 
     // The stage always completes once a well-formed review comes back — no
-    // score threshold gates this. Persist-before-advance, same as every
-    // other stage.
-    await completeStage(stage.id, output);
+    // score threshold gates this. Stage completion, the ReviewLog entry, and
+    // the run's advance to paused_gate1 all commit as one transaction (B1
+    // fix) — a crash between them used to risk a completed stage with no
+    // ReviewLog row, which gate1 depends on to find the review score/notes.
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(stage.id, output, tx);
 
-    const flagsNote =
-      output.videoGenFit.flags.length > 0
-        ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
-        : '';
-    await insertReviewLog({
-      tenantId: run.tenantId,
-      channelId: run.channelId,
-      pipelineRunId: runId,
-      stageId: stage.id,
-      agent: 'script-review',
-      verdict: String(output.score),
-      rationale: `${output.notes}${flagsNote}`,
-    });
+      const flagsNote =
+        output.videoGenFit.flags.length > 0
+          ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
+          : '';
+      await insertReviewLog(
+        {
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'script-review',
+          verdict: String(output.score),
+          rationale: `${output.notes}${flagsNote}`,
+        },
+        tx,
+      );
 
-    return await updatePipelineRun(runId, {
-      status: 'paused_gate1',
-      currentStage: nextStageAfter('script_review'),
+      return await updatePipelineRun(
+        runId,
+        {
+          status: 'paused_gate1',
+          currentStage: nextStageAfter('script_review'),
+        },
+        tx,
+      );
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
 
@@ -373,19 +413,28 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   });
 
   if (outcome.type === 'reject') {
-    await insertReviewLog({
-      tenantId: run.tenantId,
-      channelId: run.channelId,
-      pipelineRunId: runId,
-      stageId: stage.id,
-      agent: 'human',
-      verdict: 'reject',
-      rationale: outcome.reason,
-    });
-    await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason });
-    return await updatePipelineRun(runId, {
-      status: 'failed',
-      lastError: `Rejected at Gate 1: ${outcome.reason}`,
+    return await prisma.$transaction(async (tx) => {
+      await insertReviewLog(
+        {
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'human',
+          verdict: 'reject',
+          rationale: outcome.reason,
+        },
+        tx,
+      );
+      await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
+      return await updatePipelineRun(
+        runId,
+        {
+          status: 'failed',
+          lastError: `Rejected at Gate 1: ${outcome.reason}`,
+        },
+        tx,
+      );
     });
   }
 
@@ -394,22 +443,31 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // original stays in script_generation's own stage row, never overwritten.
   const sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
 
-  await insertReviewLog({
-    tenantId: run.tenantId,
-    channelId: run.channelId,
-    pipelineRunId: runId,
-    stageId: stage.id,
-    agent: 'human',
-    verdict: outcome.type,
-    rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
-    editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
-  });
+  return await prisma.$transaction(async (tx) => {
+    await insertReviewLog(
+      {
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'human',
+        verdict: outcome.type,
+        rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
+        editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
+      },
+      tx,
+    );
 
-  await completeStage(stage.id, { outcome: outcome.type, sanctionedScriptText });
+    await completeStage(stage.id, { outcome: outcome.type, sanctionedScriptText }, tx);
 
-  return await updatePipelineRun(runId, {
-    status: 'running',
-    currentStage: nextStageAfter('gate1'),
+    return await updatePipelineRun(
+      runId,
+      {
+        status: 'running',
+        currentStage: nextStageAfter('gate1'),
+      },
+      tx,
+    );
   });
 }
 
@@ -595,14 +653,12 @@ export async function runVideoGenerationStage(
     const plan = await withRetryAndCircuitBreaker(attemptPlanOnce);
     const output = await withRetryAndCircuitBreaker(() => attemptVideoOnce(plan));
 
-    await completeStage(stage.id, { ...output, plan });
-    return await updatePipelineRun(runId, {
-      currentStage: 'video_review',
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(stage.id, { ...output, plan }, tx);
+      return await updatePipelineRun(runId, { currentStage: 'video_review' }, tx);
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
 
@@ -676,42 +732,39 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       });
     }
 
-    await insertReviewLog({
-      tenantId: run.tenantId,
-      channelId: run.channelId,
-      pipelineRunId: runId,
-      stageId: stage.id,
-      agent: 'video-intelligence-own-draft',
-      verdict: outcome.verdict,
-      rationale: outcome.rationale,
-    });
+    // Regen-cap decision computed once, up front, so every branch inside the
+    // transaction below applies the exact same patch it would have applied
+    // outside one — the transaction only changes atomicity, not the logic.
+    const runPatch: Parameters<typeof updatePipelineRun>[1] =
+      outcome.verdict === 'pass'
+        ? { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
+        : videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
+          ? { status: 'running', currentStage: 'video_generation' }
+          : {
+              status: 'needs_attention',
+              lastError: `Video Intelligence regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.rationale}`,
+            };
 
-    await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale });
+    return await prisma.$transaction(async (tx) => {
+      await insertReviewLog(
+        {
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'video-intelligence-own-draft',
+          verdict: outcome.verdict,
+          rationale: outcome.rationale,
+        },
+        tx,
+      );
 
-    if (outcome.verdict === 'pass') {
-      return await updatePipelineRun(runId, {
-        status: 'paused_gate2',
-        currentStage: nextStageAfter('video_review'),
-      });
-    }
+      await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale }, tx);
 
-    // Fail — regen if the just-reviewed video_generation attempt hasn't used
-    // up the regen budget yet, otherwise the circuit breaker trips.
-    if (videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS) {
-      return await updatePipelineRun(runId, {
-        status: 'running',
-        currentStage: 'video_generation',
-      });
-    }
-
-    return await updatePipelineRun(runId, {
-      status: 'needs_attention',
-      lastError: `Video Intelligence regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.rationale}`,
+      return await updatePipelineRun(runId, runPatch, tx);
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
 
@@ -769,62 +822,82 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   });
 
   if (outcome.type === 'reject') {
-    await insertReviewLog({
-      tenantId: run.tenantId,
-      channelId: run.channelId,
-      pipelineRunId: runId,
-      stageId: stage.id,
-      agent: 'human',
-      verdict: 'reject',
-      rationale: outcome.reason,
-    });
-    await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason });
-    return await updatePipelineRun(runId, {
-      status: 'failed',
-      lastError: `Rejected at Gate 2: ${outcome.reason}`,
+    return await prisma.$transaction(async (tx) => {
+      await insertReviewLog(
+        {
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'human',
+          verdict: 'reject',
+          rationale: outcome.reason,
+        },
+        tx,
+      );
+      await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
+      return await updatePipelineRun(
+        runId,
+        {
+          status: 'failed',
+          lastError: `Rejected at Gate 2: ${outcome.reason}`,
+        },
+        tx,
+      );
     });
   }
 
   if (outcome.type === 'approve') {
-    await insertReviewLog({
-      tenantId: run.tenantId,
-      channelId: run.channelId,
-      pipelineRunId: runId,
-      stageId: stage.id,
-      agent: 'human',
-      verdict: 'approve',
-      rationale: 'Approved as-is',
-    });
-    await completeStage(stage.id, { outcome: 'approve' });
-    return await updatePipelineRun(runId, {
-      status: 'running',
-      currentStage: nextStageAfter('gate2'),
+    return await prisma.$transaction(async (tx) => {
+      await insertReviewLog(
+        {
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'human',
+          verdict: 'approve',
+          rationale: 'Approved as-is',
+        },
+        tx,
+      );
+      await completeStage(stage.id, { outcome: 'approve' }, tx);
+      return await updatePipelineRun(
+        runId,
+        {
+          status: 'running',
+          currentStage: nextStageAfter('gate2'),
+        },
+        tx,
+      );
     });
   }
 
   // Revise — a founder-requested regen respects the same attempt cap as
   // Task 3's automatic regen loop; it doesn't bypass it.
-  await insertReviewLog({
-    tenantId: run.tenantId,
-    channelId: run.channelId,
-    pipelineRunId: runId,
-    stageId: stage.id,
-    agent: 'human',
-    verdict: 'revise',
-    rationale: outcome.notes,
-  });
-  await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes });
+  const revisePatch: Parameters<typeof updatePipelineRun>[1] =
+    videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
+      ? { status: 'running', currentStage: 'video_generation' }
+      : {
+          status: 'needs_attention',
+          lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
+        };
 
-  if (videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS) {
-    return await updatePipelineRun(runId, {
-      status: 'running',
-      currentStage: 'video_generation',
-    });
-  }
-
-  return await updatePipelineRun(runId, {
-    status: 'needs_attention',
-    lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
+  return await prisma.$transaction(async (tx) => {
+    await insertReviewLog(
+      {
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'human',
+        verdict: 'revise',
+        rationale: outcome.notes,
+      },
+      tx,
+    );
+    await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes }, tx);
+    return await updatePipelineRun(runId, revisePatch, tx);
   });
 }
 
@@ -893,8 +966,10 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     console.log(
       `[publishing] run ${runId}: attempt ${existingAttempt.attemptNumber} already recorded a successful upload before the process stopped — completing the stage without uploading again`,
     );
-    await completeStage(existingAttempt.id, existingAttempt.output as Record<string, unknown>);
-    return await updatePipelineRun(runId, { currentStage: 'analytics' });
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(existingAttempt.id, existingAttempt.output as Record<string, unknown>, tx);
+      return await updatePipelineRun(runId, { currentStage: 'analytics' }, tx);
+    });
   }
 
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
@@ -961,14 +1036,12 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       await new Promise((resolve) => setTimeout(resolve, env.PUBLISHING_TEST_KILL_DELAY_MS));
     }
 
-    await completeStage(stage.id, fullOutput);
-    return await updatePipelineRun(runId, {
-      currentStage: 'analytics',
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(stage.id, fullOutput, tx);
+      return await updatePipelineRun(runId, { currentStage: 'analytics' }, tx);
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
 
@@ -1020,21 +1093,29 @@ export async function runAnalyticsStage(runId: string): Promise<PipelineRun> {
       youtubeVideoId,
     });
 
-    await completeStage(stage.id, {
-      snapshotId: snapshot.id,
-      views: snapshot.views,
-      likes: snapshot.likes,
-      comments: snapshot.comments,
-    });
+    return await prisma.$transaction(async (tx) => {
+      await completeStage(
+        stage.id,
+        {
+          snapshotId: snapshot.id,
+          views: snapshot.views,
+          likes: snapshot.likes,
+          comments: snapshot.comments,
+        },
+        tx,
+      );
 
-    return await updatePipelineRun(runId, {
-      status: 'completed',
-      currentStage: nextStageAfter('analytics'),
-      completedAt: new Date(),
+      return await updatePipelineRun(
+        runId,
+        {
+          status: 'completed',
+          currentStage: nextStageAfter('analytics'),
+          completedAt: new Date(),
+        },
+        tx,
+      );
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await failStage(stage.id, message);
-    return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+    return await failStageAndEscalate(stage.id, runId, error);
   }
 }
