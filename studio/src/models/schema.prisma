@@ -45,6 +45,15 @@ model Channel {
   approvalGateConfig Json     @default("{\"gate1Enabled\": true, \"gate2Enabled\": true}")
   priorsScope        String   @default("isolated") @db.VarChar(20)
 
+  // Week 5 Task 4 (C2, KNOWN_ISSUES_AND_BLOCKERS.md "no fair-access policy
+  // across channels") — nullable, default null for every existing and
+  // newly-created channel: null means "use the platform's pooled
+  // AgentQuota.budgetCeilingUsd, split equally across every default-share
+  // channel on this (tenantId, platform)"; a set value means "this
+  // channel's ceiling is exactly this, regardless of channel count." See
+  // studio/src/run-pipeline/budget-gate.ts's computeChannelBudgetCeilings.
+  budgetOverrideUsd  Decimal? @db.Decimal(10, 2)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())

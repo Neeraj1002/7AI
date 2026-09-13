@@ -56,3 +56,17 @@ export async function sumUsageCostForTenantPlatform(
   });
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
 }
+
+// Week 5 Task 4 (C2) — backs the per-channel half of the fair-access budget
+// gate, alongside the pooled sum above.
+export async function sumUsageCostForTenantChannelPlatform(
+  tenantId: string,
+  channelId: string,
+  platform: ChannelPlatform,
+): Promise<number> {
+  const result = await prisma.usageEvent.aggregate({
+    where: { tenantId, channelId, channel: { platform } },
+    _sum: { costUsd: true },
+  });
+  return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
+}

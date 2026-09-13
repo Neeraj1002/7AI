@@ -2,7 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
 
-**Last updated**: 2026-09-13, after Week 5 Task 3 (restart-safe approval gates).
+**Last updated**: 2026-09-13, after Week 5 Task 4 (fact-check flagging, fair budget allocation,
+model-tier cleanup, and a real test harness).
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -34,11 +35,12 @@ here rather than reviving the closed ones below (kept for history):
 
 ---
 
-## 2. Fixed in Week 5 (Tasks 2-3)
+## 2. Fixed in Week 5 (Tasks 2-4)
 
-Six real, previously-open items, all fixed with evidence — see `week5/reports/task2.md`/`task3.md`
-for the full verification detail (real forced-rollback tests, real render comparisons, real
-regression runs, a real restart-recovery test) behind each one:
+Ten real, previously-open items, all fixed with evidence — see `week5/reports/task2.md`/`task3.md`/
+`task4.md` for the full verification detail (real forced-rollback tests, real render comparisons,
+real regression runs, a real restart-recovery test, real fixture-channel budget scenarios, real
+planted-error script reviews) behind each one:
 
 - **B1 — `completeStage`/`currentStage` write race.** Every one of the ~9 stage-completion call
   sites in `state-machine.ts` (plus the `ReviewLog` insert that sits between them, where one
@@ -97,6 +99,57 @@ regression runs, a real restart-recovery test) behind each one:
   of an actual restart just now" from "paused and abandoned weeks ago." Cleaned up immediately
   (`close-stale-test-runs.ts`); see the new tech-debt item just below.
 
+- **C1 (2026-09-13) — Intake-parsing moved to the cheap/fast model tier.** `src/llm/registry.ts`'s
+  `intake-parsing` entry now resolves to `claude-haiku-4-5`, matching `script-review`/
+  `video-intelligence-own-draft`'s existing correct tiering instead of the inherited-by-accident
+  premium `claude-sonnet-5` default from Week 1. The stale registry comment describing this as an
+  open deviation was removed. Verified two ways (the task's own suggested check — a `UsageEvent` row
+  recording the new model — doesn't apply; see the new tech-debt item below for why): a direct
+  `callLLM({purpose: 'intake-parsing', ...})` call confirmed the real response comes back from
+  `claude-haiku-4-5`, and a full real intake call through `dry-run.ts` confirmed the cheaper model
+  still produces a structurally valid parsed brief. Locked in by a real regression test
+  (`src/llm/registry.test.ts`) asserting `resolvePurpose('intake-parsing')` never silently reverts.
+  — *`week5/reports/task4.md`*
+
+- **C2 — Pooled per-platform budget now has a fair-access policy across channels.** Every active
+  channel on a platform starts with an equal share of `AgentQuota.budgetCeilingUsd`; a new,
+  persisted `Channel.budgetOverrideUsd` (nullable `Decimal(10,2)`, real Prisma migration) lets a
+  specific channel's ceiling be set independently, with the remaining pool split equally among the
+  rest. `isBudgetAvailable(tenantId, channelId, platform)` now checks both this channel's own spend
+  against its effective ceiling and the pool total, replacing the old pool-only check. Overrides
+  that exceed the pool floor the default-share channels at $0 and log a loud warning rather than
+  silently dividing by a negative number. Set via a new founder-facing
+  `scripts/set-channel-budget-override.ts <channelId> <usdAmount|clear>`. Verified live with real
+  fixture channels: equal split ($5/$5 on a $10 pool), an $8 override leaving $2 for the other
+  channel, the overridden channel's `isBudgetAvailable` correctly flipping to `false` once its real
+  spend passed $8, and a pathological override-exceeds-pool case producing the warning with no
+  throw/NaN. The pure allocation math (`computeChannelBudgetCeilings`) is now also unit-tested (see
+  C4). — *`week5/reports/task4.md`*
+
+- **C3 — Script Review now flags factual concerns (plausibility check, not a verified fact-check).**
+  `ScriptReviewOutputSchema` gained `factualConcerns: string[]` (empty when nothing looks off);
+  `SYSTEM_PROMPT` explicitly tells the model this is based on its own knowledge only — `llm/client.ts`
+  has no tool use/retrieval wired in, so nothing is actually looked up or verified. Surfaced in the
+  `ReviewLog` rationale reaching Gate 1, same call and same cheap tier as the rest of the review (no
+  new `purpose`, no added cost). Verified with two real, contrasting LLM calls on the same
+  niche/style inputs Week 2's hummingbird test used: a script with planted factual errors produced
+  specific, correct concerns; a clean script produced an empty array. A real search-grounded
+  fact-check (a distinct `purpose` once the LLM layer supports tool use) is explicitly deferred —
+  see Section 5. — *`week5/reports/task4.md`*
+
+- **C4 — A real automated test harness now exists.** `vitest` adopted (`npm test` now runs it,
+  replacing the old `echo "Error: no test specified" && exit 1` stub); 4 test files, 27 real
+  assertions, covering `parseGateReply` (gate1 approve/reject/edit parsing), `mapGoogleError`
+  (Publishing's transient/non-transient upload-error classification, previously verified only by
+  manual testing), `resolvePurpose`/`resolvePricing` (including the C1 regression test above), and
+  `computeChannelBudgetCeilings`'s pure allocation math (including the override-exceeds-pool and
+  all-channels-overridden edge cases). A real build/test-config bug was found and fixed along the
+  way: `npm run build` was compiling `.test.ts` files into `dist/**/*.test.js`, and `npm test` then
+  picked up both the source and the CommonJS-compiled duplicates, failing on the latter — fixed with
+  a dedicated `tsconfig.build.json` (excludes test files from `dist/`, `typecheck` still covers them)
+  and an explicit `vitest.config.mts` `include`/`exclude`. DB-backed integration testing is
+  explicitly deferred — see Section 5. — *`week5/reports/task4.md`*
+
 ---
 
 ## 3. Known implementation gaps / tech debt (code-level, no founder action needed)
@@ -109,25 +162,19 @@ regression runs, a real restart-recovery test) behind each one:
 
 - **Restart-safe gate reopening (Week 5 Task 3, B6) has no staleness filter, unlike B2's stale-`running`-run window** — deliberately so: a legitimate human approval can take hours or days, so reusing `RESUME_STALE_WINDOW_MS`'s 30-minute logic for gates would be wrong (per the task's own framing, `GATE_REMINDER_THRESHOLD_MS` is *longer* than the resume window for exactly this reason). But this means a boot with years of accumulated, genuinely-abandoned `paused_gate1`/`paused_gate2` dev-DB rows will re-send a real Telegram message for every single one, with no way to distinguish "abandoned" from "the founder just hasn't replied yet" — confirmed live during this task's own testing (~8 old runs, cleaned up manually). Worth a real decision later (an explicit "abandon this run" action, or a much longer "probably dead" threshold measured in days/weeks) once real production volume makes this more than a dev-DB-hygiene issue. — *`week5/reports/task3.md`*
 
-- **Intake-parsing is on the wrong model tier** — `AGENT_FLEET_DESIGN.md` Section 8.1 classifies extraction tasks as cheap/fast, but `intake-parsing`'s registry entry still resolves to premium `claude-sonnet-5`, inherited from Week 1's original default and never a deliberate choice. Low cost impact today (one small call per run), flagged for whoever picks up model-tiering work. — *`week2/reports/task3.md`, now noted in `AGENT_FLEET_DESIGN.md` 8.1*
-
-- **No automated test runner exists anywhere in the project.** Every verification across all three weeks has been live/manual (real calls, direct DB queries, `ffprobe`, etc.) — genuinely rigorous, but there is no regression suite. Flagged as worth deciding in Week 1's summary ("early in Week 2"), never actually set up. Worth a real decision before more business logic accumulates.
-
 - **`pipeline_runs.retryCount` is dead schema** — the column exists but nothing has ever written to it, across all three weeks. Flagged Week 1, never revisited.
 
 - **No lint rule enforces the "only `client.ts`/`registry.ts` are imported directly" boundary** in either `studio/src/llm/` or `studio/src/media/` — held by convention and manual grep-checks only so far, correctly followed each time but not mechanically enforced. — *`week2/reports/task1.md`*
 
 - **Publishing's upload has no idempotency guarantee for the exact moment the HTTP request is in flight.** Distinct from Week 5 Task 2's B4 fix (Section 2, above — that closed the *retry-after-an-ambiguous-error* risk within one invocation). This is a narrower, still-open window: Week 4 Task 2 added a durable checkpoint (`recordStageProgress`) that closes the crash window *after* a real `youtubeVideoId` comes back but before the stage/run rows are marked complete, so a resume never re-uploads in that case. But if the process dies while the upload request has literally been sent and no response has come back yet — before any error even has a chance to be classified — there's no checkpoint yet to detect that on resume; the simple multipart `videos.insert` endpoint doesn't accept a client-supplied idempotency key either. Narrowest possible window, not closed. — *`week4/reports/task2.md`, `week5/reports/task2.md`*
 
-- **7-channel cap has no automated test** — verified by code review and live exercise, never by a dedicated "create 7, assert the 8th throws" test. Same root cause as the missing test runner above. — *`week1/reports/task3.md`*
+- **7-channel cap has no automated test** — verified by code review and live exercise, never by a dedicated "create 7, assert the 8th throws" test. A `vitest` harness now exists (Week 5 Task 4), but this would need real DB fixtures (deferred integration-testing scope, Section 5), not a pure-function unit test. — *`week1/reports/task3.md`*
+
+- **Intake's LLM call writes no `UsageEvent` — its real spend has never been metered.** Discovered while verifying Week 5 Task 4's C1 (the model-tier fix): the task's suggested verification (check a `UsageEvent` row for the new model) doesn't work because `runIntakeStage` in `state-machine.ts` never calls `insertUsageEvent` at all, unlike every other stage since Week 1. Confirmed by running a real intake call and querying for its `usageEvent` rows — zero, despite a real Anthropic call having actually been made and billed. Not fixed in Task 4 (out of C1's stated scope, which was specifically the model tier, not adding metering) — real Anthropic spend from every Intake call across all five weeks is genuinely unaccounted for in `UsageEvent`/the budget-gate's pool total. Worth a real fix before spend tracking is trusted as complete. — *`week5/reports/task4.md`*
 
 ---
 
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
-
-- **Script Review has no factual-accuracy check.** The rubric covers quality/engagement/clarity/brand/video-gen-fit, not truth. Surfaced by a real script about hummingbird flight biomechanics that happened to hold up under manual inspection — nothing in the pipeline would have caught it if it hadn't. Already logged as an open question in `AGENT_FLEET_DESIGN.md` Section 4.5 (added this session); still undecided whether it becomes a rubric addition or stays your manual responsibility at the gates.
-
-- **Pooled per-platform budget has no fair-access policy across channels.** Fine with one channel; the moment channel #2 goes live (Week 5+), one channel could exhaust the shared ceiling before the others ever get scheduled. Flagged in `AGENT_FLEET_DESIGN.md` Section 6.4 as needing an allocation policy (equal reservation / round-robin / priority weighting) before multiple channels run simultaneously. Not urgent yet.
 
 - **The aggregated Video Generation `UsageEvent` row's `provider`/`model` fields are a judgment call, not a confirmed convention.** One row covers two different (provider, model) pairs (TTS + transcription), so `provider` is hardcoded `'openai'` and `model` becomes a composite string (`"tts-1-hd+whisper-1"`), with the real breakdown in `metadata`. Flagged for confirmation the same way the $2.00 budget ceiling was — never explicitly confirmed by you. — *`week3/reports/task2.md`*
 
@@ -146,3 +193,17 @@ regression runs, a real restart-recovery test) behind each one:
 - **Deferred agents per the locked design** (not gaps — deliberately out of MVP scope): Trend Identification, Content Prediction, Continuous Learning, and Video Intelligence's "competitor" mode. All wait on real performance history or later product phases — see `AGENT_FLEET_DESIGN.md` Section 3 for the full status table.
 - **Real YouTube Analytics API integration** (`watchTimeMinutes`/`retentionPct`) — deliberately deferred; needs a separate `yt-analytics.readonly` OAuth scope never requested. `views`/`likes`/`comments` (Data API) are real and working as of Week 5.
 - **`videos.delete` scope** — see Section 3. Not a blocker, just unavailable with the current token.
+- **A real, search-grounded fact-check pass for Script Review** — Week 5 Task 4's C3 added
+  `factualConcerns`, explicitly framed as a plausibility check against the model's own knowledge, not
+  a verified fact-check, since `llm/client.ts` has no tool use/retrieval wired in. A genuinely
+  grounded version (the model actually looking claims up) would need a distinct `purpose`
+  (`script-review-factcheck` or similar) once the LLM layer supports tool use — new integration
+  scope, deliberately out of Task 4's reach. — *`week5/reports/task4.md`*
+- **DB-backed integration tests** — Week 5 Task 4 stood up `vitest` and covered four pure-logic
+  functions (`parseGateReply`, `mapGoogleError`, `resolvePurpose`/`resolvePricing`,
+  `computeChannelBudgetCeilings`), deliberately scoped away from anything needing a live database.
+  The fixture-`PipelineRun`-style tests Task 2/3 already do manually (forced-rollback transactions,
+  stale-resume sweeps, restart recovery) are real, valuable candidates for an actual integration
+  suite — needs test-DB setup (a real decision: a dedicated test schema/database, transaction
+  rollback per test, or something else) that Task 4 didn't attempt. A natural next-week candidate.
+  — *`week5/reports/task4.md`*

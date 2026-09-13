@@ -5,7 +5,10 @@ states, no new transitions. Task 2 adds real control-flow changes: a new automat
 (stale vs. resumable), and stage-completion writes that are now atomic rather than two independent
 writes. Task 3 adds a new automatic-resume behavior for `paused_gate1`/`paused_gate2` (previously
 untouched by `resumeOnStartup()` at all) and a new, independent notification-only check — no new
-`PipelineRun`/`PipelineStage` states either.
+`PipelineRun`/`PipelineStage` states either. Task 4 adds no new states/transitions either — it
+changes what a budget check considers (per-channel, not just pooled) and what Script Review's output
+carries (`factualConcerns`), plus a model-tier fix and a test harness that touch no control flow at
+all.
 
 ## Implementation Reconciliation (added by Task 1)
 
@@ -109,6 +112,47 @@ fatal to the check tick.
 ### Reference
 Full state machine and control-flow rules live in `week2/BUSINESS_LOGIC.md` (gate1),
 `week3/BUSINESS_LOGIC.md` (gate2) — this task only restores reachability, not the rules themselves.
+
+## Task 4 — Fact-check flagging, fair budget allocation, model-tier cleanup, a real test harness
+
+No transition-table changes at all. Four independent deltas:
+
+### C1 — Intake-parsing's model tier
+`resolvePurpose('intake-parsing')` now resolves to `claude-haiku-4-5` instead of `claude-sonnet-5` —
+a cost/quality change, not a control-flow one. `runIntakeStage`'s transitions are unchanged.
+
+**Real finding surfaced while verifying this, out of scope to fix here**: `runIntakeStage` never
+calls `insertUsageEvent` — Intake's real spend has never been recorded in `UsageEvent`, unlike every
+other stage. This means the pool-level budget check (`sumUsageCostForTenantPlatform`, used by C2's
+`isBudgetAvailable` below) has always undercounted real spend by however much Intake actually costs.
+Flagged as a new tech-debt item in `KNOWN_ISSUES_AND_BLOCKERS.md` Section 3, not fixed in this task.
+
+### C2 — Per-channel budget fairness (new decision inside the existing budget gate)
+`isBudgetAvailable` gains a `channelId` parameter and a second condition. Previously: refuse only if
+the pool total (`sumUsageCostForTenantPlatform`) meets or exceeds `AgentQuota.budgetCeilingUsd`. Now:
+refuse if **either** that pool check fails **or** this channel's own spend
+(`sumUsageCostForTenantChannelPlatform`) meets or exceeds its computed effective ceiling
+(`computeChannelBudgetCeilings` — equal split by default, `Channel.budgetOverrideUsd` if set). Both
+call sites in `state-machine.ts` (video-generation budget gate, per `week2/BUSINESS_LOGIC.md`
+Section 2) pass `channel.id` now. The refusal message changed to name both possible causes ("the
+pooled budget ceiling or this channel's own effective ceiling would be exceeded") since a caller can
+no longer assume pool-exhaustion was the reason. No new `PipelineRun`/`PipelineStage` transition —
+this only changes what causes the existing budget-refusal escalation to fire.
+
+### C3 — Script Review's `factualConcerns`
+Purely additive to `ScriptReviewOutputSchema`'s output shape and the `ReviewLog.rationale` text
+built in `runScriptReviewStage`'s success transaction — no new transition, no new stage, no new
+`purpose`. The existing `script_review → paused_gate1` (pass) / `script_review → script_generation`
+(fail, regen) transitions are unchanged; only the rationale a human sees at Gate 1 gained an extra,
+clearly-labeled ("plausibility check, not verified") sentence when the model flags something.
+
+### C4 — Test harness
+No runtime behavior at all — `vitest` and four test files exercise existing pure functions in
+isolation. Zero effect on any `PipelineRun`/`PipelineStage` transition.
+
+### Reference
+`week2/BUSINESS_LOGIC.md` Section 2 — the existing video-generation budget-gate call site this task
+extends, not replaces.
 
 ## Reference
 - `docs/execution/week4/BUSINESS_LOGIC.md` — the transition table this week verifies and extends

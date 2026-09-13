@@ -155,18 +155,18 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
   // attempt exists at all. A refused call is recorded as `skipped`, never
   // silently dropped and never a `failed` attempt (nothing actually ran).
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.platform);
+  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
   if (!budgetOk) {
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'script_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'AgentQuota.budgetCeilingUsd would be exceeded',
+      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
     });
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Script Generation refused: AgentQuota.budgetCeilingUsd would be exceeded',
+      lastError: 'Script Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
     });
   }
 
@@ -336,6 +336,13 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         output.videoGenFit.flags.length > 0
           ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
           : '';
+      // C3 (Week 5 Task 4): surfaced in the same ReviewLog rationale gate1
+      // reads from, so a plausibility concern actually reaches the founder
+      // at Gate 1, not just the raw stage output.
+      const factualConcernsNote =
+        output.factualConcerns.length > 0
+          ? ` Factual concerns (plausibility check, not verified): ${output.factualConcerns.join('; ')}.`
+          : '';
       await insertReviewLog(
         {
           tenantId: run.tenantId,
@@ -344,7 +351,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}`,
+          rationale: `${output.notes}${flagsNote}${factualConcernsNote}`,
         },
         tx,
       );
@@ -558,18 +565,18 @@ export async function runVideoGenerationStage(
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
   // Script Generation, now also covering the pipeline's most expensive stage.
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.platform);
+  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
   if (!budgetOk) {
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'video_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'AgentQuota.budgetCeilingUsd would be exceeded',
+      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
     });
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Video Generation refused: AgentQuota.budgetCeilingUsd would be exceeded',
+      lastError: 'Video Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
     });
   }
 

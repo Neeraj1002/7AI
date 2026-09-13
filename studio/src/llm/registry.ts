@@ -9,15 +9,16 @@ export type RegistryEntry = {
 // config map, not env vars or a config file — see the "Registry shape"
 // rationale in docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 //
-// `intake-parsing`/`script-generation` resolve to Anthropic's premium tier,
-// matching what Week 1's parse-brief.ts already used — `intake-parsing`'s
-// tiering was never a deliberate choice (see Week 2 Task 3's report), but
-// `script-generation`'s is correct as-is per AGENT_FLEET_DESIGN.md 8.1
-// ("the one place quality directly drives views, don't cost-optimize").
-// `script-review` and `video-intelligence-own-draft` deliberately resolve to
-// the cheap/fast tier (`claude-haiku-4-5`, which supports image input) per
-// 8.1's classification/scoring row. Changing a purpose's model or provider
-// is a one-line edit here, never a call-site change.
+// `script-generation` resolves to Anthropic's premium tier per
+// AGENT_FLEET_DESIGN.md 8.1 ("the one place quality directly drives views,
+// don't cost-optimize"). `intake-parsing`, `script-review`, and
+// `video-intelligence-own-draft` deliberately resolve to the cheap/fast
+// tier (`claude-haiku-4-5`, which supports image input) per 8.1's
+// classification/scoring row — `intake-parsing` was fixed onto this tier in
+// Week 5 Task 4 (it had inherited Week 1's premium default unchanged and
+// never gotten a deliberate tiering decision until then; see
+// `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md`). Changing a purpose's model
+// or provider is a one-line edit here, never a call-site change.
 //
 // `video-production-planning` (Week 4 Task 1) and `metadata-generation`
 // (Week 4 Task 2) are both "reasoning/explanation"-shaped per 8.1's table
@@ -30,7 +31,7 @@ export type RegistryEntry = {
 // precedent. Flagged in both tasks' reports as a judgment call, same
 // treatment as `intake-parsing`'s tier before it.
 export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
-  'intake-parsing': { provider: 'anthropic', model: 'claude-sonnet-5' },
+  'intake-parsing': { provider: 'anthropic', model: 'claude-haiku-4-5' },
   'script-generation': { provider: 'anthropic', model: 'claude-sonnet-5' },
   'script-review': { provider: 'anthropic', model: 'claude-haiku-4-5' },
   'video-intelligence-own-draft': { provider: 'anthropic', model: 'claude-haiku-4-5' },
