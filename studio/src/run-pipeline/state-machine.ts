@@ -392,13 +392,30 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   }
 
   const previousAttempt = await findLatestAttempt(runId, 'gate1');
-  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
-  const stage = await createStageAttempt({
-    pipelineRunId: runId,
-    stageName: 'gate1',
-    attemptNumber,
-    input: { scriptText: scriptOutput.scriptText, reviewScore: latestReview.verdict },
-  });
+
+  // Restart-safety (Week 5 Task 3, KNOWN_ISSUES_AND_BLOCKERS.md): a
+  // 'running' gate1 attempt already exists when this run was paused_gate1
+  // and the process restarted (resume-on-startup.ts re-invokes this
+  // function). Reuse that same attempt — re-sending the Telegram prompt and
+  // re-registering the pending reply — rather than creating a second one;
+  // the DB record of "gate1 is open" doesn't need to change, only the
+  // in-memory pending-reply state does.
+  const isRestartReopen = previousAttempt !== null && previousAttempt.status === 'running';
+  const stage =
+    previousAttempt && previousAttempt.status === 'running'
+      ? previousAttempt
+      : await createStageAttempt({
+          pipelineRunId: runId,
+          stageName: 'gate1',
+          attemptNumber: previousAttempt ? previousAttempt.attemptNumber + 1 : 1,
+          input: { scriptText: scriptOutput.scriptText, reviewScore: latestReview.verdict },
+        });
+
+  if (isRestartReopen) {
+    console.log(
+      `[gate1] run ${runId}: re-opening an already-pending gate1 attempt ${stage.attemptNumber} after a restart — re-sending the prompt`,
+    );
+  }
 
   // Blocks here until a reply arrives (or, per Task 6's founder-availability
   // note, a simulated one is fed in for testing) — this is the "pause" that
@@ -410,6 +427,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     scriptText: scriptOutput.scriptText,
     reviewScore: latestReview.verdict,
     reviewNotes: latestReview.rationale,
+    restarted: isRestartReopen,
   });
 
   if (outcome.type === 'reject') {
@@ -803,13 +821,24 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   }
 
   const previousAttempt = await findLatestAttempt(runId, 'gate2');
-  const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
-  const stage = await createStageAttempt({
-    pipelineRunId: runId,
-    stageName: 'gate2',
-    attemptNumber,
-    input: { videoPath, verdict: reviewOutput.verdict, rationale: reviewOutput.rationale },
-  });
+
+  // Restart-safety (Week 5 Task 3) — same reasoning as gate1's own comment.
+  const isRestartReopen = previousAttempt !== null && previousAttempt.status === 'running';
+  const stage =
+    previousAttempt && previousAttempt.status === 'running'
+      ? previousAttempt
+      : await createStageAttempt({
+          pipelineRunId: runId,
+          stageName: 'gate2',
+          attemptNumber: previousAttempt ? previousAttempt.attemptNumber + 1 : 1,
+          input: { videoPath, verdict: reviewOutput.verdict, rationale: reviewOutput.rationale },
+        });
+
+  if (isRestartReopen) {
+    console.log(
+      `[gate2] run ${runId}: re-opening an already-pending gate2 attempt ${stage.attemptNumber} after a restart — re-sending the prompt`,
+    );
+  }
 
   // Blocks here until a reply arrives (or, per Task 6/Week 2's
   // founder-availability convention, a simulated one for testing).
@@ -819,6 +848,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     videoPath,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
+    restarted: isRestartReopen,
   });
 
   if (outcome.type === 'reject') {

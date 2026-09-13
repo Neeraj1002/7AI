@@ -23,11 +23,16 @@ import type { PipelineRun, PipelineStage, StageName } from '../types';
 //     stage from its persisted input rather than assuming partial work
 //     happened.
 //
-// A run sitting at `paused_gate1` is NOT picked up here (only `status =
-// running` is queried) — a restart while waiting on a Telegram reply does not
-// automatically reopen the gate. That's a deliberate scope boundary, not an
-// oversight: re-sending a gate message on every restart would be surprising
-// founder-facing behavior, and nothing schedules a re-check yet this week.
+// Week 5 Task 3 (restart-safe gates): a run sitting at `paused_gate1`/
+// `paused_gate2` is ALSO picked up here now, in a second pass below. This
+// used to be a deliberate scope boundary (re-sending a gate message on every
+// restart would be surprising founder-facing behavior, and nothing
+// schedules a re-check) — now closed: `PipelineRun.status` staying
+// `paused_gate1`/`paused_gate2` across a crash was always durable, but the
+// in-memory `pendingByThreadKey` map (`telegram-channel.ts`) that a real
+// reply or the app's gate1/gate2 API call resolves against lived only in the
+// crashed process's memory. Without re-establishing it, a paused run was
+// stranded forever — no reply, Telegram or API, could ever reach it again.
 const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<PipelineRun>>> = {
   intake: runIntakeStage,
   script_generation: runScriptGenerationStage,
@@ -56,6 +61,11 @@ function staleAgeMs(stage: PipelineStage): number {
 }
 
 export async function resumeOnStartup(): Promise<void> {
+  await resumeRunningRuns();
+  await reopenPausedGates();
+}
+
+async function resumeRunningRuns(): Promise<void> {
   const runningRuns = await listRunsByStatus('running');
   if (runningRuns.length === 0) {
     console.log('[resume] no running PipelineRuns found on startup');
@@ -126,5 +136,47 @@ export async function resumeOnStartup(): Promise<void> {
     console.log(
       `[resume] run ${run.id}: latest stage '${latestStage.stageName}' is '${latestStage.status}' — no automatic resume action defined for this state`,
     );
+  }
+}
+
+// Week 5 Task 3 — the fix this task adds. Re-invokes the matching gate
+// function for every run parked at `paused_gate1`/`paused_gate2`. Each of
+// `runGate1Stage`/`runGate2Stage` already knows (state-machine.ts) to reuse
+// the existing 'running' gate attempt rather than create a new one, so this
+// is safe to call on every boot regardless of whether the gate was actually
+// affected by a crash — re-sending the prompt and re-registering the pending
+// reply is exactly what needs to happen either way.
+//
+// Deliberately fire-and-forget (not awaited per-run): requestGate1Decision/
+// requestGate2Decision block on a real human reply, sometimes for hours.
+// resumeOnStartup() itself must return promptly so the rest of main()'s boot
+// sequence (the Telegram receive loop, the API server) actually starts —
+// otherwise a single pending gate would block the whole orchestrator from
+// ever coming back up, and then nothing could ever answer it. The gate
+// resolution proceeds in the background exactly as it would have if the
+// process had never restarted.
+async function reopenPausedGates(): Promise<void> {
+  const pausedGate1Runs = await listRunsByStatus('paused_gate1');
+  for (const run of pausedGate1Runs) {
+    console.log(
+      `[resume] run ${run.id}: was paused at Gate 1 when the process stopped — re-opening it in the background`,
+    );
+    void runGate1Stage(run.id).catch((error) => {
+      console.error(`[resume] run ${run.id}: error re-opening Gate 1:`, error);
+    });
+  }
+
+  const pausedGate2Runs = await listRunsByStatus('paused_gate2');
+  for (const run of pausedGate2Runs) {
+    console.log(
+      `[resume] run ${run.id}: was paused at Gate 2 when the process stopped — re-opening it in the background`,
+    );
+    void runGate2Stage(run.id).catch((error) => {
+      console.error(`[resume] run ${run.id}: error re-opening Gate 2:`, error);
+    });
+  }
+
+  if (pausedGate1Runs.length === 0 && pausedGate2Runs.length === 0) {
+    console.log('[resume] no paused_gate1/paused_gate2 PipelineRuns found on startup');
   }
 }

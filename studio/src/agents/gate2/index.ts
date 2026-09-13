@@ -42,9 +42,14 @@ export function formatGate2Message(params: {
   rationale: string;
   videoPath: string;
   videoTooLargeToAttach: boolean;
+  // Week 5 Task 3 (restart-safe gates) — see gate1's own comment.
+  restarted?: boolean;
 }): string {
   const lines = [
     `Gate 2 — ${params.channelName}`,
+    ...(params.restarted
+      ? ['(Re-sending after a restart — this gate was already open, waiting on your reply.)']
+      : []),
     ``,
     `Video Intelligence verdict: ${params.verdict}`,
     `Notes: ${params.rationale}`,
@@ -62,6 +67,7 @@ export async function requestGate2Decision(params: {
   videoPath: string;
   verdict: string;
   rationale: string;
+  restarted?: boolean;
 }): Promise<Gate2Outcome> {
   const stat = await fs.stat(params.videoPath);
   const videoTooLargeToAttach = stat.size > TELEGRAM_MAX_VIDEO_BYTES;
@@ -72,6 +78,7 @@ export async function requestGate2Decision(params: {
     rationale: params.rationale,
     videoPath: params.videoPath,
     videoTooLargeToAttach,
+    restarted: params.restarted,
   });
 
   const { reply } = await founderChannel.requestApproval({

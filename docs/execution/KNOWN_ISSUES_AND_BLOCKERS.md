@@ -2,7 +2,7 @@
 
 **Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
 
-**Last updated**: 2026-09-11, after Week 5 Task 2 (bug-fix & hardening pass).
+**Last updated**: 2026-09-13, after Week 5 Task 3 (restart-safe approval gates).
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -34,11 +34,11 @@ here rather than reviving the closed ones below (kept for history):
 
 ---
 
-## 2. Fixed in Week 5 Task 2 (bug-fix & hardening pass)
+## 2. Fixed in Week 5 (Tasks 2-3)
 
-Five real, previously-open items, all fixed with evidence — see `week5/reports/task2.md` for the
-full verification detail (real forced-rollback tests, real render comparisons, real regression
-runs) behind each one:
+Six real, previously-open items, all fixed with evidence — see `week5/reports/task2.md`/`task3.md`
+for the full verification detail (real forced-rollback tests, real render comparisons, real
+regression runs, a real restart-recovery test) behind each one:
 
 - **B1 — `completeStage`/`currentStage` write race.** Every one of the ~9 stage-completion call
   sites in `state-machine.ts` (plus the `ReviewLog` insert that sits between them, where one
@@ -74,6 +74,28 @@ runs) behind each one:
   passed the video anyway, recognizing it as a normal mid-transition artifact rather than failing
   on one bad instant. This is the item Section 3 used to track as "Video Generation's caption style
   fights Video Intelligence's frame-sampling" — now resolved, not just theorized about.
+- **B6 — a restart while a run sat at `paused_gate1`/`paused_gate2` stranded it forever.** The DB
+  status was durable, but the in-memory `pendingByThreadKey` map (`telegram-channel.ts`) that a
+  real Telegram reply or the app's gate1/gate2 API call resolves against lived only in the crashed
+  process's memory — nothing re-established it. `resume-on-startup.ts` now re-invokes the matching
+  gate function for every `paused_gate1`/`paused_gate2` run on boot; `runGate1Stage`/`runGate2Stage`
+  reuse the existing `running` stage attempt rather than creating a new one, so this is safe to run
+  on every boot regardless of whether a gate was actually affected by a crash. A "you haven't
+  answered in a while" nudge (`GATE_REMINDER_THRESHOLD_MS`, default 4h) also pings Telegram
+  independent of any restart. Verified live: a real fixture run at each of `paused_gate1`/
+  `paused_gate2`, a real restart (`resumeOnStartup()` called directly) re-sent a real Telegram
+  message and re-established the pending state (`peekPendingMessageId` returned a real id), and the
+  app's `resolvePendingApproval` path resolved it end-to-end (`{ resolved: true }`, the run
+  correctly advanced). A second immediate restart while still pending did not create a duplicate
+  `PipelineStage` attempt. The reminder nudge fired for a gate open past its threshold and not for
+  one answered promptly, verified both ways.
+
+  **A real, live side-effect of testing this fix, worth knowing about**: the very first real test
+  of this fix also picked up ~8 genuine leftover `paused_gate1`/`paused_gate2` runs from Weeks 2-3
+  testing (accumulated dev-DB debris, never cleaned up) and correctly — if noisily — re-sent real
+  Telegram messages for every one of them, since the fix has no way to distinguish "paused because
+  of an actual restart just now" from "paused and abandoned weeks ago." Cleaned up immediately
+  (`close-stale-test-runs.ts`); see the new tech-debt item just below.
 
 ---
 
@@ -84,6 +106,8 @@ runs) behind each one:
 - **`dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) can't coexist with a persistent `npm run dev` instance** on the same Telegram bot token — both start a long-poll loop, and Telegram allows only one active `getUpdates` poller per token, so the second one to start gets a `409 Conflict`. Worked around in Week 5 Task 1 by stopping the persistent instance for the duration of testing and restarting it after. Not fixed — worth a real fix (detect an already-running poller and defer to it, or share one process) if live-gate testing becomes routine rather than occasional. — *`week5/reports/task1.md`*
 
 - **`videos.delete` needs a broader OAuth scope than what's currently granted** — the token only has `youtube.upload`/`youtube.readonly` (Week 1 Task 7's original scope request), so a throwaway test video uploaded during Week 5 Task 1's real kill-test (`nnY46b0vOCw`, private, harmless) couldn't be cleaned up programmatically. Low priority — a manual YouTube Studio delete closes it, or a future task can re-request the broader `youtube`/`youtube.force-ssl` scope if programmatic video cleanup becomes worth having. — *`week5/reports/task1.md`*
+
+- **Restart-safe gate reopening (Week 5 Task 3, B6) has no staleness filter, unlike B2's stale-`running`-run window** — deliberately so: a legitimate human approval can take hours or days, so reusing `RESUME_STALE_WINDOW_MS`'s 30-minute logic for gates would be wrong (per the task's own framing, `GATE_REMINDER_THRESHOLD_MS` is *longer* than the resume window for exactly this reason). But this means a boot with years of accumulated, genuinely-abandoned `paused_gate1`/`paused_gate2` dev-DB rows will re-send a real Telegram message for every single one, with no way to distinguish "abandoned" from "the founder just hasn't replied yet" — confirmed live during this task's own testing (~8 old runs, cleaned up manually). Worth a real decision later (an explicit "abandon this run" action, or a much longer "probably dead" threshold measured in days/weeks) once real production volume makes this more than a dev-DB-hygiene issue. — *`week5/reports/task3.md`*
 
 - **Intake-parsing is on the wrong model tier** — `AGENT_FLEET_DESIGN.md` Section 8.1 classifies extraction tasks as cheap/fast, but `intake-parsing`'s registry entry still resolves to premium `claude-sonnet-5`, inherited from Week 1's original default and never a deliberate choice. Low cost impact today (one small call per run), flagged for whoever picks up model-tiering work. — *`week2/reports/task3.md`, now noted in `AGENT_FLEET_DESIGN.md` 8.1*
 

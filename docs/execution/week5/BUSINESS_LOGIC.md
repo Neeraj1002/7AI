@@ -3,7 +3,9 @@
 **Status**: Task 1 verifies Week 1-4's existing transition table against real credentials — no new
 states, no new transitions. Task 2 adds real control-flow changes: a new automatic-resume decision
 (stale vs. resumable), and stage-completion writes that are now atomic rather than two independent
-writes.
+writes. Task 3 adds a new automatic-resume behavior for `paused_gate1`/`paused_gate2` (previously
+untouched by `resumeOnStartup()` at all) and a new, independent notification-only check — no new
+`PipelineRun`/`PipelineStage` states either.
 
 ## Implementation Reconciliation (added by Task 1)
 
@@ -70,6 +72,43 @@ transition itself (→ `needs_attention`) is unchanged; only which failures land
 `captionsEnabled: false` changes what Video Generation *renders*, not the state machine — same
 `video_generation → video_review` transition either way. Video Intelligence's multi-frame sampling
 changes how a `pass`/`fail` verdict gets decided, not the transition table itself.
+
+## Task 3 — Restart-safe approval gates (B6)
+
+### What this task implements
+`resumeOnStartup()` gains a second pass (`reopenPausedGates`), independent of the existing
+running-run pass: for every `PipelineRun` at `paused_gate1`/`paused_gate2`, it re-invokes
+`runGate1Stage`/`runGate2Stage` respectively. This doesn't change the transition table — `paused_gate1
+→ running` (via approve/edit) or `paused_gate1 → failed` (via reject) still happen exactly as
+`week2/BUSINESS_LOGIC.md`/`week3/BUSINESS_LOGIC.md` already document — it only re-establishes the
+in-memory pending-reply state (`pendingByThreadKey`, `telegram-channel.ts`) that makes those
+transitions reachable again after a crash.
+
+### Preconditions
+A `PipelineRun` whose `status` is `paused_gate1`/`paused_gate2` — durable from whenever
+`script_review`/`video_review` set it, regardless of how many process restarts happen while it
+waits.
+
+### Postconditions
+Exactly one `running`-status `gate1`/`gate2` `PipelineStage` attempt exists per gate opening, no
+matter how many restarts occur while it's pending — `runGate1Stage`/`runGate2Stage` reuse the
+existing attempt (`isRestartReopen` check against `findLatestAttempt`) rather than creating a new
+one each time. A fresh Telegram message is sent on each reopen (prefixed to say so), and
+`pendingByThreadKey` always reflects the *latest* reopen — an older, still-in-flight
+`runGate1Stage`/`runGate2Stage` call from a prior reopen (same process) has its promise superseded,
+not resolved, if a second reopen races it; see Deviations in `reports/task3.md`.
+
+### Failure Modes & Handling
+An error inside a re-invoked `runGate1Stage`/`runGate2Stage` call (fire-and-forget from
+`resumeOnStartup()`) is caught and logged, not thrown — it must never crash `resumeOnStartup()`
+itself, since that call also gates the rest of `main()`'s boot sequence (Telegram receive loop, API
+server). The gate-reminder nudge (`gate-reminder.ts`) is notification-only and never touches
+`PipelineRun`/`PipelineStage` state — a failed `notify()` call is caught and logged per-run, never
+fatal to the check tick.
+
+### Reference
+Full state machine and control-flow rules live in `week2/BUSINESS_LOGIC.md` (gate1),
+`week3/BUSINESS_LOGIC.md` (gate2) — this task only restores reachability, not the rules themselves.
 
 ## Reference
 - `docs/execution/week4/BUSINESS_LOGIC.md` — the transition table this week verifies and extends

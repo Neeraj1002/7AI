@@ -42,9 +42,17 @@ export function formatGateMessage(params: {
   scriptText: string;
   reviewScore: string;
   reviewNotes: string;
+  // Week 5 Task 3 (restart-safe gates): true when this message is a
+  // re-prompt after a process restart re-opened an already-pending gate,
+  // not a fresh gate — worth saying plainly so it doesn't read as a
+  // confusing duplicate ask.
+  restarted?: boolean;
 }): string {
   return [
     `Gate 1 — ${params.channelName}`,
+    ...(params.restarted
+      ? ['(Re-sending after a restart — this gate was already open, waiting on your reply.)']
+      : []),
     ``,
     `Brief: ${params.briefText}`,
     ``,
@@ -65,6 +73,7 @@ export async function requestGate1Decision(params: {
   scriptText: string;
   reviewScore: string;
   reviewNotes: string;
+  restarted?: boolean;
 }): Promise<Gate1Outcome> {
   const message = formatGateMessage(params);
   const { reply } = await founderChannel.requestApproval({ threadKey: params.runId, message });

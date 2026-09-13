@@ -76,9 +76,11 @@ export async function runPipelineToNextGate(runId: string): Promise<PipelineRun>
 // the `runGate1Stage`/`runGate2Stage` call this driver is blocked inside of
 // is still the exact in-memory call a later resolvePendingApproval() unblocks
 // — there is no separate "resume after gate" entry point to build here. A
-// gate left pending across a process restart is the same already-documented
-// scope boundary resume-on-startup.ts calls out (a restart doesn't
-// auto-reopen a gate); this driver doesn't change that.
+// gate left pending across a process restart is handled by
+// resume-on-startup.ts (Week 5 Task 3): on boot, it re-invokes the matching
+// gate function for every `paused_gate1`/`paused_gate2` run, which re-sends
+// the Telegram prompt and re-registers the pending reply — this driver
+// doesn't need its own restart-recovery path.
 export function startPipelineInBackground(runId: string): void {
   void runPipelineToNextGate(runId).catch((error) => {
     console.error(`[pipeline-runner] run ${runId} — unhandled error driving the pipeline:`, error);
