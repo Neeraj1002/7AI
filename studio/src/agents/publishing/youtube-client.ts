@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env';
 import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
-import { PRIVACY_STATUS, type UploadParams, type UploadResult } from './types';
+import type { UploadParams, UploadResult } from './types';
 
 // The only file allowed to touch the YouTube Data API v3's upload endpoint —
 // same boundary pattern as llm/media/stock-footage's client.ts files. No
@@ -83,7 +83,7 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
         tags: params.metadata.tags,
       },
       status: {
-        privacyStatus: PRIVACY_STATUS,
+        privacyStatus: params.privacyStatus,
       },
     };
 
@@ -107,7 +107,7 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
       throw new NonTransientStageError('YouTube upload succeeded but returned no video id', undefined, context);
     }
 
-    return { youtubeVideoId: response.data.id, privacyStatus: PRIVACY_STATUS };
+    return { youtubeVideoId: response.data.id, privacyStatus: params.privacyStatus };
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapGoogleError(error, context);

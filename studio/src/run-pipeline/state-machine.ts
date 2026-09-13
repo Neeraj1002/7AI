@@ -25,11 +25,18 @@ import { generateVideo, type VideoGenerationOutput } from '../agents/video-gener
 import { planVideoProduction, type ProductionPlan } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
-import { generatePublishingMetadata, uploadVideo, type PublishingMetadata, type UploadResult } from '../agents/publishing';
+import {
+  generatePublishingMetadata,
+  uploadVideo,
+  DEFAULT_PRIVACY_STATUS,
+  type PublishingMetadata,
+  type UploadResult,
+  type PrivacyStatus,
+} from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
-import type { CreatePipelineRunInput, PipelineRun, StageName } from '../types';
+import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
 
 // PipelineRun/PipelineStage state machine — BUSINESS_LOGIC.md Section 1.
 // Week 1 only wires up the `intake` stage; every other stage name exists in the
@@ -93,8 +100,47 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
 
   const intakeProcessor = env.INTAKE_STAGE_STUB === '1' ? stubParseBrief : parseBrief;
 
+  // Every real LLM call this makes — including each retry, not just the
+  // final outcome — writes its own UsageEvent row, success or failure (same
+  // per-attempt metering pattern as every other stage). Week 5 Task 5 fix:
+  // Intake previously never metered its spend at all, unlike every other
+  // stage since Week 1 — undercounting real spend against every budget check.
+  const attemptOnce = async (): Promise<IntakeParsed> => {
+    try {
+      const { output, llm } = await intakeProcessor(run.briefText);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'intake',
+        provider: llm.provider,
+        model: llm.model,
+        inputTokens: llm.usage.inputTokens,
+        outputTokens: llm.usage.outputTokens,
+        costUsd: llm.costUsd,
+      });
+      return output;
+    } catch (error) {
+      const context = getStageErrorContext(error);
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'intake',
+        provider: (context?.provider as string | undefined) ?? 'unknown',
+        model: (context?.model as string | undefined) ?? 'unknown',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: '0.000000',
+      });
+      throw error;
+    }
+  };
+
   try {
-    const output = await withRetryAndCircuitBreaker(() => intakeProcessor(run.briefText));
+    const output = await withRetryAndCircuitBreaker(attemptOnce);
 
     // Persist-before-advance: the stage's completion and the run's advance are
     // written together, in one transaction — this is what makes resumability
@@ -885,6 +931,14 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   }
 
   if (outcome.type === 'approve') {
+    // Week 5 Task 5 (D2) — the privacy status the founder actually chose,
+    // resolved by parseGate2Reply itself (defaults to DEFAULT_PRIVACY_STATUS
+    // on a bare "approve"). Recorded into both the stage output (so
+    // runPublishingStage can read it) and, when it's anything other than the
+    // default, the ReviewLog's editedOutput — same "audit trail shows not
+    // just approve/reject but what was approved" pattern as Gate 1's
+    // edited-script logging.
+    const privacyStatus = outcome.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(
         {
@@ -895,10 +949,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           agent: 'human',
           verdict: 'approve',
           rationale: 'Approved as-is',
+          editedOutput: privacyStatus !== DEFAULT_PRIVACY_STATUS ? { privacyStatus } : undefined,
         },
         tx,
       );
-      await completeStage(stage.id, { outcome: 'approve' }, tx);
+      await completeStage(stage.id, { outcome: 'approve', privacyStatus }, tx);
       return await updatePipelineRun(
         runId,
         {
@@ -960,10 +1015,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (!gate2Stage || gate2Stage.status !== 'completed' || !gate2Stage.output) {
     throw new Error(`PipelineRun ${runId} has no completed gate2 output — cannot run publishing`);
   }
-  const gate2Outcome = (gate2Stage.output as { outcome?: string }).outcome;
-  if (gate2Outcome !== 'approve') {
-    throw new Error(`PipelineRun ${runId}'s gate2 outcome is '${gate2Outcome}', not 'approve' — cannot run publishing`);
+  const gate2Output = gate2Stage.output as { outcome?: string; privacyStatus?: PrivacyStatus };
+  if (gate2Output.outcome !== 'approve') {
+    throw new Error(
+      `PipelineRun ${runId}'s gate2 outcome is '${gate2Output.outcome}', not 'approve' — cannot run publishing`,
+    );
   }
+  // Falls back to DEFAULT_PRIVACY_STATUS for a gate2 stage row written before
+  // Week 5 Task 5 (D2) added this field — an old completed run being
+  // re-inspected, not a live resume path (publishing only ever reads the
+  // gate2 attempt that led to it).
+  const privacyStatus = gate2Output.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
 
   const videoGenStage = await findLatestAttempt(runId, 'video_generation');
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
@@ -1055,7 +1117,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   try {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
-    const attemptUploadOnce = async (): Promise<UploadResult> => uploadVideo({ videoPath, metadata });
+    const attemptUploadOnce = async (): Promise<UploadResult> => uploadVideo({ videoPath, metadata, privacyStatus });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Durable checkpoint — see recordStageProgress's own comment. Written

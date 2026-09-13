@@ -2,8 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
 
-**Last updated**: 2026-09-13, after Week 5 Task 4 (fact-check flagging, fair budget allocation,
-model-tier cleanup, and a real test harness).
+**Last updated**: 2026-09-14, after Week 5 Task 5 (metering Intake's spend, and the first genuinely
+public real Short) — **Sprint 1 is now genuinely closed**. See `docs/roadmap/SPRINT_ROADMAP.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -35,12 +35,12 @@ here rather than reviving the closed ones below (kept for history):
 
 ---
 
-## 2. Fixed in Week 5 (Tasks 2-4)
+## 2. Fixed in Week 5 (Tasks 2-5)
 
-Ten real, previously-open items, all fixed with evidence — see `week5/reports/task2.md`/`task3.md`/
-`task4.md` for the full verification detail (real forced-rollback tests, real render comparisons,
-real regression runs, a real restart-recovery test, real fixture-channel budget scenarios, real
-planted-error script reviews) behind each one:
+Twelve real, previously-open items, all fixed with evidence — see `week5/reports/task2.md`/
+`task3.md`/`task4.md`/`task5.md` for the full verification detail (real forced-rollback tests, real
+render comparisons, real regression runs, a real restart-recovery test, real fixture-channel budget
+scenarios, real planted-error script reviews, a real public YouTube upload) behind each one:
 
 - **B1 — `completeStage`/`currentStage` write race.** Every one of the ~9 stage-completion call
   sites in `state-machine.ts` (plus the `ReviewLog` insert that sits between them, where one
@@ -135,7 +135,7 @@ planted-error script reviews) behind each one:
   niche/style inputs Week 2's hummingbird test used: a script with planted factual errors produced
   specific, correct concerns; a clean script produced an empty array. A real search-grounded
   fact-check (a distinct `purpose` once the LLM layer supports tool use) is explicitly deferred —
-  see Section 5. — *`week5/reports/task4.md`*
+  see Section 6. — *`week5/reports/task4.md`*
 
 - **C4 — A real automated test harness now exists.** `vitest` adopted (`npm test` now runs it,
   replacing the old `echo "Error: no test specified" && exit 1` stub); 4 test files, 27 real
@@ -148,7 +148,39 @@ planted-error script reviews) behind each one:
   picked up both the source and the CommonJS-compiled duplicates, failing on the latter — fixed with
   a dedicated `tsconfig.build.json` (excludes test files from `dist/`, `typecheck` still covers them)
   and an explicit `vitest.config.mts` `include`/`exclude`. DB-backed integration testing is
-  explicitly deferred — see Section 5. — *`week5/reports/task4.md`*
+  explicitly deferred — see Section 6. — *`week5/reports/task4.md`*
+
+- **D1 (2026-09-14) — Intake's real spend is now metered.** `runIntakeStage` never called
+  `insertUsageEvent` at all, unlike every other stage since Week 1 (found during Task 4's C1
+  verification, logged as a tech-debt item below at the time). `parseBrief`/`stubParseBrief` now
+  return `{ output, llm }` (mirroring every other agent call's shape) and `runIntakeStage` writes a
+  real `UsageEvent` row on both success and failure, same per-attempt metering pattern as
+  Script Generation/Review. Verified live: a real Intake call through `dry-run.ts` produced a real
+  `UsageEvent` row (`agent: 'intake'`, `model: 'claude-haiku-4-5'`, real token counts, real cost) —
+  confirmed by direct query, not code review. This also means C2's pool-total budget check
+  (`sumUsageCostForTenantPlatform`) no longer undercounts real spend by Intake's share.
+  — *`week5/reports/task5.md`*
+
+- **D2 (2026-09-14) — Privacy status is now a real per-run choice, and the first genuinely public
+  Short is live.** `publishing/types.ts`'s hardcoded `PRIVACY_STATUS = 'private'` constant is gone,
+  replaced by a real `PrivacyStatus` (`'private' | 'unlisted' | 'public'`) threaded from Gate 2's own
+  reply — `parseGate2Reply` recognizes `"approve public"`/`"approve unlisted"`/`"approve private"`
+  (exact match, same no-fuzzy-matching discipline as the rest of Gate 1/2), defaulting to `private`
+  on a bare `"approve"` exactly as before. The choice is recorded in the `gate2` stage output (so
+  Publishing can read it) and, when non-default, in the `ReviewLog.editedOutput` — same "audit trail
+  shows what was actually approved" pattern as Gate 1's edited-script logging. Verified live,
+  end-to-end, for real: a real brief about GPT-6 Astra went through real Intake → Script Generation
+  → Script Review (flagging real factual concerns per C3 — a genuine plausibility-check finding, see
+  `week5/reports/task5.md`) → a live Gate 1 approval over real Telegram → real video generation
+  (after a real, unrelated finding — see the new tech-debt item below) → a live Gate 2 approval
+  (`"Approve public"`, real, over real Telegram, after actually watching the video) → a real
+  YouTube upload. The resulting video (`youtubeVideoId` in the report) was confirmed `privacyStatus:
+  'public'` via a direct YouTube Data API call — not inferred from the DB row — with no burned-in
+  captions (channel's `captionsEnabled` set to `false` for this run only, then restored). A separate
+  fixture run approved with a bare `"approve"` was confirmed to still publish `private`, proving the
+  default didn't quietly change. This closes the last open item from the original Oct 15 MVP
+  roadmap (§12's "a genuinely public test") — **Sprint 1 is now genuinely closed.**
+  — *`week5/reports/task5.md`, `docs/roadmap/SPRINT_ROADMAP.md`*
 
 ---
 
@@ -170,7 +202,21 @@ planted-error script reviews) behind each one:
 
 - **7-channel cap has no automated test** — verified by code review and live exercise, never by a dedicated "create 7, assert the 8th throws" test. A `vitest` harness now exists (Week 5 Task 4), but this would need real DB fixtures (deferred integration-testing scope, Section 5), not a pure-function unit test. — *`week1/reports/task3.md`*
 
-- **Intake's LLM call writes no `UsageEvent` — its real spend has never been metered.** Discovered while verifying Week 5 Task 4's C1 (the model-tier fix): the task's suggested verification (check a `UsageEvent` row for the new model) doesn't work because `runIntakeStage` in `state-machine.ts` never calls `insertUsageEvent` at all, unlike every other stage since Week 1. Confirmed by running a real intake call and querying for its `usageEvent` rows — zero, despite a real Anthropic call having actually been made and billed. Not fixed in Task 4 (out of C1's stated scope, which was specifically the model tier, not adding metering) — real Anthropic spend from every Intake call across all five weeks is genuinely unaccounted for in `UsageEvent`/the budget-gate's pool total. Worth a real fix before spend tracking is trusted as complete. — *`week5/reports/task4.md`*
+- **Video Generation's automatic regen loop can't reliably fix a duration overrun by itself.** Found
+  live during Week 5 Task 5's D2 real public test: a real, dense 3-angle script (GPT-6 Astra's
+  capabilities/hype/safety) rendered to 68.2s, 68.6s, then 67.8s across all 3 attempts (1 original +
+  the full `MAX_VIDEO_REGEN_ATTEMPTS=2` regen budget) — every attempt over the 60s Shorts limit,
+  despite each regen's production-planning step genuinely trying (shorter pacing notes, phrase-
+  grouped captions). Root cause: video duration is driven by TTS narrating the actual
+  `sanctionedScriptText` word-for-word, which is fixed at Gate 1 approval time — the regen loop can
+  change caption style/pacing *notes*, but has no mechanism to actually shorten the narration itself.
+  So a script that's simply too long to fit in 60s exhausts the entire regen budget and lands in
+  `needs_attention` no matter how many attempts it gets. Worked around operationally for the test
+  (a fresh run with an explicit "keep it under 40s" brief constraint, which produced a properly-fitting
+  script from Script Generation directly) rather than fixed in code — genuinely out of D1/D2's scope.
+  Worth a real fix later: either Script Generation enforces an estimated-narration-duration budget
+  up front (word count ÷ speaking rate), or the regen loop's fix notes explicitly ask for a shorter
+  *script*, not just different pacing/captions for the same one. — *`week5/reports/task5.md`*
 
 ---
 

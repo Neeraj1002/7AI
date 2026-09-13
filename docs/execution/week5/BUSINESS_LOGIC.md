@@ -8,7 +8,9 @@ untouched by `resumeOnStartup()` at all) and a new, independent notification-onl
 `PipelineRun`/`PipelineStage` states either. Task 4 adds no new states/transitions either — it
 changes what a budget check considers (per-channel, not just pooled) and what Script Review's output
 carries (`factualConcerns`), plus a model-tier fix and a test harness that touch no control flow at
-all.
+all. Task 5 also adds no new states/transitions: D1 only adds a metering side-effect to an existing
+stage; D2 changes what data flows from Gate 2's `approve` outcome into Publishing (a real
+`privacyStatus`, not a hardcoded constant), not which transitions fire.
 
 ## Implementation Reconciliation (added by Task 1)
 
@@ -153,6 +155,60 @@ isolation. Zero effect on any `PipelineRun`/`PipelineStage` transition.
 ### Reference
 `week2/BUSINESS_LOGIC.md` Section 2 — the existing video-generation budget-gate call site this task
 extends, not replaces.
+
+## Task 5 — Meter Intake spend, and privacy as a real per-run choice
+
+No transition-table changes at all. Two independent deltas:
+
+### D1 — Intake metering
+`runIntakeStage` gained the same per-attempt metering wrapper every other stage already has: an
+`attemptOnce` closure around `intakeProcessor(run.briefText)` that calls `insertUsageEvent` on
+success (real `llm.provider`/`llm.model`/`llm.usage`/`llm.costUsd`) and on failure (`getStageErrorContext`
+fallback, `costUsd: '0.000000'`, same shape as Script Generation/Review's error path). `parseBrief`
+and `stubParseBrief` (`run-pipeline/parse-brief.ts`) both changed their return shape from bare
+`IntakeParsed` to `{ output, llm }` to make this possible — `stubParseBrief` fabricates a genuinely
+zero-cost `llm` (`model: 'stub'`, 0 tokens, `costUsd: '0.000000'`), not a plausible-looking nonzero
+estimate, since `INTAKE_STAGE_STUB=1`'s whole point is a zero-cost dry run. No transition change —
+`intake`'s `running → completed`/`needs_attention` outcomes are exactly as before; this only adds a
+`UsageEvent` row alongside them.
+
+### D2 — Privacy status as a real per-run Gate 2 choice
+`Gate2Outcome`'s `approve` variant gained `privacyStatus?: PrivacyStatus`, resolved by
+`parseGate2Reply` itself: `"approve public"`/`"approve unlisted"`/`"approve private"` (exact match,
+case-insensitive) resolve to that value; a bare `"approve"` resolves to `DEFAULT_PRIVACY_STATUS`
+(`'private'`) — same behavior as before this task for every existing/simple reply. A near-miss like
+`"approved public"` does NOT match and falls through to `revise`, same false-positive-avoidance
+reasoning as Gate 1's typo'd `"aprove"` — a bad match here would silently publish at an unintended
+privacy level.
+
+`runGate2Stage`'s `approve` branch now resolves `privacyStatus` (defaulting if the outcome didn't
+set one), stores it in the `gate2` stage's `output` (`{ outcome: 'approve', privacyStatus }`), and —
+only when it's not the default — records `{ privacyStatus }` in the `ReviewLog.editedOutput`, same
+"audit trail shows what was actually approved, not just approve/reject" pattern Gate 1 already
+established for edited scripts. `runPublishingStage` reads `privacyStatus` back off the `gate2`
+stage's output (defaulting to `DEFAULT_PRIVACY_STATUS` for any older row that predates this field)
+and threads it through `uploadVideo({ ..., privacyStatus })` → `uploadVideoViaProvider`/
+`stubUploadVideo`, both of which now honor `params.privacyStatus` instead of a hardcoded constant.
+
+No transition change: `gate2`'s `approve` outcome still leads to `running`/`publishing` exactly as
+before — only the data carried alongside that transition (what privacy level Publishing should use)
+changed.
+
+**Real, live verification**: a real brief (GPT-6 Astra) went through the entire pipeline for real —
+real Intake → Script Generation → Script Review (flagging real, expected factual concerns per C3,
+since the model has no way to verify a topic past its training cutoff) → a live Gate 1 approval over
+real Telegram → real video generation (hitting a real, unrelated duration-overrun finding — see
+`KNOWN_ISSUES_AND_BLOCKERS.md` §3 — resolved by resubmitting with an explicit length constraint) →
+real video review (pass) → a live Gate 2 approval (`"Approve public"`, real, over real Telegram,
+after actually watching the rendered video) → a real YouTube upload. The resulting video was
+confirmed `privacyStatus: 'public'` via a direct YouTube Data API call (not the DB row), with no
+burned-in captions (channel's `brandAssets.captionsEnabled` set `false` for this run only, then
+restored). A separate fixture run (tiny local test video, `YOUTUBE_STUB=1` for the upload only, to
+avoid a second real YouTube artifact) approved with a bare `"approve"` confirmed the default is
+still `private` end-to-end, not just in the `parseGate2Reply` unit test.
+
+### Reference
+`week5/reports/task5.md` — the full verification trail, including the real `youtubeVideoId`.
 
 ## Reference
 - `docs/execution/week4/BUSINESS_LOGIC.md` — the transition table this week verifies and extends

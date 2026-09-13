@@ -1,4 +1,4 @@
-import { callLLM, extractJsonText } from '../llm';
+import { callLLM, extractJsonText, type LLMResponse } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
 
@@ -25,14 +25,14 @@ If the brief is too vague or short to identify a topic at all, respond with ONLY
 
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
-export async function parseBrief(briefText: string): Promise<IntakeParsed> {
-  const response = await callLLM({
+export async function parseBrief(briefText: string): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
+  const llm = await callLLM({
     purpose: 'intake-parsing',
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: briefText }],
     maxTokens: 512,
   });
-  const raw = response.text;
+  const raw = llm.text;
 
   let parsedJson: unknown;
   try {
@@ -58,7 +58,7 @@ export async function parseBrief(briefText: string): Promise<IntakeParsed> {
     throw new NonTransientStageError(`Intake output failed schema validation: ${result.error.message}`);
   }
 
-  return result.data;
+  return { output: result.data, llm };
 }
 
 // Fake stand-in for parseBrief with the same contract, used only by
@@ -70,15 +70,32 @@ export async function parseBrief(briefText: string): Promise<IntakeParsed> {
 // scripts/dry-run.ts's INTAKE_STAGE_STUB flag). A brief containing the word
 // "unparseable" exercises the needs_attention failure path; everything else
 // resolves after an artificial delay long enough to kill-and-resume mid-flight.
-export async function stubParseBrief(briefText: string): Promise<IntakeParsed> {
+//
+// Returns the same { output, llm } shape as the real parseBrief (Week 5 Task
+// 5) so runIntakeStage's metering code path is identical for stub and real —
+// but llm.model is 'stub' and cost/tokens are genuinely 0, not a fabricated
+// nonzero estimate, since no real call happened and this stub's whole point
+// is a zero-cost dry run.
+export async function stubParseBrief(briefText: string): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
   await new Promise((resolve) => setTimeout(resolve, 8000));
 
   if (briefText.toLowerCase().includes('unparseable')) {
     throw new NonTransientStageError('Brief too vague to extract a topic from (stub)');
   }
 
-  return IntakeParsedSchema.parse({
+  const output = IntakeParsedSchema.parse({
     topic: briefText.slice(0, 60).trim() || 'untitled',
     constraints: [],
   });
+
+  const llm: LLMResponse = {
+    provider: 'anthropic',
+    model: 'stub',
+    text: '',
+    stopReason: 'stub',
+    usage: { inputTokens: 0, outputTokens: 0 },
+    costUsd: '0.000000',
+  };
+
+  return { output, llm };
 }

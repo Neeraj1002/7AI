@@ -9,12 +9,14 @@ import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, t
 // (1) generate optimized title/description/tags from the sanctioned script —
 // nothing upstream produces these (Script Generation only outputs
 // script/captions/hashtags), per docs/execution/week4/BUSINESS_LOGIC.md
-// Section 2's flagged architecture call; (2) upload to YouTube as `private`.
+// Section 2's flagged architecture call; (2) upload to YouTube at the
+// founder's chosen privacy status — a real per-run Gate 2 choice as of Week 5
+// Task 5 (D2), defaulting to `private` when unspecified.
 // Only youtube-client.ts touches the YouTube Data API v3 — same boundary
 // pattern as llm/media/stock-footage's client.ts files.
 
-export type { PublishingMetadata, UploadParams, UploadResult } from './types';
-export { PRIVACY_STATUS } from './types';
+export type { PublishingMetadata, UploadParams, UploadResult, PrivacyStatus } from './types';
+export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
 
 const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags) from a
 sanctioned script and its hashtags — platform-specific optimization, not creative writing (the
