@@ -96,7 +96,9 @@ doc is meant to describe reality, not just the plan:
   kill-mid-`script_generation` test: exactly one `UsageEvent` row survived (tied to the
   successful resumed attempt), no duplicate billing for the killed attempt. `paused_gate1` is
   deliberately *not* auto-resumed on restart (a restart doesn't reopen a gate and re-send a
-  message) — that's a scope boundary, not a gap.
+  message) — that's a scope boundary, not a gap, **as of this week**. Closed in Week 5 Task 3,
+  which re-opens a pending gate on restart — see `week5/BUSINESS_LOGIC.md` and
+  `resume-on-startup.ts`.
 
 ## Reference
 - `MVP_ROADMAP_OCT15.md` Sections 3, 5.6, 6, 12, 17

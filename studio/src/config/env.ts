@@ -70,6 +70,18 @@ const EnvSchema = z.object({
   // ~16x that, comfortable headroom for a slow network or retry backoff
   // without leaving a genuinely abandoned run sitting silently for hours.
   RESUME_STALE_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
+  // Week 5 Task 3 — a "you haven't answered in a while" nudge, independent
+  // of a restart. Deliberately much longer than RESUME_STALE_WINDOW_MS: an
+  // automated stage stuck for 30 minutes is suspicious, but a human approval
+  // legitimately can (and should be allowed to) take hours — 4 hours is a
+  // reasonable "check your phone" nudge point without being spammy for a
+  // founder who just hasn't gotten to it yet.
+  GATE_REMINDER_THRESHOLD_MS: z.coerce.number().optional().default(4 * 60 * 60 * 1000),
+  // How often the reminder check itself runs — independent of the threshold
+  // above (how long a gate must have been open before it's eligible for a
+  // nudge). 15 minutes keeps the nudge reasonably prompt after crossing the
+  // threshold without a dedicated always-on timer.
+  GATE_REMINDER_CHECK_INTERVAL_MS: z.coerce.number().optional().default(15 * 60 * 1000),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

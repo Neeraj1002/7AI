@@ -1,5 +1,6 @@
 import { env } from './config/env';
 import { resumeOnStartup } from './run-pipeline/resume-on-startup';
+import { runGateReminderCheck } from './run-pipeline/gate-reminder';
 import { startTelegramReceiveLoop } from './notify-founder';
 import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
@@ -20,6 +21,20 @@ function startPerformanceAnalyticsPoller(): void {
   );
 }
 
+// Week 5 Task 3's "you haven't answered in a while" nudge — same
+// setInterval-against-Postgres pattern as the Performance Analytics poller
+// above, not a restart/resume action (see gate-reminder.ts's own comment).
+function startGateReminderChecker(): void {
+  setInterval(() => {
+    runGateReminderCheck().catch((error) => {
+      console.error('[gate-reminder] periodic check failed:', error);
+    });
+  }, env.GATE_REMINDER_CHECK_INTERVAL_MS);
+  console.log(
+    `[boot] Gate reminder checker started (every ${env.GATE_REMINDER_CHECK_INTERVAL_MS}ms, threshold ${env.GATE_REMINDER_THRESHOLD_MS}ms)`,
+  );
+}
+
 async function main(): Promise<void> {
   console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);
 
@@ -32,6 +47,7 @@ async function main(): Promise<void> {
   }
 
   startPerformanceAnalyticsPoller();
+  startGateReminderChecker();
 
   await startApiServer();
 

@@ -24,6 +24,15 @@ type BrandAssets = {
 entirely in Video Generation — not just an empty/invisible caption track. No existing `Channel` row
 needs a backfill: the field's absence is treated identically to `true`.
 
+## Task 3 — No schema changes
+
+Restart-safe gates (B6) is entirely behavior, not data shape: no new column, no new table. The
+"already reminded once" tracking for the gate-reminder nudge is deliberately in-memory only
+(`gate-reminder.ts`'s `remindedRunIds`, pruned every check tick against the currently-pending run
+list) — not persisted, since it resets harmlessly on restart (a restart already re-sends the gate
+prompt via `reopenPausedGates`, so one possible extra reminder shortly after is not a correctness
+issue).
+
 ## Reference
 - `docs/execution/week4/SCHEMA.md` — the schema Task 1 verifies against, for real
 - `docs/execution/week1/SCHEMA.md` — `brandAssets`' original definition
