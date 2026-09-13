@@ -60,6 +60,16 @@ const EnvSchema = z.object({
   // verify resume doesn't re-upload. Zero (default) in every real run; only
   // ever set by a live Week 4 Task 4 kill/resume test.
   PUBLISHING_TEST_KILL_DELAY_MS: z.coerce.number().optional().default(0),
+  // B2 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2, "resume() sweeps every stale
+  // running run") — resumeOnStartup() only auto-resumes a 'running'
+  // PipelineRun whose latest stage was touched more recently than this
+  // window; anything older is moved to needs_attention instead of being
+  // re-executed automatically. Default (30 minutes) chosen from real data,
+  // not guessed: the longest real video_generation attempt observed across
+  // Weeks 3-5 (real TTS + real Pexels download) was ~113s; 30 minutes is
+  // ~16x that, comfortable headroom for a slow network or retry backoff
+  // without leaving a genuinely abandoned run sitting silently for hours.
+  RESUME_STALE_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

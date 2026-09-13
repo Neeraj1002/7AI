@@ -20,6 +20,14 @@
 //                                                            process invocation, no manual step between
 //                                                            stages (only gate1 needs a human/simulated
 //                                                            decision) — prints the runId at the end
+//   npx tsx scripts/dry-run.ts gate1-live <runId>        -> real gate1: sends a real Telegram message
+//                                                            and genuinely blocks for a real human reply
+//   npx tsx scripts/dry-run.ts gate2-live <runId>        -> same, for gate2 (Week 5 Task 1)
+//   npx tsx scripts/dry-run.ts video-gen <runId>         -> runs video_generation (Week 3/4)
+//   npx tsx scripts/dry-run.ts video-review <runId>      -> runs video_review
+//   npx tsx scripts/dry-run.ts publish <runId>           -> runs publishing (Week 4 Task 2)
+//   npx tsx scripts/dry-run.ts analytics <runId>         -> runs the initial analytics snapshot (Week 4 Task 3)
+//   npx tsx scripts/dry-run.ts poll                      -> runs one Performance Analytics poll tick
 //   npx tsx scripts/dry-run.ts resume                    -> resumes any running PipelineRuns
 //   npx tsx scripts/dry-run.ts status <runId>             -> prints run + stage + usage_event + review_log rows
 
@@ -179,6 +187,19 @@ async function gate2(runId: string, outcomeArg: string): Promise<void> {
 
   await gate2Promise;
   console.log(`[dry-run] gate2 completed via simulated '${outcomeArg}' reply`);
+}
+
+// Week 5 Task 1's real end-to-end run: same no-simulation convention as
+// gate1Live — sends the real Telegram message (with the real video
+// attached) and genuinely blocks on requestApproval's real pending-reply
+// promise. Resolves only when an actual human reply arrives via the bot's
+// real long-polling handleUpdate path.
+async function gate2Live(runId: string): Promise<void> {
+  console.log(
+    `[dry-run] starting REAL gate2 round trip for ${runId} — sending a real Telegram message (with video) and waiting for an actual human reply (no simulation)`,
+  );
+  const run = await runGate2Stage(runId);
+  console.log(`[dry-run] gate2 resolved via a REAL human reply — PipelineRun.status=${run.status}, currentStage=${run.currentStage}`);
 }
 
 // Week 2 Task 7 — proves the sequence composes with no manual step between
@@ -354,6 +375,10 @@ async function main(): Promise<void> {
       await gate2(arg, outcomeArg);
       break;
     }
+    case 'gate2-live':
+      if (!arg) throw new Error('usage: dry-run.ts gate2-live <runId>');
+      await gate2Live(arg);
+      break;
     case 'publish':
       if (!arg) throw new Error('usage: dry-run.ts publish <runId>');
       await publish(arg);
@@ -374,13 +399,16 @@ async function main(): Promise<void> {
       break;
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|publish|analytics|poll|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status`,
       );
   }
 }
 
 const startedLongPollingBot =
-  process.argv[2] === 'gate1' || process.argv[2] === 'gate1-live' || process.argv[2] === 'gate2';
+  process.argv[2] === 'gate1' ||
+  process.argv[2] === 'gate1-live' ||
+  process.argv[2] === 'gate2' ||
+  process.argv[2] === 'gate2-live';
 
 main()
   .catch((error) => {

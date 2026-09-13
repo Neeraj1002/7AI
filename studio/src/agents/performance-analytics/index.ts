@@ -77,11 +77,26 @@ export async function runPeriodicPoll(): Promise<{ polled: number; skipped: bool
   pollInFlight = true;
   try {
     const targets = await listCompletedRunsWithPublishedVideo();
+    let polled = 0;
     for (const target of targets) {
-      await recordSnapshot(target);
+      // One bad target (e.g. a run completed under YOUTUBE_STUB=1 whose
+      // youtubeVideoId was never real — a real, live finding from Week 5
+      // Task 1's first genuinely real poll, which otherwise aborted the
+      // entire tick on the first stub id it hit) must not block every other
+      // real video's snapshot. Log and continue, same "one target's failure
+      // isn't every target's failure" reasoning as any batch job.
+      try {
+        await recordSnapshot(target);
+        polled += 1;
+      } catch (error) {
+        console.error(
+          `[performance-analytics] poll failed for run ${target.pipelineRunId} (youtubeVideoId=${target.youtubeVideoId}):`,
+          error,
+        );
+      }
     }
-    console.log(`[performance-analytics] poll tick complete — ${targets.length} run(s) snapshotted`);
-    return { polled: targets.length, skipped: false };
+    console.log(`[performance-analytics] poll tick complete — ${polled}/${targets.length} run(s) snapshotted`);
+    return { polled, skipped: false };
   } finally {
     pollInFlight = false;
   }
