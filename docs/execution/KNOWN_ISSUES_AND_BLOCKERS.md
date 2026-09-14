@@ -2,8 +2,10 @@
 
 **Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
 
-**Last updated**: 2026-09-14, after Week 5 Task 5 (metering Intake's spend, and the first genuinely
-public real Short) — **Sprint 1 is now genuinely closed**. See `docs/roadmap/SPRINT_ROADMAP.md`.
+**Last updated**: 2026-09-14, after Week 5 Task 6 (an independent, evidence-based audit of Task 4/5's
+C1-C4/D1-D2 claims against the real `WEEK5_BE` branch — every item confirmed applied-and-verified,
+no code changes needed). Sprint 1's closure (declared after Task 5) now has a second, independent
+confirmation behind it — see `docs/execution/week5/reports/task6.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
