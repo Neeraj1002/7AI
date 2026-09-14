@@ -10,19 +10,24 @@ export const PublishingMetadataSchema = z.object({
 });
 export type PublishingMetadata = z.infer<typeof PublishingMetadataSchema>;
 
-// Hardcoded per docs/execution/week4/BUSINESS_LOGIC.md Section 2 ("Privacy
-// status — hardcoded default, not a config UI") — MVP_ROADMAP_OCT15.md
-// Section 12's explicit "publish as unlisted/private first, not public."
-// Flip to 'public' is a one-line change here when the founder is ready for
-// the real public test window; not a per-channel config this week.
-export const PRIVACY_STATUS = 'private' as const;
+// Week 5 Task 5 (D2), founder direction 2026-09-14: privacy status is a real,
+// per-run choice made at Gate 2 (mirroring Gate 1's approve/edit/reject
+// choice), not a source-level constant someone flips and flips back. This
+// replaces the old hardcoded `PRIVACY_STATUS = 'private'` from
+// docs/execution/week4/BUSINESS_LOGIC.md Section 2 — the safe default stays
+// private, it just stops being the only option.
+export const PrivacyStatusSchema = z.enum(['private', 'unlisted', 'public']);
+export type PrivacyStatus = z.infer<typeof PrivacyStatusSchema>;
+
+export const DEFAULT_PRIVACY_STATUS: PrivacyStatus = 'private';
 
 export type UploadParams = {
   videoPath: string;
   metadata: PublishingMetadata;
+  privacyStatus: PrivacyStatus;
 };
 
 export type UploadResult = {
   youtubeVideoId: string;
-  privacyStatus: typeof PRIVACY_STATUS;
+  privacyStatus: PrivacyStatus;
 };

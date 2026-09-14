@@ -43,6 +43,12 @@ export type Channel = {
   approvalGateConfig: ApprovalGateConfig;
   priorsScope: PriorsScope;
 
+  // Week 5 Task 4 (C2) — NUMERIC as string, matching every other money field
+  // in this project. null means "use the equal-split share of the pooled
+  // AgentQuota.budgetCeilingUsd"; a set value overrides that entirely. See
+  // studio/src/run-pipeline/budget-gate.ts.
+  budgetOverrideUsd: string | null;
+
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

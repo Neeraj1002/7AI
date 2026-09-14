@@ -18,6 +18,16 @@ export const ScriptReviewOutputSchema = z.object({
     visualsProducible: z.boolean(),
     flags: z.array(z.string()),
   }),
+  // Week 5 Task 4 (C3, KNOWN_ISSUES_AND_BLOCKERS.md) — a plausibility check,
+  // NOT a verified fact-check: studio/src/llm/client.ts has no tool use/web
+  // search wired in anywhere, so the model can only flag claims that seem
+  // wrong, outdated, or unverifiable based on its own training, never
+  // actually look anything up. Empty array if nothing seems off. This turns
+  // an unreviewed gap into at least a flagged one the founder sees at Gate 1
+  // alongside the rest of the review — a real, search-grounded fact-check
+  // (a distinct purpose once studio/src/llm/ supports tool use) is deferred,
+  // not built here.
+  factualConcerns: z.array(z.string()),
 });
 export type ScriptReviewOutput = z.infer<typeof ScriptReviewOutputSchema>;
 
@@ -28,7 +38,7 @@ export type ScriptReviewResult = {
 
 const SYSTEM_PROMPT = `You review a short-form vertical video script (YouTube Shorts, 30-60 seconds)
 before it goes to production. Respond with ONLY a JSON object of the shape:
-{"score": number, "notes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}}
+{"score": number, "notes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[]}
 
 "score" is 0-10, scoring quality, engagement, clarity, and brand alignment together.
 "notes" explains the score — what works, what doesn't, in a few sentences.
@@ -41,6 +51,13 @@ toolchain (TTS voiceover + auto-captions + template/stock visuals — no generat
 - "visualsProducible": are any described visuals things stock footage or simple templates can
   actually represent (not something requiring custom generated video)?
 - "flags": specific problems found for any of the above, empty array if none.
+
+"factualConcerns" is a plausibility check, not a verified fact-check — you have no ability to look
+anything up. List any specific factual claims in the script that seem incorrect, outdated, or
+unverifiable based on what you already know (e.g. a wrong number, an outdated statistic, a claim
+about a specific study or event you're not confident is accurate) — an empty array if nothing
+stands out. Be specific (quote or closely paraphrase the claim), not vague ("some facts may be
+wrong"). Don't flag stylistic simplification or rounding that's normal for short-form content.
 
 A low score or failed fit checks are still a valid review outcome, not an error — always
 respond with a complete, well-formed review. Respond with raw JSON only — no markdown code

@@ -15,6 +15,7 @@ function toDomainChannel(row: PrismaChannel): Channel {
     postingCadence: row.postingCadence,
     approvalGateConfig: row.approvalGateConfig as Channel['approvalGateConfig'],
     priorsScope: row.priorsScope as PriorsScope,
+    budgetOverrideUsd: row.budgetOverrideUsd ? row.budgetOverrideUsd.toString() : null,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -29,6 +30,22 @@ export async function findChannelById(id: string): Promise<Channel | null> {
 export async function listActiveChannelsByTenant(tenantId: string): Promise<Channel[]> {
   const rows = await prisma.channel.findMany({
     where: { tenantId, isActive: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  return rows.map(toDomainChannel);
+}
+
+// Week 5 Task 4 (C2) — backs the per-channel budget allocation
+// (budget-gate.ts's computeChannelBudgetCeilings needs every active channel
+// on this exact (tenantId, platform), not every channel on the tenant
+// regardless of platform, since the pooled AgentQuota ceiling is itself
+// scoped per platform.
+export async function listActiveChannelsByTenantAndPlatform(
+  tenantId: string,
+  platform: ChannelPlatform,
+): Promise<Channel[]> {
+  const rows = await prisma.channel.findMany({
+    where: { tenantId, platform, isActive: true },
     orderBy: { createdAt: 'asc' },
   });
   return rows.map(toDomainChannel);
