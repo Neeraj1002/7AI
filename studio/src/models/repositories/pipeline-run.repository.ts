@@ -4,6 +4,7 @@ import type { PipelineRun as PrismaPipelineRun } from '@prisma/client';
 import type { DbClient } from './pipeline-stage.repository';
 import type {
   CreatePipelineRunInput,
+  CreationOptions,
   IntakeParsed,
   PipelineRun,
   PipelineRunStatus,
@@ -19,6 +20,7 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
     currentStage: (row.currentStage as StageName | null) ?? null,
     briefText: row.briefText,
     intakeParsed: (row.intakeParsed as IntakeParsed | null) ?? null,
+    creationOptions: (row.creationOptions as CreationOptions | null) ?? null,
     retryCount: row.retryCount,
     lastError: row.lastError,
     startedAt: row.startedAt,
@@ -34,6 +36,7 @@ export async function createPipelineRun(input: CreatePipelineRunInput): Promise<
       tenantId: input.tenantId,
       channelId: input.channelId,
       briefText: input.briefText,
+      creationOptions: input.creationOptions as Prisma.InputJsonValue | undefined,
       status: 'pending',
     },
   });

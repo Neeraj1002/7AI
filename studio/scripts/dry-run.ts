@@ -6,7 +6,10 @@
 // parse-brief.ts instead of a real Anthropic call.
 //
 // Usage:
-//   npx tsx scripts/dry-run.ts setup                    -> prints a new runId
+//   npx tsx scripts/dry-run.ts setup ["<brief text>"] ["<voice key>"]
+//                                                         -> prints a new runId; optional 3rd arg
+//                                                            sets creationOptions.voice (Sprint 2
+//                                                            Task 1, D2)
 //   npx tsx scripts/dry-run.ts start <runId>             -> runs intake (kill me mid-flight)
 //   npx tsx scripts/dry-run.ts script-gen <runId>        -> runs script_generation (Week 2 Task 4)
 //   npx tsx scripts/dry-run.ts script-review <runId>     -> runs script_review (Week 2 Task 5)
@@ -65,12 +68,16 @@ async function ensureTestChannel(): Promise<string> {
   return created.id;
 }
 
-async function setup(briefText?: string): Promise<void> {
+// Sprint 2 Task 1 (D2): optional third arg lets a dry run set an explicit
+// per-run voice override, exercising the real creationOptions column and
+// the real API-shaped input (not a synthetic test-only field) end-to-end.
+async function setup(briefText?: string, voice?: string): Promise<void> {
   const channelId = await ensureTestChannel();
   const run = await createRun({
     tenantId: MVP_TENANT_ID,
     channelId,
     briefText: briefText ?? 'A short video about why octopuses have three hearts.',
+    creationOptions: voice ? { voice } : undefined,
   });
   console.log(`runId=${run.id}`);
 }
@@ -328,7 +335,7 @@ async function main(): Promise<void> {
   const [cmd, arg] = process.argv.slice(2);
   switch (cmd) {
     case 'setup':
-      await setup(arg);
+      await setup(arg, process.argv[4]);
       break;
     case 'start':
       if (!arg) throw new Error('usage: dry-run.ts start <runId>');

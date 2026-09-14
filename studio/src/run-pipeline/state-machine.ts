@@ -34,6 +34,7 @@ import {
   type PrivacyStatus,
 } from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
+import { resolveVoice } from '../media';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
@@ -596,6 +597,17 @@ export async function runVideoGenerationStage(
     );
   const fixNotes = latestFixNotesLog?.rationale;
 
+  // Sprint 2 Task 1 (D2) — the three-step creation-option resolution order:
+  // an explicit per-run override always wins, else the channel's own
+  // default, else media/registry.ts's unchanged hardcoded fallback.
+  // Resolved to a concrete value here (never left as an unresolved override
+  // or null) so generateVideo/synthesizeSpeech always receive something
+  // real, regardless of which of the three cases applied.
+  const resolvedVoice = resolveVoice({
+    overrideVoice: run.creationOptions?.voice,
+    channelDefaultVoice: channel.defaultVoice,
+  });
+
   await updatePipelineRun(runId, {
     status: 'running',
     currentStage: 'video_generation',
@@ -607,6 +619,7 @@ export async function runVideoGenerationStage(
     scriptText: sanctionedScriptText,
     brandAssets: channel.brandAssets,
     fixNotes: fixNotes ?? null,
+    resolvedVoice,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
@@ -689,6 +702,7 @@ export async function runVideoGenerationStage(
         scriptText: sanctionedScriptText,
         brandAssets: channel.brandAssets,
         plan,
+        voice: resolvedVoice,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,

@@ -187,12 +187,17 @@ export async function generateVideo(params: {
   scriptText: string;
   brandAssets: BrandAssets;
   plan: ProductionPlan;
+  // Sprint 2 Task 1 (D2) — already resolved by the caller (state-machine.ts's
+  // three-step creation-option resolution order) into a concrete voice key;
+  // this function never applies its own default, it just threads through
+  // whatever it's given.
+  voice?: string;
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
   // caption style and stock-footage search terms both come from it, per
   // docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md Section 2.
-  const tts = await synthesizeSpeech(params.scriptText, {});
+  const tts = await synthesizeSpeech(params.scriptText, { voice: params.voice });
   const asr = await transcribe(tts.audioPath);
   const clip = await searchStockFootage({ query: params.plan.stockFootageQuery, orientation: 'portrait' });
 

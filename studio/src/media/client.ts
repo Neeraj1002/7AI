@@ -5,7 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
-import { resolveTranscriptionPricing, resolveTtsPricing } from './registry';
+import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE } from './registry';
 import type { SynthesizeSpeechResult, TranscribeResult, VoiceConfig } from './types';
 
 // The only file allowed to import the `openai` SDK — see
@@ -51,7 +51,7 @@ export async function synthesizeSpeechViaProvider(params: {
   try {
     const response = await getClient().audio.speech.create({
       model: params.model,
-      voice: params.voiceConfig.voice ?? 'alloy',
+      voice: params.voiceConfig.voice ?? DEFAULT_TTS_VOICE,
       input: params.text,
       response_format: 'mp3',
     });

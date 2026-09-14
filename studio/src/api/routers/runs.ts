@@ -8,6 +8,7 @@ import { listReviewLogsForRun } from '../../models/repositories/review-log.repos
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { founderChannel } from '../../notify-founder';
+import { TTS_VOICE_KEYS } from '../../media';
 import { MVP_TENANT_ID, PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 
 async function getRunDetail(id: string) {
@@ -30,7 +31,19 @@ export const runsRouter = router({
   // 'pending' run on its own (resume-on-startup.ts only ever resumes
   // 'running' ones).
   create: publicProcedure
-    .input(z.object({ channelId: z.string().uuid(), briefText: z.string().min(1) }))
+    .input(
+      z.object({
+        channelId: z.string().uuid(),
+        briefText: z.string().min(1),
+        // Sprint 2 Task 1 (D2) — an explicit, structured choice, validated
+        // against media/registry.ts's known TTS_VOICES keys right here at
+        // the API edge (Failure Modes: reject bad structured input at the
+        // edge, not deep in the pipeline). Never passed through
+        // parse-brief.ts's LLM call — that's the whole point of this field
+        // existing separately from briefText.
+        voice: z.enum(TTS_VOICE_KEYS).optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const channel = await findChannelById(input.channelId);
       if (!channel) {
@@ -40,6 +53,7 @@ export const runsRouter = router({
         tenantId: MVP_TENANT_ID,
         channelId: input.channelId,
         briefText: input.briefText,
+        creationOptions: input.voice ? { voice: input.voice } : undefined,
       });
       startPipelineInBackground(run.id);
       return run;

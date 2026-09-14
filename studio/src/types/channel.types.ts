@@ -49,6 +49,11 @@ export type Channel = {
   // studio/src/run-pipeline/budget-gate.ts.
   budgetOverrideUsd: string | null;
 
+  // Sprint 2 Task 1 (D2) — one of media/registry.ts's TTS_VOICES keys, or
+  // null to use its DEFAULT_TTS_VOICE fallback. See
+  // studio/src/run-pipeline/state-machine.ts's voice-resolution order.
+  defaultVoice: string | null;
+
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
