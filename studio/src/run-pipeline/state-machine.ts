@@ -390,6 +390,10 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         output.factualConcerns.length > 0
           ? ` Factual concerns (plausibility check, not verified): ${output.factualConcerns.join('; ')}.`
           : '';
+      // G3 (Sprint 2 Task 4): same reasoning — the hook score/notes reach
+      // the founder at Gate 1 in the same rationale text, not just the raw
+      // stage output only a direct DB query would surface.
+      const hookNote = ` Hook (first 1-2s) score: ${output.hookScore}/10 — ${output.hookNotes}`;
       await insertReviewLog(
         {
           tenantId: run.tenantId,
@@ -398,7 +402,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}${factualConcernsNote}`,
+          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}`,
         },
         tx,
       );

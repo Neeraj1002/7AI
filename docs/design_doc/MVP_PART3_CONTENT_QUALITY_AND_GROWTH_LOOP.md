@@ -71,16 +71,28 @@ a second footage vendor, user uploads) is ever added. See `docs/execution/sprint
 
 ## 2. Track C — Content Intelligence & Growth Loop (new, independent, can start anytime)
 
-### Retention-curve capture
+### Retention-curve capture — code picked up by Sprint 2 Task 4, real data still gated
 Performance Analytics logs views/watch-time/engagement today; add retention-graph timestamp capture
 now, even though nothing reads it until Continuous Learning exists — same "cheap now, expensive to
 reconstruct later" logic already applied to `ReviewLog`. This is the single highest-leverage feed for
 Continuous Learning once it's built: *where* retention drops, not just whether a video did well.
 
-### Hook-first script rubric dimension
+**Built, not yet populated with real data**: `PerformanceSnapshot.retentionCurve` (real migration)
++ a real YouTube Analytics API client, verified against a stub matching the documented response
+shape. Blocked on a real, live-confirmed founder action — the YouTube Analytics API isn't enabled
+for this project's Google Cloud console yet, and the OAuth token also lacks
+`yt-analytics.readonly` — see `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1. Real data starts
+flowing the moment both close; nothing else needs to change.
+
+### Hook-first script rubric dimension — picked up by Sprint 2 Task 4
 Script Review scores quality/engagement/clarity/brand/video-gen-fit. Add an explicit score for the
 first 1-2 seconds against known Shorts retention patterns (cold open, no logo/intro, question or
 visual surprise up front) — disproportionately what determines whether a Short survives the first swipe.
+
+**Closed**: `ScriptReviewOutputSchema` gained `hookScore`/`hookNotes`, judged against exactly the
+patterns named above. Verified live via a real paired comparison: a genuine cold-open script scored
+6 points higher than a slow, logo-first-style intro on identical underlying content, with notes
+explicitly naming the difference. See `docs/execution/sprint2/reports/task4.md`.
 
 ### Custom cover frame
 YouTube lets Shorts carry a custom cover image, which matters wherever a Short surfaces outside the

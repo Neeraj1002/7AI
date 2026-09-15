@@ -2,8 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-15, after Sprint 2 Task 3 (a royalty-free audio layer + licensing risk
-check). See `docs/execution/sprint2/reports/task3.md`.
+**Last updated**: 2026-09-15, after Sprint 2 Task 4 (retention-curve capture + hook-first script
+rubric). See `docs/execution/sprint2/reports/task4.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -11,15 +11,38 @@ check). See `docs/execution/sprint2/reports/task3.md`.
 
 ## 1. Founder action required (external, blocking)
 
-**All four rows previously here are now closed** — Week 5 Task 1 ran a real, credentialed,
+### Open — G1: the YouTube Analytics API, two real, distinct actions (Sprint 2 Task 4)
+`watchTimeMinutes`/`retentionPct`/the new `retentionCurve` (G2) all stay `null` for every real video
+until this closes. Confirmed **live**, against this project's own real credentials, not guessed —
+two separate blockers, not one:
+
+1. **The YouTube Analytics API itself is not enabled** for this project's Google Cloud console. A
+   real call today returns a real `403 PERMISSION_DENIED` (`reason: SERVICE_DISABLED` /
+   `accessNotConfigured`): *"YouTube Analytics API has not been used in project 714472645139 before
+   or it is disabled. Enable it by visiting
+   https://console.developers.google.com/apis/api/youtubeanalytics.googleapis.com/overview?project=714472645139
+   then retry."* — a one-click enablement in Cloud Console, same account already used for the
+   existing YouTube OAuth app.
+2. **The OAuth token doesn't carry the `yt-analytics.readonly` scope** — the original grant
+   (Week 1 Task 7) only requested `youtube.upload`/`youtube.readonly`. Re-authorizing the existing
+   OAuth app with the added scope is same-day once the founder clicks through consent (same posture
+   `sprint2/tasks/task4.md` itself describes) — not yet confirmed live, since (1) blocks the request
+   from even reaching a scope check today.
+
+Not blocking the rest of the sprint or this task — `sprint2/reports/task4.md`'s G2 work is built and
+verified against a real stub matching the Analytics API's documented response shape
+(`YOUTUBE_ANALYTICS_STUB=1`), and the real call path is verified to fail loudly and specifically
+(not a generic auth error) rather than silently, so this is obviously a founder-action gap if
+someone runs it prematurely. Once both actions above are done, re-run the real (non-stub) path
+against a real published video and confirm a genuinely non-null, monotonic-shaped `retentionCurve`
+— see `sprint2/reports/task4.md`'s Verify section for the exact steps.
+
+**All four rows previously here are closed** — Week 5 Task 1 ran a real, credentialed,
 founder-gated end-to-end test: real YouTube OAuth (upload confirmed `private` via a direct API
 check), real `OPENAI_API_KEY`/`PEXELS_API_KEY` (real TTS + real, on-topic Pexels footage), and both
 Gate 1/Gate 2 answered live by the founder over actual Telegram (`"Approve"`, in real time) —
 closing the live-human-reply item open since Week 2 as well. See `week5/reports/task1.md` for the
 full evidence trail (real `youtubeVideoId`, real review verdicts, real spend).
-
-Nothing founder-blocking remains open as of this update. New items, if any arise, get a fresh row
-here rather than reviving the closed ones below (kept for history):
 
 <details>
 <summary>Closed items (click to expand)</summary>
@@ -249,7 +272,11 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 ## 6. Not yet built
 
 - **Deferred agents per the locked design** (not gaps — deliberately out of MVP scope): Trend Identification, Content Prediction, Continuous Learning, and Video Intelligence's "competitor" mode. All wait on real performance history or later product phases — see `AGENT_FLEET_DESIGN.md` Section 3 for the full status table.
-- **Real YouTube Analytics API integration** (`watchTimeMinutes`/`retentionPct`) — deliberately deferred; needs a separate `yt-analytics.readonly` OAuth scope never requested. `views`/`likes`/`comments` (Data API) are real and working as of Week 5.
+- **Real YouTube Analytics API integration for `watchTimeMinutes`/`retentionPct`** (the single-number
+  summary fields, distinct from the new `retentionCurve` — see §1's G1 for that) — Sprint 2 Task 4
+  built the real timestamp-level `retentionCurve` capture, but the two older summary fields would
+  need their own separate Analytics API report (a different metric/dimension pair) not attempted in
+  this task. `views`/`likes`/`comments` (Data API) are real and working as of Week 5.
 - **`videos.delete` scope** — see Section 3. Not a blocker, just unavailable with the current token.
 - **A real, search-grounded fact-check pass for Script Review** — Week 5 Task 4's C3 added
   `factualConcerns`, explicitly framed as a plausibility check against the model's own knowledge, not

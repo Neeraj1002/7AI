@@ -55,6 +55,16 @@ const EnvSchema = z.object({
   // OAuth still open). One flag, not two, since both are blocked by the exact
   // same missing credential. Same pattern as MEDIA_STUB.
   YOUTUBE_STUB: z.string().optional().default(''),
+  // Sprint 2 Task 4 (G1/G2) — a SEPARATE flag from YOUTUBE_STUB above:
+  // unlike Data API stats (which already work with the real credentials),
+  // the YouTube Analytics API is blocked by two real, distinct founder
+  // actions (KNOWN_ISSUES_AND_BLOCKERS.md §1) — enabling the API itself in
+  // Google Cloud Console, and re-authorizing with the yt-analytics.readonly
+  // scope. When '1', retention-curve capture uses a stub shaped like the
+  // real Analytics API's documented response instead of attempting the
+  // real call (which fails today, loudly and specifically — see
+  // youtube-analytics-client.ts).
+  YOUTUBE_ANALYTICS_STUB: z.string().optional().default(''),
   // Performance Analytics' periodic poll cadence (Section 8.3 "batch over
   // real-time"). Defaults to 6 hours; a dry-run/test invocation calls the
   // poll function directly rather than waiting on this interval.

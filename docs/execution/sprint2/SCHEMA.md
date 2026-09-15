@@ -101,6 +101,49 @@ no migration. The curated audio-bed library itself
 a database concept at all — a deliberate carve-out in `.gitignore` (`!**/data/audio-beds/`) is the
 only "schema-adjacent" change this task makes, and it's a repo-config change, not a Postgres one.
 
+## Task 4 — `PerformanceSnapshot.retentionCurve` (G2), a real migration
+
+A real Prisma migration (`prisma migrate dev --name sprint2_retention_curve`), one additive,
+nullable column:
+
+```prisma
+model PerformanceSnapshot {
+  // ...existing fields...
+  retentionCurve Json?
+  // Array of { elapsedVideoTimeRatio: number, audienceWatchRatio: number }
+  // points — the real dimension/metric pair the YouTube Analytics API's
+  // audience-retention report returns. null until G1's founder action(s)
+  // close (see KNOWN_ISSUES_AND_BLOCKERS.md §1) or YOUTUBE_ANALYTICS_STUB=1.
+}
+```
+
+```sql
+ALTER TABLE "performance_snapshots" ADD COLUMN "retentionCurve" JSONB;
+```
+
+No backfill — every existing row is correctly `null` (recorded before this field existed, and no
+way to reconstruct a historical retention curve after the fact — exactly the "cheap now, expensive
+to reconstruct later" reasoning `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md` §2 cites for adding
+this capture *now*, even though nothing reads it yet).
+
+`PerformanceSnapshot` (domain type, `types/performance-snapshot.types.ts`) gained
+`retentionCurve: RetentionCurvePoint[] | null`, where:
+
+```typescript
+export type RetentionCurvePoint = { elapsedVideoTimeRatio: number; audienceWatchRatio: number };
+```
+
+`CreatePerformanceSnapshotInput` gained an optional `retentionCurve` field, threaded through from
+`recordSnapshot` — see `BUSINESS_LOGIC.md` for the real fetch-and-fail-safe logic around it.
+
+## Task 4 — No schema changes (G3)
+
+`ScriptReviewOutputSchema` (`agents/script-review/index.ts`, not a DB table) gained
+`hookScore: z.number().min(0).max(10)` and `hookNotes: z.string().min(1)` — stored exactly where the
+rest of Script Review's output already lives: `PipelineStage.output` and the `ReviewLog.rationale`
+text Gate 1 reads (Week 2 Task 5's existing convention, same pattern Week 5 Task 4's C3
+`factualConcerns` used). No migration.
+
 ## Reference
 - `docs/execution/week5/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference

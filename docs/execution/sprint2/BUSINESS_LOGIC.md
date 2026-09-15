@@ -180,3 +180,55 @@ third success criterion.
 ### Reference
 `sprint2/BUSINESS_LOGIC.md`'s own Task 2 section, immediately above — this task reuses the exact
 resolution-order pattern and the "one branch point, shared code past it" design Task 2 established.
+
+## Task 4 — Retention-curve capture + hook-first script rubric (G1-G3)
+
+### What this task implements
+G2 adds a second, independent Analytics-API call inside the existing `recordSnapshot` function —
+called at both of Performance Analytics' existing trigger points (the initial post-publish
+snapshot, and every periodic poll tick, per `week4/BUSINESS_LOGIC.md` Section 3) — no new schedule,
+no new state transition. G3 adds two new scored fields to Script Review's existing output — no new
+transition, no new `purpose`, no new call.
+
+### Preconditions
+G2: a `PipelineRun` has a real `youtubeVideoId` (from a completed `publishing` stage) — the same
+precondition `recordSnapshot`'s existing views/likes/comments fetch already has. G3: none beyond
+Script Review's own existing preconditions (a completed `script_generation` stage).
+
+### Postconditions
+G2: `PerformanceSnapshot.retentionCurve` is either a real, non-empty array of
+`{ elapsedVideoTimeRatio, audienceWatchRatio }` points, or `null` — **never** a thrown error that
+prevents the rest of the snapshot (`views`/`likes`/`comments`) from being recorded. This is a
+deliberate design choice, not just a defensive habit: G1's founder action is real and currently
+ungranted (confirmed live — see `KNOWN_ISSUES_AND_BLOCKERS.md` §1), so every real snapshot taken
+before it closes would otherwise throw and lose the views/likes/comments data that *has* been
+working reliably since Week 4, over a capability (retention curves) that's brand new and explicitly
+not read by anything yet. G3: `ScriptReviewOutput.hookScore`/`hookNotes` are always present — the
+schema has no `.optional()` on either, so a malformed/missing hook assessment fails the same
+`ScriptReviewOutputSchema.safeParse` validation the rest of the output already goes through, not a
+silent gap.
+
+### Failure Modes & Handling
+G2's real Analytics API call, before G1 closes, fails with a real, specific, classified error
+(`youtube-analytics-client.ts`'s `classifyAnalyticsError` — confirmed live against this project's
+own actual 403 response, not guessed) — caught one level up in `recordSnapshot`'s own
+`fetchRetentionCurve` wrapper, logged once, and treated as "this field stays null this time," never
+propagated to fail the whole snapshot or retried by `withRetryAndCircuitBreaker` (a scope/enablement
+problem won't resolve itself on retry, so retrying it would just be wasted real API calls against an
+endpoint that will keep 403ing identically). G3 has no new failure mode — a bad `hookScore`/`hookNotes`
+is caught by the same schema-validation `NonTransientStageError` every other Script Review output
+field already goes through.
+
+### A real, live finding worth recording
+G1's actual blocker, confirmed live against this project's own real OAuth credentials (not assumed
+from the task spec alone), is **two separate things**, not one: (1) the YouTube Analytics API is not
+yet enabled in this project's Google Cloud console at all (`403 SERVICE_DISABLED`/
+`accessNotConfigured` — this is what a real call returns *today*), and only once that's fixed would
+(2) the missing `yt-analytics.readonly` OAuth scope actually surface as its own distinct error. See
+`KNOWN_ISSUES_AND_BLOCKERS.md` §1 for the full write-up and the exact Cloud Console URL Google's own
+error response provided.
+
+### Reference
+`week4/BUSINESS_LOGIC.md` Section 3 — Performance Analytics' two existing trigger points, which this
+task's G2 call reuses without adding a new one. `week2/BUSINESS_LOGIC.md` Section 3 — Script Review's
+existing rubric, which G3 extends with a new scored dimension, same shape as Week 5 Task 4's C3.

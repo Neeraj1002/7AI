@@ -1,11 +1,12 @@
 import { fetchVideoStatsViaProvider } from './youtube-stats-client';
-import { stubFetchVideoStats } from './stub';
+import { fetchRetentionCurveViaProvider } from './youtube-analytics-client';
+import { stubFetchVideoStats, stubFetchRetentionCurve } from './stub';
 import {
   insertPerformanceSnapshot,
   listCompletedRunsWithPublishedVideo,
 } from '../../models/repositories/performance-snapshot.repository';
 import { env } from '../../config/env';
-import type { PerformanceSnapshot } from '../../types';
+import type { PerformanceSnapshot, RetentionCurvePoint } from '../../types';
 import type { VideoStats } from './types';
 
 // Performance Analytics agent — AGENT_FLEET_DESIGN.md Section 4.8, "basic
@@ -27,17 +28,40 @@ async function fetchVideoStats(youtubeVideoId: string): Promise<VideoStats> {
   return fetchVideoStatsViaProvider(youtubeVideoId);
 }
 
+// Sprint 2 Task 4 (G1/G2) — deliberately isolated from fetchVideoStats
+// above and NOT allowed to fail the whole snapshot: the Analytics API call
+// is blocked by two real, distinct, currently-ungranted founder actions
+// (API enablement + yt-analytics.readonly scope — KNOWN_ISSUES_AND_BLOCKERS.md
+// §1), confirmed live to fail with a real, specific 403 today. A run's
+// existing, working views/likes/comments capture (working since Week 4)
+// must never regress just because retention-curve capture — a genuinely
+// new, still-gated capability — isn't available yet. Returns undefined
+// (-> retentionCurve stays null) on any failure, logged once, not thrown.
+async function fetchRetentionCurve(youtubeVideoId: string): Promise<RetentionCurvePoint[] | undefined> {
+  try {
+    if (env.YOUTUBE_ANALYTICS_STUB === '1') {
+      return await stubFetchRetentionCurve(youtubeVideoId);
+    }
+    return await fetchRetentionCurveViaProvider(youtubeVideoId);
+  } catch (error) {
+    console.warn(
+      `[performance-analytics] retention-curve fetch failed for video ${youtubeVideoId} (real spend/other snapshot fields unaffected):`,
+      error,
+    );
+    return undefined;
+  }
+}
+
 // Records one snapshot for a single run's published video. Used both for the
 // initial post-publish snapshot and by each periodic poll tick — a plain
 // insert, no upsert/dedup logic, since accumulating many rows over time is
 // the entire point (SCHEMA.md: "a video accumulates many rows over time").
 //
-// watchTimeMinutes/retentionPct are always left undefined (-> null) here: the
-// YouTube Analytics API needs a separate `yt-analytics.readonly` OAuth scope
-// that scripts/youtube-oauth.ts never requested (only
-// youtube.upload/youtube.readonly), per docs/execution/week4/SCHEMA.md's own
-// note. Not attempted — the scope genuinely isn't available, not a bug to
-// work around.
+// watchTimeMinutes/retentionPct are still always left undefined (-> null)
+// here — this task (G2) added real retentionCurve capture, not the
+// single-number watchTimeMinutes/retentionPct summary fields, which would
+// need their own separate Analytics API report (a different metric/dimension
+// pair) not attempted in this task.
 export async function recordSnapshot(params: {
   tenantId: string;
   channelId: string;
@@ -45,6 +69,7 @@ export async function recordSnapshot(params: {
   youtubeVideoId: string;
 }): Promise<PerformanceSnapshot> {
   const stats = await fetchVideoStats(params.youtubeVideoId);
+  const retentionCurve = await fetchRetentionCurve(params.youtubeVideoId);
   return insertPerformanceSnapshot({
     tenantId: params.tenantId,
     channelId: params.channelId,
@@ -53,6 +78,7 @@ export async function recordSnapshot(params: {
     views: stats.views,
     likes: stats.likes,
     comments: stats.comments,
+    retentionCurve,
     snapshotAt: new Date(),
   });
 }

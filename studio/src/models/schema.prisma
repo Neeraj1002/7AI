@@ -232,6 +232,17 @@ model PerformanceSnapshot {
 
   watchTimeMinutes Decimal? @db.Decimal(10, 2)
   retentionPct     Decimal? @db.Decimal(5, 2)
+  // Sprint 2 Task 4 (G2) — the real, timestamp-level audience-retention
+  // curve, not just the single retentionPct summary number above. Array of
+  // { elapsedVideoTimeRatio: number, audienceWatchRatio: number } points,
+  // the real dimension/metric pair the YouTube Analytics API's
+  // audience-retention report returns. Nullable — every existing row is
+  // correctly null (recorded before this field existed), and every new row
+  // stays null until G1's yt-analytics.readonly OAuth scope is actually
+  // granted (YOUTUBE_STUB=1 or an ungranted scope both leave this null).
+  // Nothing reads this yet — Continuous Learning (a later sprint) is what
+  // eventually will; "cheap now, expensive to reconstruct later."
+  retentionCurve Json?
 
   snapshotAt DateTime
   createdAt  DateTime @default(now())
