@@ -22,7 +22,7 @@ import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutp
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
-import { planVideoProduction, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
+import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
 import {
@@ -557,6 +557,14 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
 // reproduce a known-bad plan shape on attempt 1; every other caller
 // (resume-on-startup.ts, every other dry-run command) never passes it, so a
 // real run always makes a real planning call, including on regen.
+
+// Sprint 2 Task 3 (F1) — narrows creationOptions.audioLayer (stored as a
+// plain string) against the real AUDIO_LAYERS list, same reasoning as
+// visualSource's own narrowing below: an unrecognized value is "no
+// override," never trusted via a blind cast.
+function resolveAudioLayerOverride(value: string | undefined): AudioLayer | undefined {
+  return (AUDIO_LAYERS as readonly string[]).includes(value ?? '') ? (value as AudioLayer) : undefined;
+}
 export async function runVideoGenerationStage(
   runId: string,
   testOverrides?: { forcedPlan?: ProductionPlan },
@@ -673,6 +681,12 @@ export async function runVideoGenerationStage(
           run.creationOptions?.visualSource === 'stock-footage' || run.creationOptions?.visualSource === 'ai-stills'
             ? run.creationOptions.visualSource
             : undefined,
+        // Sprint 2 Task 3 (F1) — same narrowing posture as visualSource
+        // above: creationOptions.audioLayer is a plain string (validated at
+        // the API edge before it gets here), narrowed against the real
+        // AUDIO_LAYERS list rather than cast, so an unrecognized value is
+        // "no override," not trusted blindly.
+        audioLayerOverride: resolveAudioLayerOverride(run.creationOptions?.audioLayer),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,

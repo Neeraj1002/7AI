@@ -91,6 +91,16 @@ optional `visualSource` field, validated against `plan.ts`'s own `VISUAL_SOURCES
 Task 1's `creationOptions` column, the exact "extend an existing object" pattern Task 1's own
 `SCHEMA.md` note anticipated.
 
+## Task 3 — No schema changes (F1/F2)
+
+`ProductionPlanSchema` gained `audioLayer: z.enum([...MOOD_TAGS, 'none'])` — stored the same place
+`visualSource` is (`PipelineStage.output`'s existing `plan` field), and `creationOptions`'s
+`audioLayer` field the same place `voice`/`visualSource` are (Task 1's `creationOptions` column) —
+no migration. The curated audio-bed library itself
+(`studio/src/audio-bed/manifest.ts` + `data/audio-beds/*.mp3`) is a checked-in local asset set, not
+a database concept at all — a deliberate carve-out in `.gitignore` (`!**/data/audio-beds/`) is the
+only "schema-adjacent" change this task makes, and it's a repo-config change, not a Postgres one.
+
 ## Reference
 - `docs/execution/week5/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference

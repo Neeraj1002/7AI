@@ -2,8 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-15, after Sprint 2 Task 2 (a second visual-source backend — AI-generated
-stills + synthetic-content disclosure). See `docs/execution/sprint2/reports/task2.md`.
+**Last updated**: 2026-09-15, after Sprint 2 Task 3 (a royalty-free audio layer + licensing risk
+check). See `docs/execution/sprint2/reports/task3.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -272,3 +272,12 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   animated stills) is a distinct, larger future task — different provider landscape, different cost
   profile, different content-generation pipeline entirely — deliberately not attempted here.
   — *`sprint2/reports/task2.md`*
+- **A real, live Content-ID/licensing-risk API check** — Sprint 2 Task 3's F2 is deliberately a
+  manifest-integrity check only (does the curated `audio-bed/manifest.ts` entry this project itself
+  authored carry a `license` field), not a call to any real Content-ID service — no such public API
+  exists to call synchronously at generation time. Real exposure today is low (every current track
+  is self-synthesized, genuinely `CC0`), but the moment a non-curated audio or visual source is ever
+  added (a real music API, a stock-footage vendor beyond Pexels, user uploads), a real risk check
+  against whatever that source's own platform offers becomes worth building — not attempted here,
+  per the design doc's own "expensive way to learn this" framing for why it's worth getting ahead
+  of, not urgent to solve immediately. — *`sprint2/reports/task3.md`*

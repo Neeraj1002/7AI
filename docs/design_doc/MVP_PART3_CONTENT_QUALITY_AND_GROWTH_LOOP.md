@@ -33,10 +33,17 @@ credential-storage work once it lands, not be built twice.
 
 ## 1. Folds into Part 2 §2 — not a new track
 
-### Audio layer
+### Audio layer — picked up by Sprint 2 Task 3
 No music/sound bed anywhere in Video Generation today — TTS + captions + stock footage only. Add an
 `audioLayer` concept (royalty-free bed at minimum) right alongside the second visual-source backend
 Part 2 §2 is already scoping — same production-planning step, same `ProductionPlan` object.
+
+**Closed**: `ProductionPlan.audioLayer` (a real mood tag or `'none'`) picks a track from a small,
+curated, self-synthesized (genuinely `CC0`) local library (`audio-bed/`,
+`data/audio-beds/*.mp3`) — `generateVideo`'s FFmpeg filter graph mixes it under the narration via
+`amix` at a real low weight, verified live via spectral analysis of an actual rendered output (the
+bed's own frequency band measured distinctly quieter than the voiceover's, not silent, not
+equal-volume). See `docs/execution/sprint2/reports/task3.md`.
 
 ### Synthetic/altered content disclosure — picked up by Sprint 2 Task 2
 YouTube requires flagging "realistic altered or synthetic" content at upload. Path A (real TTS + real
@@ -48,10 +55,17 @@ derived directly from `ProductionPlan.visualSource === 'ai-stills'` — real, ve
 mocked-client test asserting the actual request body, and a live stub-upload run confirming `false`
 for the stock-footage path). See `docs/execution/sprint2/reports/task2.md`.
 
-### Licensing / Content ID risk check
+### Licensing / Content ID risk check — the lightweight half picked up by Sprint 2 Task 3
 Once there's a music layer and/or a second footage or generative-video vendor, a lightweight check that
 whatever's pulled in is actually licensed for monetized use — a claim or strike on channel #1 while
 still proving the loop is an expensive way to learn this.
+
+**Partially closed**: the audio-bed manifest now carries a required `license` field per track,
+refused at pick time if missing (`audio-bed/client.ts`'s `pickTrackByMood`) — a manifest-integrity
+check, exactly the "lightweight" scope this note asked for. Explicitly **not** a live Content-ID API
+call (no such public synchronous API exists) — that remains open, logged in
+`KNOWN_ISSUES_AND_BLOCKERS.md` §6, worth building the moment a non-curated source (a real music API,
+a second footage vendor, user uploads) is ever added. See `docs/execution/sprint2/reports/task3.md`.
 
 ---
 

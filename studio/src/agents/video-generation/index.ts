@@ -8,10 +8,11 @@ import { synthesizeSpeech, transcribe, type TranscriptSegment } from '../../medi
 import { resolveMediaPurpose } from '../../media/registry';
 import { searchStockFootage } from '../../stock-footage';
 import { generateStills } from '../../ai-visuals';
+import { pickAudioBedTrack } from '../../audio-bed';
 import { env } from '../../config/env';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import type { BrandAssets } from '../../types';
-import { ProductionPlanSchema, type CaptionStyle, type ProductionPlan } from './plan';
+import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
 // burned captions + a real visual source, assembled with FFmpeg scripted
@@ -63,6 +64,10 @@ export type VideoGenerationUsage = {
     aiVisualsModel?: string;
     aiVisualsStillCount?: number;
     aiVisualsCostUsd?: string;
+    // Sprint 2 Task 3 (F1) — always present ('none' is a real, valid value,
+    // not an absent field). No real cost: the audio-bed library is local
+    // and free, unlike every other per-run media cost here.
+    audioLayer: AudioLayer;
     ttsProvider: string;
     ttsModel: string;
     ttsCharacterCount: number;
@@ -82,6 +87,10 @@ export type VideoGenerationResult = {
 
 const VIDEO_WIDTH = 1080;
 const VIDEO_HEIGHT = 1920;
+// Sprint 2 Task 3 (F1) — deliberately low relative to the voiceover's
+// implicit weight of 1, so the bed stays a background layer, never
+// competing with narration intelligibility.
+const AUDIO_BED_MIX_WEIGHT = 0.18;
 
 function formatSrtTimestamp(ms: number): string {
   const clamped = Math.max(0, ms);
@@ -434,6 +443,11 @@ export async function generateVideo(params: {
   const watermarkPath = params.brandAssets.watermarkUrl;
   const hasLocalWatermark = Boolean(watermarkPath && fsSync.existsSync(watermarkPath));
 
+  // Sprint 2 Task 3 (F1) — the picked track's own license is confirmed at
+  // pick time (audio-bed/client.ts refuses a track missing license
+  // metadata before any FFmpeg work starts), not re-checked here.
+  const audioBedTrack = params.plan.audioLayer !== 'none' ? pickAudioBedTrack(params.plan.audioLayer) : undefined;
+
   // Scaled/cropped to fill the 9:16 frame exactly (a Pexels clip's native
   // size rarely matches 1080x1920; an ai-stills render is already exactly
   // 1080x1920 from buildKenBurnsVideo, so this is a no-op crop in that
@@ -448,9 +462,21 @@ export async function generateVideo(params: {
   const baseFilter = captionsEnabled
     ? `${scaleCropFilter},subtitles=${srtFilename}:force_style='Fontsize=${captionFontSize(params.plan.captionStyle)},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`
     : scaleCropFilter;
-  const filterComplex = hasLocalWatermark
+  const videoFilterChain = hasLocalWatermark
     ? `${baseFilter}[framed];[framed][2:v]overlay=W-w-40:40[outv]`
     : `${baseFilter}[outv]`;
+
+  // The bed input's index depends on whether the (also optional) watermark
+  // input came before it — visual=0, tts=1, [watermark=2], bed=next.
+  const audioBedInputIndex = hasLocalWatermark ? 3 : 2;
+  // An explicit low weight on the bed (not equal-weighted) so narration
+  // stays intelligible — `duration=first` caps the mix at the TTS track's
+  // real length (listed first) regardless of how long the (looped) bed
+  // input runs.
+  const audioFilterChain = audioBedTrack
+    ? `;[1:a][${audioBedInputIndex}:a]amix=inputs=2:duration=first:weights='1 ${AUDIO_BED_MIX_WEIGHT}'[outa]`
+    : '';
+  const filterComplex = `${videoFilterChain}${audioFilterChain}`;
 
   const ffmpegArgs = [
     '-y',
@@ -461,12 +487,13 @@ export async function generateVideo(params: {
     '-i',
     tts.audioPath,
     ...(hasLocalWatermark ? ['-i', watermarkPath as string] : []),
+    ...(audioBedTrack ? ['-stream_loop', '-1', '-i', audioBedTrack.filePath] : []),
     '-filter_complex',
     filterComplex,
     '-map',
     '[outv]',
     '-map',
-    '1:a',
+    audioBedTrack ? '[outa]' : '1:a',
     '-c:v',
     'libx264',
     '-c:a',
@@ -514,6 +541,7 @@ export async function generateVideo(params: {
           aiVisualsStillCount: aiVisualsMeta.stillCount,
           aiVisualsCostUsd: aiVisualsMeta.costUsd,
         }),
+        audioLayer: params.plan.audioLayer,
         ttsProvider: ttsEntry.provider,
         ttsModel: ttsEntry.model,
         ttsCharacterCount: tts.characterCount,

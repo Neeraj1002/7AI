@@ -9,7 +9,7 @@ import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { founderChannel } from '../../notify-founder';
 import { TTS_VOICE_KEYS } from '../../media';
-import { VISUAL_SOURCES } from '../../agents/video-generation/plan';
+import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { MVP_TENANT_ID, PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 
 async function getRunDetail(id: string) {
@@ -48,6 +48,10 @@ export const runsRouter = router({
         // a real visualSource, never passed through as free text for
         // parse-brief.ts or the planning LLM to interpret loosely.
         visualSource: z.enum(VISUAL_SOURCES).optional(),
+        // Sprint 2 Task 3 (F1) — same edge-validation posture as
+        // voice/visualSource: rejected here if it doesn't match a real mood
+        // tag (or "none"), never passed through as free text.
+        audioLayer: z.enum(AUDIO_LAYERS).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -56,8 +60,12 @@ export const runsRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} not found` });
       }
       const creationOptions =
-        input.voice || input.visualSource
-          ? { ...(input.voice && { voice: input.voice }), ...(input.visualSource && { visualSource: input.visualSource }) }
+        input.voice || input.visualSource || input.audioLayer
+          ? {
+              ...(input.voice && { voice: input.voice }),
+              ...(input.visualSource && { visualSource: input.visualSource }),
+              ...(input.audioLayer && { audioLayer: input.audioLayer }),
+            }
           : undefined;
       const run = await createRun({
         tenantId: MVP_TENANT_ID,

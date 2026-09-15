@@ -128,3 +128,55 @@ full real `video_generation` stage (real TTS, real transcription, stub stills) e
 `week4/BUSINESS_LOGIC.md` Section 1 — the video_generation stage's existing transition table, which
 this task extends with a second asset-sourcing path but no new transitions. `week2/BUSINESS_LOGIC.md`
 Section 3 — the Video Intelligence review rubric this task adds a conditional variant to.
+
+## Task 3 — Royalty-free audio layer + licensing risk check (F1/F2)
+
+### What this task implements
+A second, independent `ProductionPlan` field, `audioLayer`, following the exact same two-step
+resolution order Task 2 established for `visualSource`: an explicit
+`PipelineRun.creationOptions.audioLayer` always wins; with no override, the planning LLM picks
+whichever mood tag fits the script, or `'none'` — a fully valid, equally-good choice, never treated
+as an incomplete plan. Unlike `visualSource`, no compliance flag depends on this field, so the
+deterministic post-LLM enforcement (mirroring `visualSourceOverride`'s) exists for consistency with
+the resolution-order guarantee, not because a wrong value has real external consequences.
+
+F2's license gate runs at **track-pick time** (`audio-bed/client.ts`'s `pickTrackByMood`), strictly
+before any FFmpeg work starts for that attempt — a missing-license entry is a `NonTransientStageError`
+raised immediately, the same "fail fast on a bad input" posture the rest of this pipeline already
+uses, not a mid-render failure.
+
+### Preconditions
+A `PipelineRun` row with `creationOptions.audioLayer` either set (a real per-run choice, validated
+against `AUDIO_LAYERS` at the API edge) or unset (the planning LLM decides). The curated
+`audio-bed/manifest.ts` library exists with real, license-tagged entries for every mood tag
+`AUDIO_LAYERS` lists (minus `'none'`, which needs no track at all).
+
+### Postconditions
+`generateVideo` always receives a `plan.audioLayer` that is exactly one of the real mood tags or
+`'none'` — never an unresolved override. When it's a mood tag, the rendered video's audio track is
+the real output of FFmpeg's `amix` (voiceover weight 1, bed weight 0.18), not two separate streams
+left unmixed and not silently dropped — verified live (see below) via spectral analysis of the real
+rendered output, not just by reading the ffmpeg args.
+
+### Failure Modes & Handling
+A manifest entry missing `license` refuses at pick time (`NonTransientStageError`, never
+auto-retried, escalates to `needs_attention` like any other non-transient input problem) — before
+any FFmpeg work starts, not mid-render. This is a **manifest-integrity check**, not a live
+Content-ID API call — no such public API exists to call synchronously at generation time; see
+`KNOWN_ISSUES_AND_BLOCKERS.md` §6 for the real API check this deliberately doesn't attempt.
+
+### A real, live verification worth recording
+The curated library (`data/audio-beds/*.mp3`) is not sourced from any external rights holder — every
+track was synthesized locally with FFmpeg's own `sine`/`amix`/`tremolo` signal generators
+(`scripts/generate-audio-beds.ts`), so `license: 'CC0'` is a real, accurate claim this project can
+make outright, not a placeholder. A real end-to-end render with `audioLayer: 'calm'` was verified via
+spectral band-pass analysis of the actual output file (not just inspecting the ffmpeg command): the
+bed's own frequency range (~207-237Hz) showed real, non-silent energy (-49.9dB mean) distinctly
+quieter than the voiceover's own frequency range (-43.0dB mean) — direct, measured proof the mix is
+real and weighted as intended, not equal-volume or absent. A separate real render with
+`audioLayer: 'none'` produced a normal, valid video with no crash or regression, confirming F1's
+third success criterion.
+
+### Reference
+`sprint2/BUSINESS_LOGIC.md`'s own Task 2 section, immediately above — this task reuses the exact
+resolution-order pattern and the "one branch point, shared code past it" design Task 2 established.

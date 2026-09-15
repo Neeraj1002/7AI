@@ -6,12 +6,14 @@
 // parse-brief.ts instead of a real Anthropic call.
 //
 // Usage:
-//   npx tsx scripts/dry-run.ts setup ["<brief text>"] ["<voice key>"] ["<stock-footage|ai-stills>"]
+//   npx tsx scripts/dry-run.ts setup ["<brief text>"] ["<voice key>"] ["<stock-footage|ai-stills>"] ["<mood tag|none>"]
 //                                                         -> prints a new runId; optional 3rd arg
 //                                                            sets creationOptions.voice (Sprint 2
 //                                                            Task 1, D2), optional 4th sets
 //                                                            creationOptions.visualSource (Sprint 2
-//                                                            Task 2, E2)
+//                                                            Task 2, E2), optional 5th sets
+//                                                            creationOptions.audioLayer (Sprint 2
+//                                                            Task 3, F1)
 //   npx tsx scripts/dry-run.ts start <runId>             -> runs intake (kill me mid-flight)
 //   npx tsx scripts/dry-run.ts script-gen <runId>        -> runs script_generation (Week 2 Task 4)
 //   npx tsx scripts/dry-run.ts script-review <runId>     -> runs script_review (Week 2 Task 5)
@@ -74,14 +76,17 @@ async function ensureTestChannel(): Promise<string> {
 // per-run voice override, exercising the real creationOptions column and
 // the real API-shaped input (not a synthetic test-only field) end-to-end.
 // Sprint 2 Task 2 (E2): optional fourth arg does the same for visualSource.
-async function setup(briefText?: string, voice?: string, visualSource?: string): Promise<void> {
+// Sprint 2 Task 3 (F1): optional fifth arg does the same for audioLayer.
+async function setup(briefText?: string, voice?: string, visualSource?: string, audioLayer?: string): Promise<void> {
   const channelId = await ensureTestChannel();
   const run = await createRun({
     tenantId: MVP_TENANT_ID,
     channelId,
     briefText: briefText ?? 'A short video about why octopuses have three hearts.',
     creationOptions:
-      voice || visualSource ? { ...(voice && { voice }), ...(visualSource && { visualSource }) } : undefined,
+      voice || visualSource || audioLayer
+        ? { ...(voice && { voice }), ...(visualSource && { visualSource }), ...(audioLayer && { audioLayer }) }
+        : undefined,
   });
   console.log(`runId=${run.id}`);
 }
@@ -262,6 +267,7 @@ async function videoGenRegression(runId: string): Promise<void> {
     visualSource: 'stock-footage',
     stockFootageQuery: topic.split(/\s+/).slice(0, 4).join(' ') || 'abstract background',
     captionStyle: 'word-flash',
+    audioLayer: 'none',
     pacingNotes: 'flash each word individually for punchy pacing',
     rationale:
       "Regression-test forced plan (dry-run.ts video-gen-regression) — deterministically reproduces Week 3 Task 3's flashing-caption/partial-word review failure so the real regen loop can be exercised against it.",
@@ -340,7 +346,7 @@ async function main(): Promise<void> {
   const [cmd, arg] = process.argv.slice(2);
   switch (cmd) {
     case 'setup':
-      await setup(arg, process.argv[4], process.argv[5]);
+      await setup(arg, process.argv[4], process.argv[5], process.argv[6]);
       break;
     case 'start':
       if (!arg) throw new Error('usage: dry-run.ts start <runId>');
