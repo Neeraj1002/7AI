@@ -84,6 +84,7 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
       },
       status: {
         privacyStatus: params.privacyStatus,
+        containsSyntheticMedia: params.containsSyntheticMedia,
       },
     };
 
@@ -107,7 +108,7 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
       throw new NonTransientStageError('YouTube upload succeeded but returned no video id', undefined, context);
     }
 
-    return { youtubeVideoId: response.data.id, privacyStatus: params.privacyStatus };
+    return { youtubeVideoId: response.data.id, privacyStatus: params.privacyStatus, containsSyntheticMedia: params.containsSyntheticMedia };
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapGoogleError(error, context);

@@ -21,13 +21,23 @@ export type PrivacyStatus = z.infer<typeof PrivacyStatusSchema>;
 
 export const DEFAULT_PRIVACY_STATUS: PrivacyStatus = 'private';
 
+// Sprint 2 Task 2 (E4, folding in MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md
+// §1's disclosure item): the real YouTube Data API v3 field is
+// `status.containsSyntheticMedia` (a boolean), verified against Google's own
+// VideoStatus API reference for this task. Not optional — every upload must
+// state one way or the other; the caller (state-machine.ts) derives it
+// directly from `plan.visualSource === 'ai-stills'`, never left to default.
 export type UploadParams = {
   videoPath: string;
   metadata: PublishingMetadata;
   privacyStatus: PrivacyStatus;
+  containsSyntheticMedia: boolean;
 };
 
 export type UploadResult = {
   youtubeVideoId: string;
   privacyStatus: PrivacyStatus;
+  // Echoed back the same way privacyStatus is — a real audit trail of what
+  // was actually sent, not just what was intended.
+  containsSyntheticMedia: boolean;
 };

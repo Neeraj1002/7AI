@@ -115,7 +115,18 @@ already establish the provider-abstraction pattern to copy — no need to invent
 a tracker, per its own stated posture; the note above is the actual current status.)*
 
 ### Visual style
-This is the bigger piece. Needs a real `visualSource` concept — stock footage (what exists today) as
+**Picked up and closed by Sprint 2 Task 2** (`docs/execution/sprint2/reports/task2.md`) — took
+exactly the "smaller lift" option this doc recommended: `ai-visuals/` (mirroring `stock-footage/`'s
+`registry.ts`/`client.ts`/`types.ts`/`stub.ts` split) generates AI stills, animated Ken-Burns-style
+via FFmpeg's `zoompan`, not full generative video (still open — see
+`KNOWN_ISSUES_AND_BLOCKERS.md` §6). `ProductionPlan.visualSource` lives exactly where this doc said
+it should, right alongside `captionStyle`. Video Intelligence's review rubric got the per-style
+variant this doc anticipated ("a stylized/animated frame shouldn't be judged the same way a real
+photographic stock frame is") — verified live via the reviewer's own language explicitly accepting
+"stylized... illustrations" without penalty. User-uploaded footage as a third source remains
+unbuilt, not scoped into this task.
+
+~~This is the bigger piece. Needs a real `visualSource` concept — stock footage (what exists today) as
 one option, AI-generated video/image as another (with its own real decision: full AI video generation
 vs. the cheaper middle ground of AI-generated stills animated Ken-Burns-style, which is a much smaller
 lift and worth seriously considering before jumping straight to generative video), and possibly
@@ -128,7 +139,9 @@ Structurally, this fits naturally where `captionStyle` already lives — `Produc
 is already the "plan-time creative decisions" object; `visualSource`-type choices belong right next
 to it. And the module shape already used for `llm/`, `media/`, `stock-footage/` — a
 `registry.ts`/`client.ts`/`types.ts`/`stub.ts` split with one boundary file per source — is exactly
-the pattern a second/third visual-source backend should follow, not a new pattern.
+the pattern a second/third visual-source backend should follow, not a new pattern.~~
+*(original capture text, kept struck through rather than deleted — this doc stays a capture doc, not
+a tracker, per its own stated posture; the note above is the actual current status.)*
 
 ### The UI layer these both imply
 "Filter audio type, video type" is really: these choices should be explicit fields a user picks when

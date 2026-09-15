@@ -38,6 +38,11 @@ const EnvSchema = z.object({
   // real Pexels call — no PEXELS_API_KEY has existed in any session so far.
   // Same pattern as MEDIA_STUB.
   STOCK_FOOTAGE_STUB: z.string().optional().default(''),
+  // Sprint 2 Task 2 (E1) — studio/src/ai-visuals/. Same pattern as
+  // MEDIA_STUB/STOCK_FOOTAGE_STUB: when '1', uses a deterministic local
+  // stub instead of a real OpenAI image-generation call. Reuses
+  // OPENAI_API_KEY (same as media/), no separate credential.
+  AI_VISUALS_STUB: z.string().optional().default(''),
   // Week 4 Task 2/3 — YouTube Data API v3 (upload + statistics). Stopgap env-var
   // credentials per docs/execution/week1/SCHEMA.md Section 2 (still one channel).
   YOUTUBE_CLIENT_ID: z.string().optional().default(''),

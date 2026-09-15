@@ -1,9 +1,11 @@
 # Sprint 2 Schema Delta
 
 **Status**: One real migration (Task 1 — `Channel.defaultVoice`, `PipelineRun.creationOptions`),
-first schema change of Sprint 2. Incremental against `AGENT_FLEET_DESIGN.md` Section 6's cumulative
-reference and `week5/SCHEMA.md`'s state at Sprint 1's close, same convention every prior
-week/sprint's `SCHEMA.md` uses.
+first schema change of Sprint 2. Task 2 introduces no schema changes at all — `visualSource` lives
+entirely inside existing Json columns (Task 1's `creationOptions`, and `PipelineStage.output`, which
+already carried the video-generation stage's `plan`). Incremental against `AGENT_FLEET_DESIGN.md`
+Section 6's cumulative reference and `week5/SCHEMA.md`'s state at Sprint 1's close, same convention
+every prior week/sprint's `SCHEMA.md` uses.
 
 ## Task 1 — `Channel.defaultVoice`, `PipelineRun.creationOptions` (D1/D2)
 
@@ -76,6 +78,18 @@ OpenAI's TTS endpoint documents as of this task. Both `Channel.defaultVoice` and
 edge (`runs.ts`'s `z.enum(TTS_VOICE_KEYS)`) and at the one write path for the channel column
 (`scripts/set-channel-default-voice.ts`), not by a DB `CHECK` constraint (same posture every other
 free-text-ish nullable column in this schema already has, e.g. `postingCadence`).
+
+## Task 2 — No schema changes (E2/E4)
+
+`ProductionPlanSchema` (`agents/video-generation/plan.ts`, not a DB table) gained
+`visualSource: z.enum(['stock-footage', 'ai-stills'])` and `stillScenePrompts: z.array(z.string().min(1)).optional()`
+— stored exactly where the rest of the plan already lives: `PipelineStage.output` (the
+`video_generation` stage's existing Json column). `Gate2`/`Publishing`'s new
+`containsSyntheticMedia: boolean` (E4) is likewise stored in the `publishing` stage's existing
+`output` Json — no migration for either. `api/routers/runs.ts`'s brief-submission input gained an
+optional `visualSource` field, validated against `plan.ts`'s own `VISUAL_SOURCES` and stored into
+Task 1's `creationOptions` column, the exact "extend an existing object" pattern Task 1's own
+`SCHEMA.md` note anticipated.
 
 ## Reference
 - `docs/execution/week5/SCHEMA.md` — the schema this sprint's first task extends

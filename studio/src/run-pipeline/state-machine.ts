@@ -22,7 +22,7 @@ import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutp
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
-import { planVideoProduction, type ProductionPlan } from '../agents/video-generation/plan';
+import { planVideoProduction, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
 import {
@@ -659,6 +659,20 @@ export async function runVideoGenerationStage(
         scriptText: sanctionedScriptText,
         topic: run.intakeParsed!.topic,
         fixNotes: fixNotes ?? undefined,
+        // Sprint 2 Task 2 (E2) — an explicit per-run choice always wins; with
+        // no override, the planning LLM decides (defaulting to
+        // 'stock-footage'). Unlike voice, there's no channel-level default
+        // for visualSource (no schema field for one — Task 2's Schema
+        // Impact is explicitly "no new tables or columns"). Narrowed here,
+        // not cast — creationOptions.visualSource is stored as a plain
+        // string (validated at the API edge, runs.ts, before it ever gets
+        // here), but this drives a real disclosure-policy flag downstream,
+        // so an unrecognized value is treated as "no override" rather than
+        // trusted blindly.
+        visualSourceOverride:
+          run.creationOptions?.visualSource === 'stock-footage' || run.creationOptions?.visualSource === 'ai-stills'
+            ? run.creationOptions.visualSource
+            : undefined,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -766,10 +780,14 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run video_review`);
   }
-  const videoOutput = videoGenStage.output as { videoPath?: string };
+  const videoOutput = videoGenStage.output as { videoPath?: string; plan?: { visualSource?: string } };
   if (!videoOutput.videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
   }
+  // Sprint 2 Task 2 (E3) — which review rubric variant to apply. Falls back
+  // to 'stock-footage' for a pre-Sprint-2 stage row that predates this
+  // field, matching the behavior every such run already had.
+  const visualSource: VisualSource = videoOutput.plan?.visualSource === 'ai-stills' ? 'ai-stills' : 'stock-footage';
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
@@ -785,7 +803,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
 
   const previousAttempt = await findLatestAttempt(runId, 'video_review');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
-  const stageInput = { videoPath: videoOutput.videoPath, topic: run.intakeParsed.topic };
+  const stageInput = { videoPath: videoOutput.videoPath, topic: run.intakeParsed.topic, visualSource };
   const stage = await createStageAttempt({
     pipelineRunId: runId,
     stageName: 'video_review',
@@ -798,6 +816,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       videoPath: videoOutput.videoPath,
       topic: run.intakeParsed.topic,
       scriptText: sanctionedScriptText,
+      visualSource,
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -1045,10 +1064,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run publishing`);
   }
-  const videoPath = (videoGenStage.output as { videoPath?: string }).videoPath;
+  const videoGenOutput = videoGenStage.output as { videoPath?: string; plan?: { visualSource?: string } };
+  const videoPath = videoGenOutput.videoPath;
   if (!videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
   }
+  // Sprint 2 Task 2 (E4) — the real YouTube disclosure-policy flag, derived
+  // directly from the plan actually used to render this video, never a
+  // separately-set flag that could disagree with it. Falls back to `false`
+  // for a pre-Sprint-2 stage row (every such video really was stock
+  // footage, since 'ai-stills' didn't exist yet).
+  const containsSyntheticMedia = videoGenOutput.plan?.visualSource === 'ai-stills';
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
@@ -1131,13 +1157,19 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   try {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
-    const attemptUploadOnce = async (): Promise<UploadResult> => uploadVideo({ videoPath, metadata, privacyStatus });
+    const attemptUploadOnce = async (): Promise<UploadResult> =>
+      uploadVideo({ videoPath, metadata, privacyStatus, containsSyntheticMedia });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Durable checkpoint — see recordStageProgress's own comment. Written
     // before completeStage so a crash in the gap between "upload succeeded"
     // and "stage marked complete" is recoverable without re-uploading.
-    const fullOutput = { youtubeVideoId: uploadResult.youtubeVideoId, privacyStatus: uploadResult.privacyStatus, metadata };
+    const fullOutput = {
+      youtubeVideoId: uploadResult.youtubeVideoId,
+      privacyStatus: uploadResult.privacyStatus,
+      containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      metadata,
+    };
     await recordStageProgress(stage.id, fullOutput);
 
     // Test-only: see PUBLISHING_TEST_KILL_DELAY_MS's own comment in env.ts.

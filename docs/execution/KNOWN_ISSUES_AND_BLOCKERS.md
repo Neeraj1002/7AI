@@ -1,11 +1,9 @@
 # Known Issues & Blockers Tracker
 
-**Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
+**Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-14, after Week 5 Task 6 (an independent, evidence-based audit of Task 4/5's
-C1-C4/D1-D2 claims against the real `WEEK5_BE` branch — every item confirmed applied-and-verified,
-no code changes needed). Sprint 1's closure (declared after Task 5) now has a second, independent
-confirmation behind it — see `docs/execution/week5/reports/task6.md`.
+**Last updated**: 2026-09-15, after Sprint 2 Task 2 (a second visual-source backend — AI-generated
+stills + synthetic-content disclosure). See `docs/execution/sprint2/reports/task2.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -220,6 +218,18 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   up front (word count ÷ speaking rate), or the regen loop's fix notes explicitly ask for a shorter
   *script*, not just different pacing/captions for the same one. — *`week5/reports/task5.md`*
 
+- **`llm/extract-json.ts`'s `extractJsonText` doesn't reliably strip a markdown code fence in every
+  case.** Found live during Sprint 2 Task 2's regression testing (unrelated to that task's own
+  visual-source work): a real Video Intelligence multimodal review call returned
+  `` ```json\n{"verdict": "pass", ...} `` despite `SYSTEM_PROMPT`'s explicit "no markdown code
+  fences" instruction, and the parser didn't strip it, throwing `NonTransientStageError` and
+  escalating an otherwise-fine run to `needs_attention`. Every other real call across five weeks and
+  Sprint 2 so far has apparently avoided this exact wrapping, or `extractJsonText` handles the
+  common case and missed this one — not root-caused or fixed as part of Task 2 (genuinely out of
+  scope, a general LLM-output-parsing robustness gap, not a visual-source issue). Worth a real,
+  isolated fix: a more defensive fence-stripping regex, or retrying once specifically on a JSON
+  parse failure before escalating. — *`sprint2/reports/task2.md`*
+
 ---
 
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
@@ -255,3 +265,10 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   suite — needs test-DB setup (a real decision: a dedicated test schema/database, transaction
   rollback per test, or something else) that Task 4 didn't attempt. A natural next-week candidate.
   — *`week5/reports/task4.md`*
+- **Full generative AI video** — Sprint 2 Task 2 added a second `visualSource` (`ai-stills`:
+  AI-generated stills animated Ken-Burns-style), the smaller-lift option
+  `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` Section 2 explicitly recommended over jumping
+  straight to generative video. A true third `visualSource` (an actual generative-video model, not
+  animated stills) is a distinct, larger future task — different provider landscape, different cost
+  profile, different content-generation pipeline entirely — deliberately not attempted here.
+  — *`sprint2/reports/task2.md`*
