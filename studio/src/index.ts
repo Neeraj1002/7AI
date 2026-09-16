@@ -1,6 +1,7 @@
 import { env } from './config/env';
 import { resumeOnStartup } from './run-pipeline/resume-on-startup';
 import { runGateReminderCheck } from './run-pipeline/gate-reminder';
+import { runFounderDigestCheck } from './run-pipeline/founder-digest';
 import { startTelegramReceiveLoop } from './notify-founder';
 import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
@@ -35,6 +36,22 @@ function startGateReminderChecker(): void {
   );
 }
 
+// Sprint 2 Task 6 (I1) — same setInterval-against-Postgres pattern as the
+// two checkers above. runFounderDigestCheck itself decides whether a digest
+// is actually due (against the real, persisted
+// Tenant.lastFounderDigestSentAt), so this interval only needs to be
+// "frequent enough," not exactly once a day.
+function startFounderDigestChecker(): void {
+  setInterval(() => {
+    runFounderDigestCheck().catch((error) => {
+      console.error('[founder-digest] periodic check failed:', error);
+    });
+  }, env.FOUNDER_DIGEST_CHECK_INTERVAL_MS);
+  console.log(
+    `[boot] Founder digest checker started (every ${env.FOUNDER_DIGEST_CHECK_INTERVAL_MS}ms, due every ${env.FOUNDER_DIGEST_INTERVAL_MS}ms)`,
+  );
+}
+
 async function main(): Promise<void> {
   console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);
 
@@ -48,6 +65,7 @@ async function main(): Promise<void> {
 
   startPerformanceAnalyticsPoller();
   startGateReminderChecker();
+  startFounderDigestChecker();
 
   await startApiServer();
 

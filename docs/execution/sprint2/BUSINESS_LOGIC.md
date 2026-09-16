@@ -296,3 +296,59 @@ step follows without altering. `video-intelligence/index.ts`'s `extractSampleFra
 existing ffmpeg frame-extraction technique `extractCoverFrame` mirrors rather than reinventing.
 Sprint 2 Task 4's G2 section above — the isolated-failure design template this task's own isolation
 posture is copied from.
+
+## Task 6 — Founder daily digest + post-hoc "why didn't it work" tagging (I1/I2)
+
+### What this task implements
+I1 is a new periodic checker (`run-pipeline/founder-digest.ts`), registered in `index.ts` the same
+way `gate-reminder.ts` already is — a `setInterval` tick against Postgres, no new state, no new
+transition, purely a read-only observer over existing `PipelineRun`/`Channel`/`Tenant` rows. I2 is a
+new, narrow branch inside `notify-founder/telegram-channel.ts`'s existing `message:text` handler —
+the project's first genuinely *unsolicited* incoming message. Every prior flow
+(`requestApproval`) is outbound-initiated: a reply only ever resolves a promise the original caller
+is already blocking on. A `tag ...` command has no caller waiting on it at all; it's parsed, acted
+on, and replied to entirely within the incoming-message handler itself.
+
+### Preconditions
+I1: none beyond a `Tenant` row existing (`MVP_TENANT_ID`, seeded by the foundation migration) and
+`FOUNDER_DIGEST_INTERVAL_MS` having actually elapsed since `Tenant.lastFounderDigestSentAt` (or that
+column being `null`, i.e. no digest ever sent). I2: the message must start with the literal word
+`tag` — anything else is untouched, since it could legitimately be an edited script or ordinary
+conversation reaching the existing reply-to-message/single-pending-gate resolution logic unchanged.
+
+### Postconditions
+I1: `Tenant.lastFounderDigestSentAt` is updated to the real send time **only after**
+`founderChannel.notify` actually succeeds — never speculatively before, so a failed real Telegram
+send is naturally retried on the next check tick rather than silently marked "done." I2: a matched,
+well-formed `tag <runId> <word> [notes]` command produces exactly one new `ReviewLog` row
+(`agent: 'founder-post-hoc'`), and the founder always receives a real reply — either a confirmation,
+a "run not found" message, or a malformed-command usage hint — never silence.
+
+### Failure Modes & Handling
+I1: Telegram's real `sendMessage` has a genuine 4096-character limit. Rather than risk the real send
+itself failing once enough `needs_attention`/`completed`/pending runs have accumulated,
+`formatDigestMessage` caps each category at 5 listed runs (`"...and N more"`) plus a defensive
+whole-message truncation as a last-resort safety net. I2: `parsePostHocTagCommand` distinguishes
+three outcomes — a well-formed command, a message that starts with `tag` but is otherwise malformed
+(gets a real usage-hint reply, not silent fallthrough — this project's own real live testing during
+this task found an earlier design that let a malformed attempt go unanswered), and a message that
+isn't a tag attempt at all (untouched, falls through to the pre-existing gate-reply logic). A
+well-formed command referencing a run id that doesn't exist gets a real, honest "no run found" reply
+rather than a crash or a silently-dropped write.
+
+### A real, live finding worth recording
+An early version of I2's handler used `void recordPostHocTag(...).then(...)` (fire-and-forget)
+inside the `message:text` callback. Real, live testing (`dry-run.ts tag`, which calls
+`simulateIncomingTelegramMessage` and then exits) found this genuinely lost the write: grammy's
+`handleUpdate` only awaits what the handler itself returns, and a synchronous handler returns before
+the fire-and-forget promise settles — the process exited before the real `ReviewLog` row was ever
+written. **Not just a test-harness artifact**: the same race exists in production every time the
+process is mid-shutdown when a tag command arrives. Fixed by making the handler itself `async` and
+genuinely `await`-ing the write and the reply — confirmed via a second real run that the `ReviewLog`
+row now exists with the exact real values sent. See `sprint2/reports/task6.md`.
+
+### Reference
+`run-pipeline/gate-reminder.ts` — the exact periodic-checker shape I1 reuses.
+`notify-founder/channel.ts` / `gate1/index.ts`'s `parseGateReply` — the existing
+outbound-request/reply-grammar conventions I2's parser and reply-routing follow as closely as the
+genuinely different (unsolicited) direction allows.

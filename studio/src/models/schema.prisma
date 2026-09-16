@@ -19,6 +19,13 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
+  // Sprint 2 Task 6 (I1) — nullable, null for every existing tenant (no
+  // digest ever sent yet). Persisted rather than relying on process uptime
+  // alone: this dev process has restarted far more often than once a day
+  // throughout this project, so a plain setInterval(fn, 24h) would likely
+  // never actually fire in practice. See run-pipeline/founder-digest.ts.
+  lastFounderDigestSentAt DateTime?
+
   channels             Channel[]
   pipelineRuns         PipelineRun[]
   reviewLogs           ReviewLog[]

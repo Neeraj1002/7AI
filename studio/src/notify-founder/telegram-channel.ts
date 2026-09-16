@@ -1,6 +1,7 @@
 import { Bot, InputFile } from 'grammy';
 import { env } from '../config/env';
 import type { FounderChannel } from './channel';
+import { parsePostHocTagCommand, recordPostHocTag } from '../run-pipeline/post-hoc-tag';
 
 // The only file allowed to import grammy — see
 // docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md. Everything this
@@ -44,10 +45,44 @@ function ensureReceiveLoopStarted(): void {
 
   const b = getBot();
 
-  b.on('message:text', (ctx) => {
+  b.on('message:text', async (ctx) => {
     console.log(
       `[telegram] received from chat ${ctx.chat.id} (${ctx.from?.username ?? ctx.from?.first_name ?? 'unknown'}): ${ctx.message.text}`,
     );
+
+    // Sprint 2 Task 6 (I2) — the project's first *unsolicited* incoming
+    // message: every other flow only ever resolves a pending
+    // requestApproval() promise. Checked first, unconditionally, before the
+    // reply-to-message/single-pending-gate resolution below — a "tag ..."
+    // command must never be accidentally consumed as an edited-script reply
+    // to an unrelated, simultaneously-open gate.
+    //
+    // Genuinely awaited (not fire-and-forget): grammy's handleUpdate awaits
+    // this handler, so a caller awaiting handleUpdate (production's real
+    // update loop, and simulateIncomingTelegramMessage in tests) can rely on
+    // the DB write and the reply actually being done before it returns —
+    // a real, live-found gap in an earlier fire-and-forget version, caught
+    // by this task's own live verification (see task6's report).
+    const tagAttempt = parsePostHocTagCommand(ctx.message.text);
+    if (tagAttempt.kind === 'malformed') {
+      console.log(`[telegram] malformed tag command: ${tagAttempt.reason}`);
+      await ctx.reply(tagAttempt.reason);
+      return;
+    }
+    if (tagAttempt.kind === 'command') {
+      try {
+        const result = await recordPostHocTag(tagAttempt.command);
+        const replyText = result.ok
+          ? `Logged "${tagAttempt.command.tag}" for run ${tagAttempt.command.runId}.`
+          : result.error;
+        console.log(`[telegram] tag command reply: ${replyText}`);
+        await ctx.reply(replyText);
+      } catch (error) {
+        console.error('[telegram] failed to record a post-hoc tag:', error);
+        await ctx.reply('Something went wrong logging that tag — check the server logs.');
+      }
+      return;
+    }
 
     const replyToId = ctx.message.reply_to_message?.message_id;
     if (replyToId !== undefined) {

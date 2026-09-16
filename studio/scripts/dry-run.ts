@@ -37,6 +37,13 @@
 //   npx tsx scripts/dry-run.ts poll                      -> runs one Performance Analytics poll tick
 //   npx tsx scripts/dry-run.ts resume                    -> resumes any running PipelineRuns
 //   npx tsx scripts/dry-run.ts status <runId>             -> prints run + stage + usage_event + review_log rows
+//   npx tsx scripts/dry-run.ts digest                    -> Sprint 2 Task 6 (I1): runs one founder-digest
+//                                                            check for real (sends a real Telegram message
+//                                                            if a digest is actually due)
+//   npx tsx scripts/dry-run.ts tag <runId> <tagWord> ["<notes>"]
+//                                                         -> Sprint 2 Task 6 (I2): simulates the founder
+//                                                            sending "tag <runId> <tagWord> <notes>" over
+//                                                            Telegram (no live human round-trip needed)
 
 import { prisma } from '../src/models/prisma-client';
 import { MVP_TENANT_ID } from '../src/types';
@@ -57,6 +64,7 @@ import { runPeriodicPoll } from '../src/agents/performance-analytics';
 import type { ProductionPlan } from '../src/agents/video-generation/plan';
 import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
+import { runFounderDigestCheck } from '../src/run-pipeline/founder-digest';
 
 async function ensureTestChannel(): Promise<string> {
   const existing = await prisma.channel.findFirst({ where: { tenantId: MVP_TENANT_ID } });
@@ -325,6 +333,29 @@ async function resume(): Promise<void> {
   console.log('[dry-run] resume pass complete');
 }
 
+async function digest(): Promise<void> {
+  console.log('[dry-run] running one real founder-digest check');
+  const result = await runFounderDigestCheck();
+  console.log(`[dry-run] digest check complete — sent=${result.sent}`);
+}
+
+// Sprint 2 Task 6 (I2) — same no-live-round-trip convention gate1/gate2
+// already use: simulates the founder sending the real "tag ..." command
+// text over Telegram, targeted at no specific pending message (a post-hoc
+// tag is never a reply to something we sent), so it goes through
+// telegram-channel.ts's real message:text handler exactly as a live message
+// would.
+async function tag(runId: string, tagWord: string, notes?: string): Promise<void> {
+  if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
+    throw new Error('TELEGRAM_FOUNDER_CHAT_ID not set in .env.local');
+  }
+  const chatId = Number(env.TELEGRAM_FOUNDER_CHAT_ID);
+  const text = notes ? `tag ${runId} ${tagWord} ${notes}` : `tag ${runId} ${tagWord}`;
+  console.log(`[dry-run] simulating a real incoming Telegram tag command: "${text}"`);
+  await simulateIncomingTelegramMessage({ chatId, text });
+  console.log('[dry-run] tag command dispatched — check the bot reply and review_logs table');
+}
+
 async function status(runId: string): Promise<void> {
   const run = await prisma.pipelineRun.findUnique({ where: { id: runId } });
   const stages = await prisma.pipelineStage.findMany({
@@ -415,9 +446,19 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts status <runId>');
       await status(arg);
       break;
+    case 'digest':
+      await digest();
+      break;
+    case 'tag': {
+      const tagWord = process.argv[4];
+      const notes = process.argv[5];
+      if (!arg || !tagWord) throw new Error('usage: dry-run.ts tag <runId> <tagWord> ["<notes>"]');
+      await tag(arg, tagWord, notes);
+      break;
+    }
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status|digest|tag`,
       );
   }
 }
@@ -426,7 +467,13 @@ const startedLongPollingBot =
   process.argv[2] === 'gate1' ||
   process.argv[2] === 'gate1-live' ||
   process.argv[2] === 'gate2' ||
-  process.argv[2] === 'gate2-live';
+  process.argv[2] === 'gate2-live' ||
+  // Sprint 2 Task 6: 'digest' calls founderChannel.notify (via
+  // runFounderDigestCheck) and 'tag' calls simulateIncomingTelegramMessage —
+  // both start the same real long-polling loop notify/requestApproval
+  // already do.
+  process.argv[2] === 'digest' ||
+  process.argv[2] === 'tag';
 
 main()
   .catch((error) => {

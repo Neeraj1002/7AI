@@ -1,7 +1,9 @@
 # MVP Part 3 — Content Intelligence & Growth Loop (Design Capture)
 
-**Status**: Not in scope yet. Thinking-ahead capture, same posture as Part 2 — written so real task
-files can come straight from this doc later, nothing here gets built now.
+**Status**: §1 and §2 (Track B's fold-ins and all of Track C) are now fully picked up — Sprint 2
+Tasks 1-6, see each item's own "Closed"/"picked up by" note below and
+`docs/execution/sprint2/STATUS.md`. §3 (deferred fleet agents) and §4 (cross-posting) remain
+genuinely not built, same posture as originally captured here.
 **Trigger**: a 2026-09-13 brainstorm on content quality/growth, plus the question of whether it
 bundles into Part 2 or stays a separate track.
 **Companion doc**: `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` — this doc assumes that one and
@@ -117,15 +119,31 @@ Studio-UI-only. Closed with a real, cited reason rather than built blind; see
 `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §4 and `docs/execution/sprint2/reports/task5.md` for
 the citations. A revisit would need a genuinely different, non-native mechanism, not this one.
 
-### Founder daily digest
+### Founder daily digest — picked up by Sprint 2 Task 6
 Already sketched as an easy add-on in the roadmap (§17), never built. One end-of-day summary across all
 live channels instead of checking N Telegram threads by hand — worth doing as soon as there's more than
 one channel.
 
-### Post-hoc "why didn't it work" tagging
+**Closed**: `run-pipeline/founder-digest.ts`, a real periodic checker judging "is it due" against a
+real, persisted `Tenant.lastFounderDigestSentAt` (not raw process uptime — this dev process restarts
+far more often than once a day). Per-channel completed/needs-attention/waiting-on-you counts with
+real run ids, capped against Telegram's real 4096-character message limit. Verified live: a real
+digest sent over real Telegram with real counts from the real dev database, and a second immediate
+check correctly confirming it wasn't due again yet. See `docs/execution/sprint2/reports/task6.md`.
+
+### Post-hoc "why didn't it work" tagging — picked up by Sprint 2 Task 6
 `ReviewLog` captures pre-publish verdicts only. Add a cheap manual tagging step for the founder's own
 post-hoc read on an underperforming video ("weak hook," "topic already saturated," "bad thumbnail
 frame") — much richer training signal for Continuous Learning than raw metrics alone.
+
+**Closed**: a real, free-form `tag <runId> <word> [notes]` Telegram command — the project's first
+genuinely unsolicited incoming message, not a reply to something already sent — writes a new
+`ReviewLog` row (`agent: 'founder-post-hoc'`, no schema change, no fixed tag vocabulary enforced).
+Verified live: a real tag against a real completed run produced a real `ReviewLog` row with the
+exact values sent, a real unknown-run-id attempt got a real "not found" reply, and a real malformed
+attempt got a real usage-hint reply — including a genuine live-found bug (an early fire-and-forget
+handler lost the DB write on process exit) caught and fixed within the same task. See
+`docs/execution/sprint2/reports/task6.md`.
 
 ---
 

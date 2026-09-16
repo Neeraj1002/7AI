@@ -154,6 +154,20 @@ the same Json, no migration. H2 (A/B testing) was investigated and closed withou
 against it — see `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §4 — so there is no schema surface
 for it at all.
 
+## Task 6 — `Tenant.lastFounderDigestSentAt` (I1), a real migration
+
+A real Prisma migration (`prisma migrate dev --name sprint2_founder_digest`), one additive, nullable
+column: `Tenant.lastFounderDigestSentAt DateTime?`. `null` for every existing tenant (no digest has
+ever been sent). Deliberately persisted rather than judging "is a digest due" purely from process
+uptime — this dev process has restarted far more often than once a day throughout this project, so a
+plain `setInterval(fn, 24h)` would likely never actually fire in practice; a real, durable timestamp
+survives a restart correctly. See `run-pipeline/founder-digest.ts`.
+
+I2 (post-hoc tagging) needed **no schema change at all** — it writes a new `ReviewLog` row via the
+existing `insertReviewLog` repository function, the same table Gate 1/Gate 2 verdicts already use,
+distinguished only by a new `agent: 'founder-post-hoc'` value (every column ReviewLog already has —
+`agent`/`verdict`/`rationale`, with `stageId` already nullable — was enough).
+
 ## Reference
 - `docs/execution/week5/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference
