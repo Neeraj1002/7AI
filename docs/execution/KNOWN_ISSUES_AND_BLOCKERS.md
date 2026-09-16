@@ -2,14 +2,35 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-15, after Sprint 2 Task 4 (retention-curve capture + hook-first script
-rubric). See `docs/execution/sprint2/reports/task4.md`.
+**Last updated**: 2026-09-16, after Sprint 2 Task 5 (custom cover frame + title/description A/B
+testing investigation). See `docs/execution/sprint2/reports/task5.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
 ---
 
 ## 1. Founder action required (external, blocking)
+
+### Open — H1: custom-thumbnail permission — a separate eligibility gate from long-uploads verification (Sprint 2 Task 5)
+`setThumbnail`/`thumbnails.set` is built, wired into Publishing (isolated — see §5), and confirmed
+**live** to fail every real attempt so far with a real `403`:
+```
+{"error":{"code":403,"message":"The authenticated user doesn't have permissions to upload and set custom video thumbnails.","errors":[{"reason":"forbidden","domain":"youtube.thumbnail","location":"Authorization","locationType":"header"}]}}
+```
+This corrects an assumption `sprint2/tasks/task5.md` itself made before implementation: a real
+`channels.list?part=status` check showed `longUploadsStatus: "eligible"` (phone-verified for long
+uploads) and that was taken as proof the channel could also set custom thumbnails. Live testing
+proves that's a **separate eligibility gate** — the OAuth token already carries `youtube.upload`
+(one of the scopes Google's own docs list as sufficient for this endpoint), and `longUploadsStatus`
+is genuinely unrelated to it. The real, most likely fix: YouTube Studio → Settings → Channel →
+Feature eligibility → Custom thumbnails, which can require its own (separate) verification step or
+a brief review period even on an otherwise phone-verified channel — not confirmed live yet, since
+it's a founder-side Studio UI action, not something checkable via the API itself.
+Not blocking: `setThumbnail`'s failure isolation is itself real-verified (see §5) — the run that hit
+this real 403 still completed publishing successfully, with `coverFrameSet: false` recorded
+truthfully in the stage output. Once the founder confirms/enables the feature in Studio, re-run a
+fresh private test upload and confirm `thumbnails.set` succeeds with a `videos.list?part=snippet`
+read-back showing the real custom thumbnail URL. — *`sprint2/reports/task5.md`*
 
 ### Open — G1: the YouTube Analytics API, two real, distinct actions (Sprint 2 Task 4)
 `watchTimeMinutes`/`retentionPct`/the new `retentionCurve` (G2) all stay `null` for every real video
@@ -258,6 +279,19 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
 
 - **The aggregated Video Generation `UsageEvent` row's `provider`/`model` fields are a judgment call, not a confirmed convention.** One row covers two different (provider, model) pairs (TTS + transcription), so `provider` is hardcoded `'openai'` and `model` becomes a composite string (`"tts-1-hd+whisper-1"`), with the real breakdown in `metadata`. Flagged for confirmation the same way the $2.00 budget ceiling was — never explicitly confirmed by you. — *`week3/reports/task2.md`*
+- **CLOSED, not viable as scoped — Title/thumbnail A/B testing (H2, Sprint 2 Task 5).**
+  `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md` §2 proposed Publishing drive YouTube's native
+  title/thumbnail "Test and Compare" feature directly. Live research against Google's own current
+  (2026) documentation found two disqualifying facts, not one: (a) **Shorts are explicitly
+  excluded** — "You are not able to A/B test Shorts... A/B testing is not available for Shorts" —
+  this project's entire content type; (b) the feature has **no programmatic API surface at all** —
+  it's accessed "only available on computers through YouTube Studio," confirmed against the YouTube
+  Data API v3 reference (no `videos.update` field or endpoint for it). Closed with a real, cited
+  reason rather than built blind or silently dropped — see
+  [YouTube Help: A/B test titles and thumbnails](https://support.google.com/youtube/answer/16391400).
+  If this is ever revisited, it would need a genuinely different, non-native mechanism (e.g.
+  publishing two variants and switching manually based on early performance), a real design change,
+  not the original recommendation. — *`sprint2/reports/task5.md`*
 
 ---
 

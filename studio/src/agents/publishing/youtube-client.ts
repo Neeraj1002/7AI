@@ -16,6 +16,13 @@ import type { UploadParams, UploadResult } from './types';
 const YOUTUBE_UPLOAD_URL =
   'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status';
 const MULTIPART_BOUNDARY = '7ai-publishing-boundary-314159265358979';
+// Sprint 2 Task 5 (H1) — real endpoint, confirmed against Google's own
+// documentation before implementation: raw image bytes as the request body
+// (not multipart), videoId as a query param. Requires a phone-verified
+// channel — confirmed live against this project's real channel
+// (`channels.list?part=status` → `longUploadsStatus: "eligible"`) before
+// building this, not assumed.
+const YOUTUBE_THUMBNAILS_SET_URL = 'https://www.googleapis.com/upload/youtube/v3/thumbnails/set';
 
 function getOAuthClient(): OAuth2Client {
   if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.YOUTUBE_REFRESH_TOKEN) {
@@ -109,6 +116,32 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
     }
 
     return { youtubeVideoId: response.data.id, privacyStatus: params.privacyStatus, containsSyntheticMedia: params.containsSyntheticMedia };
+  } catch (error) {
+    if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
+    throw mapGoogleError(error, context);
+  }
+}
+
+// Sprint 2 Task 5 (H1) — a genuinely separate, best-effort follow-up call,
+// not part of the upload above: the video is already live by the time this
+// runs, so a failure here must never look like (or cause) an upload
+// failure. The caller (state-machine.ts) isolates this the same way Sprint
+// 2 Task 4's G2 isolated retention-curve capture — logged, not thrown
+// further, not escalated to needs_attention.
+export async function setThumbnailViaProvider(params: { youtubeVideoId: string; imagePath: string }): Promise<void> {
+  const context = { provider: 'youtube', operation: 'thumbnails.set' };
+  try {
+    const client = getOAuthClient();
+    const imageBuffer = await fs.readFile(params.imagePath);
+    const url = new URL(YOUTUBE_THUMBNAILS_SET_URL);
+    url.searchParams.set('videoId', params.youtubeVideoId);
+
+    await client.request({
+      url: url.toString(),
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      data: imageBuffer,
+    });
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapGoogleError(error, context);

@@ -7,6 +7,14 @@ export const PublishingMetadataSchema = z.object({
   title: z.string().min(1).max(100),
   description: z.string().min(1),
   tags: z.array(z.string()).min(1),
+  // Sprint 2 Task 5 (H1) — where through the video (0 = first frame, 1 =
+  // last) to grab the real custom-cover-frame thumbnail from. A sibling
+  // output of the same metadata-generation call, same "extend the existing
+  // cheap-tier call" principle Week 5 Task 4's C3 and Sprint 2 Task 4's G3
+  // both established, since this call already reasons about the script's
+  // content and is well-placed to judge which moment makes the strongest
+  // cover (a hook beat, a clear visual — not mid-blink/mid-transition).
+  coverFrameTimestampRatio: z.number().min(0).max(1),
 });
 export type PublishingMetadata = z.infer<typeof PublishingMetadataSchema>;
 

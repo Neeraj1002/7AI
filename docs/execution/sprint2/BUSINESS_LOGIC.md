@@ -232,3 +232,67 @@ error response provided.
 `week4/BUSINESS_LOGIC.md` Section 3 — Performance Analytics' two existing trigger points, which this
 task's G2 call reuses without adding a new one. `week2/BUSINESS_LOGIC.md` Section 3 — Script Review's
 existing rubric, which G3 extends with a new scored dimension, same shape as Week 5 Task 4's C3.
+
+## Task 5 — Custom cover frame + title/description A/B testing investigation (H1/H2)
+
+### What this task implements
+H1 adds a new, isolated follow-up step inside the existing `publishing` stage
+(`run-pipeline/state-machine.ts`'s `runPublishingStage`), running immediately after the existing
+`videos.insert` upload succeeds — no new state, no new transition. `coverFrameTimestampRatio` is a
+sibling output of the same Metadata Generation LLM call that already produces
+title/description/tags, same "extend the existing cheap-tier call" principle Week 5 Task 4's C3 and
+Sprint 2 Task 4's G3 both established. H2 investigated and closed a design-doc item without writing
+any code against it — see the "real, live finding" note below.
+
+### Preconditions
+H1: a successful `uploadVideo` call this same stage invocation (never re-attempted on resume — the
+existing resume-safety early-return path completes the stage without re-running the cover-frame step
+if a prior attempt already checkpointed a `youtubeVideoId`), and `video_generation`'s stage output
+carrying a real `durationSeconds` (present on every stage row since that field was added; a
+pre-existing row without it just skips the cover-frame step with a logged warning rather than
+crashing the stage).
+
+### Postconditions
+The `publishing` stage's output gains a plain `coverFrameSet: boolean` — `true` only when
+`thumbnails.set` genuinely succeeded, `false` for every other case (extraction failure, real API
+error, or a missing `durationSeconds`). `coverFrameSet` is never allowed to change whether the stage
+itself is recorded as completed — the durable checkpoint (`recordStageProgress`) and `completeStage`
+call both run regardless, exactly as they did before this task, since the video upload (the thing
+that actually matters for the stage's own success) already happened before the cover-frame step even
+starts.
+
+### Failure Modes & Handling
+A failure anywhere in the cover-frame step (ffmpeg extraction, or the real `thumbnails.set` call —
+classified through the same `mapGoogleError` the upload path already uses) is caught in
+`runPublishingStage` itself, logged once, and never rethrown — unlike the upload's own failure path,
+it is **not** escalated to `needs_attention`, since the video itself already published successfully
+and a human doesn't need to intervene in the pipeline over a missing custom thumbnail. This is the
+same "isolated, non-blocking, logged" posture Sprint 2 Task 4's G2 established for retention-curve
+capture, and it was exercised for real, not just designed: see the finding below.
+
+### A real, live finding worth recording
+`sprint2/tasks/task5.md` itself checked, before implementation, that the channel's
+`longUploadsStatus: "eligible"` (phone verification for long uploads) meant the channel could also
+set custom thumbnails — a reasonable-looking inference that turned out to be wrong. A real end-to-end
+run (fresh private test upload, `youtubeVideoId=sOnC-fyjpu8`, never the founder's existing public
+video) hit a real `403 forbidden` on the real `thumbnails.set` call: *"The authenticated user doesn't
+have permissions to upload and set custom video thumbnails"* (`domain: "youtube.thumbnail"`,
+`reason: "forbidden"`). The OAuth token already carries `youtube.upload` — one of the scopes Google's
+own docs list as sufficient for this endpoint — so this isn't a scope gap; it's most likely a
+separate Studio-side feature-eligibility step. **Critically**, this same real run proved the failure
+isolation actually works, not just that it was written to: the stage still completed successfully,
+with `coverFrameSet: false` recorded truthfully in the output, and the already-uploaded video was
+untouched. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1 (H1) for the full write-up.
+
+H2's own investigation is the other real finding this task produced: `MVP_PART3...md` §2's original
+recommendation (Publishing drives YouTube's native title/thumbnail test feature) doesn't hold up
+against Google's own current (2026) documentation — the feature explicitly excludes Shorts (this
+project's entire content type) and has no API surface at all (Studio-UI-only). Closed with citations
+in `KNOWN_ISSUES_AND_BLOCKERS.md` §4 rather than built blind or dropped silently.
+
+### Reference
+`week5/BUSINESS_LOGIC.md`'s Publishing section — the existing upload flow this task's cover-frame
+step follows without altering. `video-intelligence/index.ts`'s `extractSampleFramesBase64` — the
+existing ffmpeg frame-extraction technique `extractCoverFrame` mirrors rather than reinventing.
+Sprint 2 Task 4's G2 section above — the isolated-failure design template this task's own isolation
+posture is copied from.

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mapGoogleError, uploadVideoViaProvider } from './youtube-client';
+import { mapGoogleError, uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
 import { TransientStageError, NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 // Sprint 2 Task 2 (E4) — mocked-client test proving the real request body
@@ -94,7 +94,7 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
   it('sets containsSyntheticMedia: true on the real request for an ai-stills upload', async () => {
     await uploadVideoViaProvider({
       videoPath,
-      metadata: { title: 'Test', description: 'Test', tags: ['test'] },
+      metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
       privacyStatus: 'private',
       containsSyntheticMedia: true,
     });
@@ -104,10 +104,51 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
   it('sets containsSyntheticMedia: false on the real request for a stock-footage upload', async () => {
     await uploadVideoViaProvider({
       videoPath,
-      metadata: { title: 'Test', description: 'Test', tags: ['test'] },
+      metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
       privacyStatus: 'private',
       containsSyntheticMedia: false,
     });
     expect(extractRequestMetadata().status.containsSyntheticMedia).toBe(false);
+  });
+});
+
+// Sprint 2 Task 5 (H1) — mocked-client test proving the real request this
+// project sends to thumbnails.set has the shape Google's docs specify: raw
+// image bytes as the body (not multipart, unlike the upload above),
+// videoId as a query param, image/jpeg content type. Same rigor as the
+// containsSyntheticMedia test above — assert the real request construction,
+// not just that the function resolves without throwing.
+describe('setThumbnailViaProvider (Sprint 2 Task 5, H1 — custom cover frame)', () => {
+  let imagePath: string;
+
+  beforeEach(async () => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({ data: {} });
+    imagePath = path.join(os.tmpdir(), `7ai-youtube-thumbnail-test-${Date.now()}.jpg`);
+    await fs.writeFile(imagePath, Buffer.from('fake jpeg bytes for a mocked-client test, never actually uploaded'));
+  });
+
+  it('POSTs raw image bytes to thumbnails/set with videoId as a query param', async () => {
+    await setThumbnailViaProvider({ youtubeVideoId: 'mock-video-id', imagePath });
+
+    const call = requestMock.mock.calls[0][0] as {
+      url: string;
+      method: string;
+      headers: Record<string, string>;
+      data: Buffer;
+    };
+    const url = new URL(call.url);
+    expect(url.origin + url.pathname).toBe('https://www.googleapis.com/upload/youtube/v3/thumbnails/set');
+    expect(url.searchParams.get('videoId')).toBe('mock-video-id');
+    expect(call.method).toBe('POST');
+    expect(call.headers['Content-Type']).toBe('image/jpeg');
+    expect(call.data.toString('utf-8')).toBe('fake jpeg bytes for a mocked-client test, never actually uploaded');
+  });
+
+  it('routes a thumbnails.set failure through the same mapGoogleError classification as upload', async () => {
+    requestMock.mockRejectedValue(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }));
+    await expect(setThumbnailViaProvider({ youtubeVideoId: 'mock-video-id', imagePath })).rejects.toBeInstanceOf(
+      TransientStageError,
+    );
   });
 });

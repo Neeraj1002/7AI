@@ -144,6 +144,16 @@ rest of Script Review's output already lives: `PipelineStage.output` and the `Re
 text Gate 1 reads (Week 2 Task 5's existing convention, same pattern Week 5 Task 4's C3
 `factualConcerns` used). No migration.
 
+## Task 5 — No schema changes (H1/H2)
+
+`PublishingMetadataSchema` (`agents/publishing/types.ts`, not a DB table) gained
+`coverFrameTimestampRatio: z.number().min(0).max(1)` — stored exactly where the rest of Publishing's
+metadata already lives: `PipelineStage.output`'s existing `metadata` field (the `publishing` stage's
+existing Json column). The stage output also gained a plain `coverFrameSet: boolean` audit field in
+the same Json, no migration. H2 (A/B testing) was investigated and closed without writing any code
+against it — see `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §4 — so there is no schema surface
+for it at all.
+
 ## Reference
 - `docs/execution/week5/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference

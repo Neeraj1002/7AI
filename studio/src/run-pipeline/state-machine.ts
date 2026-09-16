@@ -28,6 +28,8 @@ import { requestGate2Decision } from '../agents/gate2';
 import {
   generatePublishingMetadata,
   uploadVideo,
+  extractCoverFrame,
+  setThumbnail,
   DEFAULT_PRIVACY_STATUS,
   type PublishingMetadata,
   type UploadResult,
@@ -1082,11 +1084,16 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run publishing`);
   }
-  const videoGenOutput = videoGenStage.output as { videoPath?: string; plan?: { visualSource?: string } };
+  const videoGenOutput = videoGenStage.output as {
+    videoPath?: string;
+    durationSeconds?: number;
+    plan?: { visualSource?: string };
+  };
   const videoPath = videoGenOutput.videoPath;
   if (!videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
   }
+  const durationSeconds = videoGenOutput.durationSeconds;
   // Sprint 2 Task 2 (E4) — the real YouTube disclosure-policy flag, derived
   // directly from the plan actually used to render this video, never a
   // separately-set flag that could disagree with it. Falls back to `false`
@@ -1179,6 +1186,37 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       uploadVideo({ videoPath, metadata, privacyStatus, containsSyntheticMedia });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
+    // Sprint 2 Task 5 (H1) — best-effort, isolated follow-up: the video is
+    // already live by this point, so a failure here (bad frame extraction, a
+    // real thumbnails.set error) must never fail the publishing stage or
+    // imply the upload itself failed. Same isolation posture Sprint 2 Task
+    // 4's G2 established for retention-curve capture. Requires a real
+    // durationSeconds from video_generation's output — falls back to
+    // `coverFrameSet: false` for a pre-Sprint-2-Task-5 stage row (or if it's
+    // ever missing) rather than crashing the whole stage over metadata.
+    let coverFrameSet = false;
+    if (typeof durationSeconds === 'number') {
+      try {
+        const framePath = await extractCoverFrame({
+          videoPath,
+          durationSeconds,
+          coverFrameTimestampRatio: metadata.coverFrameTimestampRatio,
+        });
+        await setThumbnail({ youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
+        coverFrameSet = true;
+      } catch (error) {
+        console.error(
+          `[publishing] run ${runId}: custom cover-frame set failed (non-blocking, video already uploaded successfully) — ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    } else {
+      console.warn(
+        `[publishing] run ${runId}: video_generation output has no durationSeconds — skipping custom cover-frame step`,
+      );
+    }
+
     // Durable checkpoint — see recordStageProgress's own comment. Written
     // before completeStage so a crash in the gap between "upload succeeded"
     // and "stage marked complete" is recoverable without re-uploading.
@@ -1186,6 +1224,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       youtubeVideoId: uploadResult.youtubeVideoId,
       privacyStatus: uploadResult.privacyStatus,
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      coverFrameSet,
       metadata,
     };
     await recordStageProgress(stage.id, fullOutput);

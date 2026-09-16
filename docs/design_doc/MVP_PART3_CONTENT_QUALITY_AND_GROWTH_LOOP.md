@@ -94,15 +94,28 @@ patterns named above. Verified live via a real paired comparison: a genuine cold
 6 points higher than a slow, logo-first-style intro on identical underlying content, with notes
 explicitly naming the difference. See `docs/execution/sprint2/reports/task4.md`.
 
-### Custom cover frame
+### Custom cover frame — picked up by Sprint 2 Task 5
 YouTube lets Shorts carry a custom cover image, which matters wherever a Short surfaces outside the
 Shorts feed (search, subscriptions, home). Metadata Generation already writes title/description/tags —
 a cover-frame choice is a natural sibling output.
+Built: `coverFrameTimestampRatio` on Metadata Generation's output, a real `thumbnails.set` call
+(isolated — a failure never fails the publishing stage or the already-successful upload). Real,
+live testing found the channel's `longUploadsStatus: "eligible"` (phone verification for long
+uploads) is a **separate eligibility gate** from custom-thumbnail permission — every real attempt
+so far gets a real `403 forbidden` ("The authenticated user doesn't have permissions to upload and
+set custom video thumbnails"), most likely needing a separate Studio-side feature-eligibility step.
+Founder action tracked in `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1 (H1). See
+`docs/execution/sprint2/reports/task5.md`.
 
-### Title/description A/B testing
-YouTube's built-in title/thumbnail test feature is free and automatic once it has real variants to try.
-Publishing can drive it directly from Metadata Generation's output — feeds Continuous Learning directly
-once that exists.
+### Title/description A/B testing — investigated and closed, not viable as scoped (Sprint 2 Task 5)
+~~YouTube's built-in title/thumbnail test feature is free and automatic once it has real variants to
+try. Publishing can drive it directly from Metadata Generation's output — feeds Continuous Learning
+directly once that exists.~~ Live research against Google's own current documentation found this
+recommendation doesn't hold for this project: YouTube's "Test and Compare" feature (a) **explicitly
+excludes Shorts** — this project's entire content type — and (b) has **no API surface at all**,
+Studio-UI-only. Closed with a real, cited reason rather than built blind; see
+`docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §4 and `docs/execution/sprint2/reports/task5.md` for
+the citations. A revisit would need a genuinely different, non-native mechanism, not this one.
 
 ### Founder daily digest
 Already sketched as an easy add-on in the roadmap (§17), never built. One end-of-day summary across all

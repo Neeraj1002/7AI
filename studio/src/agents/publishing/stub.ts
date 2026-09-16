@@ -19,3 +19,9 @@ export async function stubUploadVideo(params: UploadParams): Promise<UploadResul
     containsSyntheticMedia: params.containsSyntheticMedia,
   };
 }
+
+// Sprint 2 Task 5 (H1) — testing-only stand-in for the real thumbnails.set
+// call, same YOUTUBE_STUB=1 flag as stubUploadVideo above.
+export async function stubSetThumbnail(_params: { youtubeVideoId: string; imagePath: string }): Promise<void> {
+  return undefined;
+}
