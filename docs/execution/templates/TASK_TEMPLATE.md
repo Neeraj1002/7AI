@@ -8,6 +8,16 @@ This is the standard template for every 7AI execution task, Week 2 onward. It's 
 
 **Updated 2026-09-09 — two parallel tracks.** Starting with Week 4 (backend) and the new frontend track, two independent lines of work build against this repo at the same time: the week-numbered backend track and the frontend track (`docs/execution/frontend/`). Everything below still applies unchanged to both — the only change is the Git Workflow section, which now distinguishes the two tracks by a `_BE`/`_FE` suffix on every branch, commit, and PR so it's unambiguous which track a given change belongs to. See that section for the full convention.
 
+**Updated 2026-09-13 — "Sprint" replaces "Week" as the execution unit, starting Sprint 2.** The
+original Oct 15 MVP (`docs/execution/week1/` through `week5/`, plus `docs/execution/frontend/`) is
+now referred to as **Sprint 1** in planning docs (`docs/roadmap/SPRINT_ROADMAP.md`) — but its folders,
+branches, and PRs are **not** retroactively renamed; `week[N]`/`WEEK[N]_BE` stays exactly as merged,
+as the historical record. Every unit of work from here on uses `sprint[N]` in place of `week[N]`:
+`docs/execution/sprint2/`, track identifier `SPRINT2_BE`/`SPRINT2_FE`, same internal shape
+(`SCHEMA.md`/`BUSINESS_LOGIC.md`/`STATUS.md`/`tasks/`/`reports/`) as every week before it. Nothing
+else about this template changes — every section, the Git Workflow mechanics, and the naming rules
+below apply identically, with `sprint[N]` wherever `week[N]` is written.
+
 ---
 
 ## Template Structure
@@ -26,7 +36,7 @@ This is the standard template for every 7AI execution task, Week 2 onward. It's 
 **Success Criteria**: What makes this task complete
 ```
 
-*(This "read the template first" line is boilerplate — every task file includes it verbatim, right after the title, before `**Objective**`. Its purpose is exactly what you're reading: so nobody has to remember to say "also check TASK_TEMPLATE.md" out loud before handing a task file to Claude Code.)*
+*(This "read the template first" line is boilerplate — every task file includes it verbatim, right after the title, before `**Objective**`. Its purpose is exactly what you're reading: so nobody has to remember to say "also check TASK_TEMPLATE.md" out loud before handing a task file to Claude Code. From Sprint 2 onward, the header reads `# Sprint [N] Task [ID]: [Task Name]` — same shape, new unit.)*
 
 ### Task Requirement
 
@@ -200,23 +210,23 @@ Per-task reports: `reports/task[1-N].md`. Full narrative (once written): `report
 
 Update the row for *this* task only — never rewrite other tasks' rows, and never let this file's status contradict what the task's own report says. If a later task changes an earlier task's status (e.g. the founder's Telegram token finally gets added and Task 6 becomes fully `Done`), that's the task that's actually doing the work updating the row, not a retroactive edit from whichever task happens to run next.
 
-The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does.
+The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`.
 
-### Git Workflow *(updated 2026-09-09 — two parallel tracks)*
+### Git Workflow *(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming)*
 
 **Branch per track-iteration, commit per task, PR per track-iteration — merging to `main` is always a founder decision, never automatic.**
 
-Two independent tracks now build against this repo at the same time: the **backend track** (week-numbered, `docs/execution/week[N]/`) and the **frontend track** (`docs/execution/frontend/`, not week-numbered — one ongoing track rather than a sequence of weeks). Every branch, commit message, and PR title carries a suffix identifying which track it belongs to — **`_BE`** for backend, **`_FE`** for frontend — so it's unambiguous at a glance, in `git log`, the GitHub PR list, or anywhere else, which track a given change came from now that both can be in flight simultaneously.
+Two independent tracks now build against this repo at the same time: the **backend track** (`docs/execution/sprint[N]/` from Sprint 2 onward; `week[N]` for the historical Sprint 1) and the **frontend track** (`docs/execution/frontend/`, not sprint-numbered — one ongoing track rather than a sequence of sprints). Every branch, commit message, and PR title carries a suffix identifying which track it belongs to — **`_BE`** for backend, **`_FE`** for frontend — so it's unambiguous at a glance, in `git log`, the GitHub PR list, or anywhere else, which track a given change came from now that both can be in flight simultaneously.
 
 **Track identifier** (used in place of `[TRACK]` below):
-- Backend: `WEEK[N]` — e.g. `WEEK4`
-- Frontend: `FRONTEND` — the whole track is one identifier, since it isn't week-numbered
+- Backend: `SPRINT[N]` from Sprint 2 onward — e.g. `SPRINT2`. (`WEEK[N]` stays as the historical identifier for Sprint 1's already-merged work — never renamed retroactively.)
+- Frontend: `FRONTEND` — the whole track is one identifier, since it isn't sprint-numbered
 
-**Starting a new track-iteration** (first task only — a new week for backend, or the first time the frontend track picks up work):
+**Starting a new track-iteration** (first task only — a new sprint for backend, or the first time the frontend track picks up work):
 1. `git checkout main && git pull` — start from a current `main`.
 2. If no `origin` remote exists yet: `gh repo create 7AI --private --source=. --remote=origin` (ask the founder to run `gh auth login` first if `gh auth status` isn't authenticated — don't try to work around this).
-3. `git checkout -b [TRACK]_[SUFFIX]` — e.g. `WEEK4_BE`, `FRONTEND_FE`.
-4. After this first task's commit is pushed (below), open the PR as a draft: `gh pr create --draft --title "[TRACK]_[SUFFIX]: [Theme]" --body "Tracking PR for [TRACK]. Live status: docs/execution/[week[N]|frontend]/STATUS.md. Do not merge until marked ready for review."` — e.g. title `WEEK4_BE: Video Generation Loop Fix + Stock Footage, Publishing, Analytics` or `FRONTEND_FE: API Layer, App Scaffold, Dashboard`. The body links to `STATUS.md` rather than duplicating it (same "documented once" principle as the rest of this template), so it never needs editing as the track progresses.
+3. `git checkout -b [TRACK]_[SUFFIX]` — e.g. `SPRINT2_BE`, `FRONTEND_FE`.
+4. After this first task's commit is pushed (below), open the PR as a draft: `gh pr create --draft --title "[TRACK]_[SUFFIX]: [Theme]" --body "Tracking PR for [TRACK]. Live status: docs/execution/[sprint[N]|frontend]/STATUS.md. Do not merge until marked ready for review."` — e.g. title `SPRINT2_BE: Flexible Creation + Content Intelligence` or `FRONTEND_FE: API Layer, App Scaffold, Dashboard`. The body links to `STATUS.md` rather than duplicating it (same "documented once" principle as the rest of this template), so it never needs editing as the track progresses.
 
 **After every task** (every task, every track), once its report and `STATUS.md` row are written:
 1. `git add` the task's code changes together with its report and `STATUS.md` update — one atomic commit per task.
@@ -227,7 +237,7 @@ Two independent tracks now build against this repo at the same time: the **backe
    [1-2 sentence summary of what changed]
    [One line per deviation from spec, if any]
    ```
-   e.g. `WEEK4_TASK1_BE: Video Generation — Close the Review Loop + Stock Footage` or `FRONTEND_TASK1_FE: API Layer`.
+   e.g. `SPRINT2_TASK1_BE: Flexible Creation — Voice Selection + Second Visual-Source Backend` or `FRONTEND_TASK1_FE: API Layer`.
 3. `git push` (`-u origin [TRACK]_[SUFFIX]` on the track-iteration's first push, plain `git push` after) — every task's work reaches GitHub immediately, not just at the end.
 
 **Finishing a track-iteration** (last task only): after the final task's commit and push, `gh pr ready` to mark the PR ready for review. Do not merge, and do not treat merging as part of task completion — that's a deliberate founder action (via the GitHub PR review, or telling me to merge once reviewed). This is the one point where a founder actually looks at a diff before it becomes `main`, worth keeping even solo — and worth it more, not less, now that two tracks can land on `main` independently: nothing about the `_BE`/`_FE` naming changes that both still need a real look before merging.
@@ -258,51 +268,50 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 7AI/docs/execution/
 ├── templates/
 │   └── TASK_TEMPLATE.md
-├── week1/
+├── week1/                          ← Sprint 1 (historical — never renamed)
 │   ├── WEEK1_INSTRUCTIONS.md      ← single consolidated doc, no per-task files this week
 │   ├── SCHEMA.md
 │   ├── BUSINESS_LOGIC.md
 │   ├── STATUS.md                  ← one row per task, updated as each completes
 │   └── reports/
 │       └── week1-summary.md       ← written once Week 1 is done
-├── week2/
-│   ├── SCHEMA.md                  ← always present; "No schema changes this week" if none
-│   ├── BUSINESS_LOGIC.md          ← always present; "No new control flow this week" if none
-│   ├── STATUS.md                  ← one row per task, updated as each completes
+├── week2/  (same shape)            ← Sprint 1
+├── week3/  (same shape)            ← Sprint 1
+├── week4/  (same shape — backend track, branch/commit suffix `_BE`)   ← Sprint 1
+├── week5/  (same shape)            ← Sprint 1, closes out the original Oct 15 MVP
+├── frontend/  (same shape, not sprint-numbered — branch/commit suffix `_FE`)
+│   ├── SCHEMA.md
+│   ├── BUSINESS_LOGIC.md
+│   ├── STATUS.md
 │   ├── tasks/
 │   │   ├── task1.md
 │   │   ├── task2.md
-│   │   └── ...
+│   │   └── task3.md
 │   └── reports/
-│       ├── task1.md
 │       └── ...
-├── week3/  (same shape)
-├── week4/  (same shape — backend track, branch/commit suffix `_BE`)
-└── frontend/  (same shape, not week-numbered — branch/commit suffix `_FE`)
+└── sprint2/  (same shape as week[N] above — first Sprint-2-onward unit)
     ├── SCHEMA.md
     ├── BUSINESS_LOGIC.md
     ├── STATUS.md
     ├── tasks/
-    │   ├── task1.md
-    │   ├── task2.md
-    │   └── task3.md
+    │   └── task1.md
     └── reports/
         └── ...
 ```
 
-`SCHEMA.md` and `BUSINESS_LOGIC.md` are **incremental, not cumulative** — a given week's file documents only what changed that week. A running, cumulative picture (all tables, all states, as they currently stand) belongs in `2_Architecture_and_Design`-style living docs once the schema stabilizes past MVP; for now, `AGENT_FLEET_DESIGN.md` Section 6 is that cumulative reference, and each week's `SCHEMA.md` is a diff against it. The frontend track's `SCHEMA.md`/`BUSINESS_LOGIC.md` are diffs the same way, just against the whole system rather than against a specific prior week.
+`SCHEMA.md` and `BUSINESS_LOGIC.md` are **incremental, not cumulative** — a given week's (or sprint's) file documents only what changed that unit. A running, cumulative picture (all tables, all states, as they currently stand) belongs in `2_Architecture_and_Design`-style living docs once the schema stabilizes past MVP; for now, `AGENT_FLEET_DESIGN.md` Section 6 is that cumulative reference, and each unit's `SCHEMA.md` is a diff against it. The frontend track's `SCHEMA.md`/`BUSINESS_LOGIC.md` are diffs the same way, just against the whole system rather than against a specific prior unit.
 
-Both files are created at the start of every week (alongside `STATUS.md`, by whichever task is first that week) even when nothing's changed yet — write "No schema changes this week" / "No new control flow this week" explicitly rather than omitting the file. A missing file reads as "nobody checked," not as "nothing changed"; an explicit placeholder says the check happened and came back negative. If a later task in the week does introduce a change, that task updates the file in place — replacing the placeholder text with the real delta, not appending around it.
+Both files are created at the start of every week/sprint (alongside `STATUS.md`, by whichever task is first that unit) even when nothing's changed yet — write "No schema changes this week" / "No new control flow this week" explicitly rather than omitting the file. A missing file reads as "nobody checked," not as "nothing changed"; an explicit placeholder says the check happened and came back negative. If a later task in the unit does introduce a change, that task updates the file in place — replacing the placeholder text with the real delta, not appending around it.
 
 ---
 
 ## How Claude Code Will Use This
 
 1. Claude reads the task file (or, for Week 1, `WEEK1_INSTRUCTIONS.md`) in full, plus the `SCHEMA.md`/`BUSINESS_LOGIC.md` it references.
-2. If this is the track-iteration's first task: checks out a current `main`, creates `[TRACK]_[SUFFIX]` (e.g. `WEEK4_BE`, `FRONTEND_FE`), and (once this task is committed and pushed) opens the track's draft PR — see "Git Workflow."
+2. If this is the track-iteration's first task: checks out a current `main`, creates `[TRACK]_[SUFFIX]` (e.g. `SPRINT2_BE`, `FRONTEND_FE`), and (once this task is committed and pushed) opens the track's draft PR — see "Git Workflow."
 3. Executes the "Implementation" section.
 4. Runs the "Testing" section to verify.
-5. Generates the report at `execution/week[N]/reports/task[ID].md` (or `execution/frontend/reports/task[ID].md`).
+5. Generates the report at `execution/sprint[N]/reports/task[ID].md` (or `execution/week[N]/reports/task[ID].md` for Sprint 1, or `execution/frontend/reports/task[ID].md`).
 6. Upserts this task's row in the track's `STATUS.md` (creating the file if it's the track's first completed task).
 7. If implementation deviated from the schema or business logic as documented, updates `SCHEMA.md`/`BUSINESS_LOGIC.md` to match reality and flags the deviation in the report — the docs describe what was actually built, not just what was planned.
 8. Commits code + report + `STATUS.md` together and pushes to `[TRACK]_[SUFFIX]` — see "Git Workflow."
@@ -316,7 +325,8 @@ Both files are created at the start of every week (alongside `STATUS.md`, by whi
 1. **Self-contained** — a task file has everything Claude Code needs, without requiring the full conversation history.
 2. **Concrete** — exact file paths, specific commands, real code patterns.
 3. **Verifiable** — the Testing section has clear pass/fail criteria.
-4. **Consistent** — same shape across all weeks and tasks, and across both tracks.
-5. **Progressive** — tasks build on prior weeks' (or, for frontend, prior tasks') work.
-6. **Schema and business logic documented once, referenced everywhere** — a task file states only its delta; `SCHEMA.md`/`BUSINESS_LOGIC.md` are the single source of truth for a given week or track. This avoids the duplication `yt_shorts` had between `WEEK1_PLAN.md` (which inlined the full Prisma schema) and `DATA_MODEL.md` (which also had it) — two places that could silently drift apart.
+4. **Consistent** — same shape across all weeks/sprints and across both tracks.
+5. **Progressive** — tasks build on prior weeks'/sprints' (or, for frontend, prior tasks') work.
+6. **Schema and business logic documented once, referenced everywhere** — a task file states only its delta; `SCHEMA.md`/`BUSINESS_LOGIC.md` are the single source of truth for a given week/sprint or track. This avoids the duplication `yt_shorts` had between `WEEK1_PLAN.md` (which inlined the full Prisma schema) and `DATA_MODEL.md` (which also had it) — two places that could silently drift apart.
 7. **Track identity is never ambiguous** — every branch, commit, and PR carries `_BE` or `_FE`, so two people (or two Claude Code chats) working the backend and frontend tracks in parallel never collide on naming or accidentally review the wrong diff against the wrong track's `STATUS.md`.
+8. **Historical units are never renamed** — Sprint 1's work stays `week[N]` exactly as merged; only planning language and everything from Sprint 2 forward uses `sprint[N]`.

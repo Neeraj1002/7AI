@@ -1,11 +1,9 @@
 # Known Issues & Blockers Tracker
 
-**Purpose**: one place to check instead of re-reading every week's reports/summaries. Covers everything flagged across Weeks 1–5, as of this doc's last update.
+**Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-14, after Week 5 Task 6 (an independent, evidence-based audit of Task 4/5's
-C1-C4/D1-D2 claims against the real `WEEK5_BE` branch — every item confirmed applied-and-verified,
-no code changes needed). Sprint 1's closure (declared after Task 5) now has a second, independent
-confirmation behind it — see `docs/execution/week5/reports/task6.md`.
+**Last updated**: 2026-09-16, after Sprint 2 Task 5 (custom cover frame + title/description A/B
+testing investigation). See `docs/execution/sprint2/reports/task5.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -13,15 +11,59 @@ confirmation behind it — see `docs/execution/week5/reports/task6.md`.
 
 ## 1. Founder action required (external, blocking)
 
-**All four rows previously here are now closed** — Week 5 Task 1 ran a real, credentialed,
+### Open — H1: custom-thumbnail permission — a separate eligibility gate from long-uploads verification (Sprint 2 Task 5)
+`setThumbnail`/`thumbnails.set` is built, wired into Publishing (isolated — see §5), and confirmed
+**live** to fail every real attempt so far with a real `403`:
+```
+{"error":{"code":403,"message":"The authenticated user doesn't have permissions to upload and set custom video thumbnails.","errors":[{"reason":"forbidden","domain":"youtube.thumbnail","location":"Authorization","locationType":"header"}]}}
+```
+This corrects an assumption `sprint2/tasks/task5.md` itself made before implementation: a real
+`channels.list?part=status` check showed `longUploadsStatus: "eligible"` (phone-verified for long
+uploads) and that was taken as proof the channel could also set custom thumbnails. Live testing
+proves that's a **separate eligibility gate** — the OAuth token already carries `youtube.upload`
+(one of the scopes Google's own docs list as sufficient for this endpoint), and `longUploadsStatus`
+is genuinely unrelated to it. The real, most likely fix: YouTube Studio → Settings → Channel →
+Feature eligibility → Custom thumbnails, which can require its own (separate) verification step or
+a brief review period even on an otherwise phone-verified channel — not confirmed live yet, since
+it's a founder-side Studio UI action, not something checkable via the API itself.
+Not blocking: `setThumbnail`'s failure isolation is itself real-verified (see §5) — the run that hit
+this real 403 still completed publishing successfully, with `coverFrameSet: false` recorded
+truthfully in the stage output. Once the founder confirms/enables the feature in Studio, re-run a
+fresh private test upload and confirm `thumbnails.set` succeeds with a `videos.list?part=snippet`
+read-back showing the real custom thumbnail URL. — *`sprint2/reports/task5.md`*
+
+### Open — G1: the YouTube Analytics API, two real, distinct actions (Sprint 2 Task 4)
+`watchTimeMinutes`/`retentionPct`/the new `retentionCurve` (G2) all stay `null` for every real video
+until this closes. Confirmed **live**, against this project's own real credentials, not guessed —
+two separate blockers, not one:
+
+1. **The YouTube Analytics API itself is not enabled** for this project's Google Cloud console. A
+   real call today returns a real `403 PERMISSION_DENIED` (`reason: SERVICE_DISABLED` /
+   `accessNotConfigured`): *"YouTube Analytics API has not been used in project 714472645139 before
+   or it is disabled. Enable it by visiting
+   https://console.developers.google.com/apis/api/youtubeanalytics.googleapis.com/overview?project=714472645139
+   then retry."* — a one-click enablement in Cloud Console, same account already used for the
+   existing YouTube OAuth app.
+2. **The OAuth token doesn't carry the `yt-analytics.readonly` scope** — the original grant
+   (Week 1 Task 7) only requested `youtube.upload`/`youtube.readonly`. Re-authorizing the existing
+   OAuth app with the added scope is same-day once the founder clicks through consent (same posture
+   `sprint2/tasks/task4.md` itself describes) — not yet confirmed live, since (1) blocks the request
+   from even reaching a scope check today.
+
+Not blocking the rest of the sprint or this task — `sprint2/reports/task4.md`'s G2 work is built and
+verified against a real stub matching the Analytics API's documented response shape
+(`YOUTUBE_ANALYTICS_STUB=1`), and the real call path is verified to fail loudly and specifically
+(not a generic auth error) rather than silently, so this is obviously a founder-action gap if
+someone runs it prematurely. Once both actions above are done, re-run the real (non-stub) path
+against a real published video and confirm a genuinely non-null, monotonic-shaped `retentionCurve`
+— see `sprint2/reports/task4.md`'s Verify section for the exact steps.
+
+**All four rows previously here are closed** — Week 5 Task 1 ran a real, credentialed,
 founder-gated end-to-end test: real YouTube OAuth (upload confirmed `private` via a direct API
 check), real `OPENAI_API_KEY`/`PEXELS_API_KEY` (real TTS + real, on-topic Pexels footage), and both
 Gate 1/Gate 2 answered live by the founder over actual Telegram (`"Approve"`, in real time) —
 closing the live-human-reply item open since Week 2 as well. See `week5/reports/task1.md` for the
 full evidence trail (real `youtubeVideoId`, real review verdicts, real spend).
-
-Nothing founder-blocking remains open as of this update. New items, if any arise, get a fresh row
-here rather than reviving the closed ones below (kept for history):
 
 <details>
 <summary>Closed items (click to expand)</summary>
@@ -220,11 +262,36 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   up front (word count ÷ speaking rate), or the regen loop's fix notes explicitly ask for a shorter
   *script*, not just different pacing/captions for the same one. — *`week5/reports/task5.md`*
 
+- **`llm/extract-json.ts`'s `extractJsonText` doesn't reliably strip a markdown code fence in every
+  case.** Found live during Sprint 2 Task 2's regression testing (unrelated to that task's own
+  visual-source work): a real Video Intelligence multimodal review call returned
+  `` ```json\n{"verdict": "pass", ...} `` despite `SYSTEM_PROMPT`'s explicit "no markdown code
+  fences" instruction, and the parser didn't strip it, throwing `NonTransientStageError` and
+  escalating an otherwise-fine run to `needs_attention`. Every other real call across five weeks and
+  Sprint 2 so far has apparently avoided this exact wrapping, or `extractJsonText` handles the
+  common case and missed this one — not root-caused or fixed as part of Task 2 (genuinely out of
+  scope, a general LLM-output-parsing robustness gap, not a visual-source issue). Worth a real,
+  isolated fix: a more defensive fence-stripping regex, or retrying once specifically on a JSON
+  parse failure before escalating. — *`sprint2/reports/task2.md`*
+
 ---
 
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
 
 - **The aggregated Video Generation `UsageEvent` row's `provider`/`model` fields are a judgment call, not a confirmed convention.** One row covers two different (provider, model) pairs (TTS + transcription), so `provider` is hardcoded `'openai'` and `model` becomes a composite string (`"tts-1-hd+whisper-1"`), with the real breakdown in `metadata`. Flagged for confirmation the same way the $2.00 budget ceiling was — never explicitly confirmed by you. — *`week3/reports/task2.md`*
+- **CLOSED, not viable as scoped — Title/thumbnail A/B testing (H2, Sprint 2 Task 5).**
+  `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md` §2 proposed Publishing drive YouTube's native
+  title/thumbnail "Test and Compare" feature directly. Live research against Google's own current
+  (2026) documentation found two disqualifying facts, not one: (a) **Shorts are explicitly
+  excluded** — "You are not able to A/B test Shorts... A/B testing is not available for Shorts" —
+  this project's entire content type; (b) the feature has **no programmatic API surface at all** —
+  it's accessed "only available on computers through YouTube Studio," confirmed against the YouTube
+  Data API v3 reference (no `videos.update` field or endpoint for it). Closed with a real, cited
+  reason rather than built blind or silently dropped — see
+  [YouTube Help: A/B test titles and thumbnails](https://support.google.com/youtube/answer/16391400).
+  If this is ever revisited, it would need a genuinely different, non-native mechanism (e.g.
+  publishing two variants and switching manually based on early performance), a real design change,
+  not the original recommendation. — *`sprint2/reports/task5.md`*
 
 ---
 
@@ -239,7 +306,11 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 ## 6. Not yet built
 
 - **Deferred agents per the locked design** (not gaps — deliberately out of MVP scope): Trend Identification, Content Prediction, Continuous Learning, and Video Intelligence's "competitor" mode. All wait on real performance history or later product phases — see `AGENT_FLEET_DESIGN.md` Section 3 for the full status table.
-- **Real YouTube Analytics API integration** (`watchTimeMinutes`/`retentionPct`) — deliberately deferred; needs a separate `yt-analytics.readonly` OAuth scope never requested. `views`/`likes`/`comments` (Data API) are real and working as of Week 5.
+- **Real YouTube Analytics API integration for `watchTimeMinutes`/`retentionPct`** (the single-number
+  summary fields, distinct from the new `retentionCurve` — see §1's G1 for that) — Sprint 2 Task 4
+  built the real timestamp-level `retentionCurve` capture, but the two older summary fields would
+  need their own separate Analytics API report (a different metric/dimension pair) not attempted in
+  this task. `views`/`likes`/`comments` (Data API) are real and working as of Week 5.
 - **`videos.delete` scope** — see Section 3. Not a blocker, just unavailable with the current token.
 - **A real, search-grounded fact-check pass for Script Review** — Week 5 Task 4's C3 added
   `factualConcerns`, explicitly framed as a plausibility check against the model's own knowledge, not
@@ -255,3 +326,19 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   suite — needs test-DB setup (a real decision: a dedicated test schema/database, transaction
   rollback per test, or something else) that Task 4 didn't attempt. A natural next-week candidate.
   — *`week5/reports/task4.md`*
+- **Full generative AI video** — Sprint 2 Task 2 added a second `visualSource` (`ai-stills`:
+  AI-generated stills animated Ken-Burns-style), the smaller-lift option
+  `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` Section 2 explicitly recommended over jumping
+  straight to generative video. A true third `visualSource` (an actual generative-video model, not
+  animated stills) is a distinct, larger future task — different provider landscape, different cost
+  profile, different content-generation pipeline entirely — deliberately not attempted here.
+  — *`sprint2/reports/task2.md`*
+- **A real, live Content-ID/licensing-risk API check** — Sprint 2 Task 3's F2 is deliberately a
+  manifest-integrity check only (does the curated `audio-bed/manifest.ts` entry this project itself
+  authored carry a `license` field), not a call to any real Content-ID service — no such public API
+  exists to call synchronously at generation time. Real exposure today is low (every current track
+  is self-synthesized, genuinely `CC0`), but the moment a non-curated audio or visual source is ever
+  added (a real music API, a stock-footage vendor beyond Pexels, user uploads), a real risk check
+  against whatever that source's own platform offers becomes worth building — not attempted here,
+  per the design doc's own "expensive way to learn this" framing for why it's worth getting ahead
+  of, not urgent to solve immediately. — *`sprint2/reports/task3.md`*

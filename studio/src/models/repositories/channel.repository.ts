@@ -16,6 +16,7 @@ function toDomainChannel(row: PrismaChannel): Channel {
     approvalGateConfig: row.approvalGateConfig as Channel['approvalGateConfig'],
     priorsScope: row.priorsScope as PriorsScope,
     budgetOverrideUsd: row.budgetOverrideUsd ? row.budgetOverrideUsd.toString() : null,
+    defaultVoice: row.defaultVoice,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

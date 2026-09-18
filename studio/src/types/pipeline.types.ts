@@ -31,6 +31,19 @@ export const PIPELINE_RUN_STATUSES = [
 ] as const;
 export type PipelineRunStatus = (typeof PIPELINE_RUN_STATUSES)[number];
 
+// Sprint 2 Task 1 (D2) — explicit, structured creation choices a user picks
+// when submitting a brief, kept deliberately separate from intakeParsed
+// (which is what parse-brief.ts's LLM call *infers* from free-text prose).
+// This task only ever sets `voice`; `visualSource`/`audioLayer` exist here
+// now so Sprint 2 Task 2/3 extend this one object instead of adding
+// parallel PipelineRun columns each time.
+export const CreationOptionsSchema = z.object({
+  voice: z.string().optional(),
+  visualSource: z.string().optional(),
+  audioLayer: z.string().optional(),
+});
+export type CreationOptions = z.infer<typeof CreationOptionsSchema>;
+
 export type PipelineRun = {
   id: string;
   tenantId: string;
@@ -41,6 +54,7 @@ export type PipelineRun = {
 
   briefText: string;
   intakeParsed: IntakeParsed | null;
+  creationOptions: CreationOptions | null;
 
   retryCount: number;
   lastError: string | null;
@@ -85,5 +99,6 @@ export const CreatePipelineRunInputSchema = z.object({
   tenantId: z.string().uuid(),
   channelId: z.string().uuid(),
   briefText: z.string().min(1),
+  creationOptions: CreationOptionsSchema.optional(),
 });
 export type CreatePipelineRunInput = z.infer<typeof CreatePipelineRunInputSchema>;

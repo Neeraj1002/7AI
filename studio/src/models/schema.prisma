@@ -19,6 +19,13 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
+  // Sprint 2 Task 6 (I1) — nullable, null for every existing tenant (no
+  // digest ever sent yet). Persisted rather than relying on process uptime
+  // alone: this dev process has restarted far more often than once a day
+  // throughout this project, so a plain setInterval(fn, 24h) would likely
+  // never actually fire in practice. See run-pipeline/founder-digest.ts.
+  lastFounderDigestSentAt DateTime?
+
   channels             Channel[]
   pipelineRuns         PipelineRun[]
   reviewLogs           ReviewLog[]
@@ -54,6 +61,15 @@ model Channel {
   // studio/src/run-pipeline/budget-gate.ts's computeChannelBudgetCeilings.
   budgetOverrideUsd  Decimal? @db.Decimal(10, 2)
 
+  // Sprint 2 Task 1 (D1/D2) — nullable, default null for every existing and
+  // newly-created channel: null means "use media/registry.ts's hardcoded
+  // DEFAULT_TTS_VOICE fallback"; a set value (one of media/registry.ts's
+  // TTS_VOICES keys) is this channel's own default, used whenever a run on
+  // it doesn't explicitly override the voice per-brief. See
+  // studio/src/run-pipeline/state-machine.ts's runVideoGenerationStage for
+  // the full three-step resolution order.
+  defaultVoice       String?  @db.VarChar(50)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
@@ -79,6 +95,16 @@ model PipelineRun {
 
   briefText    String   @db.Text
   intakeParsed Json?
+
+  // Sprint 2 Task 1 (D2) — deliberately a separate column from
+  // intakeParsed, not a merge into it: intakeParsed is what parse-brief.ts's
+  // LLM call extracted from free-text prose; creationOptions is what the
+  // user explicitly picked via structured API fields (never inferred).
+  // Shape: { voice?: string, visualSource?: string, audioLayer?: string } —
+  // this task only ever sets `voice`; the other two fields exist in the
+  // shape now so Sprint 2 Task 2/3 extend one object instead of adding
+  // parallel columns. Nullable, no backfill — every existing run is null.
+  creationOptions Json?
 
   retryCount   Int      @default(0)
   lastError    String?  @db.Text
@@ -213,6 +239,17 @@ model PerformanceSnapshot {
 
   watchTimeMinutes Decimal? @db.Decimal(10, 2)
   retentionPct     Decimal? @db.Decimal(5, 2)
+  // Sprint 2 Task 4 (G2) — the real, timestamp-level audience-retention
+  // curve, not just the single retentionPct summary number above. Array of
+  // { elapsedVideoTimeRatio: number, audienceWatchRatio: number } points,
+  // the real dimension/metric pair the YouTube Analytics API's
+  // audience-retention report returns. Nullable — every existing row is
+  // correctly null (recorded before this field existed), and every new row
+  // stays null until G1's yt-analytics.readonly OAuth scope is actually
+  // granted (YOUTUBE_STUB=1 or an ungranted scope both leave this null).
+  // Nothing reads this yet — Continuous Learning (a later sprint) is what
+  // eventually will; "cheap now, expensive to reconstruct later."
+  retentionCurve Json?
 
   snapshotAt DateTime
   createdAt  DateTime @default(now())

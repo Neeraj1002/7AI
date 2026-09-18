@@ -38,6 +38,11 @@ const EnvSchema = z.object({
   // real Pexels call — no PEXELS_API_KEY has existed in any session so far.
   // Same pattern as MEDIA_STUB.
   STOCK_FOOTAGE_STUB: z.string().optional().default(''),
+  // Sprint 2 Task 2 (E1) — studio/src/ai-visuals/. Same pattern as
+  // MEDIA_STUB/STOCK_FOOTAGE_STUB: when '1', uses a deterministic local
+  // stub instead of a real OpenAI image-generation call. Reuses
+  // OPENAI_API_KEY (same as media/), no separate credential.
+  AI_VISUALS_STUB: z.string().optional().default(''),
   // Week 4 Task 2/3 — YouTube Data API v3 (upload + statistics). Stopgap env-var
   // credentials per docs/execution/week1/SCHEMA.md Section 2 (still one channel).
   YOUTUBE_CLIENT_ID: z.string().optional().default(''),
@@ -50,6 +55,16 @@ const EnvSchema = z.object({
   // OAuth still open). One flag, not two, since both are blocked by the exact
   // same missing credential. Same pattern as MEDIA_STUB.
   YOUTUBE_STUB: z.string().optional().default(''),
+  // Sprint 2 Task 4 (G1/G2) — a SEPARATE flag from YOUTUBE_STUB above:
+  // unlike Data API stats (which already work with the real credentials),
+  // the YouTube Analytics API is blocked by two real, distinct founder
+  // actions (KNOWN_ISSUES_AND_BLOCKERS.md §1) — enabling the API itself in
+  // Google Cloud Console, and re-authorizing with the yt-analytics.readonly
+  // scope. When '1', retention-curve capture uses a stub shaped like the
+  // real Analytics API's documented response instead of attempting the
+  // real call (which fails today, loudly and specifically — see
+  // youtube-analytics-client.ts).
+  YOUTUBE_ANALYTICS_STUB: z.string().optional().default(''),
   // Performance Analytics' periodic poll cadence (Section 8.3 "batch over
   // real-time"). Defaults to 6 hours; a dry-run/test invocation calls the
   // poll function directly rather than waiting on this interval.
@@ -82,6 +97,15 @@ const EnvSchema = z.object({
   // nudge). 15 minutes keeps the nudge reasonably prompt after crossing the
   // threshold without a dedicated always-on timer.
   GATE_REMINDER_CHECK_INTERVAL_MS: z.coerce.number().optional().default(15 * 60 * 1000),
+  // Sprint 2 Task 6 (I1) — how long must elapse since
+  // Tenant.lastFounderDigestSentAt before another digest is due. 24h matches
+  // the design doc's own "one end-of-day summary" framing.
+  FOUNDER_DIGEST_INTERVAL_MS: z.coerce.number().optional().default(24 * 60 * 60 * 1000),
+  // How often the checker itself runs — independent of the interval above,
+  // same two-knob shape as GATE_REMINDER_CHECK_INTERVAL_MS vs.
+  // GATE_REMINDER_THRESHOLD_MS. 30 minutes is frequent enough that the
+  // digest fires reasonably close to the 24h mark without a dedicated timer.
+  FOUNDER_DIGEST_CHECK_INTERVAL_MS: z.coerce.number().optional().default(30 * 60 * 1000),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

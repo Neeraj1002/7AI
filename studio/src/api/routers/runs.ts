@@ -8,6 +8,8 @@ import { listReviewLogsForRun } from '../../models/repositories/review-log.repos
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { founderChannel } from '../../notify-founder';
+import { TTS_VOICE_KEYS } from '../../media';
+import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { MVP_TENANT_ID, PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 
 async function getRunDetail(id: string) {
@@ -30,16 +32,46 @@ export const runsRouter = router({
   // 'pending' run on its own (resume-on-startup.ts only ever resumes
   // 'running' ones).
   create: publicProcedure
-    .input(z.object({ channelId: z.string().uuid(), briefText: z.string().min(1) }))
+    .input(
+      z.object({
+        channelId: z.string().uuid(),
+        briefText: z.string().min(1),
+        // Sprint 2 Task 1 (D2) — an explicit, structured choice, validated
+        // against media/registry.ts's known TTS_VOICES keys right here at
+        // the API edge (Failure Modes: reject bad structured input at the
+        // edge, not deep in the pipeline). Never passed through
+        // parse-brief.ts's LLM call — that's the whole point of this field
+        // existing separately from briefText.
+        voice: z.enum(TTS_VOICE_KEYS).optional(),
+        // Sprint 2 Task 2 (E2) — same edge-validation posture as voice:
+        // rejected here (a structured tRPC input error) if it doesn't match
+        // a real visualSource, never passed through as free text for
+        // parse-brief.ts or the planning LLM to interpret loosely.
+        visualSource: z.enum(VISUAL_SOURCES).optional(),
+        // Sprint 2 Task 3 (F1) — same edge-validation posture as
+        // voice/visualSource: rejected here if it doesn't match a real mood
+        // tag (or "none"), never passed through as free text.
+        audioLayer: z.enum(AUDIO_LAYERS).optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
       const channel = await findChannelById(input.channelId);
       if (!channel) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} not found` });
       }
+      const creationOptions =
+        input.voice || input.visualSource || input.audioLayer
+          ? {
+              ...(input.voice && { voice: input.voice }),
+              ...(input.visualSource && { visualSource: input.visualSource }),
+              ...(input.audioLayer && { audioLayer: input.audioLayer }),
+            }
+          : undefined;
       const run = await createRun({
         tenantId: MVP_TENANT_ID,
         channelId: input.channelId,
         briefText: input.briefText,
+        creationOptions,
       });
       startPipelineInBackground(run.id);
       return run;
