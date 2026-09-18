@@ -6,3 +6,5 @@ export * from './agent-quota.types';
 export * from './usage-event.types';
 export * from './dashboard.types';
 export * from './performance-snapshot.types';
+export * from './user.types';
+export * from './login-token.types';

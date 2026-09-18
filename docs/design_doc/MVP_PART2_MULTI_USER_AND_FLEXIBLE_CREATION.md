@@ -54,16 +54,35 @@ has only ever used one hardcoded `MVP_TENANT_ID`. That's the cheap part already 
 is everything *around* the data model.
 
 ### What's actually missing
-- **No `User` model exists at all.** `Tenant` today stands in for "the founder's one account," not a
-  real many-user structure. Needs: a real `User` table, and a decision on the User↔Tenant↔Channel
-  relationship — one user per tenant? multiple users per tenant with roles (owner/approver/viewer)?
-  Does a "tenant" become "one person's whole account" the way it conceptually already half-is, or
-  does it become "one team," with users inside it?
-- **No real per-user auth.** The API is `publicProcedure` today, gated only by one blanket
-  `API_AUTH_TOKEN` (a dev-only CORS story on top of that, per `KNOWN_ISSUES_AND_BLOCKERS.md`). Needs
-  real sessions/identity — worth considering something lightweight first (magic-link email, or even
-  Telegram-based login since Telegram's already wired in) rather than building a full auth system
-  before it's needed.
+- **No `User` model exists at all — picked up by Sprint 3 Task 1 (J1).** `Tenant` today stands in for
+  "the founder's one account," not a real many-user structure. Needs: a real `User` table, and a
+  decision on the User↔Tenant↔Channel relationship — one user per tenant? multiple users per tenant
+  with roles (owner/approver/viewer)? Does a "tenant" become "one person's whole account" the way it
+  conceptually already half-is, or does it become "one team," with users inside it?
+
+  **Closed**: a real `User` table (`tenantId` FK, `email` unique, `role`). Decision made concrete: a
+  `Tenant` is one account (an individual or small team), a `User` belongs to exactly one `Tenant` —
+  not a many-to-many join, since each of the ~10 testers brings their own account per this doc's own
+  §0. Two roles only — `owner` (everything) and `approver` (view + approve gates) — matching this
+  section's own "probably just 'the channel's owner' to start" gate-ownership note. The founder's own
+  `MVP_TENANT_ID` row was seeded with a real `User` (`owner`) in the same migration. See
+  `docs/execution/sprint3/reports/task1.md`.
+- **No real per-user auth — picked up by Sprint 3 Task 1 (J2).** The API is `publicProcedure` today,
+  gated only by one blanket `API_AUTH_TOKEN` (a dev-only CORS story on top of that, per
+  `KNOWN_ISSUES_AND_BLOCKERS.md`). Needs real sessions/identity — worth considering something
+  lightweight first (magic-link email, or even Telegram-based login since Telegram's already wired
+  in) rather than building a full auth system before it's needed.
+
+  **Closed**: real magic-link email login — a signed, short-lived (15 min), single-use JWT
+  (DB-tracked via a new `LoginToken` table, since a signature alone doesn't prove first-use), verified
+  at `/auth/verify` and exchanged for a real session JWT (`userId`/`tenantId`/`role`, no DB session
+  table needed). No transactional-email provider exists yet, so for now the real link is logged to
+  the server console and relayed over the existing Telegram channel — a real, working flow, not a
+  stub. `api/trpc.ts` gained a real `Context`; every `publicProcedure` that used to read the hardcoded
+  `MVP_TENANT_ID` now reads `ctx.tenantId`, verified live against a genuinely separate second tenant
+  (not just the founder's own, where the values would coincidentally match). `API_AUTH_TOKEN` is
+  downgraded to an explicit ops/script fallback, not removed. See
+  `docs/execution/sprint3/reports/task1.md`.
 - **Per-user notification routing.** One hardcoded `TELEGRAM_FOUNDER_CHAT_ID` today. Ties directly
   into the Telegram-as-notify-only conversation already had — for a real multi-user product, in-app
   push through the dashboard is probably the right default channel, with Telegram as one optional

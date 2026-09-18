@@ -10,7 +10,7 @@ import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { founderChannel } from '../../notify-founder';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
-import { MVP_TENANT_ID, PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
+import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 
 async function getRunDetail(id: string) {
   const run = await findPipelineRunById(id);
@@ -54,7 +54,7 @@ export const runsRouter = router({
         audioLayer: z.enum(AUDIO_LAYERS).optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const channel = await findChannelById(input.channelId);
       if (!channel) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} not found` });
@@ -67,8 +67,14 @@ export const runsRouter = router({
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
             }
           : undefined;
+      // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
+      // MVP_TENANT_ID. Not yet checked against the channel's own tenant
+      // (gate/channel ownership is Task 2/K's job, deliberately kept
+      // separate per this task's own scope note) — every channel in this
+      // single-tenant MVP already belongs to MVP_TENANT_ID, so this is a
+      // real gap worth flagging, not silently glossed over.
       const run = await createRun({
-        tenantId: MVP_TENANT_ID,
+        tenantId: ctx.tenantId,
         channelId: input.channelId,
         briefText: input.briefText,
         creationOptions,

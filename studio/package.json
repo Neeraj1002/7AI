@@ -33,12 +33,14 @@
     "fastify": "^5.12.3",
     "google-auth-library": "^11.0.2",
     "grammy": "^1.46.0",
+    "jsonwebtoken": "^9.0.3",
     "openai": "7.10.0",
     "superjson": "^2.2.6",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.4.1",
     "eslint": "^10.10.0",
     "prisma": "6.19.3",

@@ -32,6 +32,21 @@ const EnvSchema = z.object({
   // an empty token rather than silently accepting every request.
   API_AUTH_TOKEN: z.string().optional().default(''),
   API_PORT: z.coerce.number().optional().default(4000),
+  // Sprint 3 Task 1 (J2) — signs both the short-lived magic-link JWT and the
+  // longer-lived session JWT. Deliberately no insecure default and no
+  // ephemeral-per-process fallback (that would silently invalidate every
+  // session on a restart, and this dev process restarts often) — if unset,
+  // /auth/request-link and /auth/verify respond with a clear 503 rather than
+  // signing with a guessable secret; the API server itself still starts
+  // fine on API_AUTH_TOKEN alone (the ops/script fallback path).
+  JWT_SECRET: z.string().min(32).optional(),
+  // Sprint 3 Task 1 (J2) — the origin used to build the clickable
+  // /auth/verify link. Defaults to localhost at API_PORT, matching this
+  // project's existing "dev-only, single-operator" posture (same one the
+  // permissive CORS registration in api/server.ts already states) — set a
+  // real public origin once this is actually deployed somewhere testers can
+  // reach.
+  PUBLIC_API_BASE_URL: z.string().optional(),
   // Week 4 Task 1 (studio/src/stock-footage/) — real stock-footage search/download.
   PEXELS_API_KEY: z.string().optional().default(''),
   // Testing-only: when '1', studio/src/stock-footage/ uses a stub instead of a

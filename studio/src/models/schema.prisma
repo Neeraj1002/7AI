@@ -32,8 +32,61 @@ model Tenant {
   agentQuotas          AgentQuota[]
   usageEvents          UsageEvent[]
   performanceSnapshots PerformanceSnapshot[]
+  // Sprint 3 Task 1 (J1) — a User belongs to exactly one Tenant, not a
+  // many-to-many join: MVP_PART2 §0 frames each of the ~10 testers as
+  // bringing their own account, not joining someone else's. See
+  // sprint3/BUSINESS_LOGIC.md for the full rationale.
+  users                User[]
 
   @@map("tenants")
+}
+
+// Sprint 3 Task 1 (J1) — the real user model MVP_PART2 §1 flagged as the
+// biggest open gap. Two roles only, not a full RBAC system: 'owner'
+// (everything — approve gates, manage channels/credentials, invite) and
+// 'approver' (view + approve gates, nothing else) — matches the design
+// doc's own gate-ownership note ("probably just 'the channel's owner' to
+// start"), extendable later if a real need for more roles shows up. VARCHAR
+// + CHECK, not a native enum, same convention this schema uses everywhere
+// (see this file's own header comment).
+model User {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @db.Uuid
+  email    String  @unique @db.VarChar(255)
+  name     String? @db.VarChar(255)
+  role     String  @default("owner") @db.VarChar(20)
+
+  // Reserved for Sprint 3 Task 2/K's per-user Telegram linking — added here
+  // so that task extends an existing table rather than adding a second
+  // migration for one column. Unused by this task.
+  telegramChatId String? @db.VarChar(50)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  loginTokens LoginToken[]
+
+  @@index([tenantId], map: "idx_users_tenant")
+  @@map("users")
+}
+
+// Sprint 3 Task 1 (J2) — one row per issued magic-link token. The JWT
+// signature alone only proves authenticity, not first-use; usedAt (checked
+// and set at /auth/verify) is what actually prevents replay of a link that
+// leaked (e.g. forwarded email, shoulder-surfed Telegram message).
+model LoginToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid
+  jti       String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_login_tokens_user")
+  @@map("login_tokens")
 }
 
 model Channel {

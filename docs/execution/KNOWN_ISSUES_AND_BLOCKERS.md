@@ -2,8 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-16, after Sprint 2 Task 5 (custom cover frame + title/description A/B
-testing investigation). See `docs/execution/sprint2/reports/task5.md`.
+**Last updated**: 2026-09-19, after Sprint 3 Task 1 (user model, tenant signup & session auth). See
+`docs/execution/sprint3/reports/task1.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -273,6 +273,27 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   scope, a general LLM-output-parsing robustness gap, not a visual-source issue). Worth a real,
   isolated fix: a more defensive fence-stripping regex, or retrying once specifically on a JSON
   parse failure before escalating. — *`sprint2/reports/task2.md`*
+
+- **Gate/channel ownership isn't checked yet — a signed-in user's session can create a run against
+  *any* tenant's channel if they know its id (Sprint 3 Task 1).** `runs.create` validates the target
+  `channelId` exists (`findChannelById`) but never checks that channel actually belongs to
+  `ctx.tenantId`. Real and live-demonstrated, not hypothetical: this task's own J3 verification
+  deliberately used a second tenant's own channel to prove `ctx.tenantId` threading works at all, but
+  nothing in the code today would have stopped that same session from passing a *different* tenant's
+  `channelId` and creating a run with a mismatched `PipelineRun.tenantId`/`channelId` pair. Explicitly
+  out of scope for Task 1 (its own text: "that's Task 2/K's job — gate ownership — not this task's,
+  this task only establishes identity"). Worth closing before real multi-tenant testers exist — the
+  fix is a straightforward `channel.tenantId === ctx.tenantId` check at the same point
+  `findChannelById`'s not-found check already happens. — *`sprint3/reports/task1.md`*
+
+- **The API server's CORS registration stays permissive (`origin: true`) through Sprint 3 Task 1.**
+  Real per-user sessions now exist (magic-link JWTs), but any origin can still send a request carrying
+  one — the registration's own comment has called this "dev-only, single-operator" since the frontend
+  track first added it, and that framing is now slightly stale (a stolen/leaked session token is a
+  more real risk with actual per-user credentials than with one shared ops token). Not tightened this
+  task (explicitly noted as a natural follow-on once a real deployed frontend origin exists to build
+  an allow-list from, not blocking). Worth prioritizing once real testers carry real sessions, not
+  indefinitely. — *`sprint3/reports/task1.md`*
 
 ---
 
