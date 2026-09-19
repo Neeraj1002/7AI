@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
-import { founderChannel } from '../../notify-founder';
+import { composeFounderChannel, resolveNotificationRecipients } from '../../notify-founder';
 import { DEFAULT_PRIVACY_STATUS, type PrivacyStatus } from '../publishing';
+import type { Channel } from '../../types';
 
 // Approval Gate 2 — MVP_ROADMAP_OCT15.md Section 17's design, the "stays
 // manual longest" gate (Section 6). Reuses Gate 1's notification interface
@@ -88,6 +89,7 @@ export function formatGate2Message(params: {
 
 export async function requestGate2Decision(params: {
   runId: string;
+  channel: Pick<Channel, 'id' | 'tenantId' | 'ownerUserId'>;
   channelName: string;
   videoPath: string;
   verdict: string;
@@ -106,7 +108,14 @@ export async function requestGate2Decision(params: {
     restarted: params.restarted,
   });
 
-  const { reply } = await founderChannel.requestApproval({
+  // Sprint 3 Task 3 (K2) — same real per-user routing as Gate 1.
+  const recipients = await resolveNotificationRecipients(params.channel);
+  const channel = await composeFounderChannel({
+    tenantId: params.channel.tenantId,
+    channelId: params.channel.id,
+    userIds: recipients.map((user) => user.id),
+  });
+  const { reply } = await channel.requestApproval({
     threadKey: params.runId,
     message,
     attachmentPath: videoTooLargeToAttach ? undefined : params.videoPath,

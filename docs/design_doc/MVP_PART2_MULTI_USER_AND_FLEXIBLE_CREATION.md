@@ -83,10 +83,22 @@ is everything *around* the data model.
   (not just the founder's own, where the values would coincidentally match). `API_AUTH_TOKEN` is
   downgraded to an explicit ops/script fallback, not removed. See
   `docs/execution/sprint3/reports/task1.md`.
-- **Per-user notification routing.** One hardcoded `TELEGRAM_FOUNDER_CHAT_ID` today. Ties directly
-  into the Telegram-as-notify-only conversation already had — for a real multi-user product, in-app
-  push through the dashboard is probably the right default channel, with Telegram as one optional
-  channel a user links themselves, not *the* channel.
+- **Per-user notification routing — picked up by Sprint 3 Task 3 (K2).** One hardcoded
+  `TELEGRAM_FOUNDER_CHAT_ID` today. Ties directly into the Telegram-as-notify-only conversation
+  already had — for a real multi-user product, in-app push through the dashboard is probably the
+  right default channel, with Telegram as one optional channel a user links themselves, not *the*
+  channel.
+
+  **Closed**: exactly this shape — a real `InAppFounderChannel` (a new `Notification` table, a real
+  `notifications.list` dashboard query), dispatched to always; Telegram dispatched to only if the
+  recipient has linked it via a real `/link <code>` flow (`TelegramLinkCode` table), with a real
+  disconnect path (`notifications.unlinkTelegram`). Verified live: a gate for an unlinked user
+  produced only a real in-app row and resolved via the API alone; a real `/link` flow (simulated
+  Telegram input) set a real `telegramChatId`; the founder's own existing flow (real Telegram message
+  + real reply) still works, now also writing a real in-app row that gets marked resolved the same
+  way. Found and fixed a real bug along the way (a reply-send failure could crash the message
+  handler even after the underlying action succeeded) and a real privacy gap (every user's login link
+  used to relay to the founder's own Telegram). See `docs/execution/sprint3/reports/task3.md`.
 - **Gate ownership — picked up by Sprint 3 Task 2 (K1).** Right now "the founder" approves every gate
   for the one channel that exists. Multi-user needs an explicit answer to "who can approve gates for
   this channel" — not necessarily complex (probably just "the channel's owner" to start), but

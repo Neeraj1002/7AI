@@ -37,6 +37,7 @@ model Tenant {
   // bringing their own account, not joining someone else's. See
   // sprint3/BUSINESS_LOGIC.md for the full rationale.
   users                User[]
+  notifications        Notification[]
 
   @@map("tenants")
 }
@@ -56,18 +57,22 @@ model User {
   name     String? @db.VarChar(255)
   role     String  @default("owner") @db.VarChar(20)
 
-  // Reserved for Sprint 3 Task 2/K's per-user Telegram linking — added here
-  // so that task extends an existing table rather than adding a second
-  // migration for one column. Unused by this task.
+  // Sprint 3 Task 3 (K2) — set via a real `/link <code>` Telegram flow
+  // (TelegramLinkCode), or (for the founder's own seeded row only) this
+  // task's own data migration, carried over from env.TELEGRAM_FOUNDER_CHAT_ID
+  // so the founder's existing flow doesn't regress. null means "in-app
+  // notifications only" — a fully valid, handled state, not a degraded one.
   telegramChatId String? @db.VarChar(50)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  loginTokens    LoginToken[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  loginTokens       LoginToken[]
   // Sprint 3 Task 2 (K1) — reverse side of Channel.ownerUserId.
-  ownedChannels  Channel[]
+  ownedChannels     Channel[]
+  notifications     Notification[]
+  telegramLinkCodes TelegramLinkCode[]
 
   @@index([tenantId], map: "idx_users_tenant")
   @@map("users")
@@ -145,11 +150,75 @@ model Channel {
   reviewLogs           ReviewLog[]
   usageEvents          UsageEvent[]
   performanceSnapshots PerformanceSnapshot[]
+  notifications        Notification[]
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
   @@index([ownerUserId], map: "idx_channels_owner")
   @@map("channels")
+}
+
+// Sprint 3 Task 3 (K2) — the real in-app notification channel
+// MVP_PART2 §1 asked for: "in-app push through the dashboard is probably
+// the right default channel, with Telegram as one optional channel." Every
+// gate that opens produces at least one of these — never a gate silently
+// waiting with no visible trace anywhere a user would look.
+//
+// channelId is nullable, a real deviation from this task's own initial
+// sketch: a tenant-wide notification (the daily digest, which spans every
+// channel on a tenant, not one) has no single channel to attribute the row
+// to. Every gate-related row (kind: 'approval_request', and the reminder
+// variant of 'notify') sets a real channelId; only the digest leaves it
+// null. See sprint3/reports/task3.md.
+model Notification {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @db.Uuid
+  channelId String? @db.Uuid
+  userId    String  @db.Uuid
+
+  // 'notify' | 'approval_request', VARCHAR + CHECK per this schema's own convention.
+  kind    String  @db.VarChar(20)
+  message String  @db.Text
+
+  // Set only for kind = 'approval_request' — the same threadKey
+  // (PipelineRun id) TelegramFounderChannel's pending-approval map already
+  // keys on, so an in-app resolution and a Telegram reply resolve the exact
+  // same pending gate, never two independent ones.
+  threadKey String? @db.VarChar(255)
+
+  // Set once this notification's underlying gate (or reminder) has been
+  // acted on — via *any* channel, not necessarily this row's own. A
+  // 'notify'-kind row (the digest, a reminder) is never itself "resolved";
+  // stays null.
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  channel Channel? @relation(fields: [channelId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], map: "idx_notifications_user_time")
+  @@index([threadKey], map: "idx_notifications_thread")
+  @@map("notifications")
+}
+
+// Sprint 3 Task 3 (K2) — one row per issued Telegram-linking code. Same
+// single-use discipline LoginToken already established: usedAt (not just
+// the code's own expiry) is what actually prevents a leaked/guessed code
+// from being replayed after a legitimate first use.
+model TelegramLinkCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String    @unique @db.VarChar(20)
+  userId    String    @db.Uuid
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_telegram_link_codes_user")
+  @@map("telegram_link_codes")
 }
 
 model PipelineRun {

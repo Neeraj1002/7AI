@@ -9,7 +9,7 @@ import { listReviewLogsForRun } from '../../models/repositories/review-log.repos
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
-import { founderChannel } from '../../notify-founder';
+import { resolvePendingApproval } from '../../notify-founder';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
@@ -153,7 +153,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.editedScriptText;
 
-      const { resolved } = founderChannel.resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, replyText);
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -184,7 +184,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.notes;
 
-      const { resolved } = founderChannel.resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, replyText);
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',

@@ -144,3 +144,75 @@ arrives first wins, synchronous check-and-delete" design is unchanged by this ta
 adds a check *before* that call, never touches its internals. `run-pipeline/budget-gate.ts`'s
 `computeChannelBudgetCeilings` — the existing precedent for a pure, DB-free authorization/allocation
 function this task's own `canResolveGate` follows.
+
+## Task 3 — Per-user notification routing (K2)
+
+### What this task implements
+A real second `FounderChannel` implementation (`InAppFounderChannel`), and a real composition layer
+(`composeFounderChannel`) that dispatches to a resolved set of recipients' in-app channel (always)
+and Telegram channel (only if linked). `notify-founder/pending-approvals.ts` is extracted out of
+`telegram-channel.ts` so both implementations — and any number of recipients — share the exact same
+in-memory pending-approval map: `getOrCreatePendingApproval` is idempotent per `threadKey`, so the
+first channel/recipient to register creates the shared promise and every subsequent one reuses it —
+"first reply wins" falls out of that sharing for free, not a new race-handling design. Every
+`FounderChannel.resolvePendingApproval` implementation delegates to this one shared function, which
+now also marks every `Notification` row for that `threadKey` resolved, regardless of which channel
+actually closed the gate.
+
+No new `PipelineRun` states. `requestApproval`'s existing "block until the pending map resolves"
+mechanism now has more than one possible resolver-registrant for the same `threadKey` (in-app and,
+optionally, Telegram) — first reply wins, exactly as `resolvePendingApproval`'s own doc comment
+already specified; this task is what finally gives that comment a real second caller to be about.
+
+### Recipient resolution
+`resolveNotificationRecipients(channel)` mirrors Task 2 (K1)'s own fail-closed design, applied to
+notification delivery rather than resolution permission: a channel with a real `ownerUserId`
+notifies exactly that user; a channel with none notifies every `owner`-role user on the tenant — the
+same set `canResolveGate` already lets resolve it, so nobody who *can* approve a gate is ever left
+with no notification telling them it's open. `founder-digest.ts`'s own tenant-wide loop (unchanged
+this task) now sends to every `owner`-role user on the tenant individually, not the single
+pre-Sprint-3 global `founderChannel`.
+
+### Preconditions
+A `Channel` has a resolvable `ownerUserId` (Task 2) or degrades to the tenant-wide `owner`-role
+fallback. A `User` may or may not have `telegramChatId` set — both are valid, handled states.
+
+### Postconditions
+Every gate that opens produces at least one real, visible notification (in-app, always) — a gate is
+never left silently waiting with no visible trace anywhere a user would look. A `Notification` row's
+`resolvedAt` is set the moment its underlying gate resolves, via *any* channel — verified live both
+ways (an in-app-only resolution via the real API, and a real Telegram-reply resolution).
+
+### Failure Modes & Handling
+A Telegram send failure (bot blocked, unlinked/stale chat id) must not prevent the in-app
+`Notification` row from existing — `MultiFounderChannel` dispatches to every channel via
+`Promise.allSettled`, logging a rejection rather than throwing it back at the caller; the in-app path
+alone is always sufficient to resolve a gate. `pending-approvals.ts`'s own
+`markNotificationsResolvedByThreadKey` call is itself fire-and-forget (logged, not thrown) — a DB
+write failing here must never unwind an already-synchronously-resolved gate.
+
+### A real, live-found bug, fixed within this task
+An early version of the `/link <code>` handler wrapped its *entire* body (DB writes + the success
+reply) in one try/catch, with the catch block's own error reply also unguarded. Real, live testing
+(simulating `/link` from a synthetic chat id the bot genuinely cannot message) found this crashed the
+whole handler: the real DB write (marking the code used, setting `telegramChatId`) had already
+succeeded, but the confirmation reply's own failure — a real Telegram `400 chat not found` — was
+uncaught, and the catch block's own fallback reply hit the identical failure, propagating
+unhandled. In a real running server, grammy's own `bot.catch()` masks this from crashing the whole
+process, but the user would never learn their real, successful link actually worked. Fixed with a
+`safeReply` helper (catches and logs, never throws) used for every reply in the message handler, not
+just `/link`'s — re-verified afterward with a clean run (DB write confirmed, no crash, no unhandled
+error). See `sprint3/reports/task3.md`.
+
+### A real, live-found privacy fix (not this task's own subject, but enabled by it)
+`auth/magic-link.ts` previously relayed *every* user's login link to the founder's own Telegram — the
+only sink that existed before this task. That meant the founder could see, and use, another real
+user's login link. Now that per-user Telegram linking exists, a requesting user's own link is sent to
+*their own* linked chat if they have one, never the founder's, unless the requester genuinely is the
+founder.
+
+### Reference
+`sprint2/BUSINESS_LOGIC.md`'s Task 6 section — `founder-digest.ts`'s existing per-tenant iteration
+pattern, extended here to per-user within a tenant. Sprint 2 Task 6's `parsePostHocTagCommand` —
+the exact command-precedence pattern (`/link` checked first, unconditionally) `parseLinkCommand`
+follows.

@@ -44,6 +44,9 @@
 //                                                         -> Sprint 2 Task 6 (I2): simulates the founder
 //                                                            sending "tag <runId> <tagWord> <notes>" over
 //                                                            Telegram (no live human round-trip needed)
+//   npx tsx scripts/dry-run.ts link <chatId> <code>      -> Sprint 3 Task 3 (K2): simulates a real
+//                                                            "/link <code>" Telegram message from the
+//                                                            given chat id (no live human round-trip)
 
 import { prisma } from '../src/models/prisma-client';
 import { MVP_TENANT_ID } from '../src/types';
@@ -356,6 +359,16 @@ async function tag(runId: string, tagWord: string, notes?: string): Promise<void
   console.log('[dry-run] tag command dispatched — check the bot reply and review_logs table');
 }
 
+// Sprint 3 Task 3 (K2) — same no-live-round-trip convention as tag: simulates
+// a real incoming "/link <code>" Telegram message from an arbitrary chatId
+// (a real live human's phone isn't needed to prove the linking logic itself
+// works — any chatId genuinely exercises the same real handler path).
+async function link(chatId: string, code: string): Promise<void> {
+  console.log(`[dry-run] simulating a real incoming Telegram link command from chat ${chatId}: "/link ${code}"`);
+  await simulateIncomingTelegramMessage({ chatId: Number(chatId), text: `/link ${code}` });
+  console.log('[dry-run] link command dispatched — check the bot reply and users.telegramChatId');
+}
+
 async function status(runId: string): Promise<void> {
   const run = await prisma.pipelineRun.findUnique({ where: { id: runId } });
   const stages = await prisma.pipelineStage.findMany({
@@ -456,9 +469,15 @@ async function main(): Promise<void> {
       await tag(arg, tagWord, notes);
       break;
     }
+    case 'link': {
+      const code = process.argv[4];
+      if (!arg || !code) throw new Error('usage: dry-run.ts link <chatId> <code>');
+      await link(arg, code);
+      break;
+    }
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status|digest|tag`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status|digest|tag|link`,
       );
   }
 }
@@ -473,7 +492,9 @@ const startedLongPollingBot =
   // both start the same real long-polling loop notify/requestApproval
   // already do.
   process.argv[2] === 'digest' ||
-  process.argv[2] === 'tag';
+  process.argv[2] === 'tag' ||
+  // Sprint 3 Task 3: 'link' also calls simulateIncomingTelegramMessage.
+  process.argv[2] === 'link';
 
 main()
   .catch((error) => {

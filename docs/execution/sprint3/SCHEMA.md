@@ -124,6 +124,55 @@ optional `ownerUserId` — set by the creating user at channel-creation time (Ta
 `channels.create` mutation; `manage-channels/channel-cap.ts`'s `createChannelWithCapCheck` already
 forwards it unchanged, since it had no real caller before this task).
 
+## Task 3 — `notifications`, `telegram_link_codes` (K2), a real migration
+
+Two new tables, one real Prisma migration
+(`prisma migrate dev --name sprint3_notifications_and_telegram_linking`):
+
+```prisma
+model Notification {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @db.Uuid
+  channelId  String?   @db.Uuid   // nullable — see deviation note below
+  userId     String    @db.Uuid
+  kind       String    @db.VarChar(20) // 'notify' | 'approval_request', VARCHAR + CHECK
+  message    String    @db.Text
+  threadKey  String?   @db.VarChar(255)
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model TelegramLinkCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String    @unique @db.VarChar(20)
+  userId    String    @db.Uuid
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+```
+
+```sql
+CREATE TABLE "notifications" ( ... );
+CREATE TABLE "telegram_link_codes" ( ... );
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_kind_check" CHECK ("kind" IN ('notify', 'approval_request'));
+```
+
+**Real deviation from the task's own initial sketch**: `Notification.channelId` is nullable, not
+required as the task text implied. A tenant-wide notification — the daily digest, which spans every
+channel on a tenant, not one — has no single channel to attribute the row to. Every gate-related row
+(`kind: 'approval_request'`, and the reminder variant of `'notify'`) sets a real `channelId`; only the
+digest leaves it null. See `sprint3/reports/task3.md`.
+
+**Data migration (not purely additive)**: the founder's own seeded `User` row gets its real,
+already-working Telegram chat id carried over directly from this environment's real
+`TELEGRAM_FOUNDER_CHAT_ID` (`8641987627`) — the one real regression risk this task carries, stated
+plainly per the task's own instruction. Confirmed live afterward via a direct DB read.
+
+`types/notification.types.ts` — `Notification`, `NotificationKind = 'notify' | 'approval_request'`,
+`CreateNotificationInput`. `types/telegram-link-code.types.ts` — `TelegramLinkCode`,
+`CreateTelegramLinkCodeInput`. Both re-exported from `types/index.ts`.
+
 ## Reference
 - `docs/execution/sprint2/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference

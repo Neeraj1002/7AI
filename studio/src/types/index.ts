@@ -8,3 +8,5 @@ export * from './dashboard.types';
 export * from './performance-snapshot.types';
 export * from './user.types';
 export * from './login-token.types';
+export * from './notification.types';
+export * from './telegram-link-code.types';

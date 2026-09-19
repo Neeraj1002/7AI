@@ -1,7 +1,8 @@
 import { prisma } from '../models/prisma-client';
 import { findTenantById, updateTenantLastDigestSentAt } from '../models/repositories/tenant.repository';
 import { listActiveChannelsByTenant } from '../models/repositories/channel.repository';
-import { founderChannel } from '../notify-founder';
+import { listUsersByTenantAndRole } from '../models/repositories/user.repository';
+import { composeFounderChannel } from '../notify-founder';
 import { env } from '../config/env';
 import { MVP_TENANT_ID } from '../types';
 
@@ -137,7 +138,18 @@ export async function runFounderDigestCheck(): Promise<{ sent: boolean }> {
     }
 
     const message = formatDigestMessage({ windowStart, channels: channelDigests });
-    await founderChannel.notify(message);
+    // Sprint 3 Task 3 (K2) — per-user within the tenant, not the single
+    // pre-Sprint-3 global founderChannel: every owner-role user on this
+    // tenant gets their own real digest (in-app always, Telegram if
+    // linked). Tenant-wide, not one specific channel — channelId is
+    // deliberately null (Notification's own nullable-channelId deviation).
+    const owners = await listUsersByTenantAndRole(MVP_TENANT_ID, 'owner');
+    const channel = await composeFounderChannel({
+      tenantId: MVP_TENANT_ID,
+      channelId: null,
+      userIds: owners.map((user) => user.id),
+    });
+    await channel.notify(message);
     await updateTenantLastDigestSentAt(MVP_TENANT_ID, now);
 
     console.log(`[founder-digest] sent — ${channelDigests.length} channel(s) covered`);

@@ -2,18 +2,25 @@ import { randomUUID } from 'node:crypto';
 import { findUserByEmail, findUserById } from '../models/repositories/user.repository';
 import { insertLoginToken, findLoginTokenByJti, markLoginTokenUsed } from '../models/repositories/login-token.repository';
 import { signMagicLinkToken, verifyMagicLinkToken, signSessionToken } from './jwt';
-import { founderChannel } from '../notify-founder';
+import { TelegramFounderChannel } from '../notify-founder/telegram-channel';
 import { env } from '../config/env';
 import type { Session } from './types';
 
 // Sprint 3 Task 1 (J2) — magic-link email, no password to hash/manage/reset.
 // No transactional-email provider is wired into this project yet and adding
-// one is out of scope for this task — the real link is logged to the server
-// console (always) and additionally relayed via founderChannel.notify()
-// (today's one real Telegram sink; genuinely useful "for the founder's own
-// login," and still a real, visible, honest notification — not a silent
-// drop — for any other user until Task 2/K's per-user Telegram linking
-// exists or real email is added later).
+// one is out of scope for this task.
+//
+// Sprint 3 Task 3 (K2) update — a real fix, not just an adaptation: Task
+// 1's original design relayed *every* user's login link to the founder's
+// own Telegram (the only sink that existed then) — meaning the founder
+// could see, and use, another real user's login link. Now that per-user
+// Telegram linking exists, the requesting user's own link is sent to
+// *their own* linked chat if they have one — never the founder's, unless
+// the requester genuinely is the founder. A user with no Telegram linked
+// yet still gets the real, working console-log fallback (this endpoint
+// itself has no other transport, since a not-yet-authenticated user has no
+// in-app Notification inbox to write to — this is deliberately outside the
+// per-user Notification system K2 builds for everything else).
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
 
@@ -42,10 +49,16 @@ export async function requestMagicLink(params: { email: string }): Promise<void>
   const link = `${buildBaseUrl()}/auth/verify?token=${token}`;
 
   console.log(`[auth] magic link for ${user.email}: ${link}`);
-  try {
-    await founderChannel.notify(`Login link for ${user.email}:\n${link}\n(expires in 15 minutes, single-use)`);
-  } catch (error) {
-    console.error('[auth] failed to relay the magic link over Telegram (already logged above):', error);
+  if (user.telegramChatId) {
+    try {
+      await new TelegramFounderChannel(user.telegramChatId).notify(
+        `Your login link:\n${link}\n(expires in 15 minutes, single-use)`,
+      );
+    } catch (error) {
+      console.error(`[auth] failed to relay the magic link over Telegram for ${user.email} (already logged above):`, error);
+    }
+  } else {
+    console.log(`[auth] ${user.email} has no linked Telegram — link is only available via the server console log`);
   }
 }
 

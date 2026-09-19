@@ -1,6 +1,7 @@
 import { listRuns } from '../models/repositories/pipeline-run.repository';
 import { findLatestAttempt } from '../models/repositories/pipeline-stage.repository';
-import { founderChannel } from '../notify-founder';
+import { findChannelById } from '../models/repositories/channel.repository';
+import { composeFounderChannel, resolveNotificationRecipients } from '../notify-founder';
 import { env } from '../config/env';
 import type { StageName } from '../types';
 
@@ -58,6 +59,20 @@ export async function runGateReminderCheck(): Promise<{ reminded: number }> {
       const openHours = (openMs / 3_600_000).toFixed(1);
       const label = gateLabelFor(status);
       try {
+        // Sprint 3 Task 3 (K2) — the run's real channel owner (or, absent
+        // one, every owner-role user on the tenant), not the single
+        // pre-Sprint-3 global founderChannel.
+        const channel = await findChannelById(run.channelId);
+        if (!channel) {
+          console.error(`[gate-reminder] run ${run.id}: channel ${run.channelId} not found — skipping reminder`);
+          continue;
+        }
+        const recipients = await resolveNotificationRecipients(channel);
+        const founderChannel = await composeFounderChannel({
+          tenantId: channel.tenantId,
+          channelId: channel.id,
+          userIds: recipients.map((user) => user.id),
+        });
         await founderChannel.notify(
           `Reminder: run ${run.id} has been waiting at ${label} for about ${openHours}h. Reply on the earlier message whenever you get a chance (or use the app).`,
         );

@@ -41,3 +41,21 @@ export async function insertUser(input: CreateUserInput): Promise<User> {
   });
   return toDomainUser(row);
 }
+
+// Sprint 3 Task 3 (K2) — notification-routing's fallback recipient list for
+// a channel with no specific ownerUserId (Task 2's own fail-closed design,
+// applied to who gets told about a gate, not just who may resolve it): every
+// owner-role user on the tenant.
+export async function listUsersByTenantAndRole(tenantId: string, role: UserRole): Promise<User[]> {
+  const rows = await prisma.user.findMany({ where: { tenantId, role }, orderBy: { createdAt: 'asc' } });
+  return rows.map(toDomainUser);
+}
+
+// Sprint 3 Task 3 (K2) — the real writer for the `/link <code>` flow and
+// the unlink mutation. `chatId: null` explicitly unlinks (not merely "no
+// change"), since a caller passing undefined would leave the column
+// untouched — Prisma's own null-vs-undefined update semantics.
+export async function updateUserTelegramChatId(userId: string, chatId: string | null): Promise<User> {
+  const row = await prisma.user.update({ where: { id: userId }, data: { telegramChatId: chatId } });
+  return toDomainUser(row);
+}

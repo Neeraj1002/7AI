@@ -482,6 +482,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // PipelineRun.status = 'paused_gate1' represents.
   const outcome = await requestGate1Decision({
     runId,
+    channel,
     channelName: channel.name,
     briefText: run.briefText,
     scriptText: scriptOutput.scriptText,
@@ -950,6 +951,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   // founder-availability convention, a simulated one for testing).
   const outcome = await requestGate2Decision({
     runId,
+    channel,
     channelName: channel.name,
     videoPath,
     verdict: reviewOutput.verdict,

@@ -2,8 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-19, after Sprint 3 Task 2 (gate ownership). See
-`docs/execution/sprint3/reports/task2.md`.
+**Last updated**: 2026-09-19, after Sprint 3 Task 3 (per-user notification routing). See
+`docs/execution/sprint3/reports/task3.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
