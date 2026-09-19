@@ -2,14 +2,29 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-19, after Sprint 3 Task 3 (per-user notification routing). See
-`docs/execution/sprint3/reports/task3.md`.
+**Last updated**: 2026-09-19, after Sprint 3 Task 4 (per-tenant budget provisioning + YouTube quota
+headroom check). See `docs/execution/sprint3/reports/task4.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
 ---
 
 ## 1. Founder action required (external, blocking)
+
+### Open — L2: confirm the real YouTube API quota console numbers match the assumed defaults (Sprint 3 Task 4)
+Not a blocking request — a real, quick verification. Live research (Google's own current developer
+docs, fetched directly) found the task's own assumed cost model was stale: `videos.insert` now costs
+~1 unit in its own dedicated 100-calls/day bucket (changed 2025-12-04 and again 2026-06-01), not the
+~1,600 units from the shared pool the task text described. At a realistic ~10-tester cadence, the
+real estimate is comfortable headroom against the documented default 10,000-units/day shared pool —
+**but this project's own actual Google Cloud Console quota numbers were never checked live**, since
+that page requires the founder's own Google login (confirmed live: no authenticated session exists in
+this environment, and entering credentials on the founder's behalf is out of scope regardless). A
+real 2-minute check — `console.cloud.google.com` → APIs & Services → YouTube Data API v3 → Quotas —
+confirms whether this project's real numbers match the assumed defaults (a prior increase or
+restriction would change the estimate). No quota-increase request is warranted by the real math as
+computed; this is a verification item, not a founder-action-required-to-unblock item. See
+`sprint3/reports/task4.md`.
 
 ### Open — H1: custom-thumbnail permission — a separate eligibility gate from long-uploads verification (Sprint 2 Task 5)
 `setThumbnail`/`thumbnails.set` is built, wired into Publishing (isolated — see §5), and confirmed
@@ -306,6 +321,8 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
 
 - **The aggregated Video Generation `UsageEvent` row's `provider`/`model` fields are a judgment call, not a confirmed convention.** One row covers two different (provider, model) pairs (TTS + transcription), so `provider` is hardcoded `'openai'` and `model` becomes a composite string (`"tts-1-hd+whisper-1"`), with the real breakdown in `metadata`. Flagged for confirmation the same way the $2.00 budget ceiling was — never explicitly confirmed by you. — *`week3/reports/task2.md`*
+- **Performance Analytics polls every historical published video, forever — a real, unbounded quota-cost growth pattern (Sprint 3 Task 4, L2).** `runPeriodicPoll` (`performance-analytics/index.ts`) queries every completed run with a published video on each tick (default every 6h), not just recently-published ones. Each poll is cheap (`videos.list`, 1 unit) and today's volume is a non-issue, but the cost grows with the *cumulative* count of ever-published videos, not daily upload volume — at a real ~10-tester cadence, a few months of sustained use could put this in the thousands-of-units/day range purely from polling old videos whose metrics have long since stabilized. Not urgent (real near-term headroom is comfortable against the 10,000-unit/day shared pool), but worth a real fix before it becomes one — e.g. stop polling a video N days/weeks after publish. — *`sprint3/reports/task4.md`*
+- **The default new-tenant `AgentQuota.budgetCeilingUsd` ($2.00, Sprint 3 Task 4, L1) reuses the founder's own original, never-explicitly-confirmed figure** rather than a fresh number — a deliberate choice (consistency over guessing a new one), but still genuinely unconfirmed by you, same as the original. — *`sprint3/reports/task4.md`*
 - **CLOSED, not viable as scoped — Title/thumbnail A/B testing (H2, Sprint 2 Task 5).**
   `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md` §2 proposed Publishing drive YouTube's native
   title/thumbnail "Test and Compare" feature directly. Live research against Google's own current

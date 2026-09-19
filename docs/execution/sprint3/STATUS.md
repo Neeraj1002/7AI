@@ -1,6 +1,6 @@
 # Sprint 3 Status: Multi-User / Application Layer
 
-**Sprint status**: Tasks 1-3 done. Task 1 built the foundation every other Sprint 3 task threads a
+**Sprint status**: Tasks 1-4 done. Task 1 built the foundation every other Sprint 3 task threads a
 real signed-in user/tenant through: a real `User` table with a concrete Tenant↔User relationship
 decision (one `Tenant` = one account, a `User` belongs to exactly one `Tenant`, two roles), real
 magic-link session auth replacing the single shared `API_AUTH_TOKEN` as the app's primary auth path
@@ -17,17 +17,23 @@ bug (a reply-send failure could crash the message handler even after its underly
 succeeded) and a real privacy gap (every user's login link used to relay to the founder's own
 Telegram, not the requester's own). All three tasks verified live against genuinely separate
 tenants/users, never just the founder's own (where a lingering bug could coincidentally still look
-correct).
-**Last updated**: 2026-09-19 (after Task 3)
+correct). Task 4 closed the real "a new tenant can't actually run anything" gap (every tenant now
+gets a real `AgentQuota` row at creation, not just the founder's own hand-seeded one) and
+investigated YouTube's real API quota headroom — finding the task's own assumed cost model was stale
+(a real upload now costs ~1 unit in its own dedicated bucket, not ~1,600 shared units, per a real API
+change in the last year) and concluding no quota increase is needed yet, with the real medium-term
+risk being Performance Analytics' own unbounded polling design, not upload volume.
+**Last updated**: 2026-09-19 (after Task 4)
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
 | 1 | User Model, Tenant Signup & Session Auth | Done | Claude Code | J1: real `User`/`login_tokens` tables (migration `sprint3_users_and_login_tokens`), `role` VARCHAR+CHECK (`owner`\|`approver`), founder's `User` row seeded in the same migration (`neeraj100296@gmail.com`, `owner`). J2: `auth/` module — magic-link JWT (15 min, single-use, DB-tracked via `login_tokens.usedAt`) exchanged at `/auth/verify` for a session JWT (`userId`/`tenantId`/`role`); real link delivery via server console + the existing Telegram `founderChannel.notify()`, no new integration. `api/trpc.ts` gained a real `Context`/`createContext`; `api/server.ts`'s auth hook now accepts a real session or the `API_AUTH_TOKEN` ops fallback. J3: full audit of `api/routers/` and `run-pipeline/` found `MVP_TENANT_ID` hardcoded in more places than the task text named (`dashboard.repository.ts`'s four functions, reached via `dashboard.ts`'s routers) — all now read `ctx.tenantId`. **Real, live verification**: a full login round trip (real `POST /auth/request-link`, real console-logged link, real `GET /auth/verify`, a real authenticated `channels.list` call resolving the real tenant), replay rejection (reused token → 401 "already used"), expiry rejection (a deliberately pre-expired token → 401 "expired"), and — the actual success criterion that matters — a **genuinely separate second tenant/user** created and logged in for real, whose real `runs.create` call produced a `PipelineRun.tenantId` matching that second tenant (confirmed via a direct Postgres read), not `MVP_TENANT_ID`. See `reports/task1.md`. |
 | 2 | Gate Ownership | Done | Claude Code | K1: `Channel.ownerUserId` (nullable FK, migration `sprint3_channel_owner`), backfilled to each tenant's seeded owner for every existing row. `assertGateOwnership` (`api/routers/runs.ts`) runs before `resolvePendingApproval` in both `gate1`/`gate2`; the actual decision is a new pure, unit-tested function, `canResolveGate` (`run-pipeline/gate-ownership.ts`): `ctx.tenantId === channel.tenantId && (ctx.userId === channel.ownerUserId \|\| ctx.role === 'owner')`. Fails closed on a null owner. **Real, live verification** — three real pipeline runs driven to a genuine pending gate1/gate2 via the real API (real LLM calls, no stubs): (1) a Tenant B session attempting Tenant A's gate → real `403 FORBIDDEN`, gate confirmed still pending afterward; (2) a different `owner`-role user on Tenant A (not the channel's specific owner) → real success; (3) the channel's actual `ownerUserId` (the founder) → real success, the regression check that matters most; (4) an `approver`-role user against a deliberately ownerless channel → real `403 FORBIDDEN` (proves fail-closed, not just "owner-role users happen to always match"); (5) an `owner`-role user against that same ownerless channel → real success (proves the fallback path). A distinct, still-open gap (`runs.create` doesn't check channel/tenant match at creation time — K1 only covers *resolution*) is documented, not silently folded into "K1 fixed ownership." See `reports/task2.md`. |
 | 3 | Per-User Notification Routing | Done | Claude Code | K2: `Notification`/`telegram_link_codes` tables (migration `sprint3_notifications_and_telegram_linking`), the founder's own real `telegramChatId` carried over from `env.TELEGRAM_FOUNDER_CHAT_ID` in the same migration. A real `InAppFounderChannel` (writes `Notification` rows) plus `composeFounderChannel` (in-app always, Telegram only if linked) — `pending-approvals.ts` extracted so any number of channels/recipients share one pending-approval promise per `threadKey`, "first reply wins" for free. `resolveNotificationRecipients` mirrors K1's own fail-closed design for *who gets told*, not just who may resolve. A real `/link <code>` flow (`TelegramLinkCode`, `notifications.createTelegramLinkCode`/`unlinkTelegram`/`list`). **Real, live verification**: a gate for an unlinked user produced a real in-app-only `Notification` row, resolved via the API alone, `resolvedAt` set automatically; a real `/link` flow (simulated Telegram input) set a real `telegramChatId`, confirmed by a direct DB read; the founder's own real gate1 flow (real Telegram message + real simulated reply) now also writes a real in-app row that gets marked resolved via the *Telegram* path, proving cross-channel resolution actually works, not just same-channel. **Two real, live-found problems, both fixed within this task**: (1) a `/link` reply-send failure could crash the whole message handler even after the real DB write had already succeeded — fixed with a `safeReply` helper used everywhere in the handler; (2) `auth/magic-link.ts` previously relayed *every* user's login link to the founder's own Telegram — fixed to route to the requester's own linked chat instead. See `reports/task3.md`. |
+| 4 | Per-Tenant Budget Provisioning + YouTube Quota Headroom Check | Done — L2 verification item | Claude Code / **Founder (L2)** | L1: `scripts/invite-tenant.ts` creates a real `Tenant` + owning `User`(`owner`) + `AgentQuota` (default $2.00/day, reusing the founder's own original, still-unconfirmed figure) in one `prisma.$transaction` — no tenant is ever left without a budget row. New `insertTenant`/transaction-capable `insertUser`/`insertAgentQuota` repository functions. **Real, live verification**: a genuinely new tenant (created via the real script) got a real `AgentQuota` row confirmed by direct Postgres read; that tenant's real owner logged in via a real magic link and submitted a real brief through the real API, which passed the real budget gate at `script_generation` (a real LLM call happened, no stub) and reached a genuine pending `gate1`, resolved by that same real owner — incidentally re-confirming Tasks 2/3's ownership and notification logic for a third independent tenant. L2: a real, live investigation (no code). Found the task's own assumed YouTube quota cost model was stale — `videos.insert` now costs ~1 unit in its own dedicated 100-calls/day bucket (a real API change in the last year, verified directly against Google's current developer docs), not ~1,600 shared units. Real estimate at a ~10-tester cadence shows comfortable near-term headroom; the real medium-term risk is Performance Analytics' own unbounded "poll every historical published video forever" design, not upload volume. This project's actual Cloud Console quota numbers couldn't be checked live (requires the founder's own Google login, confirmed no session exists) — a real, quick verification item tracked as a founder action, not a blocking quota-increase request. See `reports/task4.md`. |
 
 ## Full detail
-Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`.
+Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `reports/task4.md`.
 
 ## Open items closed by Task 1
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "No `User` model exists at all" item — **closed**.
@@ -41,6 +47,13 @@ Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`.
 ## Open items closed by Task 3
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "Per-user notification routing" item —
   **closed**.
+
+## Open items closed by Task 4
+- `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §0's "Per-tenant budget enforcement" item —
+  **closed**.
+- `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §0's "YouTube API quota" item — **investigated,
+  closed with a real, cited finding** (no increase needed at the estimated volume; a real Console
+  verification remains a founder action, see `KNOWN_ISSUES_AND_BLOCKERS.md` §1).
 
 ## Open items carried forward
 - **Run/channel creation-time tenant ownership isn't checked** — `runs.create` validates the target
@@ -72,3 +85,11 @@ Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`.
   `YOUTUBE_ANALYTICS_STUB`, `FOUNDER_DIGEST_*`, etc.), predating this task. Only this task's own new
   vars (`JWT_SECRET`, `API_AUTH_TOKEN`, `API_PORT`) were added; a full reconciliation is a separate,
   real but out-of-scope cleanup.
+- **L2 verification item — confirm the real Cloud Console quota numbers match the assumed defaults**
+  — a real, quick check only the founder can do (their own Google login). See
+  `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+- **Performance Analytics' unbounded polling design (found during Task 4's L2)** — grows in real
+  quota cost with cumulative published-video count, not daily upload volume; not urgent today, worth
+  a real fix before it is. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
+- **The new-tenant default `AgentQuota.budgetCeilingUsd` ($2.00) is still unconfirmed by you** — same
+  status as the founder's own original figure it reuses. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.

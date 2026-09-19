@@ -21,19 +21,35 @@ This is a sensible, common shape (the thing that's *theirs* — channel, audienc
 theirs; the thing that's shared infrastructure stays centralized) but it makes a few things
 non-optional that weren't urgent before:
 
-- **Per-tenant budget enforcement is now required, not someday.** `KNOWN_ISSUES_AND_BLOCKERS.md`
-  Section 3 already flags "pooled per-platform budget has no fair-access policy across channels" as a
-  future concern for a second channel of *yours*. With 10 people sharing your keys, one tester
-  without a real per-tenant ceiling can both overspend and starve the other nine. The existing
-  approval-gate design (nothing renders or publishes without a human approving first) already limits
-  runaway spend structurally — worth keeping that property, not something to relax later for
-  convenience — but each tenant still needs its own real `AgentQuota` ceiling, enforced, before this
-  goes to real testers.
-- **YouTube API quota is per Google Cloud project, not per connected channel.** If all 10 testers
-  authorize through the one OAuth app already registered (`YOUTUBE_CLIENT_ID`), their uploads *and*
-  Performance Analytics' polling all draw from one shared daily quota. Worth checking current quota
-  and requesting an increase proactively (historically 1-2 week lead time, same lesson as Week 1 Task
-  7) rather than discovering the ceiling live during the test.
+- **Per-tenant budget enforcement is now required, not someday — picked up by Sprint 3 Task 4 (L1).**
+  `KNOWN_ISSUES_AND_BLOCKERS.md` Section 3 already flags "pooled per-platform budget has no
+  fair-access policy across channels" as a future concern for a second channel of *yours*. With 10
+  people sharing your keys, one tester without a real per-tenant ceiling can both overspend and starve
+  the other nine. The existing approval-gate design (nothing renders or publishes without a human
+  approving first) already limits runaway spend structurally — worth keeping that property, not
+  something to relax later for convenience — but each tenant still needs its own real `AgentQuota`
+  ceiling, enforced, before this goes to real testers.
+
+  **Closed**: every real `Tenant` created via the real invite flow (`scripts/invite-tenant.ts`) now
+  gets a real `AgentQuota` row in the same transaction, no longer only the founder's own hand-seeded
+  one. Verified live: a genuinely new tenant's first real brief passed the real budget gate. See
+  `docs/execution/sprint3/reports/task4.md`.
+- **YouTube API quota is per Google Cloud project, not per connected channel — investigated by
+  Sprint 3 Task 4 (L2).** If all 10 testers authorize through the one OAuth app already registered
+  (`YOUTUBE_CLIENT_ID`), their uploads *and* Performance Analytics' polling all draw from one shared
+  daily quota. Worth checking current quota and requesting an increase proactively (historically 1-2
+  week lead time, same lesson as Week 1 Task 7) rather than discovering the ceiling live during the
+  test.
+
+  **Investigated, no increase requested**: real, primary-source research found this note's own cost
+  assumption stale — `videos.insert` now costs ~1 unit in its own dedicated 100/day bucket (not
+  ~1,600 units from the shared pool), a real API change in the last year. At a realistic ~10-tester
+  cadence, the real estimate shows comfortable near-term headroom against the shared 10,000-unit/day
+  pool; the actual longer-term risk is Performance Analytics' own unbounded "poll every historical
+  video forever" design, not upload volume. This project's *actual* Cloud Console quota numbers
+  couldn't be checked live (requires the founder's own Google login) — a real, quick verification
+  item, not a blocking request. See `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1/§4 and
+  `docs/execution/sprint3/reports/task4.md`.
 - **Other people's real OAuth refresh tokens need real security handling** — encrypted at rest (not
   stored the way the single env-var token is today), scoped to the minimum
   (`youtube.upload`/`youtube.readonly`, same as now, no broader ask), with a clear disconnect path in

@@ -216,3 +216,83 @@ founder.
 pattern, extended here to per-user within a tenant. Sprint 2 Task 6's `parsePostHocTagCommand` —
 the exact command-precedence pattern (`/link` checked first, unconditionally) `parseLinkCommand`
 follows.
+
+## Task 4 — Per-tenant budget provisioning + YouTube quota headroom check (L1/L2)
+
+### What this task implements
+L1 closes a real gap in tenant-creation's postconditions: before this task, "a `Tenant` exists" did
+**not** guarantee "a brief submitted against this tenant can pass the budget gate" — exactly one
+`AgentQuota` row had ever existed (the founder's own, seeded by hand in Week 2 Task 4), so every
+other tenant hit `NoBudgetConfiguredError` on its first real brief. `scripts/invite-tenant.ts` now
+creates a `Tenant` + owning `User` + `AgentQuota` in one `prisma.$transaction` — after this task, a
+`Tenant` unconditionally has a corresponding `AgentQuota` row before it can exist at all.
+`week2/BUSINESS_LOGIC.md`'s existing cost-gate transition (`isBudgetAvailable`,
+`computeChannelBudgetCeilings`) is completely unchanged — this task only fixes *seeding*, never
+touches the enforcement math itself.
+
+L2 is a real, live investigation with no code changes — see the findings below.
+
+### Preconditions
+L1: a new `Tenant` + owning `User` is being created via the real invite script (not a public signup
+form — Task 1's own note already deferred self-serve creation).
+
+### Postconditions
+L1: every `Tenant` row has a corresponding `AgentQuota` row for `'youtube'` from the moment it's
+created — verified live: a genuinely new tenant's first real brief submission passed the real budget
+gate at `script_generation` (the actual, real LLM call happened, not a stub) and reached a genuine
+pending `gate1`, resolved by that tenant's own real owner — incidentally also re-confirming Task 2/3's
+ownership and notification-routing logic for a third, independent real tenant.
+
+### Failure Modes & Handling
+If any of the three inserts (`Tenant`/`User`/`AgentQuota`) fails, the whole transaction rolls back —
+`invite-tenant.ts`'s own pre-check (`findUserByEmail`) also refuses to create a duplicate account for
+an email that already has one, failing loudly before the transaction even starts rather than after.
+
+### L2 — real findings, not an estimate from documentation alone
+
+**The task's own assumed cost model is stale — a real, live, primary-source-verified finding.** The
+task text cited "a real upload (Publishing) costs roughly 1,600 units... all draw from one shared
+pool." Live research against Google's own current developer documentation
+(`developers.google.com/youtube/v3/determine_quota_cost`, fetched directly, not summarized secondhand)
+found this changed twice in the last year: `videos.insert`'s cost dropped from ~1,600 to ~100 units on
+2025-12-04, then on 2026-06-01 it moved into its **own dedicated 100-calls/day bucket**, entirely
+separate from the shared daily pool. `search.list` (not used by this project) got the same treatment.
+Every new Google Cloud project's real default allocation today is: **100 `videos.insert` calls/day**
+(its own bucket) + **100 `search.list` calls/day** (its own bucket, unused here) + **10,000 units/day**
+shared across every other endpoint.
+
+**This project's own real endpoint usage** (confirmed by grep, not assumed): `videos.insert` (Publishing,
+1 unit, dedicated bucket), `thumbnails.set` (Publishing, Sprint 2 Task 5, ~50 units, shared pool),
+`videos.list` (Performance Analytics stats polling, 1 unit, shared pool, `youtube-stats-client.ts`).
+The YouTube Analytics API (retention curves, Sprint 2 Task 4) is a separate product with its own
+separate quota, unaffected by any of this — already tracked as blocked on G1.
+
+**Real estimate at a realistic ~10-tester, 1-2-uploads/day/tester cadence**: uploads (10-20/day)
+are trivially within the dedicated 100/day bucket — genuinely zero risk, contrary to the task's own
+stale assumption. Thumbnails (10-20/day × ~50 units) cost 500-1,000 units/day from the shared pool.
+Stats polling is the one real, non-obvious cost driver: `runPeriodicPoll` (`performance-analytics/index.ts`)
+polls **every** completed run with a published video, every tick (`ANALYTICS_POLL_INTERVAL_MS`,
+default 6h = 4 ticks/day) — unbounded, not just recent videos. At ~300 accumulated published videos
+(roughly 3-4 weeks at the above cadence), that's already ~1,200 units/day and grows without bound as
+more videos accumulate, independent of daily upload volume. Combined near-term estimate: roughly
+1,500-2,200 units/day against a 10,000/day shared ceiling — comfortable headroom today, but the
+**unbounded polling design**, not upload volume, is the real medium-term risk worth a design fix
+(e.g. stop polling a video once its metrics have likely stabilized) before it becomes a real quota
+problem.
+
+**What could not be verified live**: the *actual* current quota ceiling/usage for this specific
+Google Cloud project (console.cloud.google.com's Quotas page requires the founder's own Google login
+— confirmed live via the Browser tool that no authenticated session exists here, and entering
+credentials on the founder's behalf is out of scope regardless). This task's own estimate assumes the
+documented *default* allocation above; if this project's real console numbers differ (a prior
+increase, a prior restriction), the estimate should be re-checked against them. No quota-increase
+request was filed — the real math above doesn't call for one yet, and the task's own text explicitly
+allows this conclusion. Founder action tracked in `KNOWN_ISSUES_AND_BLOCKERS.md` §1: a real 2-minute
+Console check to confirm the actual numbers match the assumed defaults, not a blocking request.
+
+### Reference
+`week2/BUSINESS_LOGIC.md` Section 2 — the existing cost-gate transition, unchanged by this task.
+`week5/BUSINESS_LOGIC.md`'s C2/C4 sections — the existing per-channel fairness math this task's
+seeding feeds, also unchanged. `week1/reports/task7-youtube-setup.md` — the "don't discover the
+ceiling live, file early" lesson this task's own L2 applies proactively (concluding, this time, that
+early filing isn't actually warranted by the real numbers).

@@ -1,5 +1,6 @@
 import { prisma } from '../prisma-client';
 import type { User as PrismaUser } from '@prisma/client';
+import type { DbClient } from './pipeline-stage.repository';
 import type { CreateUserInput, User, UserRole } from '../../types';
 
 function toDomainUser(row: PrismaUser): User {
@@ -30,8 +31,8 @@ export async function findUserByEmail(email: string): Promise<User | null> {
   return row ? toDomainUser(row) : null;
 }
 
-export async function insertUser(input: CreateUserInput): Promise<User> {
-  const row = await prisma.user.create({
+export async function insertUser(input: CreateUserInput, client: DbClient = prisma): Promise<User> {
+  const row = await client.user.create({
     data: {
       tenantId: input.tenantId,
       email: input.email,

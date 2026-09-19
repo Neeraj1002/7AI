@@ -173,6 +173,18 @@ plainly per the task's own instruction. Confirmed live afterward via a direct DB
 `CreateNotificationInput`. `types/telegram-link-code.types.ts` — `TelegramLinkCode`,
 `CreateTelegramLinkCodeInput`. Both re-exported from `types/index.ts`.
 
+## Task 4 — No schema changes (L1/L2)
+
+`AgentQuota`'s shape is unchanged (`week2/SCHEMA.md`) — this task adds a write path
+(`insertAgentQuota`) to its repository, since only `findAgentQuota` existed before. Also adds
+`insertTenant` (`tenant.repository.ts`) and a transaction-capable `insertUser` (`user.repository.ts`,
+gained an optional `client: DbClient` parameter) — none of these are schema changes, all three
+repositories already had a table to write to; they simply had no insert path at all, or (for `User`)
+no transaction-aware one. `scripts/invite-tenant.ts` calls all three inside one
+`prisma.$transaction`, so a `Tenant` is never created without its owning `User` and `AgentQuota` rows.
+
+L2 is a real, live investigation — no code, no schema impact at all.
+
 ## Reference
 - `docs/execution/sprint2/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference
