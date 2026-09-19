@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
+import type { Context } from '../trpc';
 import { findPipelineRunById, listRuns } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import { listStagesForRun } from '../../models/repositories/pipeline-stage.repository';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
+import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { founderChannel } from '../../notify-founder';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
@@ -23,6 +25,30 @@ async function getRunDetail(id: string) {
     listReviewLogsForRun(id),
   ]);
   return { run, channel, stages, reviewLogs };
+}
+
+// Sprint 3 Task 2 (K1) — the gate-ownership check gate1/gate2 both run
+// before ever calling resolvePendingApproval. Looks up the run/channel
+// itself rather than trusting a client-supplied channelId, so there's no
+// way to spoof ownership by lying about which channel a gate belongs to.
+// The actual allow/deny decision is canResolveGate (run-pipeline/gate-ownership.ts),
+// kept pure and separate so it can be unit tested directly.
+async function assertGateOwnership(runId: string, ctx: Context): Promise<void> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${runId} not found` });
+  }
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `Channel for run ${runId} not found` });
+  }
+
+  if (!canResolveGate(ctx, channel)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: `You are not allowed to resolve gates for run ${runId}`,
+    });
+  }
 }
 
 export const runsRouter = router({
@@ -68,11 +94,12 @@ export const runsRouter = router({
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
-      // MVP_TENANT_ID. Not yet checked against the channel's own tenant
-      // (gate/channel ownership is Task 2/K's job, deliberately kept
-      // separate per this task's own scope note) — every channel in this
-      // single-tenant MVP already belongs to MVP_TENANT_ID, so this is a
-      // real gap worth flagging, not silently glossed over.
+      // MVP_TENANT_ID. Still not checked against the channel's own tenant
+      // here — Task 2 (K1)'s gate-ownership check covers gate1/gate2 only,
+      // scoped to that task's own text; runs.create's own cross-tenant gap
+      // (a session could create a run against a channel belonging to a
+      // different tenant) remains open, tracked in
+      // KNOWN_ISSUES_AND_BLOCKERS.md §3, not silently glossed over.
       const run = await createRun({
         tenantId: ctx.tenantId,
         channelId: input.channelId,
@@ -116,7 +143,9 @@ export const runsRouter = router({
         z.object({ runId: z.string().uuid(), action: z.literal('edit'), editedScriptText: z.string().min(1) }),
       ]),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+
       const replyText =
         input.action === 'approve'
           ? 'approve'
@@ -145,7 +174,9 @@ export const runsRouter = router({
         z.object({ runId: z.string().uuid(), action: z.literal('revise'), notes: z.string().min(1) }),
       ]),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+
       const replyText =
         input.action === 'approve'
           ? 'approve'

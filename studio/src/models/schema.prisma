@@ -64,8 +64,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id])
-  loginTokens LoginToken[]
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  loginTokens    LoginToken[]
+  // Sprint 3 Task 2 (K1) — reverse side of Channel.ownerUserId.
+  ownedChannels  Channel[]
 
   @@index([tenantId], map: "idx_users_tenant")
   @@map("users")
@@ -123,11 +125,22 @@ model Channel {
   // the full three-step resolution order.
   defaultVoice       String?  @db.VarChar(50)
 
+  // Sprint 3 Task 2 (K1) — nullable FK to User, deliberately: a channel
+  // created before this migration, or one whose owning user was since
+  // removed, degrades to "any owner-role user on the tenant may resolve its
+  // gates" rather than becoming permanently unapprovable. This migration's
+  // own backfill sets every existing Channel row to its tenant's seeded
+  // owner — no real, currently-working channel is left null as a side
+  // effect of adding this column. See api/routers/runs.ts's gate1/gate2
+  // ownership check.
+  ownerUserId String? @db.Uuid
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
   tenant               Tenant                 @relation(fields: [tenantId], references: [id])
+  ownerUser            User?                  @relation(fields: [ownerUserId], references: [id])
   pipelineRuns         PipelineRun[]
   reviewLogs           ReviewLog[]
   usageEvents          UsageEvent[]
@@ -135,6 +148,7 @@ model Channel {
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
+  @@index([ownerUserId], map: "idx_channels_owner")
   @@map("channels")
 }
 

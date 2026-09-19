@@ -87,10 +87,18 @@ is everything *around* the data model.
   into the Telegram-as-notify-only conversation already had — for a real multi-user product, in-app
   push through the dashboard is probably the right default channel, with Telegram as one optional
   channel a user links themselves, not *the* channel.
-- **Gate ownership.** Right now "the founder" approves every gate for the one channel that exists.
-  Multi-user needs an explicit answer to "who can approve gates for this channel" — not necessarily
-  complex (probably just "the channel's owner" to start), but currently there's no concept of
-  ownership to check at all.
+- **Gate ownership — picked up by Sprint 3 Task 2 (K1).** Right now "the founder" approves every gate
+  for the one channel that exists. Multi-user needs an explicit answer to "who can approve gates for
+  this channel" — not necessarily complex (probably just "the channel's owner" to start), but
+  currently there's no concept of ownership to check at all.
+
+  **Closed**: exactly the minimal shape this note anticipated — `Channel.ownerUserId` (nullable FK,
+  backfilled to each tenant's seeded owner), checked before `gate1`/`gate2` resolve
+  (`ctx.tenantId === channel.tenantId && (ctx.userId === channel.ownerUserId || ctx.role ===
+  'owner')`), fail-closed on a null owner. Real, live-verified against a genuinely separate second
+  tenant, a same-tenant non-owner, and an ownerless channel. Run/channel *creation*-time tenant
+  ownership is a distinct, still-open gap (see `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §3). See
+  `docs/execution/sprint3/reports/task2.md`.
 - **Per-user YouTube credentials — decided above, still the biggest single piece of work.**
   `YOUTUBE_REFRESH_TOKEN` is a single env var today, meaning every run publishes to *your* YouTube
   channel. Needs OAuth tokens to move from env vars to encrypted per-Channel storage in the DB, with a

@@ -54,6 +54,12 @@ export type Channel = {
   // studio/src/run-pipeline/state-machine.ts's voice-resolution order.
   defaultVoice: string | null;
 
+  // Sprint 3 Task 2 (K1) — nullable FK to User. null degrades to "any
+  // owner-role user on the tenant may resolve this channel's gates" rather
+  // than becoming permanently unapprovable. See
+  // api/routers/runs.ts's gate1/gate2 ownership check.
+  ownerUserId: string | null;
+
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -67,5 +73,12 @@ export const CreateChannelInputSchema = z.object({
   styleGuide: z.string().optional(),
   postingCadence: z.string().optional(),
   priorsScope: z.enum(PRIORS_SCOPES).default('isolated'),
+  // Sprint 3 Task 2 (K1) — the creating user, set by the caller
+  // (manage-channels/channel-cap.ts's createChannelWithCapCheck; Task 6's
+  // future channels.create mutation). Optional so existing callers that
+  // don't yet have a real ctx.userId (e.g. seed/dry-run fixtures) keep
+  // working — an omitted value leaves the channel's ownerUserId null,
+  // correctly degrading per the Channel type's own comment.
+  ownerUserId: z.string().uuid().optional(),
 });
 export type CreateChannelInput = z.infer<typeof CreateChannelInputSchema>;

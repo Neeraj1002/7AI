@@ -97,3 +97,50 @@ ownership), not fixed here.
 magic-link delivery reuses rather than building new transport. `week5/BUSINESS_LOGIC.md`'s Publishing
 section and Sprint 2 Task 4/5/6's own isolated-external-call patterns — the provider-boundary
 convention `auth/jwt.ts` follows for `jsonwebtoken`.
+
+## Task 2 — Gate ownership (K1)
+
+### What this task implements
+A new authorization check, `assertGateOwnership` (`api/routers/runs.ts`), runs in front of the
+existing `gate1`/`gate2 → resolvePendingApproval` call — the gate-resolution transition itself is
+completely unchanged; only who is allowed to trigger it changes. The actual allow/deny decision is a
+separate, deliberately pure function, `canResolveGate` (`run-pipeline/gate-ownership.ts`):
+`ctx.tenantId === channel.tenantId && (ctx.userId === channel.ownerUserId || ctx.role === 'owner')`.
+
+No new `PipelineRun`/`PipelineStage` states. A rejected attempt throws before
+`resolvePendingApproval` is ever called — the gate remains genuinely, unambiguously pending
+afterward, confirmed live (see the report) rather than assumed from the code alone.
+
+### Preconditions
+A `PipelineRun`'s `channel` row exists with a resolvable `ownerUserId` (or `null`, handled per the
+fail-closed design below) and the resolving request carries a valid session (Task 1, J2).
+
+### Postconditions
+A gate is never resolved by a request that fails the ownership check. Today's "`resolved: false` on
+conflict" contract (already-resolved gate) is preserved unchanged, now joined by a distinct
+`FORBIDDEN` TRPCError for the not-your-gate case — a real caller needs to tell these two failure
+modes apart (my own permissions vs. someone else already acted), so they're deliberately different
+error codes, not collapsed into one generic rejection.
+
+### Failure Modes & Handling
+A malformed or missing `ownerUserId` on an old/orphaned row degrades to "the tenant's `owner`-role
+users may still resolve it," never to "anyone may resolve it" and never to "permanently stuck" —
+verified live with a real ownerless channel: a same-tenant `approver`-role user was correctly
+rejected, and a same-tenant `owner`-role user still succeeded. `assertGateOwnership` looks up the
+run's channel itself (via `run.channelId`, not any client-supplied value) before evaluating
+ownership, so there's no way to spoof which channel a gate belongs to by lying about it in the
+request.
+
+### A real, live-demonstrated finding, not fixed this task
+`runs.create` still does not check that a submitted `channelId` belongs to the caller's own tenant —
+K1's own scope is gate resolution, not run/channel creation. This is a distinct gap from what K1
+closes (K1 stops a wrong-tenant user from *approving* a gate; it does nothing about a wrong-tenant
+user *creating* a run against someone else's channel in the first place). Still open, tracked in
+`KNOWN_ISSUES_AND_BLOCKERS.md` §3 — not silently conflated with the gap K1 actually closes.
+
+### Reference
+`sprint2/BUSINESS_LOGIC.md`'s Task 6 section — `resolvePendingApproval`'s existing "whichever caller
+arrives first wins, synchronous check-and-delete" design is unchanged by this task; this task only
+adds a check *before* that call, never touches its internals. `run-pipeline/budget-gate.ts`'s
+`computeChannelBudgetCeilings` — the existing precedent for a pure, DB-free authorization/allocation
+function this task's own `canResolveGate` follows.
