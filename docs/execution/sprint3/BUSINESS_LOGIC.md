@@ -401,3 +401,73 @@ reused verbatim for the new `oauth-state` token type. Task 2 (K1)'s `canResolveG
 directly (not reimplemented) for M2's connect/disconnect ownership check. Task 4's L2 — the
 established "confirm a founder-only blocker live via the Browser tool, don't assume it" precedent
 this task's M2/M3 verification both follow.
+
+## Task 6 — Channel #2/#3 expansion: real channel creation (N1/N2)
+
+### What this task implements
+The hard part (the 7-channel-per-(tenant, platform) cap, `manage-channels/channel-cap.ts`'s
+`createChannelWithCapCheck`) already existed, fully built, since before this sprint — this task's
+entire job is exposing it through the API for the first time. `channels.create` (new mutation):
+input validated against the existing `CreateChannelInputSchema` with `tenantId` and `ownerUserId`
+both omitted from the client-facing shape — `tenantId` is always `ctx.tenantId` (never
+client-supplied, the same posture Task 1/J3 and Task 2/K1 already establish everywhere else),
+`ownerUserId` defaults to `ctx.userId` (the creating user owns what they create, per Task 2's own
+"owner at creation time" note; the ops/script fallback, which has no real `ctx.userId`, leaves it
+unset, correctly degrading to Task 2's existing "any owner-role user on the tenant" fallback rather
+than erroring). A `ChannelCapExceededError` from `createChannelWithCapCheck` is caught and re-thrown
+as a structured `TRPCError({ code: 'BAD_REQUEST' })` — a real caller gets a real 400 with the exact
+existing error message, never a raw 500.
+
+`channels.list` (Task 1/J3 had already fixed its `MVP_TENANT_ID` hardcoding — confirmed by reading
+the file before assuming, per this task's own instruction; nothing to fix there) and a new
+`channels.get` (didn't exist before this task) both gained a derived `hasYoutubeCredential: boolean`
+field, computed once per response by `withHasYoutubeCredential` — a plain existence check against
+Task 5's `agent_credentials` table (`findByChannel(channel.id) !== null`), not a validity check. A
+revoked-but-still-present credential (Task 5's own real, live-found scenario) still reports `true`
+here; that failure surfaces at actual publish/poll time, which is Task 5's concern, not this task's.
+
+`channels.get` also closes a real, small gap while adding the field: it did not exist at all before
+this task, and its tenant-scoping (`channel.tenantId !== ctx.tenantId → NOT_FOUND`) matches `list`'s
+existing behavior — read access is tenant-wide (any signed-in member), not owner-scoped; only
+*mutating* a channel (create/connect/disconnect, gates) is ownership-gated.
+
+### Preconditions
+A real session (Task 1) with a real `tenantId`, submitting a valid `CreateChannelInputSchema` body
+(minus `tenantId`/`ownerUserId`, both server-derived).
+
+### Postconditions
+A successfully created channel always has `ownerUserId` set to a real user id (the creating session's
+`ctx.userId`) when created through a real signed-in session — never silently left null for a
+API-created channel, unlike a pre-Sprint-3/ops-script-created one, which may still degrade to null by
+design. Every channel returned by `list`/`get`/`create` always carries an accurate, freshly-computed
+`hasYoutubeCredential` — never a stale or cached value.
+
+### Failure Modes & Handling
+An 8th-active-channel attempt on the same (tenant, platform) fails at `createChannelWithCapCheck`
+before any row is inserted — verified live (see below): the real row count stayed at exactly 7 after
+the rejected attempt, not 7-then-rolled-back-to-7 or 8-then-deactivated. A cross-tenant `channels.get`
+call reports `NOT_FOUND`, never leaking that a channel with that id exists on a different tenant.
+
+### Real, live verification
+A genuinely fresh tenant was created via Task 4's own `scripts/invite-tenant.ts` (not reused from an
+earlier task's fixtures, to keep the cap count unambiguous). Its real owner's real session created
+seven real channels through the real `channels.create` API, one at a time — a direct Postgres read
+confirmed exactly 7 rows, all `isActive: true`, correct `tenantId`, correct `ownerUserId` (the
+creating session's real user id, not null). An 8th real attempt was rejected with a real, structured
+`400 BAD_REQUEST` carrying `ChannelCapExceededError`'s existing message — a second direct Postgres
+read confirmed the count stayed at exactly 7, no partial/rolled-back row left behind. `hasYoutubeCredential`
+was confirmed `false` via a real `channels.get` call on a freshly created channel, then confirmed
+`true` via the same real `channels.get` call after a real `AgentCredential` row was attached via
+`upsertForChannel` — the exact same repository call Task 5's real `/oauth2callback` route makes
+internally on a successful consent (a full new live browser OAuth round trip for this specific check
+would only re-hit Task 5's own already-documented, already-tracked founder-blocked step, not test
+anything new to this task's own logic). Tenant isolation on the new `channels.get` was also confirmed
+live: a different, genuinely separate tenant's real session got a real `404 NOT_FOUND` for the first
+tenant's channel.
+
+### Reference
+`week5/BUSINESS_LOGIC.md` Section 3 — the 7-channel cap's original enforcement design, unchanged by
+this task. `sprint3/BUSINESS_LOGIC.md`'s Task 2 (K1) and Task 5 (M1-M3) sections — `ownerUserId`
+default and `AgentCredential` existence, both directly consumed here. Task 4's own
+`scripts/invite-tenant.ts` — reused directly to get a clean, isolated tenant for the cap-boundary
+test, rather than reusing a fixture tenant with an ambiguous pre-existing channel count.

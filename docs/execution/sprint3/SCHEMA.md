@@ -257,6 +257,13 @@ decodes to 131 raw bytes (12-byte IV + 16-byte auth tag + ~103 ciphertext bytes 
 real Google refresh token's length, not a fixed/dummy size), and (c) decrypts back to the exact
 original plaintext via the repository's real decrypt path.
 
+## Task 6 — No schema changes (N1/N2)
+
+`Channel`, `CreateChannelInputSchema`, and `AgentCredential` are all unchanged — every piece this task
+needed (the cap-check function, the input schema, the credential-existence lookup) already existed
+from Tasks 2/5 and Sprint 1. `hasYoutubeCredential` is a derived field computed at query time
+(`api/routers/channels.ts`'s `withHasYoutubeCredential`), not a column — no migration.
+
 ## Reference
 - `docs/execution/sprint2/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference

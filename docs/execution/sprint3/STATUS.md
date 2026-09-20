@@ -1,6 +1,7 @@
 # Sprint 3 Status: Multi-User / Application Layer
 
-**Sprint status**: Tasks 1-5 done (Task 5 leaves one real founder-action item — see below). Task 1 built the foundation every other Sprint 3 task threads a
+**Sprint status**: All 6 tasks done — Sprint 3 is closed, with one real founder-action item carried
+forward (Task 5, see below). Task 1 built the foundation every other Sprint 3 task threads a
 real signed-in user/tenant through: a real `User` table with a concrete Tenant↔User relationship
 decision (one `Tenant` = one account, a `User` belongs to exactly one `Tenant`, two roles), real
 magic-link session auth replacing the single shared `API_AUTH_TOKEN` as the app's primary auth path
@@ -35,7 +36,10 @@ what's reached — but also surfaced a real, external fact unrelated to this tas
 existing refresh token is expired/revoked at Google's own end (independently confirmed via a direct
 call to Google's token endpoint), so the task's own "a real publish and stats poll succeed" criterion
 isn't provable yet. One real founder action (a fresh Google consent via the new flow) is expected to
-close this with no further code changes.
+close this with no further code changes. Task 6 closed the sprint: `channels.create` (real, real
+7-channel cap exercised live for the first time against real app-created channels, not just a unit
+test) and a derived `hasYoutubeCredential` field on `list`/the new `get` — both fully verified live,
+no open items of their own.
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -46,9 +50,11 @@ close this with no further code changes.
 
 | 5 | Per-Channel YouTube OAuth — `AgentCredential` + Real Connect Flow | Done — one real founder-action item remains | Claude Code / **Founder** | M1: `AgentCredential` table (migration `sprint3_agent_credentials`), AES-256-GCM encryption at rest (`models/credential-crypto.ts`, keyed off new `CREDENTIAL_ENCRYPTION_KEY`), `agent-credential.repository.ts` (`findByChannel`/`upsertForChannel`/`deleteForChannel`/`findDecryptedRefreshTokenForChannel`). M2: real in-app connect flow — `channels.getYoutubeConnectUrl` (session + ownership-checked via Task 2's `canResolveGate`, reused directly) builds the real Google consent URL with the target `channelId` signed into OAuth's `state` (a new `purpose: 'oauth-state'` JWT, same discriminator pattern as Task 1's magic-link/session tokens); `GET /oauth2callback` exchanges the code and stores the credential; `channels.disconnectYoutube` removes it — replaces the old one-time `scripts/youtube-oauth.ts` terminal script entirely. M3: all three YouTube client modules (`agents/publishing/youtube-client.ts`, `agents/performance-analytics/youtube-stats-client.ts`/`youtube-analytics-client.ts`) migrated off `env.YOUTUBE_REFRESH_TOKEN` onto per-channel `AgentCredential` lookups — structurally, no code path reads the old env var for a real call anymore. `scripts/migrate-founder-youtube-credential.ts` moved the founder's own existing token into a real `AgentCredential` row for their channel. **Real, live verification**: M1 — a direct raw-SQL column read (bypassing the repository's own decrypt path) confirmed genuine ciphertext (131 decoded bytes, no plaintext substring), and the repository's real decrypt path recovered the exact original token. M2 — a real session-authenticated call produced a real, correctly-scoped Google consent URL; navigating to it in a real browser reached Google's actual, correctly-app-identified consent screen. M3 — a complete real pipeline run (real LLM/TTS/video-assembly calls, both gates approved) was driven to `publishing` with `YOUTUBE_REFRESH_TOKEN` genuinely unset (confirmed via the real env-injection log line dropping from 17 to 16 vars); the publish correctly reached Google via the migrated per-channel credential (the only code path left) but hit a real `invalid_grant` — independently confirmed, via a raw call straight to Google's own token endpoint outside this project's code, that the founder's actual token is expired/revoked at Google's end, not a bug in this task. The identical real error/cause was confirmed on the stats-poll path too. **The task's own core claim ("a real publish and stats poll succeed with the env var unset") is honestly not provable yet** — closing it needs one real founder action (a fresh Google consent via the new M2 flow), tracked as a founder-action item, not a code gap. See `reports/task5.md`. |
 
+| 6 | Channel #2/#3 Expansion — Real Channel Creation | Done | Claude Code | N1: `channels.create` (new mutation) — `tenantId` always `ctx.tenantId` (never client-supplied), `ownerUserId` defaults to `ctx.userId` (the ops fallback leaves it unset, degrading correctly). Calls the existing, unchanged `createChannelWithCapCheck`; a `ChannelCapExceededError` is caught and re-thrown as a structured `TRPCError({code:'BAD_REQUEST'})`. `list` was checked (not assumed) to already read `ctx.tenantId` — Task 1/J3 had already caught it, confirmed by reading the file first, no fix needed. N2: `list` and a new `get` (didn't exist before this task, tenant-scoped the same way `list` is) both gained a derived `hasYoutubeCredential: boolean` via a shared `withHasYoutubeCredential` helper — a plain existence check against Task 5's `agent_credentials` table. **Real, live verification**: a genuinely fresh, isolated tenant (via Task 4's `invite-tenant.ts`) had 7 real channels created through the real API one at a time — a direct Postgres read confirmed exactly 7 rows, all active, correct `tenantId`/`ownerUserId`. An 8th real attempt got a real, structured `400 BAD_REQUEST` with the existing cap-error message; a second direct read confirmed the count stayed at exactly 7, no partial row left behind. `hasYoutubeCredential` was confirmed `false` then `true` via two real `channels.get` calls, before and after a real `AgentCredential` row was attached via `upsertForChannel` (the same call Task 5's real `/oauth2callback` route makes internally — re-attempting Task 5's own already-documented, founder-blocked live browser consent here would only re-hit that same known blocker, not test anything new to this task). Tenant isolation on the new `get` was also confirmed live: a genuinely separate tenant's real session got a real `404 NOT_FOUND` for the first tenant's channel. See `reports/task6.md`. |
+
 ## Full detail
 Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `reports/task4.md`,
-`reports/task5.md`.
+`reports/task5.md`, `reports/task6.md`.
 
 ## Open items closed by Task 1
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "No `User` model exists at all" item — **closed**.
@@ -74,6 +80,12 @@ Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `r
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "Per-user YouTube credentials" item —
   **closed, with one real founder-action item remaining** (see below and
   `KNOWN_ISSUES_AND_BLOCKERS.md` §1).
+
+## Open items closed by Task 6
+- `SPRINT_ROADMAP.md`'s Sprint 3 "Channel #2/#3 expansion (deferred from Sprint 1)" item — **closed**.
+- `week5/SPRINT1_PENDING.md`'s "7-channel cap has no automated test [against real DB fixtures]" line
+  — **closed** (real, live exercise against a real API caller and real DB fixtures, not another unit
+  test of the pure function).
 
 ## Open items carried forward
 - **Run/channel creation-time tenant ownership isn't checked** — `runs.create` validates the target

@@ -54,11 +54,17 @@ burn first impressions Sprint 3 can't get back.
 
 ---
 
-## Sprint 3 — Multi-User / Application Layer
+## Sprint 3 — Multi-User / Application Layer — CLOSED (2026-09-20)
 
 `MVP_PART2` §1 in full: real `User` table, per-user YouTube OAuth (off env vars), per-tenant budget
 enforcement, gate ownership, per-user notification routing. Channel #2/#3 expansion (deferred from
-Sprint 1, above) naturally lands here too, since multi-channel becomes the default shape.
+Sprint 1, above) naturally lands here too, since multi-channel becomes the default shape — **closed**
+by Task 6: a real `channels.create` mutation exercises the existing 7-channel cap for the first time
+against real app-created channels (previously verified only by code review and a pure-function unit
+test), with a derived `hasYoutubeCredential` field surfacing Task 5's connection state. See
+`docs/execution/sprint3/STATUS.md` and `docs/execution/sprint3/reports/task6.md`. One real
+founder-action item carries forward (Task 5 — a fresh YouTube OAuth consent needed; see
+`docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1).
 
 **Why after Sprint 2, not before**: bigger lift, higher risk, and what you hand to 10 people is a
 better product after Sprint 2 lands first.
