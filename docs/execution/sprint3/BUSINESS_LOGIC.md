@@ -296,3 +296,108 @@ Console check to confirm the actual numbers match the assumed defaults, not a bl
 seeding feeds, also unchanged. `week1/reports/task7-youtube-setup.md` — the "don't discover the
 ceiling live, file early" lesson this task's own L2 applies proactively (concluding, this time, that
 early filing isn't actually warranted by the real numbers).
+
+## Task 5 — Per-channel YouTube OAuth: `AgentCredential` + real connect flow (M1-M3)
+
+### What this task implements
+Three previously-independent `getOAuthClient()` functions (`agents/publishing/youtube-client.ts`,
+`agents/performance-analytics/youtube-stats-client.ts`, `.../youtube-analytics-client.ts`) each move
+from reading a single, shared `env.YOUTUBE_REFRESH_TOKEN` to resolving a real, per-channel,
+encrypted `AgentCredential` row via `findDecryptedRefreshTokenForChannel(channelId)`. No new
+`PipelineRun`/`PipelineStage` states — `runPublishingStage` and Performance Analytics' poll function
+each gain one new lookup ahead of their existing YouTube-calling logic; every existing transition and
+failure-classification path (`mapGoogleError`, `classifyAnalyticsError`) is unchanged, only where the
+credential itself comes from changes. `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET` stay env vars —
+they identify the shared OAuth **application**, not a per-channel token.
+
+**M2 — a real in-app connect flow replaces the one-time CLI script.** `channels.getYoutubeConnectUrl`
+(session-authenticated, ownership-checked via Task 2's own `canResolveGate` — reused directly, not
+reimplemented, since connecting a credential is at least as sensitive as resolving a gate) builds the
+same `generateAuthUrl` call `scripts/youtube-oauth.ts` already used (`youtube.upload`,
+`youtube.readonly`, `access_type: offline`, `prompt: consent`), with the target `channelId` encoded
+into OAuth's `state` parameter as a signed, short-lived (10 min) JWT — a new `purpose: 'oauth-state'`
+token sharing `JWT_SECRET` with the existing magic-link/session tokens but never interchangeable with
+either, same `purpose`-discriminator convention Task 1 (J2) established. `GET /oauth2callback`
+(exempted from the session-auth hook, since a real Google redirect can never carry our own
+`Authorization` header) verifies the state token and calls `upsertForChannel`. `channels.disconnectYoutube`
+(same ownership check) calls `deleteForChannel` — the design doc's own explicit "clear disconnect path"
+requirement, which existed in no form before this task.
+
+### Preconditions
+A channel attempting a real (non-stub) publish or stats poll must have a real `AgentCredential` row —
+a channel created without one fails the same way `getOAuthClient()` already failed today for missing
+env vars, just scoped per-channel now instead of globally (Task 6/O covers surfacing this state to
+the UI).
+
+### Postconditions
+`uploadVideoViaProvider`/`fetchVideoStats`/`fetchRetentionCurve` always resolve their `OAuth2Client`
+from a specific channel's own credential — there is no code path left that reads
+`env.YOUTUBE_REFRESH_TOKEN` inside any of the three client modules once this task lands (the env var
+itself stays declared in `config/env.ts` only because `scripts/migrate-founder-youtube-credential.ts`
+still reads it, once, for the migration itself).
+
+### Failure Modes & Handling
+A channel with no `AgentCredential` row fails with a clear, specific `NonTransientStageError` ("has no
+connected YouTube account") — never a generic auth error. Verified live in the mocked-client test
+suite (`youtube-client.test.ts`'s new "throws a clear, specific error..." case) and structurally: the
+new code path has no fallback to fall back *to*.
+
+### Real, live verification — and a real, external finding that changes what M2/M3 could prove
+
+**M1 (encryption at rest) — fully verified live, PASS.** The founder's own real
+`YOUTUBE_REFRESH_TOKEN` was migrated via `scripts/migrate-founder-youtube-credential.ts` into a real
+`AgentCredential` row for their channel (`5c6312d5-...`). A direct raw-SQL read of
+`refreshTokenEncrypted` (bypassing the repository entirely) confirmed genuine ciphertext — see
+`sprint3/SCHEMA.md`'s Task 5 section for the exact byte-level detail. The repository's own decrypt
+path (`findDecryptedRefreshTokenForChannel`) was separately confirmed to recover the *exact* original
+plaintext token.
+
+**M2 (real browser OAuth round trip) — connect-URL generation verified live and correct; the actual
+consent completion is founder-blocked, confirmed live, not assumed.** A real session token was signed
+for a real second tenant's real owner user, used to call the real `channels.getYoutubeConnectUrl`
+query against a running dev server, and produced a real, correctly-shaped Google consent URL: correct
+`client_id`, correct two scopes, correct signed `state`, `redirect_uri` matching `.env.local`.
+Navigating to that exact URL in a real browser reached Google's real, live consent screen —
+`"Sign in to continue to 7AI"` — confirming the app identity and OAuth wiring are genuinely correct
+end-to-end up to that point. **Completing the round trip requires a real human to sign in with a real
+Google account and click Allow** — categorically something this agent must not do on the founder's
+behalf (entering account credentials is out of scope regardless of who's asked). This is the same
+"confirm the blocker live, don't assume it" posture Task 4's L2 already established for the Cloud
+Console check.
+
+**M3 (the env-var-retirement regression check) — the code migration is fully verified; the task's own
+core claim ("a real publish and a real stats poll succeed with the env var unset") is honestly **not**
+provable right now, for a real, external, non-code reason.** A complete real pipeline run (real
+Anthropic script-gen/review calls, real OpenAI TTS, real video assembly, both gates approved) was
+driven all the way to `publishing`, with `YOUTUBE_REFRESH_TOKEN` genuinely commented out of
+`.env.local` for the whole run (confirmed by `dotenvx`'s own "injected env (16)" log line, one fewer
+than the usual 17). The publish correctly reached Google using the migrated, decrypted, per-channel
+credential — there is no other code path it could have reached, since M3 removed the env-var read
+entirely — but failed with a real Google `invalid_grant` / *"Token has been expired or revoked."*
+error. **Independently confirmed, outside this project's own code entirely**: a raw `curl` POST of the
+founder's exact plaintext refresh token straight to `https://oauth2.googleapis.com/token` produced the
+identical `invalid_grant` response. This proves the failure is a genuinely expired/revoked credential
+at Google's own end (most likely: this OAuth client is still in Google's "Testing" publishing status,
+where test-user refresh tokens expire after a fixed window) — **not** a bug in this task's migration,
+and not evidence the new `AgentCredential` path doesn't work. The identical real error, for the
+identical real reason, was also confirmed on the stats-poll path (`runPeriodicPoll` against the same
+channel). Because the failure occurs at the OAuth token-refresh step itself (`OAuth2Client.refreshTokenNoCache`,
+confirmed from the real stack trace), **no request ever reached YouTube's actual upload endpoint** —
+no real video was uploaded as a side effect of this test.
+
+**What this leaves open, honestly**: the task's own success criterion #3 ("a real publish and a real
+stats poll... both succeed") is not met today. What *is* proven: the new path is genuinely what's
+reached (structurally, not just "probably" — the old code no longer exists), the correct
+channel-specific credential is correctly resolved and decrypted, and the one remaining blocker (a
+fresh, valid refresh token) requires the exact same founder action M2 is already blocked on — a real
+human completing Google's consent screen once, for the founder's own channel, via the new M2 browser
+flow this task just built. No further code changes are anticipated to be needed once that happens;
+this is tracked as a founder-action item, not a code gap, in `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+
+### Reference
+`week1/SCHEMA.md`/`week4/SCHEMA.md`'s original `AgentCredential` deferral note — this task is that
+deferred work. `sprint3/BUSINESS_LOGIC.md`'s own Task 1 (J2) `purpose`-discriminator JWT pattern,
+reused verbatim for the new `oauth-state` token type. Task 2 (K1)'s `canResolveGate` — reused
+directly (not reimplemented) for M2's connect/disconnect ownership check. Task 4's L2 — the
+established "confirm a founder-only blocker live via the Browser tool, don't assume it" precedent
+this task's M2/M3 verification both follow.

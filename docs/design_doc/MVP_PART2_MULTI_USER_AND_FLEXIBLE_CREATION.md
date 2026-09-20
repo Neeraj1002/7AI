@@ -127,11 +127,25 @@ is everything *around* the data model.
   tenant, a same-tenant non-owner, and an ownerless channel. Run/channel *creation*-time tenant
   ownership is a distinct, still-open gap (see `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §3). See
   `docs/execution/sprint3/reports/task2.md`.
-- **Per-user YouTube credentials — decided above, still the biggest single piece of work.**
-  `YOUTUBE_REFRESH_TOKEN` is a single env var today, meaning every run publishes to *your* YouTube
-  channel. Needs OAuth tokens to move from env vars to encrypted per-Channel storage in the DB, with a
-  real OAuth connect flow per user (`google-auth-library` is already a dependency — the library
-  groundwork exists, this is mostly flow + storage work, not a new integration from scratch).
+- **Per-user YouTube credentials — decided above, was the biggest single piece of work. Picked up by
+  Sprint 3 Task 5 (M1-M3).**
+
+  **Closed, with one real founder-action item remaining.** A real `AgentCredential` table (encrypted
+  at rest, AES-256-GCM), a real in-app connect flow (`channels.getYoutubeConnectUrl` →
+  `/oauth2callback`, replacing the old one-time `scripts/youtube-oauth.ts` terminal script) with a
+  real disconnect path (`channels.disconnectYoutube`), and all three YouTube client modules
+  (Publishing, Performance Analytics' stats + retention-curve fetches) migrated off the single shared
+  `env.YOUTUBE_REFRESH_TOKEN` onto real per-channel lookups — there is no code path left that reads
+  the old env var for a real publish or stats poll. Encryption verified live via a direct raw-column
+  DB read (genuine ciphertext, not the plaintext re-encoded). The connect flow's URL generation and
+  Google-side wiring verified live (a real browser reached Google's actual consent screen, correctly
+  identifying the app and scopes). **What's not yet proven live**: a real publish/stats-poll actually
+  succeeding through the new path end-to-end — blocked on a real, external fact found during this
+  task's own verification (the founder's existing refresh token is expired/revoked at Google's end,
+  confirmed independently via a direct call to Google's own token endpoint, unrelated to this task's
+  code). Closing this needs one real founder action: complete a fresh Google consent through the new
+  in-app flow. See `docs/execution/sprint3/reports/task5.md` and
+  `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1.
 - **Budget fairness across tenants — now required, see Section 0.**
 
 ---

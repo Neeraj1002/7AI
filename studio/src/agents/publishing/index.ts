@@ -114,7 +114,7 @@ export async function extractCoverFrame(params: {
 // uploadVideo, not folded into it: the caller (state-machine.ts) isolates
 // this call's failure from the upload's own success/failure, so it needs
 // its own call site to wrap independently.
-export async function setThumbnail(params: { youtubeVideoId: string; imagePath: string }): Promise<void> {
+export async function setThumbnail(params: { channelId: string; youtubeVideoId: string; imagePath: string }): Promise<void> {
   if (env.YOUTUBE_STUB === '1') {
     return stubSetThumbnail(params);
   }

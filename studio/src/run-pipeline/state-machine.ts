@@ -1185,7 +1185,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
     const attemptUploadOnce = async (): Promise<UploadResult> =>
-      uploadVideo({ videoPath, metadata, privacyStatus, containsSyntheticMedia });
+      uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Sprint 2 Task 5 (H1) — best-effort, isolated follow-up: the video is
@@ -1204,7 +1204,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
           durationSeconds,
           coverFrameTimestampRatio: metadata.coverFrameTimestampRatio,
         });
-        await setThumbnail({ youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
+        await setThumbnail({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
         coverFrameSet = true;
       } catch (error) {
         console.error(

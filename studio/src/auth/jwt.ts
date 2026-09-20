@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import type { UserRole } from '../types';
-import type { MagicLinkTokenPayload, SessionTokenPayload } from './types';
+import type { MagicLinkTokenPayload, SessionTokenPayload, OAuthStateTokenPayload } from './types';
 
 // Sprint 3 Task 1 (J2) — the only file allowed to touch `jsonwebtoken`
 // directly, same provider-boundary pattern every external-integration
@@ -16,6 +16,13 @@ const MAGIC_LINK_TTL_SECONDS = 15 * 60;
 // link, not a real security incident if a session outlives its usefulness
 // by a few days.
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
+// Sprint 3 Task 5 (M2) — long enough for a real human to complete Google's
+// real consent screen (read the permissions, maybe switch Google accounts
+// first), short enough that a leaked/logged authUrl stops being useful
+// quickly. Not spec'd exactly by the task; 10 minutes matches the same
+// order of magnitude as the magic-link TTL above for a comparable
+// "complete this real external step promptly" window.
+const OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
 export function isAuthConfigured(): boolean {
   return Boolean(env.JWT_SECRET);
@@ -60,6 +67,20 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
   try {
     const decoded = jwt.verify(token, requireSecret()) as SessionTokenPayload;
     return decoded.purpose === 'session' ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+export function signOAuthStateToken(params: { channelId: string; userId: string }): string {
+  const payload: OAuthStateTokenPayload = { purpose: 'oauth-state', channelId: params.channelId, userId: params.userId };
+  return jwt.sign(payload, requireSecret(), { expiresIn: OAUTH_STATE_TTL_SECONDS });
+}
+
+export function verifyOAuthStateToken(token: string): OAuthStateTokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, requireSecret()) as OAuthStateTokenPayload;
+    return decoded.purpose === 'oauth-state' ? decoded : null;
   } catch {
     return null;
   }

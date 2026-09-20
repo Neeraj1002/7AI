@@ -17,6 +17,18 @@ export type SessionTokenPayload = {
   role: UserRole;
 };
 
+// Sprint 3 Task 5 (M2) — carried as OAuth's own `state` parameter, so
+// /oauth2callback (hit by a real Google redirect, never carrying our own
+// Authorization header) knows which channel this consent belongs to and
+// that the original request was genuinely made by an authorized session —
+// without relying on session/cookie continuity across the Google redirect,
+// which a mobile app's in-app browser doesn't reliably preserve.
+export type OAuthStateTokenPayload = {
+  purpose: 'oauth-state';
+  channelId: string;
+  userId: string;
+};
+
 export type Session = {
   userId: string;
   tenantId: string;

@@ -47,6 +47,17 @@ const EnvSchema = z.object({
   // real public origin once this is actually deployed somewhere testers can
   // reach.
   PUBLIC_API_BASE_URL: z.string().optional(),
+  // Sprint 3 Task 5 (M1) — 32 raw bytes, base64-encoded, the AES-256-GCM key
+  // encrypting every AgentCredential.refreshTokenEncrypted at rest. No
+  // insecure default, same posture as JWT_SECRET — a real per-channel OAuth
+  // refresh token is exactly the kind of secret this project's own design
+  // doc calls out as needing "real security handling... encrypted at rest."
+  // Generate with:
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  // Required for real (non-stub) OAuth connect/publish/stats-poll paths —
+  // models/credential-crypto.ts throws a clear error if unset rather than
+  // falling back to a guessable key.
+  CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
   // Week 4 Task 1 (studio/src/stock-footage/) — real stock-footage search/download.
   PEXELS_API_KEY: z.string().optional().default(''),
   // Testing-only: when '1', studio/src/stock-footage/ uses a stub instead of a

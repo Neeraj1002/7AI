@@ -6,6 +6,7 @@ import { appRouter } from './router';
 import { createContext } from './trpc';
 import { registerVideoRoute } from './video-route';
 import { requestMagicLink, verifyMagicLink, resolveRequestIdentity, isAuthConfigured } from '../auth';
+import { exchangeYoutubeAuthCode } from '../manage-channels/youtube-oauth-connect';
 
 // Frontend track Task 1 — studio/src/api/. The orchestrator process's HTTP
 // surface, not a separate service (task1.md's own "Owning Component" note):
@@ -46,7 +47,17 @@ export async function startApiServer(): Promise<void> {
   // auth/request-identity.ts, shared with api/trpc.ts's createContext so
   // the two can't drift out of sync.
   fastify.addHook('onRequest', async (request, reply) => {
-    if (request.url === '/health' || request.method === 'OPTIONS' || request.url.startsWith('/auth/')) return;
+    // Sprint 3 Task 5 (M2) — /oauth2callback is hit by a real Google
+    // redirect, which can never carry our own Authorization header;
+    // authorization comes entirely from the signed `state` parameter
+    // (auth/jwt.ts's OAuth-state token) verified inside the handler itself.
+    if (
+      request.url === '/health' ||
+      request.method === 'OPTIONS' ||
+      request.url.startsWith('/auth/') ||
+      request.url.startsWith('/oauth2callback')
+    )
+      return;
 
     const identity = resolveRequestIdentity(request.headers.authorization);
     if (identity.kind === 'unauthenticated') {
@@ -89,6 +100,30 @@ export async function startApiServer(): Promise<void> {
     }
     return reply.send({ sessionToken: result.sessionToken, session: result.session });
   });
+
+  // Sprint 3 Task 5 (M2) — Google's own real redirect target. A plain
+  // browser-facing route (not tRPC — a JSON-RPC shape doesn't fit "Google
+  // redirects a browser here"), same posture video-route.ts's own comment
+  // already established for why streaming/redirect endpoints stay REST.
+  // Returns plain text (not JSON) since a human is looking at this tab, not
+  // an API consumer.
+  fastify.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
+    '/oauth2callback',
+    async (request, reply) => {
+      const { code, state, error } = request.query;
+      if (error) {
+        return reply.code(400).type('text/plain').send(`Connection cancelled or failed: ${error}. You can close this tab.`);
+      }
+      if (!code || !state) {
+        return reply.code(400).type('text/plain').send('Missing code or state — this link is invalid. Close this tab and try connecting again from the app.');
+      }
+      const result = await exchangeYoutubeAuthCode({ code, state });
+      if (!result.ok) {
+        return reply.code(400).type('text/plain').send(result.error);
+      }
+      return reply.type('text/plain').send('Connected! You can close this tab and return to the app.');
+    },
+  );
 
   await registerVideoRoute(fastify);
 

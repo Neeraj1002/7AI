@@ -151,11 +151,36 @@ model Channel {
   usageEvents          UsageEvent[]
   performanceSnapshots PerformanceSnapshot[]
   notifications        Notification[]
+  agentCredential      AgentCredential?
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
   @@index([ownerUserId], map: "idx_channels_owner")
   @@map("channels")
+}
+
+// Sprint 3 Task 5 (M1) — AGENT_FLEET_DESIGN.md §6.2's own original naming.
+// week1/SCHEMA.md's own deferral note: "a Week 2+ task once a second
+// channel makes env-var-per-channel unworkable — still one channel, so
+// still not yet." This is that deferred work, picked up on schedule.
+// refreshTokenEncrypted is base64(iv || authTag || ciphertext) — AES-256-GCM
+// via Node's built-in crypto, no new dependency (models/credential-crypto.ts).
+// encryptionKeyVersion defaults to 1 so a future key rotation can identify
+// which key encrypted a given row without forcing every channel to
+// re-consent at once.
+model AgentCredential {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId              String   @unique @db.Uuid
+  platform               String   @db.VarChar(20)
+  refreshTokenEncrypted  String   @db.Text
+  encryptionKeyVersion   Int      @default(1)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@unique([channelId, platform])
+  @@map("agent_credentials")
 }
 
 // Sprint 3 Task 3 (K2) — the real in-app notification channel

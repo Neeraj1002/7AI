@@ -22,6 +22,19 @@ vi.mock('google-auth-library', () => {
   return { OAuth2Client: MockOAuth2Client };
 });
 
+// Sprint 3 Task 5 (M3) — getOAuthClient now resolves a real per-channel
+// AgentCredential via this repository function; mocked here so these tests
+// stay DB-free, same as they were before M3 (a real fake channelId, since
+// what matters for these tests is the request construction, not real
+// credential resolution — that's credential-crypto.test.ts's and Task 5's
+// own live-verification job).
+const findDecryptedRefreshTokenForChannelMock = vi.hoisted(() => vi.fn());
+vi.mock('../../models/repositories/agent-credential.repository', () => ({
+  findDecryptedRefreshTokenForChannel: findDecryptedRefreshTokenForChannelMock,
+}));
+
+const TEST_CHANNEL_ID = '00000000-0000-0000-0000-0000000000c1';
+
 // Week 5 Task 4 (C4) — this exact classification was flagged in
 // youtube-client.ts's own comment as "verified only by manual testing" (Week
 // 5 Task 2's report). Turns that into a real, repeatable regression test.
@@ -79,6 +92,8 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
   beforeEach(async () => {
     requestMock.mockReset();
     requestMock.mockResolvedValue({ data: { id: 'mock-video-id' } });
+    findDecryptedRefreshTokenForChannelMock.mockReset();
+    findDecryptedRefreshTokenForChannelMock.mockResolvedValue('mock-refresh-token');
     videoPath = path.join(os.tmpdir(), `7ai-youtube-client-test-${Date.now()}.mp4`);
     await fs.writeFile(videoPath, Buffer.from('fake mp4 bytes for a mocked-client test, never actually uploaded'));
   });
@@ -93,6 +108,7 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
 
   it('sets containsSyntheticMedia: true on the real request for an ai-stills upload', async () => {
     await uploadVideoViaProvider({
+      channelId: TEST_CHANNEL_ID,
       videoPath,
       metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
       privacyStatus: 'private',
@@ -103,12 +119,26 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
 
   it('sets containsSyntheticMedia: false on the real request for a stock-footage upload', async () => {
     await uploadVideoViaProvider({
+      channelId: TEST_CHANNEL_ID,
       videoPath,
       metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
       privacyStatus: 'private',
       containsSyntheticMedia: false,
     });
     expect(extractRequestMetadata().status.containsSyntheticMedia).toBe(false);
+  });
+
+  it('throws a clear, specific error when the channel has no connected YouTube account', async () => {
+    findDecryptedRefreshTokenForChannelMock.mockResolvedValue(null);
+    await expect(
+      uploadVideoViaProvider({
+        channelId: TEST_CHANNEL_ID,
+        videoPath,
+        metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
+        privacyStatus: 'private',
+        containsSyntheticMedia: false,
+      }),
+    ).rejects.toThrow(/has no connected YouTube account/);
   });
 });
 
@@ -124,12 +154,14 @@ describe('setThumbnailViaProvider (Sprint 2 Task 5, H1 — custom cover frame)',
   beforeEach(async () => {
     requestMock.mockReset();
     requestMock.mockResolvedValue({ data: {} });
+    findDecryptedRefreshTokenForChannelMock.mockReset();
+    findDecryptedRefreshTokenForChannelMock.mockResolvedValue('mock-refresh-token');
     imagePath = path.join(os.tmpdir(), `7ai-youtube-thumbnail-test-${Date.now()}.jpg`);
     await fs.writeFile(imagePath, Buffer.from('fake jpeg bytes for a mocked-client test, never actually uploaded'));
   });
 
   it('POSTs raw image bytes to thumbnails/set with videoId as a query param', async () => {
-    await setThumbnailViaProvider({ youtubeVideoId: 'mock-video-id', imagePath });
+    await setThumbnailViaProvider({ channelId: TEST_CHANNEL_ID, youtubeVideoId: 'mock-video-id', imagePath });
 
     const call = requestMock.mock.calls[0][0] as {
       url: string;
@@ -147,8 +179,8 @@ describe('setThumbnailViaProvider (Sprint 2 Task 5, H1 — custom cover frame)',
 
   it('routes a thumbnails.set failure through the same mapGoogleError classification as upload', async () => {
     requestMock.mockRejectedValue(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }));
-    await expect(setThumbnailViaProvider({ youtubeVideoId: 'mock-video-id', imagePath })).rejects.toBeInstanceOf(
-      TransientStageError,
-    );
+    await expect(
+      setThumbnailViaProvider({ channelId: TEST_CHANNEL_ID, youtubeVideoId: 'mock-video-id', imagePath }),
+    ).rejects.toBeInstanceOf(TransientStageError);
   });
 });

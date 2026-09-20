@@ -185,6 +185,80 @@ no transaction-aware one. `scripts/invite-tenant.ts` calls all three inside one
 
 L2 is a real, live investigation — no code, no schema impact at all.
 
+## Task 5 — `AgentCredential` (M1), a real migration; the Week 1/4 deferral finally picked up
+
+One new table, one real Prisma migration
+(`prisma migrate dev --name sprint3_agent_credentials`):
+
+```prisma
+model AgentCredential {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId             String   @unique @db.Uuid
+  platform              String   @db.VarChar(20)
+  refreshTokenEncrypted String   @db.Text
+  encryptionKeyVersion  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@unique([channelId, platform])
+  @@map("agent_credentials")
+}
+```
+
+```sql
+CREATE TABLE "agent_credentials" ( ... );
+ALTER TABLE "agent_credentials" ADD CONSTRAINT "agent_credentials_platform_check" CHECK ("platform" IN ('youtube'));
+ALTER TABLE "agent_credentials" ADD CONSTRAINT "agent_credentials_channelId_fkey" FOREIGN KEY ("channelId") REFERENCES "channels"("id");
+```
+
+`channelId` carries **both** a field-level `@unique` (required for Prisma's one-to-one
+`Channel.agentCredential AgentCredential?` back-relation) **and** a compound `@@unique([channelId,
+platform])` matching the task's own literal spec — the two coexist fine in Postgres; the field-level
+one is what makes the one-to-one relation valid, the compound one is what the task asked for.
+`platform` reuses the `VarChar(20)` + `CHECK` convention every other constrained-string column in this
+schema uses (`role`, `Notification.kind`, etc.) rather than a native Postgres enum — currently only
+`'youtube'` is valid, same set `Channel.platform` already allows.
+
+`refreshTokenEncrypted` stores `base64(iv(12 bytes) || authTag(16 bytes) || ciphertext)` — AES-256-GCM
+via Node's built-in `crypto` module, no new dependency. `encryptionKeyVersion` (default 1) exists so a
+future key rotation doesn't force re-consenting every channel at once, even though only one key
+version is ever issued by this task.
+
+### `models/credential-crypto.ts` — the only file allowed to touch `CREDENTIAL_ENCRYPTION_KEY`
+`encryptRefreshToken`/`decryptRefreshToken`, keyed off a new required env var
+`CREDENTIAL_ENCRYPTION_KEY` (32 random bytes, base64 — `openssl rand -base64 32`, same "tell the
+founder exactly what to generate and where it goes" treatment `.env.example` gives every other
+credential). Placed in `models/` rather than `agents/publishing/` since Performance Analytics'
+clients need it too, and agents don't import from one another's directories
+(`AGENT_FLEET_DESIGN.md` Principle 5).
+
+### `agent-credential.repository.ts`
+`findByChannel`, `upsertForChannel` (encrypts on write), `deleteForChannel` (M2's disconnect path),
+plus `findDecryptedRefreshTokenForChannel` — one function beyond the task's own literal 3-function
+list, added because M3's three client `getOAuthClient()`s all need "give me channel X's real,
+decrypted token or `null`," and duplicating that decrypt-and-null-check logic three times across
+`agents/publishing/` and `agents/performance-analytics/` would have violated this same schema's own
+DRY convention for repository-owned logic.
+
+### Domain types
+`types/agent-credential.types.ts` — `AgentCredential` (`refreshTokenEncrypted` deliberately **not**
+exposed on the domain type returned to callers outside the repository — only
+`findDecryptedRefreshTokenForChannel`'s plaintext return value is meant to leave this file).
+Re-exported from `types/index.ts`.
+
+### Real verification: a genuine ciphertext, not the plaintext re-encoded
+A real, live encrypt→store→read→decrypt round trip against the founder's actual migrated refresh
+token — see `sprint3/reports/task5.md` for the full detail, including a **direct raw-SQL column
+read** (bypassing the repository's own decrypt path entirely) confirming the stored
+`refreshTokenEncrypted` value: (a) does not contain the real plaintext token as a substring, (b)
+decodes to 131 raw bytes (12-byte IV + 16-byte auth tag + ~103 ciphertext bytes — consistent with a
+real Google refresh token's length, not a fixed/dummy size), and (c) decrypts back to the exact
+original plaintext via the repository's real decrypt path.
+
 ## Reference
 - `docs/execution/sprint2/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference
+- `week1/SCHEMA.md` / `week4/SCHEMA.md` — the original `AgentCredential` deferral note this task
+  finally picks up ("a Week 2+ task once a second channel makes env-var-per-channel unworkable")

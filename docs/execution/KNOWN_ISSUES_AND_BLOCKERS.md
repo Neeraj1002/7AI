@@ -2,14 +2,45 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-19, after Sprint 3 Task 4 (per-tenant budget provisioning + YouTube quota
-headroom check). See `docs/execution/sprint3/reports/task4.md`.
+**Last updated**: 2026-09-20, after Sprint 3 Task 5 (per-channel YouTube OAuth — `AgentCredential` +
+real connect flow). See `docs/execution/sprint3/reports/task5.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
 ---
 
 ## 1. Founder action required (external, blocking)
+
+### Open — M2/M3: complete a real Google OAuth consent to get a fresh, valid per-channel refresh token (Sprint 3 Task 5)
+`AgentCredential` storage, the real in-app connect flow (`channels.getYoutubeConnectUrl` →
+`/oauth2callback`), and all three YouTube client modules' migration off `env.YOUTUBE_REFRESH_TOKEN`
+are all built, migrated, and verified as far as this agent can verify them — but two of the task's
+three real-verification requirements are blocked on the same real, external fact, confirmed live, not
+assumed: **the founder's existing `YOUTUBE_REFRESH_TOKEN` (migrated into their channel's
+`AgentCredential` row) is itself expired or revoked at Google's end.** Confirmed two ways: (1) a real
+publish attempt with the env var genuinely unset reached Google using the migrated credential and got
+a real `invalid_grant` / *"Token has been expired or revoked"* response; (2) independently, a raw
+`curl` POST of the exact plaintext token straight to `https://oauth2.googleapis.com/token` (outside
+this project's code entirely) produced the identical error. Most likely cause: this OAuth client is
+still in Google's "Testing" publishing status, where test-user refresh tokens expire after a fixed
+window, regardless of use. **Founder action**: sign in with your Google account and complete a fresh
+consent — either by re-connecting your own existing channel through the new in-app flow
+(`GET /channels/:id/youtube/connect`, then follow the returned URL — replaces re-running
+`scripts/youtube-oauth.ts` and re-pasting into `.env.local`), or by connecting a genuinely new second
+channel the same way. This agent cannot do this step itself: it requires signing in to a real Google
+account, which is categorically out of scope regardless of authorization. Once done, re-run a real
+publish and a real stats poll (both already coded and ready) to close out Task 5's M3 verification —
+no further code changes are expected to be needed. See `sprint3/reports/task5.md`.
+
+### Open — the YouTube OAuth client's registered redirect URI needs updating once a real deployed callback URL exists (Sprint 3 Task 5)
+M2's real in-app connect flow moves `YOUTUBE_REDIRECT_URI` from `scripts/youtube-oauth.ts`'s dev-only
+`http://localhost:3000/oauth2callback` default to the real deployed API's own `/oauth2callback` route.
+Once a real deployed URL exists, the founder must also update the registered redirect URI in the
+Google Cloud Console's OAuth client settings (APIs & Services → Credentials → this OAuth 2.0 Client
+ID → Authorized redirect URIs) — the same "external console step, hand this off" posture Week 1 Task
+7 and Sprint 3 Task 4/L2 both already use. Not blocking today (local dev still uses the working
+localhost default); blocking only once a real deployment target exists. See
+`sprint3/reports/task5.md`.
 
 ### Open — L2: confirm the real YouTube API quota console numbers match the assumed defaults (Sprint 3 Task 4)
 Not a blocking request — a real, quick verification. Live research (Google's own current developer

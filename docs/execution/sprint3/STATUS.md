@@ -1,6 +1,6 @@
 # Sprint 3 Status: Multi-User / Application Layer
 
-**Sprint status**: Tasks 1-4 done. Task 1 built the foundation every other Sprint 3 task threads a
+**Sprint status**: Tasks 1-5 done (Task 5 leaves one real founder-action item — see below). Task 1 built the foundation every other Sprint 3 task threads a
 real signed-in user/tenant through: a real `User` table with a concrete Tenant↔User relationship
 decision (one `Tenant` = one account, a `User` belongs to exactly one `Tenant`, two roles), real
 magic-link session auth replacing the single shared `API_AUTH_TOKEN` as the app's primary auth path
@@ -23,7 +23,19 @@ investigated YouTube's real API quota headroom — finding the task's own assume
 (a real upload now costs ~1 unit in its own dedicated bucket, not ~1,600 shared units, per a real API
 change in the last year) and concluding no quota increase is needed yet, with the real medium-term
 risk being Performance Analytics' own unbounded polling design, not upload volume.
-**Last updated**: 2026-09-19 (after Task 4)
+**Last updated**: 2026-09-20 (after Task 5). Task 5 moved YouTube OAuth credentials off the single
+`YOUTUBE_REFRESH_TOKEN` env var onto real, encrypted, per-channel `AgentCredential` storage, with a
+real in-app connect/disconnect flow replacing the old one-time CLI script — the biggest single piece
+of Sprint 3. Fully built and verified as far as this agent can verify without a real human completing
+Google's consent screen: a real encrypt→store→read→decrypt round trip confirmed genuine ciphertext at
+rest; the real connect-URL flow reached Google's actual, correctly-identified consent screen; all
+three YouTube client modules structurally can no longer read the old env var. A real, live regression
+run (full real pipeline, `YOUTUBE_REFRESH_TOKEN` genuinely unset) proved the new per-channel path is
+what's reached — but also surfaced a real, external fact unrelated to this task's code: the founder's
+existing refresh token is expired/revoked at Google's own end (independently confirmed via a direct
+call to Google's token endpoint), so the task's own "a real publish and stats poll succeed" criterion
+isn't provable yet. One real founder action (a fresh Google consent via the new flow) is expected to
+close this with no further code changes.
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -32,8 +44,11 @@ risk being Performance Analytics' own unbounded polling design, not upload volum
 | 3 | Per-User Notification Routing | Done | Claude Code | K2: `Notification`/`telegram_link_codes` tables (migration `sprint3_notifications_and_telegram_linking`), the founder's own real `telegramChatId` carried over from `env.TELEGRAM_FOUNDER_CHAT_ID` in the same migration. A real `InAppFounderChannel` (writes `Notification` rows) plus `composeFounderChannel` (in-app always, Telegram only if linked) — `pending-approvals.ts` extracted so any number of channels/recipients share one pending-approval promise per `threadKey`, "first reply wins" for free. `resolveNotificationRecipients` mirrors K1's own fail-closed design for *who gets told*, not just who may resolve. A real `/link <code>` flow (`TelegramLinkCode`, `notifications.createTelegramLinkCode`/`unlinkTelegram`/`list`). **Real, live verification**: a gate for an unlinked user produced a real in-app-only `Notification` row, resolved via the API alone, `resolvedAt` set automatically; a real `/link` flow (simulated Telegram input) set a real `telegramChatId`, confirmed by a direct DB read; the founder's own real gate1 flow (real Telegram message + real simulated reply) now also writes a real in-app row that gets marked resolved via the *Telegram* path, proving cross-channel resolution actually works, not just same-channel. **Two real, live-found problems, both fixed within this task**: (1) a `/link` reply-send failure could crash the whole message handler even after the real DB write had already succeeded — fixed with a `safeReply` helper used everywhere in the handler; (2) `auth/magic-link.ts` previously relayed *every* user's login link to the founder's own Telegram — fixed to route to the requester's own linked chat instead. See `reports/task3.md`. |
 | 4 | Per-Tenant Budget Provisioning + YouTube Quota Headroom Check | Done — L2 verification item | Claude Code / **Founder (L2)** | L1: `scripts/invite-tenant.ts` creates a real `Tenant` + owning `User`(`owner`) + `AgentQuota` (default $2.00/day, reusing the founder's own original, still-unconfirmed figure) in one `prisma.$transaction` — no tenant is ever left without a budget row. New `insertTenant`/transaction-capable `insertUser`/`insertAgentQuota` repository functions. **Real, live verification**: a genuinely new tenant (created via the real script) got a real `AgentQuota` row confirmed by direct Postgres read; that tenant's real owner logged in via a real magic link and submitted a real brief through the real API, which passed the real budget gate at `script_generation` (a real LLM call happened, no stub) and reached a genuine pending `gate1`, resolved by that same real owner — incidentally re-confirming Tasks 2/3's ownership and notification logic for a third independent tenant. L2: a real, live investigation (no code). Found the task's own assumed YouTube quota cost model was stale — `videos.insert` now costs ~1 unit in its own dedicated 100-calls/day bucket (a real API change in the last year, verified directly against Google's current developer docs), not ~1,600 shared units. Real estimate at a ~10-tester cadence shows comfortable near-term headroom; the real medium-term risk is Performance Analytics' own unbounded "poll every historical published video forever" design, not upload volume. This project's actual Cloud Console quota numbers couldn't be checked live (requires the founder's own Google login, confirmed no session exists) — a real, quick verification item tracked as a founder action, not a blocking quota-increase request. See `reports/task4.md`. |
 
+| 5 | Per-Channel YouTube OAuth — `AgentCredential` + Real Connect Flow | Done — one real founder-action item remains | Claude Code / **Founder** | M1: `AgentCredential` table (migration `sprint3_agent_credentials`), AES-256-GCM encryption at rest (`models/credential-crypto.ts`, keyed off new `CREDENTIAL_ENCRYPTION_KEY`), `agent-credential.repository.ts` (`findByChannel`/`upsertForChannel`/`deleteForChannel`/`findDecryptedRefreshTokenForChannel`). M2: real in-app connect flow — `channels.getYoutubeConnectUrl` (session + ownership-checked via Task 2's `canResolveGate`, reused directly) builds the real Google consent URL with the target `channelId` signed into OAuth's `state` (a new `purpose: 'oauth-state'` JWT, same discriminator pattern as Task 1's magic-link/session tokens); `GET /oauth2callback` exchanges the code and stores the credential; `channels.disconnectYoutube` removes it — replaces the old one-time `scripts/youtube-oauth.ts` terminal script entirely. M3: all three YouTube client modules (`agents/publishing/youtube-client.ts`, `agents/performance-analytics/youtube-stats-client.ts`/`youtube-analytics-client.ts`) migrated off `env.YOUTUBE_REFRESH_TOKEN` onto per-channel `AgentCredential` lookups — structurally, no code path reads the old env var for a real call anymore. `scripts/migrate-founder-youtube-credential.ts` moved the founder's own existing token into a real `AgentCredential` row for their channel. **Real, live verification**: M1 — a direct raw-SQL column read (bypassing the repository's own decrypt path) confirmed genuine ciphertext (131 decoded bytes, no plaintext substring), and the repository's real decrypt path recovered the exact original token. M2 — a real session-authenticated call produced a real, correctly-scoped Google consent URL; navigating to it in a real browser reached Google's actual, correctly-app-identified consent screen. M3 — a complete real pipeline run (real LLM/TTS/video-assembly calls, both gates approved) was driven to `publishing` with `YOUTUBE_REFRESH_TOKEN` genuinely unset (confirmed via the real env-injection log line dropping from 17 to 16 vars); the publish correctly reached Google via the migrated per-channel credential (the only code path left) but hit a real `invalid_grant` — independently confirmed, via a raw call straight to Google's own token endpoint outside this project's code, that the founder's actual token is expired/revoked at Google's end, not a bug in this task. The identical real error/cause was confirmed on the stats-poll path too. **The task's own core claim ("a real publish and stats poll succeed with the env var unset") is honestly not provable yet** — closing it needs one real founder action (a fresh Google consent via the new M2 flow), tracked as a founder-action item, not a code gap. See `reports/task5.md`. |
+
 ## Full detail
-Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `reports/task4.md`.
+Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `reports/task4.md`,
+`reports/task5.md`.
 
 ## Open items closed by Task 1
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "No `User` model exists at all" item — **closed**.
@@ -54,6 +69,11 @@ Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `r
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §0's "YouTube API quota" item — **investigated,
   closed with a real, cited finding** (no increase needed at the estimated volume; a real Console
   verification remains a founder action, see `KNOWN_ISSUES_AND_BLOCKERS.md` §1).
+
+## Open items closed by Task 5
+- `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "Per-user YouTube credentials" item —
+  **closed, with one real founder-action item remaining** (see below and
+  `KNOWN_ISSUES_AND_BLOCKERS.md` §1).
 
 ## Open items carried forward
 - **Run/channel creation-time tenant ownership isn't checked** — `runs.create` validates the target
@@ -93,3 +113,11 @@ Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `r
   a real fix before it is. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
 - **The new-tenant default `AgentQuota.budgetCeilingUsd` ($2.00) is still unconfirmed by you** — same
   status as the founder's own original figure it reuses. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
+- **A real founder action needed to close out Task 5's own core verification claim** — the founder's
+  existing YouTube refresh token is expired/revoked at Google's end (confirmed live, independent of
+  this project's code — see Task 5's row above). A fresh consent via the new in-app connect flow is
+  needed before a real publish/stats-poll can be proven to succeed through the new `AgentCredential`
+  path. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+- **The YouTube OAuth client's registered redirect URI needs a Console update once a real deployed
+  callback URL exists** — not blocking today (local dev still works). See
+  `KNOWN_ISSUES_AND_BLOCKERS.md` §1.

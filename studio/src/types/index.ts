@@ -10,3 +10,4 @@ export * from './user.types';
 export * from './login-token.types';
 export * from './notification.types';
 export * from './telegram-link-code.types';
+export * from './agent-credential.types';

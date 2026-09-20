@@ -36,6 +36,10 @@ export const DEFAULT_PRIVACY_STATUS: PrivacyStatus = 'private';
 // state one way or the other; the caller (state-machine.ts) derives it
 // directly from `plan.visualSource === 'ai-stills'`, never left to default.
 export type UploadParams = {
+  // Sprint 3 Task 5 (M3) — which channel's own AgentCredential to resolve
+  // the real OAuth2Client from. Never a shared, ambient env-var credential
+  // once this task lands.
+  channelId: string;
   videoPath: string;
   metadata: PublishingMetadata;
   privacyStatus: PrivacyStatus;
