@@ -35,6 +35,7 @@ export default function RootLayout() {
         <StatusBar style="auto" />
         <Stack>
           <Stack.Screen name="login" options={{ title: 'Sign in' }} />
+          <Stack.Screen name="verify" options={{ title: 'Signing in…' }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack>
       </Providers>

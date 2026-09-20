@@ -1,13 +1,19 @@
 # Frontend Track Status: Mobile App (API Layer, App Scaffold, Dashboard)
 
-**Track status**: All three initial tasks (API layer, app scaffold, dashboard) complete, each proven end-to-end against the real orchestrator, Postgres, and (Task 1) the Telegram bot. PR marked ready for review. Merged `origin/main` (which now includes `WEEK4_BE`) on 2026-09-10 — see "Merge history" below.
-**Last updated**: 2026-09-10 (post-merge with `WEEK4_BE`)
+**Track status**: All three initial tasks (API layer, app scaffold, dashboard) complete. Sprint 3 frontend work now in progress on `SPRINT3_FE` (branched fresh from `main`) — see the Sprint 3 section below; task specs and reports for that work live under `docs/execution/sprint3/` (`tasks/frontend-taskN.md`, `reports/frontend-taskN.md`), this file stays the ongoing cross-sprint summary per the frontend track's own "not sprint-numbered" convention.
+**Last updated**: 2026-09-20 (Sprint 3 Frontend Task 1)
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
 | 1 | API Layer (tRPC + Fastify, Auth, Gate Resolution, Run Creation) | Done | Claude Code | Gate 2 endpoint implemented but not independently proven end-to-end this session (video-generation stub kept tripping the 60s Shorts-length check before reaching Gate 2) — see `reports/task1.md` Deviation 7. |
 | 2 | App Scaffold + Core Screens | Done | Claude Code | Real E2E proof (New Brief → Gate 1 approve → Postgres-confirmed advance) done via `expo start --web` in the Browser tool, not a real Expo Go simulator/device (none available in this environment) — see `reports/task2.md` Deviation 1. Gate 2/video playback UI implemented and type-checked but not live-proven, same underlying reason as Task 1. |
 | 3 | Dashboard Screen | Done | Claude Code | All four groups verified against real data and cross-checked directly against Postgres (all four matched exactly). Discovered and fixed a real gap along the way: Task 1's dashboard endpoints weren't channel-scoped — added an optional `channelId` to all four. Same simulator/screenshot environment constraints as Task 2 — see `reports/task3.md` Deviations. |
+
+## Sprint 3 (branch `SPRINT3_FE`, task specs/reports under `docs/execution/sprint3/`)
+
+| Task | Name | Status | Owner | Notes |
+|---|---|---|---|---|
+| Frontend 1 | Real Sign-In (Magic Link) | Done | Claude Code | Real, magic-link session auth replaces the old shared-token login screen. Real E2E: manual-paste sign-in, deep-link sign-in (`sevenai://verify` / web `/verify`), replay rejection, expiry rejection, sign-out — all live, all cross-checked against Postgres. Two real findings: (1) the task spec's "`/auth/*` exposed as a tRPC procedure" claim is inaccurate — they're plain REST routes; (2) `SPRINT3_FE` (branched from `main`) has no Sprint 3 backend code at all (`SPRINT2_BE`/`SPRINT3_BE` are separate, unmerged branches), so real testing needed a throwaway worktree pinned to the backend track's own commits — merging `SPRINT3_BE` into `SPRINT3_FE` directly was attempted but blocked by a permission classifier, an open question for the founder before Task 2. See `docs/execution/sprint3/reports/frontend-task1.md`. |
 
 ## Founder action needed
 None of the three tasks require founder action to be considered done — all deviations above are environment constraints (no simulator/device in this dev environment), not missing credentials or blocked decisions. **Recommended founder follow-up, not blocking**: a real device/simulator pass through Expo Go to close Task 2/3's one open gap (Gate 2 resolution + video playback have never been exercised live, only Gate 1's identical mechanism has) — see `reports/task1.md` Deviation 7 and `reports/task2.md` Deviation 3.
