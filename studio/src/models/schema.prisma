@@ -57,22 +57,23 @@ model User {
   name     String? @db.VarChar(255)
   role     String  @default("owner") @db.VarChar(20)
 
-  // Sprint 3 Task 3 (K2) — set via a real `/link <code>` Telegram flow
-  // (TelegramLinkCode), or (for the founder's own seeded row only) this
-  // task's own data migration, carried over from env.TELEGRAM_FOUNDER_CHAT_ID
-  // so the founder's existing flow doesn't regress. null means "in-app
-  // notifications only" — a fully valid, handled state, not a degraded one.
-  telegramChatId String? @db.VarChar(50)
+  // Sprint 3 Task 7 (O1) — set via a real device registering its Expo push
+  // token (notifications.registerPushToken), once per device. Replaces
+  // Task 3 (K2)'s original chat-linking equivalent (retired by this same
+  // task's O2, which removed that whole notification channel — it was only
+  // ever a testing convenience, not meant to be permanent). null means
+  // "in-app notifications only" — a fully valid, handled state, not a
+  // degraded one.
+  expoPushToken String? @db.VarChar(255)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  tenant            Tenant             @relation(fields: [tenantId], references: [id])
-  loginTokens       LoginToken[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  loginTokens   LoginToken[]
   // Sprint 3 Task 2 (K1) — reverse side of Channel.ownerUserId.
-  ownedChannels     Channel[]
-  notifications     Notification[]
-  telegramLinkCodes TelegramLinkCode[]
+  ownedChannels Channel[]
+  notifications Notification[]
 
   @@index([tenantId], map: "idx_users_tenant")
   @@map("users")
@@ -81,7 +82,7 @@ model User {
 // Sprint 3 Task 1 (J2) — one row per issued magic-link token. The JWT
 // signature alone only proves authenticity, not first-use; usedAt (checked
 // and set at /auth/verify) is what actually prevents replay of a link that
-// leaked (e.g. forwarded email, shoulder-surfed Telegram message).
+// leaked (e.g. forwarded email, a shoulder-surfed screen).
 model LoginToken {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @db.Uuid
@@ -97,20 +98,20 @@ model LoginToken {
 }
 
 model Channel {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String   @db.Uuid
-  platform           String   @default("youtube") @db.VarChar(20)
-  name               String   @db.VarChar(255)
-  externalChannelId  String?  @db.VarChar(255)
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String  @db.Uuid
+  platform          String  @default("youtube") @db.VarChar(20)
+  name              String  @db.VarChar(255)
+  externalChannelId String? @db.VarChar(255)
 
-  nicheDescription   String   @db.Text
-  styleGuide         String?  @db.Text
+  nicheDescription String  @db.Text
+  styleGuide       String? @db.Text
 
-  brandAssets        Json     @default("{}")
+  brandAssets Json @default("{}")
 
-  postingCadence     String?  @db.VarChar(255)
-  approvalGateConfig Json     @default("{\"gate1Enabled\": true, \"gate2Enabled\": true}")
-  priorsScope        String   @default("isolated") @db.VarChar(20)
+  postingCadence     String? @db.VarChar(255)
+  approvalGateConfig Json    @default("{\"gate1Enabled\": true, \"gate2Enabled\": true}")
+  priorsScope        String  @default("isolated") @db.VarChar(20)
 
   // Week 5 Task 4 (C2, KNOWN_ISSUES_AND_BLOCKERS.md "no fair-access policy
   // across channels") — nullable, default null for every existing and
@@ -119,7 +120,7 @@ model Channel {
   // channel on this (tenantId, platform)"; a set value means "this
   // channel's ceiling is exactly this, regardless of channel count." See
   // studio/src/run-pipeline/budget-gate.ts's computeChannelBudgetCeilings.
-  budgetOverrideUsd  Decimal? @db.Decimal(10, 2)
+  budgetOverrideUsd Decimal? @db.Decimal(10, 2)
 
   // Sprint 2 Task 1 (D1/D2) — nullable, default null for every existing and
   // newly-created channel: null means "use media/registry.ts's hardcoded
@@ -128,7 +129,7 @@ model Channel {
   // it doesn't explicitly override the voice per-brief. See
   // studio/src/run-pipeline/state-machine.ts's runVideoGenerationStage for
   // the full three-step resolution order.
-  defaultVoice       String?  @db.VarChar(50)
+  defaultVoice String? @db.VarChar(50)
 
   // Sprint 3 Task 2 (K1) — nullable FK to User, deliberately: a channel
   // created before this migration, or one whose owning user was since
@@ -144,8 +145,8 @@ model Channel {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  tenant               Tenant                 @relation(fields: [tenantId], references: [id])
-  ownerUser            User?                  @relation(fields: [ownerUserId], references: [id])
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  ownerUser            User?                 @relation(fields: [ownerUserId], references: [id])
   pipelineRuns         PipelineRun[]
   reviewLogs           ReviewLog[]
   usageEvents          UsageEvent[]
@@ -169,13 +170,13 @@ model Channel {
 // which key encrypted a given row without forcing every channel to
 // re-consent at once.
 model AgentCredential {
-  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  channelId              String   @unique @db.Uuid
-  platform               String   @db.VarChar(20)
-  refreshTokenEncrypted  String   @db.Text
-  encryptionKeyVersion   Int      @default(1)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @default(now())
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId             String   @unique @db.Uuid
+  platform              String   @db.VarChar(20)
+  refreshTokenEncrypted String   @db.Text
+  encryptionKeyVersion  Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id])
 
@@ -185,9 +186,9 @@ model AgentCredential {
 
 // Sprint 3 Task 3 (K2) — the real in-app notification channel
 // MVP_PART2 §1 asked for: "in-app push through the dashboard is probably
-// the right default channel, with Telegram as one optional channel." Every
-// gate that opens produces at least one of these — never a gate silently
-// waiting with no visible trace anywhere a user would look.
+// the right default channel, with [a second channel] as one optional
+// channel." Every gate that opens produces at least one of these — never a
+// gate silently waiting with no visible trace anywhere a user would look.
 //
 // channelId is nullable, a real deviation from this task's own initial
 // sketch: a tenant-wide notification (the daily digest, which spans every
@@ -202,13 +203,14 @@ model Notification {
   userId    String  @db.Uuid
 
   // 'notify' | 'approval_request', VARCHAR + CHECK per this schema's own convention.
-  kind    String  @db.VarChar(20)
-  message String  @db.Text
+  kind    String @db.VarChar(20)
+  message String @db.Text
 
   // Set only for kind = 'approval_request' — the same threadKey
-  // (PipelineRun id) TelegramFounderChannel's pending-approval map already
-  // keys on, so an in-app resolution and a Telegram reply resolve the exact
-  // same pending gate, never two independent ones.
+  // (PipelineRun id) the in-memory pending-approval map
+  // (notifications/pending-approvals.ts) already keys on, so an in-app
+  // resolution and any other channel's own resolution attempt resolve the
+  // exact same pending gate, never two independent ones.
   threadKey String? @db.VarChar(255)
 
   // Set once this notification's underlying gate (or reminder) has been
@@ -228,33 +230,15 @@ model Notification {
   @@map("notifications")
 }
 
-// Sprint 3 Task 3 (K2) — one row per issued Telegram-linking code. Same
-// single-use discipline LoginToken already established: usedAt (not just
-// the code's own expiry) is what actually prevents a leaked/guessed code
-// from being replayed after a legitimate first use.
-model TelegramLinkCode {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code      String    @unique @db.VarChar(20)
-  userId    String    @db.Uuid
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId], map: "idx_telegram_link_codes_user")
-  @@map("telegram_link_codes")
-}
-
 model PipelineRun {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String   @db.Uuid
-  channelId    String   @db.Uuid
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @db.Uuid
+  channelId String @db.Uuid
 
-  status       String   @default("pending") @db.VarChar(20)
-  currentStage String?  @db.VarChar(50)
+  status       String  @default("pending") @db.VarChar(20)
+  currentStage String? @db.VarChar(50)
 
-  briefText    String   @db.Text
+  briefText    String @db.Text
   intakeParsed Json?
 
   // Sprint 2 Task 1 (D2) — deliberately a separate column from
@@ -267,13 +251,13 @@ model PipelineRun {
   // parallel columns. Nullable, no backfill — every existing run is null.
   creationOptions Json?
 
-  retryCount   Int      @default(0)
-  lastError    String?  @db.Text
+  retryCount Int     @default(0)
+  lastError  String? @db.Text
 
-  startedAt    DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
   channel Channel @relation(fields: [channelId], references: [id])
@@ -289,11 +273,11 @@ model PipelineRun {
 }
 
 model PipelineStage {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pipelineRunId String   @db.Uuid
-  stageName     String   @db.VarChar(50)
-  status        String   @default("pending") @db.VarChar(20)
-  attemptNumber Int      @default(1)
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pipelineRunId String @db.Uuid
+  stageName     String @db.VarChar(50)
+  status        String @default("pending") @db.VarChar(20)
+  attemptNumber Int    @default(1)
 
   input  Json?
   output Json?
@@ -314,22 +298,22 @@ model PipelineStage {
 }
 
 model ReviewLog {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String   @db.Uuid
-  channelId     String   @db.Uuid
-  pipelineRunId String   @db.Uuid
-  stageId       String?  @db.Uuid
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String  @db.Uuid
+  channelId     String  @db.Uuid
+  pipelineRunId String  @db.Uuid
+  stageId       String? @db.Uuid
 
-  agent        String  @db.VarChar(100)
-  verdict      String  @db.VarChar(50)
-  rationale    String  @db.Text
+  agent        String @db.VarChar(100)
+  verdict      String @db.VarChar(50)
+  rationale    String @db.Text
   editedOutput Json?
 
   timestamp DateTime @default(now())
 
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
-  channel     Channel       @relation(fields: [channelId], references: [id])
-  pipelineRun PipelineRun   @relation(fields: [pipelineRunId], references: [id])
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  channel     Channel        @relation(fields: [channelId], references: [id])
+  pipelineRun PipelineRun    @relation(fields: [pipelineRunId], references: [id])
   stage       PipelineStage? @relation(fields: [stageId], references: [id])
 
   @@index([pipelineRunId], map: "idx_reviewlog_run")
@@ -410,7 +394,7 @@ model PerformanceSnapshot {
   // granted (YOUTUBE_STUB=1 or an ungranted scope both leave this null).
   // Nothing reads this yet — Continuous Learning (a later sprint) is what
   // eventually will; "cheap now, expensive to reconstruct later."
-  retentionCurve Json?
+  retentionCurve   Json?
 
   snapshotAt DateTime
   createdAt  DateTime @default(now())

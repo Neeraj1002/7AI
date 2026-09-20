@@ -10,7 +10,7 @@ export type User = {
   email: string;
   name: string | null;
   role: UserRole;
-  telegramChatId: string | null;
+  expoPushToken: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

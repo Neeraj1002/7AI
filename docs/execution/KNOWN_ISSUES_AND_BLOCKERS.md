@@ -2,14 +2,30 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-20, after Sprint 3 Task 5 (per-channel YouTube OAuth — `AgentCredential` +
-real connect flow). See `docs/execution/sprint3/reports/task5.md`.
+**Last updated**: 2026-09-20, after Sprint 3 Task 7 (retire Telegram — real push notifications +
+in-app digest & tagging). See `docs/execution/sprint3/reports/task7.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
 ---
 
 ## 1. Founder action required (external, blocking)
+
+### Open — O1: confirm real push delivery on a real physical device (Sprint 3 Task 7)
+Every backend piece of real push notification infrastructure is built and verified as far as this
+agent can verify it without a physical device: `User.expoPushToken` (real migration),
+`notifications.registerPushToken` (real mutation, verified via a real, validly-shaped test token),
+`ExpoPushChannel` (real `expo-server-sdk` integration — a real send was confirmed to reach Expo's own
+push API and receive a real, specific `DeviceNotRegistered` response for the fake test token used,
+proving the integration itself is genuine, not mocked). **What this agent cannot do**: register a
+real device's push token (that requires the frontend's own `expo-notifications` work — Sprint 3
+frontend Task 3's rewritten FE11 — running on a real physical device; simulators don't deliver real
+push) and confirm actual on-device delivery via Expo's push-receipt API, the task's own explicitly
+required verification bar (a send succeeding isn't the same as the real notification arriving).
+Founder action: install the app on a real device, sign in, let it register a real push token, open a
+real gate with the app backgrounded, and confirm the notification arrives — then check Expo's
+push-receipt API for that ticket to confirm real delivery, not just acceptance. See
+`sprint3/reports/task7.md`.
 
 ### Open — M2/M3: complete a real Google OAuth consent to get a fresh, valid per-channel refresh token (Sprint 3 Task 5)
 `AgentCredential` storage, the real in-app connect flow (`channels.getYoutubeConnectUrl` →
@@ -278,7 +294,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 - **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Correctly applied on the first attempt in Week 5 Task 1's real re-run of this same test. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`, `week5/reports/task1.md`*
 
-- **`dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) can't coexist with a persistent `npm run dev` instance** on the same Telegram bot token — both start a long-poll loop, and Telegram allows only one active `getUpdates` poller per token, so the second one to start gets a `409 Conflict`. Worked around in Week 5 Task 1 by stopping the persistent instance for the duration of testing and restarting it after. Not fixed — worth a real fix (detect an already-running poller and defer to it, or share one process) if live-gate testing becomes routine rather than occasional. — *`week5/reports/task1.md`*
+- **Closed by Sprint 3 Task 7 (O2)** — `dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) used to be unable to coexist with a persistent `npm run dev` instance on the same Telegram bot token (both started a long-poll loop, and Telegram allowed only one active `getUpdates` poller per token). Moot now that Telegram is retired entirely — no bot, no poller, no possible conflict. See `sprint3/reports/task7.md`.
 
 - **`videos.delete` needs a broader OAuth scope than what's currently granted** — the token only has `youtube.upload`/`youtube.readonly` (Week 1 Task 7's original scope request), so a throwaway test video uploaded during Week 5 Task 1's real kill-test (`nnY46b0vOCw`, private, harmless) couldn't be cleaned up programmatically. Low priority — a manual YouTube Studio delete closes it, or a future task can re-request the broader `youtube`/`youtube.force-ssl` scope if programmatic video cleanup becomes worth having. — *`week5/reports/task1.md`*
 

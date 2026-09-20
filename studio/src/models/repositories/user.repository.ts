@@ -10,7 +10,7 @@ function toDomainUser(row: PrismaUser): User {
     email: row.email,
     name: row.name,
     role: row.role as UserRole,
-    telegramChatId: row.telegramChatId,
+    expoPushToken: row.expoPushToken,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -52,11 +52,11 @@ export async function listUsersByTenantAndRole(tenantId: string, role: UserRole)
   return rows.map(toDomainUser);
 }
 
-// Sprint 3 Task 3 (K2) — the real writer for the `/link <code>` flow and
-// the unlink mutation. `chatId: null` explicitly unlinks (not merely "no
-// change"), since a caller passing undefined would leave the column
-// untouched — Prisma's own null-vs-undefined update semantics.
-export async function updateUserTelegramChatId(userId: string, chatId: string | null): Promise<User> {
-  const row = await prisma.user.update({ where: { id: userId }, data: { telegramChatId: chatId } });
+// Sprint 3 Task 7 (O1) — the real writer for notifications.registerPushToken.
+// `token: null` explicitly clears it (not merely "no change"), same
+// null-vs-undefined update semantics Task 3's original chat-id equivalent
+// (retired by this task) already established.
+export async function updateUserExpoPushToken(userId: string, token: string | null): Promise<User> {
+  const row = await prisma.user.update({ where: { id: userId }, data: { expoPushToken: token } });
   return toDomainUser(row);
 }

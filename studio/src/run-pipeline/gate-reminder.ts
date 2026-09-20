@@ -1,7 +1,7 @@
 import { listRuns } from '../models/repositories/pipeline-run.repository';
 import { findLatestAttempt } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
-import { composeFounderChannel, resolveNotificationRecipients } from '../notify-founder';
+import { composeNotificationChannel, resolveNotificationRecipients } from '../notifications';
 import { env } from '../config/env';
 import type { StageName } from '../types';
 
@@ -68,13 +68,17 @@ export async function runGateReminderCheck(): Promise<{ reminded: number }> {
           continue;
         }
         const recipients = await resolveNotificationRecipients(channel);
-        const founderChannel = await composeFounderChannel({
+        const notificationChannel = await composeNotificationChannel({
           tenantId: channel.tenantId,
           channelId: channel.id,
           userIds: recipients.map((user) => user.id),
         });
-        await founderChannel.notify(
-          `Reminder: run ${run.id} has been waiting at ${label} for about ${openHours}h. Reply on the earlier message whenever you get a chance (or use the app).`,
+        // threadKey = run.id lets a push notification's data payload carry
+        // the run id for deep-linking (Task 7/O1), same as requestApproval's
+        // own threadKey.
+        await notificationChannel.notify(
+          `Reminder: run ${run.id} has been waiting at ${label} for about ${openHours}h. Open the app to respond.`,
+          { threadKey: run.id },
         );
         remindedRunIds.add(run.id);
         reminded += 1;

@@ -11,7 +11,8 @@ import { exchangeYoutubeAuthCode } from '../manage-channels/youtube-oauth-connec
 // Frontend track Task 1 — studio/src/api/. The orchestrator process's HTTP
 // surface, not a separate service (task1.md's own "Owning Component" note):
 // src/index.ts calls startApiServer() alongside resumeOnStartup() and the
-// Telegram bot's receive loop.
+// periodic background checkers (Performance Analytics poll, gate reminder,
+// founder digest).
 
 export async function startApiServer(): Promise<void> {
   if (!env.API_AUTH_TOKEN) {

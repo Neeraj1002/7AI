@@ -28,7 +28,7 @@ describe('formatDigestMessage', () => {
     expect(message).toContain('Waiting on you: 1');
     expect(message).toContain('run-2');
     expect(message).toContain('[paused_gate1]');
-    expect(message).toContain('tag <runId> <word> [notes]');
+    expect(message).toContain('Open a run above in the app to tag');
   });
 
   it('handles a channel with nothing to report without omitting it', () => {
@@ -51,7 +51,7 @@ describe('formatDigestMessage', () => {
     expect(message).toContain('Waiting on you: 0');
   });
 
-  it('caps a long run list at 5 with an "...and N more" line — real Telegram messages have a 4096-char limit', () => {
+  it('caps a long run list at 5 with an "...and N more" line — the message itself stays bounded at 4096 chars', () => {
     const manyRuns = Array.from({ length: 58 }, (_, i) => ({ id: `run-${i}`, briefText: `brief ${i}` }));
     const message = formatDigestMessage({
       windowStart: new Date('2026-09-15T00:00:00.000Z'),

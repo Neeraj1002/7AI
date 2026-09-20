@@ -264,6 +264,45 @@ needed (the cap-check function, the input schema, the credential-existence looku
 from Tasks 2/5 and Sprint 1. `hasYoutubeCredential` is a derived field computed at query time
 (`api/routers/channels.ts`'s `withHasYoutubeCredential`), not a column — no migration.
 
+## Task 7 — Retire Telegram, add real push (O1/O2)
+
+Reopens Sprint 3 after it was first marked closed (see `sprint3/STATUS.md`'s own note) — a real
+product decision to retire Telegram as an application dependency entirely, not a bug fix. One real
+migration (`sprint3_retire_telegram_add_push`):
+
+```prisma
+model User {
+  // ...
+  // Sprint 3 Task 7 (O1) — replaces telegramChatId (retired by this same
+  // task's O2). null means "in-app notifications only."
+  expoPushToken String? @db.VarChar(255)
+  // ...
+}
+```
+
+```sql
+ALTER TABLE "users" ADD COLUMN "expoPushToken" VARCHAR(255);
+ALTER TABLE "telegram_link_codes" DROP CONSTRAINT "telegram_link_codes_userId_fkey";
+DROP TABLE "telegram_link_codes";
+ALTER TABLE "users" DROP COLUMN "telegramChatId";
+```
+
+The `TelegramLinkCode` model and its `@@map("telegram_link_codes")` table — Task 3 (K2)'s `/link
+<code>` linking flow — are gone entirely, along with `User.telegramChatId` and the
+`User.telegramLinkCodes` reverse relation. `Notification` is unchanged (already channel-agnostic, per
+Task 3's own note). `Tenant.lastFounderDigestSentAt` is unchanged (O3 keeps the existing tenant-scoped
+cadence model, see `BUSINESS_LOGIC.md`).
+
+Applied via this project's established apply-then-fix-checksum pattern (`prisma migrate dev` refuses
+non-interactively when a column/table being dropped isn't empty — real data existed: the founder's own
+`telegramChatId` and 2 `telegram_link_codes` rows), confirmed via `prisma migrate status` reporting
+"Database schema is up to date!" afterward.
+
+### Domain types
+`types/user.types.ts` — `User.telegramChatId` → `User.expoPushToken`. `types/telegram-link-code.types.ts`
+deleted entirely (no replacement type needed — push tokens live directly on `User`, no separate
+short-lived-code table the way Telegram linking needed one).
+
 ## Reference
 - `docs/execution/sprint2/SCHEMA.md` — the schema this sprint's first task extends
 - `AGENT_FLEET_DESIGN.md` Section 6 — the cumulative schema reference

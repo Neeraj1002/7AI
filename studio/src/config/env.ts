@@ -8,8 +8,6 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   OPENAI_API_KEY: z.string().optional().default(''),
-  TELEGRAM_BOT_TOKEN: z.string().optional().default(''),
-  TELEGRAM_FOUNDER_CHAT_ID: z.string().optional().default(''),
   NODE_ENV: z.string().optional().default('development'),
   // Testing-only: when '1', the intake stage uses a slow no-op stub instead of a
   // real Anthropic call. Exists solely to drive the Task 4 kill-mid-stage/restart
@@ -132,6 +130,11 @@ const EnvSchema = z.object({
   // GATE_REMINDER_THRESHOLD_MS. 30 minutes is frequent enough that the
   // digest fires reasonably close to the 24h mark without a dedicated timer.
   FOUNDER_DIGEST_CHECK_INTERVAL_MS: z.coerce.number().optional().default(30 * 60 * 1000),
+  // Sprint 3 Task 7 (O1) — optional. Expo's push API works without an
+  // access token; setting one adds enhanced push-security (per-app request
+  // signing) once the founder sets up an Expo access token for this
+  // project. Not required for real push delivery to already work.
+  EXPO_ACCESS_TOKEN: z.string().optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

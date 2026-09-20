@@ -471,3 +471,152 @@ this task. `sprint3/BUSINESS_LOGIC.md`'s Task 2 (K1) and Task 5 (M1-M3) sections
 default and `AgentCredential` existence, both directly consumed here. Task 4's own
 `scripts/invite-tenant.ts` — reused directly to get a clean, isolated tenant for the cap-boundary
 test, rather than reusing a fixture tenant with an ambiguous pre-existing channel count.
+
+## Task 7 — Retire Telegram: real push notifications + in-app digest & tagging (O1-O5)
+
+### Why Sprint 3 reopened for this
+Telegram was Week 1 scaffolding — the fastest way to make Gate 1/Gate 2 testable before any real UI
+existed, never intended as permanent infrastructure. Once Task 3 (K2) gave every user a real in-app
+notification inbox, an explicit product decision was made to retire Telegram entirely (no fallback, no
+feature flag) rather than carry it forward as a second, permanent channel. Because gate reminders, the
+founder digest, and post-hoc tagging had all quietly grown a real dependency on it since Week 1/2, and
+the in-app inbox alone is pull-only (nobody is actively notified of a new gate unless they happen to
+open the app), this task folds real push notification infrastructure and the full Telegram retirement
+into the same sprint rather than opening a Sprint 4 for it — see `sprint3/STATUS.md`'s own note.
+
+### What this task implements
+
+**O1 — real push.** `composeFounderChannel`'s (now `composeNotificationChannel`, see O5) per-recipient
+dispatch changes from "in-app always + Telegram if linked" to "in-app always + push (`ExpoPushChannel`)
+if a token is registered" — same shape, a different second channel; `notifications.registerPushToken`
+(ctx.userId-scoped) is the new write path a real device calls once it has a real Expo push token.
+`NotificationChannel.notify` gained an optional `meta.threadKey` so a plain reminder (not just a gate's
+own `requestApproval`) can still carry a run id in a push's `data` payload for deep-linking.
+
+**O2 — Telegram removed, not disabled.** `telegram-channel.ts`, `telegram-channel.test.ts`,
+`telegram-link.ts` deleted; `grammy` removed from `package.json` (real `npm install`, not a hand-edited
+lockfile); `TELEGRAM_BOT_TOKEN`/`TELEGRAM_FOUNDER_CHAT_ID` gone from `env.ts`; the DB migration drops
+`telegram_link_codes` and `User.telegramChatId`. `pending-approvals.ts` shrinks to
+`getOrCreatePendingApproval`/`resolvePendingApproval` plus a new channel-agnostic
+`hasPendingApproval` (replacing the bot-specific message-id existence check
+`scripts/dry-run.ts`'s own gate1/gate2 simulation needs). `gate2/index.ts`'s
+`attachmentPath`/`videoTooLargeToAttach`/the 50MB-limit constant are also removed — they existed
+solely for the old channel's own real file-attach call, which no remaining channel implementation
+performs (the in-app channel never attached files; a push notification can't carry one either) —
+dead surface area once its one real consumer is gone, not kept "just in case." `auth/magic-link.ts`'s
+Telegram relay is removed; it now stays a console-only fallback (a magic link predates any session to
+route an in-app/push notification to).
+
+**A real, necessary consequence of O2 not named in the task's own text**: `scripts/dry-run.ts`'s
+`gate1`/`gate2` commands used to resolve a simulated decision by feeding a synthetic incoming Telegram
+message through the real bot handler. With no bot left, they now call `resolvePendingApproval`
+directly — the exact same primitive the real app's `runs.gate1`/`runs.gate2` API mutations already
+use — after polling `hasPendingApproval` to confirm the gate has actually opened (avoiding a race
+against `runGate1Stage`/`runGate2Stage`'s own async `requestApproval` call). `gate1Live`/`gate2Live`
+needed no code change at all: they already just block on `runGate1Stage`/`runGate2Stage`'s real
+pending-reply promise, resolved by whatever real caller reaches it first — that was never
+Telegram-specific, only their comments said so. `scripts/dry-run.ts`'s `tag` command is rewired to
+call `recordPostHocTag` directly (see O4) instead of simulating a Telegram text command.
+`scripts/test-double-resolution-race.ts` — already stale before this task (it imported a
+`founderChannel` singleton export that no longer existed after Task 3's own refactor) and entirely
+about proving a Telegram-reply-vs-API race that has no meaning once there's no Telegram reply path —
+is deleted rather than repaired.
+
+**O3 — founder digest.** Task 3 (K2) had *already* migrated `founder-digest.ts` off the old singleton
+onto `composeFounderChannel` + `listUsersByTenantAndRole(tenantId, 'owner')` — the task's own text
+describing this as still using "the old singleton `founderChannel.notify()`" was stale (confirmed by
+reading the current file before assuming, per this task's own instruction). O3's real remaining work:
+the digest message's own "Reply 'tag <runId> <word> [notes]'" instruction (a Telegram command that no
+longer exists) is replaced with "Open a run above in the app to tag...", and the message-length cap's
+own justification changes from "Telegram's real 4096-char limit" to a generic bound (the digest
+becomes a real push + in-app dispatch, not a Telegram send). `Tenant.lastFounderDigestSentAt` stays on
+`Tenant`, per the task's own explicit instruction — a reasonable simplification, not a bug to fix here.
+
+**O4 — post-hoc tagging.** A new `runs.tagPostHoc({ runId, tag, notes? })` mutation
+(`api/routers/runs.ts`), ownership-checked via the same `assertGateOwnership` gate1/gate2 already use
+(attaching a post-hoc quality tag is at least as sensitive as resolving a gate). Calls
+`run-pipeline/post-hoc-tag.ts`'s existing `recordPostHocTag` directly — the same `ReviewLog` write
+(`agent: 'founder-post-hoc'`) the old Telegram command produced — with `tag` normalized the identical
+way the old text-command parser did (lowercased, truncated to 50 chars), so a tag submitted through
+the app produces the identical DB row shape. The old `parsePostHocTagCommand` text-grammar parser is
+deleted along with the rest of the Telegram message handler; `recordPostHocTag` itself (the actual
+write logic) is unchanged and reused, not re-implemented.
+
+**O5 — naming.** `notify-founder/` → `notifications/`; `FounderChannel` → `NotificationChannel`;
+`InAppFounderChannel` → `InAppChannel`; `composeFounderChannel` → `composeNotificationChannel`. **Full
+rename chosen, not an alias** — every call site (`agents/gate1//gate2/index.ts`,
+`run-pipeline/founder-digest.ts`, `run-pipeline/gate-reminder.ts`, `api/routers/runs.ts`,
+`scripts/dry-run.ts`) was already being touched by O1-O4's own changes, so an alias would have saved
+nothing while leaving the old vocabulary standing. `Tenant.lastFounderDigestSentAt` and
+`FOUNDER_DIGEST_*` env vars are untouched, per the task's own explicit scope note.
+
+### Preconditions
+A channel/tenant has at least one real recipient (`resolveNotificationRecipients`/
+`listUsersByTenantAndRole`) for `composeNotificationChannel` to build a real dispatch for — unchanged
+from Task 3. A user who wants push delivery has called `notifications.registerPushToken` with a real
+Expo push token from a real device.
+
+### Postconditions
+No code path under `studio/src` reads a Telegram env var, imports `grammy`, or references
+`telegramChatId`/`TelegramLinkCode` — confirmed by a repo-wide grep, not assumed from the diff alone.
+A gate opened for a user with a registered push token produces both a real in-app `Notification` row
+and a real Expo push send attempt; a push send failure (a stale/invalid token, Expo's own API
+rejecting it) never prevents the in-app row from existing or blocks the gate itself from opening —
+`MultiNotificationChannel`'s existing `Promise.allSettled` isolation (Task 3's own design) covers push
+exactly the way it covered Telegram before.
+
+### Failure Modes & Handling
+An invalid/stale Expo push token is rejected by `ExpoPushChannel` itself (`Expo.isExpoPushToken`
+check) or by Expo's real API (a real `DeviceNotRegistered`-shaped ticket) — either way, logged and
+isolated, never thrown back to the caller or allowed to fail the whole notification dispatch. A magic
+link requested by a user with no active session has no Notification/push recipient to route to yet —
+stays a real, honest console-log-only fallback (unchanged posture from before this task, just with the
+Telegram half of the old fallback removed rather than kept as a second option).
+
+### Real, live verification
+**O2**: `grep -ri telegram studio/src` and `grep -i grammy studio/package.json` both return nothing
+(migration SQL files — historical, already-applied record — and `docs/`/report prose are the only
+places the word still appears, same "historical record, left alone" carve-out this project's reports
+already get). The real dev server was started against the post-migration schema and reached
+`[boot] 7AI orchestrator ready` with no Telegram bot startup line at all (previously always present).
+A complete real pipeline (real Anthropic/OpenAI calls, no stubs) was driven through both Gate 1 and
+Gate 2 via `scripts/dry-run.ts`'s rewritten `gate1`/`gate2` commands — a real `Notification` row was
+confirmed via direct Postgres read for the Gate 1 approval request, correctly marked `resolvedAt` after
+resolution; the run correctly advanced to `status: running, currentStage: publishing` afterward,
+proving the full real gate flow completes end-to-end through the new resolution path.
+
+**O1**: a real, validly-shaped Expo push token was registered for the founder via the real
+`notifications.registerPushToken` mutation, confirmed persisted via a direct Postgres read. Triggering
+a real digest send (see O3 below) exercised `ExpoPushChannel` for real: the send reached Expo's actual
+push API and got back a real, specific `DeviceNotRegistered` response (the token was real-shaped but
+not a real device's) — proof the integration itself genuinely talks to Expo, not a mock, and that a
+real Expo-side rejection is handled without crashing the dispatch. **What remains genuinely
+unverifiable without a physical device** (on-device delivery, confirmed against Expo's own
+push-receipt API) is tracked as a founder-action item in `KNOWN_ISSUES_AND_BLOCKERS.md` §1, the same
+"confirm the real outcome, not just that the call succeeded" bar Task 5/M2 already established for
+Google's consent screen.
+
+**O3**: `Tenant.lastFounderDigestSentAt` was set to 2 days in the past to force a real send; running
+`scripts/dry-run.ts digest` produced a real push attempt (the `DeviceNotRegistered` response above)
+and a real in-app `Notification` row (`channelId: null`, `kind: 'notify'`, the real formatted digest
+text including the new "Open a run above in the app to tag..." line) — confirmed via direct Postgres
+read. `lastFounderDigestSentAt` was confirmed to have advanced to the real send time afterward.
+
+**O4**: a real `runs.tagPostHoc` API call (real session, real ownership check) produced a real
+`ReviewLog` row — confirmed via the API's own response: `agent: 'founder-post-hoc'`,
+`verdict: 'great_hook'` (lowercased from the submitted `Great_Hook`, matching the old parser's own
+normalization), `rationale` set to the submitted notes — the identical shape the old Telegram command
+produced.
+
+All temporary test state (a fake push token, a forced-back-in-time digest cadence, a temporarily
+raised budget ceiling for the real LLM calls) was reverted/cleaned up immediately after verification,
+confirmed via direct Postgres reads, same established pattern every prior Sprint 3 task used.
+
+### Reference
+`sprint3/BUSINESS_LOGIC.md`'s Task 3 (K2) section — the per-recipient dispatch design
+(`MultiFounderChannel`/`MultiNotificationChannel`, `getOrCreatePendingApproval`'s idempotent sharing)
+this task extends rather than replaces. Task 5 (M1-M3)'s "confirm the real outcome, not just that the
+call succeeded" verification discipline, applied here to Expo's push-receipt API the same way it was
+applied to Google's OAuth consent screen. `sprint2/BUSINESS_LOGIC.md`'s Task 6 section — the founder
+digest and post-hoc tagging designs this task migrates off Telegram, with their actual write logic
+(`recordPostHocTag`, the digest's own count/format logic) left completely unchanged.

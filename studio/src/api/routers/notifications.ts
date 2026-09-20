@@ -1,12 +1,12 @@
+import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { listNotificationsForUser } from '../../models/repositories/notification.repository';
-import { createTelegramLinkCode, unlinkTelegram } from '../../notify-founder';
+import { updateUserExpoPushToken } from '../../models/repositories/user.repository';
 
 // Sprint 3 Task 3 (K2) — the real in-app notification inbox
-// MVP_PART2 §1 asked for, plus the Telegram link/unlink flow. Same "poll,
-// don't push" pattern api/routers/dashboard.ts's existing queries already
-// established — no websocket/SSE infrastructure exists in this project, and
-// building one wasn't asked for.
+// MVP_PART2 §1 asked for. Same "poll, don't push" pattern api/routers/dashboard.ts's
+// existing queries already established — no websocket/SSE infrastructure
+// exists in this project.
 export const notificationsRouter = router({
   // GET /notifications — scoped to ctx.userId, never a channel/tenant-wide
   // list: a Notification row's whole point is "the real per-user inbox,"
@@ -21,22 +21,17 @@ export const notificationsRouter = router({
     return listNotificationsForUser(ctx.userId);
   }),
 
-  // POST /notifications/telegram/link-code — issues a real, short-lived
-  // code the user sends to the bot as "/link <code>" (telegram-channel.ts).
-  createTelegramLinkCode: publicProcedure.mutation(async ({ ctx }) => {
-    if (!ctx.userId) {
-      throw new Error('Telegram linking requires a real signed-in session, not the ops/script fallback');
-    }
-    return createTelegramLinkCode(ctx.userId);
-  }),
-
-  // POST /notifications/telegram/unlink — the design doc's own "a clear
-  // disconnect path in the app" requirement.
-  unlinkTelegram: publicProcedure.mutation(async ({ ctx }) => {
-    if (!ctx.userId) {
-      throw new Error('Telegram unlinking requires a real signed-in session, not the ops/script fallback');
-    }
-    await unlinkTelegram(ctx.userId);
-    return { unlinked: true };
-  }),
+  // POST /notifications/register-push-token — Sprint 3 Task 7 (O1). The app
+  // calls this once it has a real Expo push token from
+  // expo-notifications' getExpoPushTokenAsync(). ctx.userId-scoped — no
+  // other user's row is reachable through this mutation.
+  registerPushToken: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.userId) {
+        throw new Error('Registering a push token requires a real signed-in session, not the ops/script fallback');
+      }
+      await updateUserExpoPushToken(ctx.userId, input.token);
+      return { registered: true };
+    }),
 });

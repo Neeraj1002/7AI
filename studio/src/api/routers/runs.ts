@@ -9,7 +9,8 @@ import { listReviewLogsForRun } from '../../models/repositories/review-log.repos
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
-import { resolvePendingApproval } from '../../notify-founder';
+import { resolvePendingApproval } from '../../notifications';
+import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
@@ -130,8 +131,8 @@ export const runsRouter = router({
   }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same
-  // resolution primitive a Telegram reply uses (FounderChannel.
-  // resolvePendingApproval), converting the structured action into the exact
+  // resolution primitive every NotificationChannel shares
+  // (resolvePendingApproval), converting the structured action into the exact
   // raw reply-string grammar agents/gate1/index.ts's parseGateReply already
   // parses (approve / "reject <reason>" / free text = edit) — no duplicate
   // parsing logic here.
@@ -192,5 +193,31 @@ export const runsRouter = router({
         });
       }
       return { resolved: true };
+    }),
+
+  // POST /runs/:id/tag-post-hoc — Sprint 3 Task 7 (O4). Replaces the old
+  // bot-only `tag <runId> <word> [notes]` text command (Sprint 2 Task 6)
+  // with a real in-app equivalent — same ownership check as gate1/gate2
+  // (attaching a post-hoc quality tag to a run is at least as sensitive as
+  // resolving one of its gates), same underlying write
+  // (run-pipeline/post-hoc-tag.ts's recordPostHocTag — a ReviewLog row with
+  // agent: 'founder-post-hoc' — reused directly, not re-implemented). `tag`
+  // is normalized the exact same way the old text-command parser did
+  // (lowercased, truncated to 50 chars) so a tag submitted through the app
+  // produces the identical DB row shape the old text-command path produced.
+  tagPostHoc: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), tag: z.string().min(1), notes: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+
+      const result = await recordPostHocTag({
+        runId: input.runId,
+        tag: input.tag.toLowerCase().slice(0, 50),
+        notes: (input.notes ?? '').trim(),
+      });
+      if (!result.ok) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+      }
+      return result.reviewLog;
     }),
 });

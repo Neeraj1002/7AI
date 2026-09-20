@@ -456,7 +456,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // Restart-safety (Week 5 Task 3, KNOWN_ISSUES_AND_BLOCKERS.md): a
   // 'running' gate1 attempt already exists when this run was paused_gate1
   // and the process restarted (resume-on-startup.ts re-invokes this
-  // function). Reuse that same attempt — re-sending the Telegram prompt and
+  // function). Reuse that same attempt — re-sending the gate prompt and
   // re-registering the pending reply — rather than creating a second one;
   // the DB record of "gate1 is open" doesn't need to change, only the
   // in-memory pending-reply state does.
@@ -953,7 +953,6 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     runId,
     channel,
     channelName: channel.name,
-    videoPath,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
     restarted: isRestartReopen,

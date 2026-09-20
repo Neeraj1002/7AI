@@ -2,7 +2,7 @@ import { prisma } from '../models/prisma-client';
 import { findTenantById, updateTenantLastDigestSentAt } from '../models/repositories/tenant.repository';
 import { listActiveChannelsByTenant } from '../models/repositories/channel.repository';
 import { listUsersByTenantAndRole } from '../models/repositories/user.repository';
-import { composeFounderChannel } from '../notify-founder';
+import { composeNotificationChannel } from '../notifications';
 import { env } from '../config/env';
 import { MVP_TENANT_ID } from '../types';
 
@@ -34,11 +34,11 @@ type ChannelDigestCounts = {
   waitingOnYouRuns: (DigestRunRef & { status: string })[];
 };
 
-// Telegram's real sendMessage limit is 4096 UTF-8 characters — a channel
-// (or a whole tenant) that's accumulated a lot of `needs_attention` runs
-// over time could otherwise blow that limit and make the real send itself
-// fail. Each category lists at most this many runs individually, with a
-// plain "...and N more" line rather than silently truncating mid-list.
+// A channel (or a whole tenant) that's accumulated a lot of
+// `needs_attention` runs over time could otherwise produce an unreasonably
+// long digest message. Each category lists at most this many runs
+// individually, with a plain "...and N more" line rather than silently
+// truncating mid-list.
 const MAX_RUNS_LISTED_PER_CATEGORY = 5;
 
 function formatRunLines(
@@ -74,18 +74,22 @@ export function formatDigestMessage(params: {
   }
 
   lines.push(
-    `Reply "tag <runId> <word> [notes]" on any run above to log your own read on why it did or didn't work.`,
+    // Sprint 3 Task 7 (O4) — the old "Reply 'tag <runId> <word> [notes]'"
+    // text-command instruction is gone along with the parser it referred
+    // to; post-hoc tagging is now a real form on the run's own Run Detail
+    // screen in the app.
+    `Open a run above in the app to tag your own read on why it did or didn't work.`,
   );
 
   const message = lines.join('\n');
   // Defensive final cap: the per-category cap above bounds each channel's
   // contribution, but a tenant with many active channels could still add up
-  // past Telegram's real 4096-character sendMessage limit. Truncated rather
-  // than left to fail the real send outright.
-  const TELEGRAM_MESSAGE_LIMIT = 4096;
-  if (message.length <= TELEGRAM_MESSAGE_LIMIT) return message;
+  // to an unreasonably long push/in-app message. Truncated rather than left
+  // unbounded.
+  const MESSAGE_LIMIT = 4096;
+  if (message.length <= MESSAGE_LIMIT) return message;
   const notice = '\n\n[digest truncated — see the dashboard for the full picture]';
-  return message.slice(0, TELEGRAM_MESSAGE_LIMIT - notice.length) + notice;
+  return message.slice(0, MESSAGE_LIMIT - notice.length) + notice;
 }
 
 export async function runFounderDigestCheck(): Promise<{ sent: boolean }> {
@@ -140,11 +144,11 @@ export async function runFounderDigestCheck(): Promise<{ sent: boolean }> {
     const message = formatDigestMessage({ windowStart, channels: channelDigests });
     // Sprint 3 Task 3 (K2) — per-user within the tenant, not the single
     // pre-Sprint-3 global founderChannel: every owner-role user on this
-    // tenant gets their own real digest (in-app always, Telegram if
-    // linked). Tenant-wide, not one specific channel — channelId is
+    // tenant gets their own real digest (in-app always, push — Task 7/O1 —
+    // if registered). Tenant-wide, not one specific channel — channelId is
     // deliberately null (Notification's own nullable-channelId deviation).
     const owners = await listUsersByTenantAndRole(MVP_TENANT_ID, 'owner');
-    const channel = await composeFounderChannel({
+    const channel = await composeNotificationChannel({
       tenantId: MVP_TENANT_ID,
       channelId: null,
       userIds: owners.map((user) => user.id),

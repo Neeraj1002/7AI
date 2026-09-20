@@ -43,8 +43,8 @@ export async function listNotificationsForUser(userId: string, limit = 50): Prom
 
 // Sprint 3 Task 3 (K2) — marks every open 'approval_request' row for a
 // given threadKey resolved, regardless of which real user's row it is or
-// which channel actually resolved the gate (in-app or Telegram) — a gate
-// can produce more than one Notification row (one per recipient, per
+// which channel actually resolved the gate (in-app or push) — a gate can
+// produce more than one Notification row (one per recipient, per
 // resolveNotificationRecipients' fan-out for a null-ownerUserId channel),
 // and all of them should stop reading as "still pending" once any one
 // resolution path closes the underlying gate.
