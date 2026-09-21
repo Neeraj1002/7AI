@@ -36,6 +36,9 @@ export default function QueueScreen() {
         <Pressable onPress={handleSignOut}>
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
+        <Pressable style={styles.dashboardLink} onPress={() => router.push('/channels')}>
+          <Text style={styles.dashboardLinkText}>Channels</Text>
+        </Pressable>
         <Pressable style={styles.dashboardLink} onPress={() => router.push('/dashboard')}>
           <Text style={styles.dashboardLinkText}>View Dashboard →</Text>
         </Pressable>
