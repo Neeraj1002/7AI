@@ -35,7 +35,7 @@ export default function VerifyScreen() {
       try {
         if (apiUrlParam) await setApiUrl(apiUrlParam);
         const result = await verifyMagicLinkToken(effectiveApiUrl, token);
-        await completeSignIn(result);
+        await completeSignIn(result, effectiveApiUrl);
         router.replace('/');
       } catch (err) {
         setStatus('error');

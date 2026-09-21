@@ -1,7 +1,13 @@
 # Frontend Track Status: Mobile App (API Layer, App Scaffold, Dashboard)
 
-**Track status**: All three initial tasks (API layer, app scaffold, dashboard) complete. Sprint 3 frontend work now in progress on `SPRINT3_FE` (branched fresh from `main`) — see the Sprint 3 section below; task specs and reports for that work live under `docs/execution/sprint3/` (`tasks/frontend-taskN.md`, `reports/frontend-taskN.md`), this file stays the ongoing cross-sprint summary per the frontend track's own "not sprint-numbered" convention.
-**Last updated**: 2026-09-21 (Sprint 3 Frontend Task 2)
+**Track status**: All three initial tasks (API layer, app scaffold, dashboard) complete. Sprint 3
+frontend work — all three tasks (real sign-in, Channels screen, in-app notifications/push/post-hoc
+tagging) — is now also complete; `SPRINT3_FE` is marked ready for review (existing PR, not merged),
+one real founder-action item carried forward (Frontend Task 3/FE11's on-device push verification —
+see that section below). Task specs and reports for the Sprint 3 work live under
+`docs/execution/sprint3/` (`tasks/frontend-taskN.md`, `reports/frontend-taskN.md`), this file stays
+the ongoing cross-sprint summary per the frontend track's own "not sprint-numbered" convention.
+**Last updated**: 2026-09-21 (Sprint 3 Frontend Task 3 — Sprint 3 frontend track closed).
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -15,9 +21,22 @@
 |---|---|---|---|---|
 | Frontend 1 | Real Sign-In (Magic Link) | Done | Claude Code | Real, magic-link session auth replaces the old shared-token login screen. Real E2E: manual-paste sign-in, deep-link sign-in (`sevenai://verify` / web `/verify`), replay rejection, expiry rejection, sign-out — all live, all cross-checked against Postgres. Two real findings: (1) the task spec's "`/auth/*` exposed as a tRPC procedure" claim is inaccurate — they're plain REST routes; (2) `SPRINT3_FE` (branched from `main`) has no Sprint 3 backend code at all (`SPRINT2_BE`/`SPRINT3_BE` are separate, unmerged branches), so real testing needed a throwaway worktree pinned to the backend track's own commits. See `docs/execution/sprint3/reports/frontend-task1.md`. |
 | Frontend 2 | Channels Screen — Create, View, Connect YouTube | Done | Claude Code | **`SPRINT3_FE` merged `origin/SPRINT3_BE` between tasks** — the classifier block from Task 1 was a one-off; retried successfully, `app/`'s tRPC types now resolve against the real backend directly, no more throwaway worktree needed. Real channel creation and the real 7-channel cap boundary (8th attempt rejected with the real error, Postgres-confirmed the count held at 7). Real OAuth connect-URL generation confirmed reaching Google's actual consent screen; `hasYoutubeCredential` flipping true/false confirmed via the app's own UI, using the same `upsertForChannel` technique backend Task 6 already established (completing a real Google login is out of scope for this agent, same limit backend Task 5 already hit). Found a real, pre-existing environment gap: the OAuth `redirect_uri` points at port 3000, but the callback route only exists on port 4000 — not a bug in this task. See `docs/execution/sprint3/reports/frontend-task2.md`. |
+| Frontend 3 | In-App Notifications + Real Push Registration + Post-Hoc Tagging | Done — one real founder-action item remains | Claude Code / **Founder** (on-device push verification) | Sprint 3 frontend's last task. Real Notifications screen (FE10) with gate resolution reusing Run Detail's own `GateActionBar` — a real `paused_gate1` notification resolved from this screen, Postgres-confirmed advance. Real post-hoc tagging (FE12) — a new tag submitted through the app produced a real `ReviewLog` row, Postgres-confirmed, coexisting with (not replacing) a pre-existing tag. Found the spec's "tag picker constrained to a real tag vocabulary" claim inaccurate — the real backend (`post-hoc-tag.ts`) enforces no vocabulary; replaced with quick-pick suggestion chips over free text, not an invented restriction. Real push registration (FE11') wired into sign-in — verified up to the physical-device boundary: the web-platform skip guard fired live on a real sign-in, and the server endpoint itself was independently proven with a real session token and a real (test) push-token round trip through Postgres. **Real on-device push delivery could not be verified** — no physical device in this environment, the same limit backend Task 7/O1's own send-side proof already hit. See `docs/execution/sprint3/reports/frontend-task3.md`. |
 
 ## Founder action needed
-None of the three tasks require founder action to be considered done — all deviations above are environment constraints (no simulator/device in this dev environment), not missing credentials or blocked decisions. **Recommended founder follow-up, not blocking**: a real device/simulator pass through Expo Go to close Task 2/3's one open gap (Gate 2 resolution + video playback have never been exercised live, only Gate 1's identical mechanism has) — see `reports/task1.md` Deviation 7 and `reports/task2.md` Deviation 3.
+The three initial tasks (API layer, app scaffold, dashboard) need no founder action to be considered
+done — all deviations there are environment constraints (no simulator/device in this dev environment),
+not missing credentials or blocked decisions. **Recommended founder follow-up, not blocking**: a real
+device/simulator pass through Expo Go to close Task 2/3's one open gap (Gate 2 resolution + video
+playback have never been exercised live, only Gate 1's identical mechanism has) — see `reports/task1.md`
+Deviation 7 and `reports/task2.md` Deviation 3.
+
+**Sprint 3 frontend Task 3 carries one real, blocking-for-full-proof founder action**: real on-device
+push notification delivery (Frontend Task 3/FE11') needs verification against a real physical device —
+simulators don't deliver real push, and this is the task's own required success bar, not an
+optional nice-to-have. Every piece of the path up to that boundary (permission request, token
+registration, the server endpoint, the web-platform skip guard, and the tap-to-deep-link handler) is
+implemented and proven for real. See `docs/execution/sprint3/reports/frontend-task3.md`.
 
 ## Merge history
 

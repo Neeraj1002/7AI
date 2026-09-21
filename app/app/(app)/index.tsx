@@ -24,6 +24,11 @@ export default function QueueScreen() {
   const { data, isLoading, isFetching, refetch } = useQuery(
     trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }),
   );
+  // Sprint 3 Task 3 (FE10) — a badge/entry point from the screen the founder
+  // actually opens most, so a pending notification is visible without
+  // navigating away first.
+  const { data: notifications } = useQuery(trpc.notifications.list.queryOptions());
+  const pendingCount = notifications?.filter((n) => !n.resolvedAt).length ?? 0;
 
   const handleSignOut = async () => {
     await signOut();
@@ -35,6 +40,11 @@ export default function QueueScreen() {
       <View style={styles.topRow}>
         <Pressable onPress={handleSignOut}>
           <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
+        <Pressable style={styles.dashboardLink} onPress={() => router.push('/notifications')}>
+          <Text style={styles.dashboardLinkText}>
+            Notifications{pendingCount > 0 ? ` (${pendingCount})` : ''}
+          </Text>
         </Pressable>
         <Pressable style={styles.dashboardLink} onPress={() => router.push('/channels')}>
           <Text style={styles.dashboardLinkText}>Channels</Text>

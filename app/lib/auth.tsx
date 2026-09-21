@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { getSecureItem, setSecureItem, deleteSecureItem } from './storage';
 import type { Session } from './auth-api';
 import type { UserRole } from './auth-types';
+import { registerForPushNotificationsAsync } from './push';
 
 const SESSION_TOKEN_KEY = 'sevenai.sessionToken';
 const API_URL_KEY = 'sevenai.apiBaseUrl';
@@ -24,7 +25,13 @@ type AuthState = {
   // real `GET /auth/verify` call itself happens in auth-api.ts, called from
   // either the deep-link handler (app/verify.tsx) or the manual-paste
   // fallback (login.tsx); both converge here with the same real result.
-  completeSignIn: (result: { sessionToken: string; session: Session }) => Promise<void>;
+  // `apiUrl` is taken as an explicit argument (not read from this
+  // provider's own state) deliberately — the caller always just resolved it
+  // locally (it's what it used for the verify call itself), and reading it
+  // from context here instead would risk a stale closure if `setApiUrl`
+  // hasn't finished re-rendering yet (Sprint 3 Task 3/FE11' needs the
+  // *current* apiUrl for push-token registration, not a lagging one).
+  completeSignIn: (result: { sessionToken: string; session: Session }, apiUrl: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -73,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await setSecureItem(API_URL_KEY, newApiUrl);
         setApiUrlState(newApiUrl);
       },
-      completeSignIn: async ({ sessionToken, session }) => {
+      completeSignIn: async ({ sessionToken, session }, signInApiUrl) => {
         await Promise.all([
           setSecureItem(SESSION_TOKEN_KEY, sessionToken),
           setSecureItem(USER_ID_KEY, session.userId),
@@ -84,6 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserId(session.userId);
         setTenantId(session.tenantId);
         setRole(session.role);
+        // Sprint 3 Task 3 (FE11') — fire-and-forget: a push-registration
+        // failure (denied permission, no EAS project configured, web
+        // platform, ...) must never block sign-in itself.
+        void registerForPushNotificationsAsync(signInApiUrl, sessionToken);
       },
       signOut: async () => {
         await Promise.all([

@@ -65,7 +65,7 @@ function LoginForm() {
       await setApiUrl(apiUrl.trim());
       const token = extractToken(pasted);
       const result = await verifyMagicLinkToken(apiUrl.trim(), token);
-      await completeSignIn(result);
+      await completeSignIn(result, apiUrl.trim());
       router.replace('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-in failed.');

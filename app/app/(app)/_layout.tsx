@@ -27,6 +27,7 @@ export default function AppGroupLayout() {
           options={{ title: 'Dashboard', headerRight: () => <ChannelSwitcher /> }}
         />
         <Stack.Screen name="channels" options={{ title: 'Channels' }} />
+        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       </Stack>
     </ChannelProvider>
   );
