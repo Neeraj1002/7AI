@@ -1,9 +1,14 @@
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
-import { uploadVideoViaProvider } from './youtube-client';
-import { stubUploadVideo } from './stub';
+import { uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
+import { stubUploadVideo, stubSetThumbnail } from './stub';
 import { env } from '../../config/env';
 import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, type UploadResult } from './types';
+
+const execFileAsync = promisify(execFile);
 
 // Publishing agent — AGENT_FLEET_DESIGN.md Section 4.7. Two responsibilities:
 // (1) generate optimized title/description/tags from the sanctioned script —
@@ -18,16 +23,22 @@ import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, t
 export type { PublishingMetadata, UploadParams, UploadResult, PrivacyStatus } from './types';
 export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
 
-const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags) from a
-sanctioned script and its hashtags — platform-specific optimization, not creative writing (the
-script itself is already finished and approved).
+const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags, and cover
+frame) from a sanctioned script and its hashtags — platform-specific optimization, not creative
+writing (the script itself is already finished and approved).
 
 Respond with ONLY a JSON object:
-{"title": string, "description": string, "tags": string[]}
+{"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}
 "title" is under 100 characters, attention-grabbing, and accurate to the content — no clickbait
 that misrepresents what the video actually shows.
 "description" is 1-3 sentences summarizing the content; can restate the hashtags inline.
 "tags" is 5-15 short keyword phrases relevant to the topic, no leading '#' character.
+"coverFrameTimestampRatio" is a number from 0 to 1 (0 = the very first frame, 1 = the very last)
+choosing where through the video to grab a still frame for the custom cover thumbnail — pick a
+moment that reads well as a static image outside the Shorts feed (a clear visual, ideally near the
+hook, not the first ~5% or last ~5% of the video where a fade-in/fade-out or a mid-word caption
+transition is more likely). This matters wherever the Short surfaces outside the Shorts feed itself
+(search results, channel page, embeds).
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
 export async function generatePublishingMetadata(params: {
@@ -67,4 +78,45 @@ export async function uploadVideo(params: UploadParams): Promise<UploadResult> {
     return stubUploadVideo(params);
   }
   return uploadVideoViaProvider(params);
+}
+
+// Sprint 2 Task 5 (H1) — reuses the exact frame-extraction technique
+// Video Intelligence's own sample-frame extraction already established
+// (video-intelligence/index.ts's extractSampleFramesBase64): ffmpeg
+// `-ss <timestamp> -frames:v 1`, one real JPEG frame, no new pattern.
+export async function extractCoverFrame(params: {
+  videoPath: string;
+  durationSeconds: number;
+  coverFrameTimestampRatio: number;
+}): Promise<string> {
+  const timestampSeconds = Math.min(
+    Math.max(params.coverFrameTimestampRatio * params.durationSeconds, 0),
+    Math.max(params.durationSeconds - 0.1, 0),
+  );
+  const framePath = path.join(path.dirname(params.videoPath), `${path.basename(params.videoPath)}.cover-frame.jpg`);
+  await execFileAsync(env.FFMPEG_PATH, [
+    '-y',
+    '-ss',
+    timestampSeconds.toFixed(2),
+    '-i',
+    params.videoPath,
+    '-frames:v',
+    '1',
+    '-q:v',
+    '3',
+    framePath,
+  ]);
+  return framePath;
+}
+
+// YOUTUBE_STUB=1 swaps the real thumbnails.set call for the stub — same
+// flag uploadVideo above uses. Deliberately a separate function from
+// uploadVideo, not folded into it: the caller (state-machine.ts) isolates
+// this call's failure from the upload's own success/failure, so it needs
+// its own call site to wrap independently.
+export async function setThumbnail(params: { channelId: string; youtubeVideoId: string; imagePath: string }): Promise<void> {
+  if (env.YOUTUBE_STUB === '1') {
+    return stubSetThumbnail(params);
+  }
+  return setThumbnailViaProvider(params);
 }

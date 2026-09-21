@@ -16,8 +16,21 @@ coverage/
 
 # Generated media (audio/video) — Week 3's media/video-generation layers
 # write real files here (studio/data/media-tmp/, studio/data/videos/); never
-# committed, same reasoning as node_modules/dist.
-data/
+# committed, same reasoning as node_modules/dist. `**/data/*` (not bare
+# `data/`, not `data/*`) deliberately: a bare `data/` has no "middle" slash
+# so it matches at any depth (studio/data/) but fully excludes the
+# directory, stopping git from descending into it to evaluate the
+# audio-beds negation below; a plain `data/*` (a middle slash) is anchored
+# to the repo root, only matching a root-level data/ that doesn't exist
+# here at all (the real one is studio/data/). `**/data/*` matches at any
+# depth *and* only excludes direct children, leaving `data/` itself
+# traversable so the negation below actually applies.
+**/data/*
+# Sprint 2 Task 3 exception: data/audio-beds/ is a small, curated, checked-in
+# royalty-free music library (studio/src/audio-bed/manifest.ts), not
+# runtime-generated scratch — the one deliberate carve-out from the blanket
+# data/ ignore above.
+!**/data/audio-beds/
 
 .vscode/*
 !.vscode/extensions.json

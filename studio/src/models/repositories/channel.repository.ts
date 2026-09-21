@@ -16,6 +16,8 @@ function toDomainChannel(row: PrismaChannel): Channel {
     approvalGateConfig: row.approvalGateConfig as Channel['approvalGateConfig'],
     priorsScope: row.priorsScope as PriorsScope,
     budgetOverrideUsd: row.budgetOverrideUsd ? row.budgetOverrideUsd.toString() : null,
+    defaultVoice: row.defaultVoice,
+    ownerUserId: row.ownerUserId,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -72,6 +74,7 @@ export async function insertChannel(input: CreateChannelInput): Promise<Channel>
       styleGuide: input.styleGuide,
       postingCadence: input.postingCadence,
       priorsScope: input.priorsScope,
+      ownerUserId: input.ownerUserId,
     },
   });
   return toDomainChannel(row);

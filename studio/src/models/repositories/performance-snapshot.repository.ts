@@ -1,6 +1,6 @@
 import { prisma } from '../prisma-client';
 import type { Prisma, PerformanceSnapshot as PrismaPerformanceSnapshot } from '@prisma/client';
-import type { CreatePerformanceSnapshotInput, PerformanceSnapshot } from '../../types';
+import type { CreatePerformanceSnapshotInput, PerformanceSnapshot, RetentionCurvePoint } from '../../types';
 
 function toDomainSnapshot(row: PrismaPerformanceSnapshot): PerformanceSnapshot {
   return {
@@ -14,6 +14,7 @@ function toDomainSnapshot(row: PrismaPerformanceSnapshot): PerformanceSnapshot {
     comments: Number(row.comments),
     watchTimeMinutes: row.watchTimeMinutes ? row.watchTimeMinutes.toString() : null,
     retentionPct: row.retentionPct ? row.retentionPct.toString() : null,
+    retentionCurve: (row.retentionCurve as RetentionCurvePoint[] | null) ?? null,
     snapshotAt: row.snapshotAt,
     createdAt: row.createdAt,
   };
@@ -33,6 +34,7 @@ export async function insertPerformanceSnapshot(
       comments: input.comments,
       watchTimeMinutes: input.watchTimeMinutes as Prisma.Decimal.Value | undefined,
       retentionPct: input.retentionPct as Prisma.Decimal.Value | undefined,
+      retentionCurve: input.retentionCurve as Prisma.InputJsonValue | undefined,
       snapshotAt: input.snapshotAt,
     },
   });

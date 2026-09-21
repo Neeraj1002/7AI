@@ -1,8 +1,10 @@
-import { founderChannel } from '../../notify-founder';
+import { composeNotificationChannel, resolveNotificationRecipients } from '../../notifications';
+import type { Channel } from '../../types';
 
 // Approval Gate 1 — MVP_ROADMAP_OCT15.md Section 17's first-pass design,
 // implemented as specified rather than reinvented. Calls only
-// studio/src/notify-founder/'s interface, never grammy directly.
+// studio/src/notifications/'s interface, never a specific channel SDK
+// directly.
 
 export type Gate1Outcome =
   | { type: 'approve' }
@@ -68,6 +70,7 @@ export function formatGateMessage(params: {
 
 export async function requestGate1Decision(params: {
   runId: string;
+  channel: Pick<Channel, 'id' | 'tenantId' | 'ownerUserId'>;
   channelName: string;
   briefText: string;
   scriptText: string;
@@ -76,6 +79,17 @@ export async function requestGate1Decision(params: {
   restarted?: boolean;
 }): Promise<Gate1Outcome> {
   const message = formatGateMessage(params);
-  const { reply } = await founderChannel.requestApproval({ threadKey: params.runId, message });
+  // Sprint 3 Task 3 (K2) — real per-user routing: the channel's real owner
+  // (or, absent one, every owner-role user on the tenant — Task 2's own
+  // fail-closed design, applied here to who gets told, not just who may
+  // resolve it), in-app always, push (Task 7/O1) only if that user has a
+  // registered token.
+  const recipients = await resolveNotificationRecipients(params.channel);
+  const channel = await composeNotificationChannel({
+    tenantId: params.channel.tenantId,
+    channelId: params.channel.id,
+    userIds: recipients.map((user) => user.id),
+  });
+  const { reply } = await channel.requestApproval({ threadKey: params.runId, message });
   return parseGateReply(reply);
 }

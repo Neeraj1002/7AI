@@ -6,22 +6,32 @@
 // parse-brief.ts instead of a real Anthropic call.
 //
 // Usage:
-//   npx tsx scripts/dry-run.ts setup                    -> prints a new runId
+//   npx tsx scripts/dry-run.ts setup ["<brief text>"] ["<voice key>"] ["<stock-footage|ai-stills>"] ["<mood tag|none>"]
+//                                                         -> prints a new runId; optional 3rd arg
+//                                                            sets creationOptions.voice (Sprint 2
+//                                                            Task 1, D2), optional 4th sets
+//                                                            creationOptions.visualSource (Sprint 2
+//                                                            Task 2, E2), optional 5th sets
+//                                                            creationOptions.audioLayer (Sprint 2
+//                                                            Task 3, F1)
 //   npx tsx scripts/dry-run.ts start <runId>             -> runs intake (kill me mid-flight)
 //   npx tsx scripts/dry-run.ts script-gen <runId>        -> runs script_generation (Week 2 Task 4)
 //   npx tsx scripts/dry-run.ts script-review <runId>     -> runs script_review (Week 2 Task 5)
 //   npx tsx scripts/dry-run.ts gate1 <runId> <approve|reject|edit>
-//                                                         -> runs gate1 (Week 2 Task 6): sends a
-//                                                            REAL Telegram message, then simulates
-//                                                            the given reply type (no live human
-//                                                            round-trip needed/expected)
+//                                                         -> runs gate1 (Week 2 Task 6): opens the real
+//                                                            gate (real Notification/push dispatch), then
+//                                                            resolves it directly (Sprint 3 Task 7 (O2):
+//                                                            the same resolvePendingApproval primitive
+//                                                            the real app's gate1 API call uses — no live
+//                                                            human round-trip needed/expected)
 //   npx tsx scripts/dry-run.ts full "<brief text>"       -> Week 2 Task 7: chains setup -> intake ->
 //                                                            script_generation -> script_review in one
 //                                                            process invocation, no manual step between
 //                                                            stages (only gate1 needs a human/simulated
 //                                                            decision) — prints the runId at the end
-//   npx tsx scripts/dry-run.ts gate1-live <runId>        -> real gate1: sends a real Telegram message
-//                                                            and genuinely blocks for a real human reply
+//   npx tsx scripts/dry-run.ts gate1-live <runId>        -> real gate1: opens the real gate and
+//                                                            genuinely blocks until a real reply arrives
+//                                                            via the real app/API (no simulation)
 //   npx tsx scripts/dry-run.ts gate2-live <runId>        -> same, for gate2 (Week 5 Task 1)
 //   npx tsx scripts/dry-run.ts video-gen <runId>         -> runs video_generation (Week 3/4)
 //   npx tsx scripts/dry-run.ts video-review <runId>      -> runs video_review
@@ -30,10 +40,18 @@
 //   npx tsx scripts/dry-run.ts poll                      -> runs one Performance Analytics poll tick
 //   npx tsx scripts/dry-run.ts resume                    -> resumes any running PipelineRuns
 //   npx tsx scripts/dry-run.ts status <runId>             -> prints run + stage + usage_event + review_log rows
+//   npx tsx scripts/dry-run.ts digest                    -> Sprint 2 Task 6 (I1): runs one founder-digest
+//                                                            check for real (real push + in-app dispatch
+//                                                            if a digest is actually due)
+//   npx tsx scripts/dry-run.ts tag <runId> <tagWord> ["<notes>"]
+//                                                         -> Sprint 2 Task 6 (I2), rewired by Sprint 3
+//                                                            Task 7 (O4): calls the same recordPostHocTag
+//                                                            function runs.tagPostHoc's real API mutation
+//                                                            calls, directly (no text-command parsing —
+//                                                            that parser is gone along with Telegram)
 
 import { prisma } from '../src/models/prisma-client';
 import { MVP_TENANT_ID } from '../src/types';
-import { env } from '../src/config/env';
 import {
   createRun,
   runIntakeStage,
@@ -48,8 +66,10 @@ import {
 } from '../src/run-pipeline/state-machine';
 import { runPeriodicPoll } from '../src/agents/performance-analytics';
 import type { ProductionPlan } from '../src/agents/video-generation/plan';
-import { simulateIncomingTelegramMessage, peekPendingMessageId } from '../src/notify-founder';
+import { resolvePendingApproval, hasPendingApproval } from '../src/notifications';
 import { resumeOnStartup } from '../src/run-pipeline/resume-on-startup';
+import { runFounderDigestCheck } from '../src/run-pipeline/founder-digest';
+import { recordPostHocTag } from '../src/run-pipeline/post-hoc-tag';
 
 async function ensureTestChannel(): Promise<string> {
   const existing = await prisma.channel.findFirst({ where: { tenantId: MVP_TENANT_ID } });
@@ -65,12 +85,21 @@ async function ensureTestChannel(): Promise<string> {
   return created.id;
 }
 
-async function setup(briefText?: string): Promise<void> {
+// Sprint 2 Task 1 (D2): optional third arg lets a dry run set an explicit
+// per-run voice override, exercising the real creationOptions column and
+// the real API-shaped input (not a synthetic test-only field) end-to-end.
+// Sprint 2 Task 2 (E2): optional fourth arg does the same for visualSource.
+// Sprint 2 Task 3 (F1): optional fifth arg does the same for audioLayer.
+async function setup(briefText?: string, voice?: string, visualSource?: string, audioLayer?: string): Promise<void> {
   const channelId = await ensureTestChannel();
   const run = await createRun({
     tenantId: MVP_TENANT_ID,
     channelId,
     briefText: briefText ?? 'A short video about why octopuses have three hearts.',
+    creationOptions:
+      voice || visualSource || audioLayer
+        ? { ...(voice && { voice }), ...(visualSource && { visualSource }), ...(audioLayer && { audioLayer }) }
+        : undefined,
   });
   console.log(`runId=${run.id}`);
 }
@@ -94,9 +123,11 @@ async function scriptReview(runId: string): Promise<void> {
 }
 
 // Per Task 6's founder-availability note: this does NOT wait on a live human
-// reply. It sends one real message (proving the "send" half works), then
-// feeds a simulated incoming update through the real handleUpdate path
-// (proving the parsing/resume logic works) — never both halves faked.
+// reply. It opens the real gate (real Notification row + push dispatch,
+// proving the "send" half works), then resolves it directly via
+// resolvePendingApproval — Sprint 3 Task 7 (O2): the exact same primitive
+// the real app's gate1 API call (api/routers/runs.ts) uses, not a second,
+// parallel resolution path — never both halves faked.
 async function gate1(runId: string, outcomeArg: string, editText?: string): Promise<void> {
   const replyText =
     outcomeArg === 'approve'
@@ -105,53 +136,48 @@ async function gate1(runId: string, outcomeArg: string, editText?: string): Prom
         ? 'reject dry-run test rejection reason'
         : (editText ?? 'This is a dry-run edited script, replacing the original AI draft.');
 
-  if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
-    throw new Error('TELEGRAM_FOUNDER_CHAT_ID not set in .env.local');
-  }
-  const chatId = Number(env.TELEGRAM_FOUNDER_CHAT_ID);
-
   console.log(
-    `[dry-run] starting gate1 for ${runId} — sending a real Telegram message, then simulating a '${outcomeArg}' reply (no live human round-trip)`,
+    `[dry-run] starting gate1 for ${runId} — opening the real gate, then resolving it directly with '${outcomeArg}' (no live human round-trip)`,
   );
 
   const gate1Promise = runGate1Stage(runId);
 
-  // Poll for the real sent message's id (registered once requestApproval's
-  // sendMessage call completes), then target it explicitly via
-  // reply_to_message — deterministic and immune to any unrelated real
-  // message arriving in the meantime (e.g. the founder's own prior chat
-  // history with the bot), unlike relying on the "single pending" fallback.
-  let sentMessageId: number | undefined;
-  for (let i = 0; i < 20 && sentMessageId === undefined; i += 1) {
+  // Poll until runGate1Stage has actually reached the point of registering
+  // a pending-approval promise (its own requestApproval call, across every
+  // dispatched channel, completes asynchronously) — otherwise resolving
+  // here could race ahead of the gate opening and resolve nothing.
+  let registered = false;
+  for (let i = 0; i < 20 && !registered; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 500));
-    sentMessageId = peekPendingMessageId(runId);
+    registered = hasPendingApproval(runId);
   }
-  if (sentMessageId === undefined) {
-    throw new Error('Timed out waiting for the real gate1 message to send');
+  if (!registered) {
+    throw new Error('Timed out waiting for gate1 to open (no pending approval registered)');
   }
 
-  await simulateIncomingTelegramMessage({ chatId, text: replyText, replyToMessageId: sentMessageId });
+  const { resolved } = resolvePendingApproval(runId, replyText);
+  if (!resolved) {
+    throw new Error(`resolvePendingApproval unexpectedly reported resolved=false for run ${runId}`);
+  }
 
   await gate1Promise;
-  console.log(`[dry-run] gate1 completed via simulated '${outcomeArg}' reply`);
+  console.log(`[dry-run] gate1 completed via a simulated '${outcomeArg}' resolution`);
 }
 
-// Week 2 Task 6's still-open criterion, closed for real here: sends the real
-// Telegram message and then genuinely blocks on requestApproval's real
-// pending-reply promise — no simulateIncomingTelegramMessage call at all.
-// Resolves only when an actual human reply arrives via the bot's real
-// long-polling handleUpdate path.
+// Week 2 Task 6's still-open criterion, closed for real here: opens the real
+// gate and then genuinely blocks on requestApproval's real pending-reply
+// promise — no simulated resolution call at all. Resolves only when a real
+// reply arrives via the real app's gate1 API call (or an operator manually
+// driving api/routers/runs.ts's gate1 mutation).
 async function gate1Live(runId: string): Promise<void> {
   console.log(
-    `[dry-run] starting REAL gate1 round trip for ${runId} — sending a real Telegram message and waiting for an actual human reply (no simulation)`,
+    `[dry-run] starting REAL gate1 round trip for ${runId} — waiting for an actual reply via the app/API (no simulation)`,
   );
   const run = await runGate1Stage(runId);
-  console.log(`[dry-run] gate1 resolved via a REAL human reply — PipelineRun.status=${run.status}, currentStage=${run.currentStage}`);
+  console.log(`[dry-run] gate1 resolved via a REAL reply — PipelineRun.status=${run.status}, currentStage=${run.currentStage}`);
 }
 
-// Same no-live-round-trip convention as gate1: sends one real Telegram
-// message (with the video attached, or a too-large notice), then targets a
-// simulated reply at that exact message id.
+// Same no-live-round-trip convention as gate1.
 async function gate2(runId: string, outcomeArg: string): Promise<void> {
   const replyText =
     outcomeArg === 'approve'
@@ -160,46 +186,40 @@ async function gate2(runId: string, outcomeArg: string): Promise<void> {
         ? 'reject dry-run test rejection reason'
         : 'Please brighten the background and re-render.';
 
-  if (!env.TELEGRAM_FOUNDER_CHAT_ID) {
-    throw new Error('TELEGRAM_FOUNDER_CHAT_ID not set in .env.local');
-  }
-  const chatId = Number(env.TELEGRAM_FOUNDER_CHAT_ID);
-
   console.log(
-    `[dry-run] starting gate2 for ${runId} — sending a real Telegram message, then simulating a '${outcomeArg}' reply (no live human round-trip)`,
+    `[dry-run] starting gate2 for ${runId} — opening the real gate, then resolving it directly with '${outcomeArg}' (no live human round-trip)`,
   );
 
   const gate2Promise = runGate2Stage(runId);
 
-  // Gate 2's requestApproval uploads the actual video file via sendVideo
-  // (not a lightweight sendMessage like Gate 1) — a real multi-MB upload
-  // takes longer than gate1's 10s polling window, so this waits up to 60s.
-  let sentMessageId: number | undefined;
-  for (let i = 0; i < 120 && sentMessageId === undefined; i += 1) {
+  let registered = false;
+  for (let i = 0; i < 20 && !registered; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 500));
-    sentMessageId = peekPendingMessageId(runId);
+    registered = hasPendingApproval(runId);
   }
-  if (sentMessageId === undefined) {
-    throw new Error('Timed out waiting for the real gate2 message to send');
+  if (!registered) {
+    throw new Error('Timed out waiting for gate2 to open (no pending approval registered)');
   }
 
-  await simulateIncomingTelegramMessage({ chatId, text: replyText, replyToMessageId: sentMessageId });
+  const { resolved } = resolvePendingApproval(runId, replyText);
+  if (!resolved) {
+    throw new Error(`resolvePendingApproval unexpectedly reported resolved=false for run ${runId}`);
+  }
 
   await gate2Promise;
-  console.log(`[dry-run] gate2 completed via simulated '${outcomeArg}' reply`);
+  console.log(`[dry-run] gate2 completed via a simulated '${outcomeArg}' resolution`);
 }
 
 // Week 5 Task 1's real end-to-end run: same no-simulation convention as
-// gate1Live — sends the real Telegram message (with the real video
-// attached) and genuinely blocks on requestApproval's real pending-reply
-// promise. Resolves only when an actual human reply arrives via the bot's
-// real long-polling handleUpdate path.
+// gate1Live — opens the real gate and genuinely blocks on requestApproval's
+// real pending-reply promise. Resolves only when a real reply arrives via
+// the real app/API.
 async function gate2Live(runId: string): Promise<void> {
   console.log(
-    `[dry-run] starting REAL gate2 round trip for ${runId} — sending a real Telegram message (with video) and waiting for an actual human reply (no simulation)`,
+    `[dry-run] starting REAL gate2 round trip for ${runId} — waiting for an actual reply via the app/API (no simulation)`,
   );
   const run = await runGate2Stage(runId);
-  console.log(`[dry-run] gate2 resolved via a REAL human reply — PipelineRun.status=${run.status}, currentStage=${run.currentStage}`);
+  console.log(`[dry-run] gate2 resolved via a REAL reply — PipelineRun.status=${run.status}, currentStage=${run.currentStage}`);
 }
 
 // Week 2 Task 7 — proves the sequence composes with no manual step between
@@ -248,8 +268,10 @@ async function videoGenRegression(runId: string): Promise<void> {
   const topic = (run.intakeParsed as { topic?: string } | null)?.topic ?? 'abstract background';
 
   const forcedPlan: ProductionPlan = {
+    visualSource: 'stock-footage',
     stockFootageQuery: topic.split(/\s+/).slice(0, 4).join(' ') || 'abstract background',
     captionStyle: 'word-flash',
+    audioLayer: 'none',
     pacingNotes: 'flash each word individually for punchy pacing',
     rationale:
       "Regression-test forced plan (dry-run.ts video-gen-regression) — deterministically reproduces Week 3 Task 3's flashing-caption/partial-word review failure so the real regen loop can be exercised against it.",
@@ -307,6 +329,30 @@ async function resume(): Promise<void> {
   console.log('[dry-run] resume pass complete');
 }
 
+async function digest(): Promise<void> {
+  console.log('[dry-run] running one real founder-digest check');
+  const result = await runFounderDigestCheck();
+  console.log(`[dry-run] digest check complete — sent=${result.sent}`);
+}
+
+// Sprint 2 Task 6 (I2), rewired by Sprint 3 Task 7 (O4): calls the same
+// recordPostHocTag function runs.tagPostHoc's real API mutation calls,
+// directly — the old Telegram text-command parser this used to go through
+// is deleted along with Telegram itself; tag/notes normalization now lives
+// at the API edge (api/routers/runs.ts's tagPostHoc), mirrored here so this
+// script's own output matches what a real app submission would produce.
+async function tag(runId: string, tagWord: string, notes?: string): Promise<void> {
+  const result = await recordPostHocTag({
+    runId,
+    tag: tagWord.toLowerCase().slice(0, 50),
+    notes: (notes ?? '').trim(),
+  });
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+  console.log(`[dry-run] post-hoc tag recorded — reviewLogId=${result.reviewLog.id}`);
+}
+
 async function status(runId: string): Promise<void> {
   const run = await prisma.pipelineRun.findUnique({ where: { id: runId } });
   const stages = await prisma.pipelineStage.findMany({
@@ -328,7 +374,7 @@ async function main(): Promise<void> {
   const [cmd, arg] = process.argv.slice(2);
   switch (cmd) {
     case 'setup':
-      await setup(arg);
+      await setup(arg, process.argv[4], process.argv[5], process.argv[6]);
       break;
     case 'start':
       if (!arg) throw new Error('usage: dry-run.ts start <runId>');
@@ -397,18 +443,22 @@ async function main(): Promise<void> {
       if (!arg) throw new Error('usage: dry-run.ts status <runId>');
       await status(arg);
       break;
+    case 'digest':
+      await digest();
+      break;
+    case 'tag': {
+      const tagWord = process.argv[4];
+      const notes = process.argv[5];
+      if (!arg || !tagWord) throw new Error('usage: dry-run.ts tag <runId> <tagWord> ["<notes>"]');
+      await tag(arg, tagWord, notes);
+      break;
+    }
     default:
       throw new Error(
-        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status`,
+        `unknown command '${cmd}' — expected setup|start|script-gen|script-review|gate1|gate1-live|full|video-gen|video-review|video-gen-regression|gate2|gate2-live|publish|analytics|poll|resume|status|digest|tag`,
       );
   }
 }
-
-const startedLongPollingBot =
-  process.argv[2] === 'gate1' ||
-  process.argv[2] === 'gate1-live' ||
-  process.argv[2] === 'gate2' ||
-  process.argv[2] === 'gate2-live';
 
 main()
   .catch((error) => {
@@ -417,11 +467,7 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    // Only 'gate1' starts grammy's long-polling loop, which otherwise keeps
-    // the process alive forever — force-exit just for that command. Every
-    // other command exits naturally; forcing exit unconditionally here
-    // trips a libuv assertion on a still-closing handle.
-    if (startedLongPollingBot) {
-      process.exit(process.exitCode ?? 0);
-    }
+    // Sprint 3 Task 7 (O2) — no command starts a long-polling loop anymore
+    // (that was grammy's bot, deleted along with Telegram); every command
+    // now exits naturally once its own work and the DB disconnect complete.
   });

@@ -1,14 +1,19 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
+import type { Context } from '../trpc';
 import { findPipelineRunById, listRuns } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import { listStagesForRun } from '../../models/repositories/pipeline-stage.repository';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
-import { founderChannel } from '../../notify-founder';
-import { MVP_TENANT_ID, PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
+import { canResolveGate } from '../../run-pipeline/gate-ownership';
+import { resolvePendingApproval } from '../../notifications';
+import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
+import { TTS_VOICE_KEYS } from '../../media';
+import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
+import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 
 async function getRunDetail(id: string) {
   const run = await findPipelineRunById(id);
@@ -23,6 +28,30 @@ async function getRunDetail(id: string) {
   return { run, channel, stages, reviewLogs };
 }
 
+// Sprint 3 Task 2 (K1) — the gate-ownership check gate1/gate2 both run
+// before ever calling resolvePendingApproval. Looks up the run/channel
+// itself rather than trusting a client-supplied channelId, so there's no
+// way to spoof ownership by lying about which channel a gate belongs to.
+// The actual allow/deny decision is canResolveGate (run-pipeline/gate-ownership.ts),
+// kept pure and separate so it can be unit tested directly.
+async function assertGateOwnership(runId: string, ctx: Context): Promise<void> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${runId} not found` });
+  }
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `Channel for run ${runId} not found` });
+  }
+
+  if (!canResolveGate(ctx, channel)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: `You are not allowed to resolve gates for run ${runId}`,
+    });
+  }
+}
+
 export const runsRouter = router({
   // POST /runs — BUSINESS_LOGIC.md Section 2. Creates the row, then drives it
   // in the background (pipeline-runner.ts) rather than leaving it sitting at
@@ -30,16 +59,53 @@ export const runsRouter = router({
   // 'pending' run on its own (resume-on-startup.ts only ever resumes
   // 'running' ones).
   create: publicProcedure
-    .input(z.object({ channelId: z.string().uuid(), briefText: z.string().min(1) }))
-    .mutation(async ({ input }) => {
+    .input(
+      z.object({
+        channelId: z.string().uuid(),
+        briefText: z.string().min(1),
+        // Sprint 2 Task 1 (D2) — an explicit, structured choice, validated
+        // against media/registry.ts's known TTS_VOICES keys right here at
+        // the API edge (Failure Modes: reject bad structured input at the
+        // edge, not deep in the pipeline). Never passed through
+        // parse-brief.ts's LLM call — that's the whole point of this field
+        // existing separately from briefText.
+        voice: z.enum(TTS_VOICE_KEYS).optional(),
+        // Sprint 2 Task 2 (E2) — same edge-validation posture as voice:
+        // rejected here (a structured tRPC input error) if it doesn't match
+        // a real visualSource, never passed through as free text for
+        // parse-brief.ts or the planning LLM to interpret loosely.
+        visualSource: z.enum(VISUAL_SOURCES).optional(),
+        // Sprint 2 Task 3 (F1) — same edge-validation posture as
+        // voice/visualSource: rejected here if it doesn't match a real mood
+        // tag (or "none"), never passed through as free text.
+        audioLayer: z.enum(AUDIO_LAYERS).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
       const channel = await findChannelById(input.channelId);
       if (!channel) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} not found` });
       }
+      const creationOptions =
+        input.voice || input.visualSource || input.audioLayer
+          ? {
+              ...(input.voice && { voice: input.voice }),
+              ...(input.visualSource && { visualSource: input.visualSource }),
+              ...(input.audioLayer && { audioLayer: input.audioLayer }),
+            }
+          : undefined;
+      // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
+      // MVP_TENANT_ID. Still not checked against the channel's own tenant
+      // here — Task 2 (K1)'s gate-ownership check covers gate1/gate2 only,
+      // scoped to that task's own text; runs.create's own cross-tenant gap
+      // (a session could create a run against a channel belonging to a
+      // different tenant) remains open, tracked in
+      // KNOWN_ISSUES_AND_BLOCKERS.md §3, not silently glossed over.
       const run = await createRun({
-        tenantId: MVP_TENANT_ID,
+        tenantId: ctx.tenantId,
         channelId: input.channelId,
         briefText: input.briefText,
+        creationOptions,
       });
       startPipelineInBackground(run.id);
       return run;
@@ -65,8 +131,8 @@ export const runsRouter = router({
   }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same
-  // resolution primitive a Telegram reply uses (FounderChannel.
-  // resolvePendingApproval), converting the structured action into the exact
+  // resolution primitive every NotificationChannel shares
+  // (resolvePendingApproval), converting the structured action into the exact
   // raw reply-string grammar agents/gate1/index.ts's parseGateReply already
   // parses (approve / "reject <reason>" / free text = edit) — no duplicate
   // parsing logic here.
@@ -78,7 +144,9 @@ export const runsRouter = router({
         z.object({ runId: z.string().uuid(), action: z.literal('edit'), editedScriptText: z.string().min(1) }),
       ]),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+
       const replyText =
         input.action === 'approve'
           ? 'approve'
@@ -86,7 +154,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.editedScriptText;
 
-      const { resolved } = founderChannel.resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, replyText);
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -107,7 +175,9 @@ export const runsRouter = router({
         z.object({ runId: z.string().uuid(), action: z.literal('revise'), notes: z.string().min(1) }),
       ]),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+
       const replyText =
         input.action === 'approve'
           ? 'approve'
@@ -115,7 +185,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.notes;
 
-      const { resolved } = founderChannel.resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, replyText);
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -123,5 +193,31 @@ export const runsRouter = router({
         });
       }
       return { resolved: true };
+    }),
+
+  // POST /runs/:id/tag-post-hoc — Sprint 3 Task 7 (O4). Replaces the old
+  // bot-only `tag <runId> <word> [notes]` text command (Sprint 2 Task 6)
+  // with a real in-app equivalent — same ownership check as gate1/gate2
+  // (attaching a post-hoc quality tag to a run is at least as sensitive as
+  // resolving one of its gates), same underlying write
+  // (run-pipeline/post-hoc-tag.ts's recordPostHocTag — a ReviewLog row with
+  // agent: 'founder-post-hoc' — reused directly, not re-implemented). `tag`
+  // is normalized the exact same way the old text-command parser did
+  // (lowercased, truncated to 50 chars) so a tag submitted through the app
+  // produces the identical DB row shape the old text-command path produced.
+  tagPostHoc: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), tag: z.string().min(1), notes: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+
+      const result = await recordPostHocTag({
+        runId: input.runId,
+        tag: input.tag.toLowerCase().slice(0, 50),
+        notes: (input.notes ?? '').trim(),
+      });
+      if (!result.ok) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: result.error });
+      }
+      return result.reviewLog;
     }),
 });
