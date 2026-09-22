@@ -154,3 +154,17 @@ Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `r
 - **A real founder action needed to verify Task 7/O1** — real push delivery has to be checked against
   a real physical device (simulators don't deliver real push); tracked as a founder-action item the
   same way Task 4/L2 and Task 5's own remaining item are.
+
+## 2026-09-22 — Hardening: run creation-time tenant ownership check
+
+Not a new numbered Sprint 3 task (the sprint's own 1-7 numbering is done; reopening a third time for
+a one-line authorization check would overstate its size) — a direct follow-on to Task 2 (K1), closing
+the matching gap Task 2 explicitly deferred at the time: `runs.create` now checks
+`channel.tenantId === ctx.tenantId` immediately after its existing not-found check, reusing
+`assertGateOwnership`'s own `FORBIDDEN` shape/message convention. Landed on `SPRINT3_BE` (still open,
+unmerged, at the time this fix started). **Real, live verification**: a genuinely separate second
+tenant's session (reused from earlier Sprint 3 testing, not created fresh) attempting `runs.create`
+against the first tenant's real channel got a real `403 FORBIDDEN`; a direct Postgres read confirmed
+zero `PipelineRun` rows exist for that attempt. Both regression checks — the same second tenant
+against its own channel, and the first tenant against its own channel — still succeeded normally. See
+`reports/hardening-tenant-check.md` and `KNOWN_ISSUES_AND_BLOCKERS.md` §3 (now closed).
