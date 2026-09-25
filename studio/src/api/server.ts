@@ -7,6 +7,8 @@ import { createContext } from './trpc';
 import { registerVideoRoute } from './video-route';
 import { requestMagicLink, verifyMagicLink, resolveRequestIdentity, isAuthConfigured } from '../auth';
 import { exchangeYoutubeAuthCode } from '../manage-channels/youtube-oauth-connect';
+import { insertBugReport } from '../models/repositories/bug-report.repository';
+import { BUG_REPORT_PAGE_HTML } from './bug-report-page';
 
 // Frontend track Task 1 — studio/src/api/. The orchestrator process's HTTP
 // surface, not a separate service (task1.md's own "Owning Component" note):
@@ -56,7 +58,11 @@ export async function startApiServer(): Promise<void> {
       request.url === '/health' ||
       request.method === 'OPTIONS' ||
       request.url.startsWith('/auth/') ||
-      request.url.startsWith('/oauth2callback')
+      request.url.startsWith('/oauth2callback') ||
+      // Testing-phase utility (see bug-report-page.ts) — deliberately
+      // unauthenticated: a tester reporting "I can't log in" must still be
+      // able to submit that report.
+      request.url.startsWith('/bugs')
     )
       return;
 
@@ -127,6 +133,45 @@ export async function startApiServer(): Promise<void> {
   );
 
   await registerVideoRoute(fastify);
+
+  // Testing-phase utility — a lightweight, unauthenticated bug inbox for
+  // manual app testing. GET serves the form (reading runId/screen from its
+  // own query string client-side — see bug-report-page.ts); POST records
+  // it. Deliberately outside tRPC/the tenant model (see schema.prisma's
+  // BugReport comment) and meant to be removed or formalized once real
+  // testing winds down, not carried forward as-is.
+  fastify.get('/bugs', async (_request, reply) => {
+    return reply.type('text/html').send(BUG_REPORT_PAGE_HTML);
+  });
+
+  // A syntactically-invalid runId (never expected from the app's own
+  // ReportBugButton, which only ever sends a real route param, but this
+  // endpoint is unauthenticated and reachable directly) would otherwise
+  // throw a raw Postgres error on insert (runId is `@db.Uuid`) — dropped to
+  // null instead rather than rejecting the whole report over a field that's
+  // not FK-enforced anyway (schema.prisma's own "a bad/garbage runId is
+  // trivially obvious when triaging" decision).
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  fastify.post<{ Body: { description?: string; runId?: string; screenContext?: string } }>(
+    '/bugs',
+    async (request, reply) => {
+      const description = request.body?.description?.trim();
+      if (!description) {
+        return reply.code(400).send({ error: 'description is required' });
+      }
+      const runId = request.body?.runId;
+      await insertBugReport({
+        description,
+        runId: runId && UUID_RE.test(runId) ? runId : null,
+        screenContext: request.body?.screenContext?.trim() || null,
+        // Captured server-side, never from the client body — more reliable
+        // and free (no tester involvement at all).
+        userAgent: request.headers['user-agent'] ?? null,
+      });
+      return reply.send({ ok: true });
+    },
+  );
 
   await fastify.register(fastifyTRPCPlugin, {
     prefix: '/trpc',

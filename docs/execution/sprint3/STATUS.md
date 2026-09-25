@@ -175,3 +175,17 @@ longer necessary from Task 2 onward.
 | Frontend 3 | In-App Notifications + Real Push Registration + Post-Hoc Tagging | Done — one real founder-action item remains | Claude Code / **Founder** (on-device push verification) | FE10: real Notifications screen (`notifications.list`), a pending `approval_request` row reusing the exact same `GateActionBar` Run Detail already uses. **Real, live verification**: a genuine `paused_gate1` run's notification was resolved via this screen's own controls; a direct Postgres read confirmed the real advance to `status: running`/`currentStage: video_generation`. FE12: a post-hoc tagging form on Run Detail, shown only once a run is `completed`/`failed`. **Real, live verification**: a new tag submitted through the app produced a real `ReviewLog` row (`agent: "founder-post-hoc"`), Postgres-confirmed, coexisting with a pre-existing tag rather than replacing it (same allow-multiple-tags behavior the old Telegram flow always had). **A real spec-vs-implementation mismatch found and deliberately deviated from**: the spec describes a tag picker "constrained to a real tag vocabulary," but `post-hoc-tag.ts` (read directly, not assumed from the spec's description) enforces none — free text is accepted by design. Quick-pick suggestion chips replace the imagined constrained picker. FE11': real push registration wired into sign-in (`expo-notifications`, `notifications.registerPushToken`), with a tap handler deep-linking a push straight to the relevant run. **Verified up to the physical-device boundary**: a real sign-in on web showed the `Platform.OS === 'web'` skip guard firing live (no native push support in a browser, by design); the server endpoint itself was independently proven with a real session token (a real, if fake-valued, push token round-tripped through Postgres, then cleared). **Real on-device push delivery could not be verified** — no physical device available in this environment, the same honest limit backend Task 7/O1's own send-side verification already hit; tracked as a founder-action item, not asserted or faked. See `docs/execution/sprint3/reports/frontend-task3.md`. |
 
 Frontend reports: `docs/execution/sprint3/reports/frontend-task1.md`, `docs/execution/sprint3/reports/frontend-task2.md`, `docs/execution/sprint3/reports/frontend-task3.md`.
+
+## 2026-09-22 — Hardening: run creation-time tenant ownership check
+
+Not a new numbered Sprint 3 task (the sprint's own 1-7 numbering is done; reopening a third time for
+a one-line authorization check would overstate its size) — a direct follow-on to Task 2 (K1), closing
+the matching gap Task 2 explicitly deferred at the time: `runs.create` now checks
+`channel.tenantId === ctx.tenantId` immediately after its existing not-found check, reusing
+`assertGateOwnership`'s own `FORBIDDEN` shape/message convention. Landed on `SPRINT3_BE` (still open,
+unmerged, at the time this fix started). **Real, live verification**: a genuinely separate second
+tenant's session (reused from earlier Sprint 3 testing, not created fresh) attempting `runs.create`
+against the first tenant's real channel got a real `403 FORBIDDEN`; a direct Postgres read confirmed
+zero `PipelineRun` rows exist for that attempt. Both regression checks — the same second tenant
+against its own channel, and the first tenant against its own channel — still succeeded normally. See
+`reports/hardening-tenant-check.md` and `KNOWN_ISSUES_AND_BLOCKERS.md` §3 (now closed).
