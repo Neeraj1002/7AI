@@ -1,37 +1,69 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getSecureItem, setSecureItem, deleteSecureItem } from './storage';
+import type { Session } from './auth-api';
+import type { UserRole } from './auth-types';
+import { registerForPushNotificationsAsync } from './push';
 
-const TOKEN_KEY = 'sevenai.apiAuthToken';
+const SESSION_TOKEN_KEY = 'sevenai.sessionToken';
 const API_URL_KEY = 'sevenai.apiBaseUrl';
+const USER_ID_KEY = 'sevenai.userId';
+const TENANT_ID_KEY = 'sevenai.tenantId';
+const ROLE_KEY = 'sevenai.role';
 
 type AuthState = {
   isLoading: boolean;
-  token: string | null;
+  token: string | null; // the session JWT, post Sprint 3 Task 1 — a drop-in replacement for the old shared token on the wire (lib/trpc.ts is unchanged)
   apiUrl: string | null;
-  signIn: (token: string, apiUrl: string) => Promise<void>;
+  userId: string | null;
+  tenantId: string | null;
+  role: UserRole | null;
+  // Persists just the API URL, independent of having a session yet — needed
+  // so a magic-link deep link opened on a fresh install still knows which
+  // API to call /auth/verify against (FE7).
+  setApiUrl: (apiUrl: string) => Promise<void>;
+  // Sprint 3 Task 1 (FE7): replaces the old `signIn(token, apiUrl)` — the
+  // real `GET /auth/verify` call itself happens in auth-api.ts, called from
+  // either the deep-link handler (app/verify.tsx) or the manual-paste
+  // fallback (login.tsx); both converge here with the same real result.
+  // `apiUrl` is taken as an explicit argument (not read from this
+  // provider's own state) deliberately — the caller always just resolved it
+  // locally (it's what it used for the verify call itself), and reading it
+  // from context here instead would risk a stale closure if `setApiUrl`
+  // hasn't finished re-rendering yet (Sprint 3 Task 3/FE11' needs the
+  // *current* apiUrl for push-token registration, not a lagging one).
+  completeSignIn: (result: { sessionToken: string; session: Session }, apiUrl: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-// The "lock on the door" MOBILE_APP_DESIGN.md Section 3 describes — a single
-// long-lived token plus the API's base URL, entered once and held in
-// SecureStore (storage.ts). No real session/login flow: this is a
-// single-operator tool per SCHEMA.md, same reasoning the API layer itself
-// uses for a plain shared-token check.
+// Sprint 3 Task 1 (FE6/FE7): real magic-link session auth replaces the old
+// "paste the shared API_AUTH_TOKEN" flow. `token` now holds a real session
+// JWT (Sprint 3 backend Task 1/J2's `SessionTokenPayload`, `purpose:
+// 'session'`), obtained by verifying a real magic link — never entered
+// directly by the user.
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
-  const [apiUrl, setApiUrl] = useState<string | null>(null);
+  const [apiUrl, setApiUrlState] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const [storedToken, storedApiUrl] = await Promise.all([
-        getSecureItem(TOKEN_KEY),
+      const [storedToken, storedApiUrl, storedUserId, storedTenantId, storedRole] = await Promise.all([
+        getSecureItem(SESSION_TOKEN_KEY),
         getSecureItem(API_URL_KEY),
+        getSecureItem(USER_ID_KEY),
+        getSecureItem(TENANT_ID_KEY),
+        getSecureItem(ROLE_KEY),
       ]);
       setToken(storedToken);
-      setApiUrl(storedApiUrl);
+      setApiUrlState(storedApiUrl);
+      setUserId(storedUserId);
+      setTenantId(storedTenantId);
+      setRole((storedRole as UserRole | null) ?? null);
       setIsLoading(false);
     })();
   }, []);
@@ -41,18 +73,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       token,
       apiUrl,
-      signIn: async (newToken: string, newApiUrl: string) => {
-        await Promise.all([setSecureItem(TOKEN_KEY, newToken), setSecureItem(API_URL_KEY, newApiUrl)]);
-        setToken(newToken);
-        setApiUrl(newApiUrl);
+      userId,
+      tenantId,
+      role,
+      setApiUrl: async (newApiUrl: string) => {
+        await setSecureItem(API_URL_KEY, newApiUrl);
+        setApiUrlState(newApiUrl);
+      },
+      completeSignIn: async ({ sessionToken, session }, signInApiUrl) => {
+        await Promise.all([
+          setSecureItem(SESSION_TOKEN_KEY, sessionToken),
+          setSecureItem(USER_ID_KEY, session.userId),
+          setSecureItem(TENANT_ID_KEY, session.tenantId),
+          setSecureItem(ROLE_KEY, session.role),
+        ]);
+        setToken(sessionToken);
+        setUserId(session.userId);
+        setTenantId(session.tenantId);
+        setRole(session.role);
+        // Sprint 3 Task 3 (FE11') — fire-and-forget: a push-registration
+        // failure (denied permission, no EAS project configured, web
+        // platform, ...) must never block sign-in itself.
+        void registerForPushNotificationsAsync(signInApiUrl, sessionToken);
       },
       signOut: async () => {
-        await Promise.all([deleteSecureItem(TOKEN_KEY), deleteSecureItem(API_URL_KEY)]);
+        await Promise.all([
+          deleteSecureItem(SESSION_TOKEN_KEY),
+          deleteSecureItem(USER_ID_KEY),
+          deleteSecureItem(TENANT_ID_KEY),
+          deleteSecureItem(ROLE_KEY),
+        ]);
         setToken(null);
-        setApiUrl(null);
+        setUserId(null);
+        setTenantId(null);
+        setRole(null);
       },
     }),
-    [isLoading, token, apiUrl],
+    [isLoading, token, apiUrl, userId, tenantId, role],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

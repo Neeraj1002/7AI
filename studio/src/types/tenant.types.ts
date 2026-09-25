@@ -1,6 +1,9 @@
 export type Tenant = {
   id: string;
   name: string;
+  // Sprint 2 Task 6 (I1) — null means "no digest ever sent yet." See
+  // run-pipeline/founder-digest.ts.
+  lastFounderDigestSentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };

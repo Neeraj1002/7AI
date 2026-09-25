@@ -12,6 +12,14 @@ import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 export const ScriptReviewOutputSchema = z.object({
   score: z.number().min(0).max(10),
   notes: z.string().min(1),
+  // Sprint 2 Task 4 (G3) — deliberately separate from the bundled `score`,
+  // not folded into it: a script can score fine overall while still opening
+  // weak, and the first 1-2 seconds disproportionately determine whether a
+  // Short survives the first swipe (MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md
+  // §2). Same "extend the existing cheap-tier call" principle Week 5 Task
+  // 4's C3 (factualConcerns) already established on this same call.
+  hookScore: z.number().min(0).max(10),
+  hookNotes: z.string().min(1),
   videoGenFit: z.object({
     fitsLengthLimit: z.boolean(),
     pacingRealistic: z.boolean(),
@@ -38,10 +46,25 @@ export type ScriptReviewResult = {
 
 const SYSTEM_PROMPT = `You review a short-form vertical video script (YouTube Shorts, 30-60 seconds)
 before it goes to production. Respond with ONLY a JSON object of the shape:
-{"score": number, "notes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[]}
+{"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[]}
 
 "score" is 0-10, scoring quality, engagement, clarity, and brand alignment together.
 "notes" explains the score — what works, what doesn't, in a few sentences.
+
+"hookScore" is a SEPARATE 0-10 score judging ONLY the first 1-2 seconds of narration — a script can
+score well overall while still opening weak, and the opening disproportionately determines whether a
+Short survives the first swipe before anything else about it matters. Judge the opening against known
+Shorts retention patterns:
+- A genuine cold open — does it start mid-thought/mid-action, not with a slow wind-up or preamble?
+- No logo/branding/intro filler before real content starts — every second before the hook lands is a
+  second a viewer can swipe away.
+- Does it immediately state a question, a surprising claim, or a visual/conceptual surprise that
+  creates a reason to keep watching, rather than easing in generically ("Today we're going to talk
+  about...")?
+Score high (8-10) only for an opening line that does real work on at least one of these; score low
+(0-3) for a slow, generic, or logo/intro-first opening, even if the rest of the script is strong.
+"hookNotes" explains the hookScore specifically — what the opening does or doesn't do, separate from
+the overall "notes" field above.
 
 "videoGenFit" checks whether the script is actually producible by a simple video-generation
 toolchain (TTS voiceover + auto-captions + template/stock visuals — no generative AI video):

@@ -15,15 +15,19 @@ const dashboardInput = z.object({ channelId: z.string().uuid().optional() });
 // against. Optional `channelId` (Task 3): every screen in the app is
 // channel-scoped per the design doc, Dashboard included — omitted means "all
 // channels for this tenant."
+// Sprint 3 Task 1 (J3) — ctx.tenantId (the real signed-in session's tenant),
+// never MVP_TENANT_ID.
 export const dashboardRouter = router({
   operational: publicProcedure
     .input(dashboardInput)
-    .query(async ({ input }) => getOperationalDashboard(input.channelId)),
-  cost: publicProcedure.input(dashboardInput).query(async ({ input }) => getCostDashboard(input.channelId)),
+    .query(async ({ input, ctx }) => getOperationalDashboard(ctx.tenantId, input.channelId)),
+  cost: publicProcedure
+    .input(dashboardInput)
+    .query(async ({ input, ctx }) => getCostDashboard(ctx.tenantId, input.channelId)),
   content: publicProcedure
     .input(dashboardInput)
-    .query(async ({ input }) => getContentPerformanceDashboard(input.channelId)),
+    .query(async ({ input, ctx }) => getContentPerformanceDashboard(ctx.tenantId, input.channelId)),
   quality: publicProcedure
     .input(dashboardInput)
-    .query(async ({ input }) => getQualityDashboard(input.channelId)),
+    .query(async ({ input, ctx }) => getQualityDashboard(ctx.tenantId, input.channelId)),
 });

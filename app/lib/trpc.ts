@@ -9,7 +9,7 @@ import superjson from 'superjson';
 // studio/'s dependency tree.
 import type { AppRouter } from '../../studio/src/api/router';
 
-export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
+export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 // Recreated whenever the stored token/apiUrl change (AuthProvider) — see
 // app/_layout.tsx. The auth header is attached per-request here, the same

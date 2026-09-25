@@ -22,18 +22,21 @@ import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutp
 import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
-import { planVideoProduction, type ProductionPlan } from '../agents/video-generation/plan';
+import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
 import {
   generatePublishingMetadata,
   uploadVideo,
+  extractCoverFrame,
+  setThumbnail,
   DEFAULT_PRIVACY_STATUS,
   type PublishingMetadata,
   type UploadResult,
   type PrivacyStatus,
 } from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
+import { resolveVoice } from '../media';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
@@ -389,6 +392,10 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         output.factualConcerns.length > 0
           ? ` Factual concerns (plausibility check, not verified): ${output.factualConcerns.join('; ')}.`
           : '';
+      // G3 (Sprint 2 Task 4): same reasoning — the hook score/notes reach
+      // the founder at Gate 1 in the same rationale text, not just the raw
+      // stage output only a direct DB query would surface.
+      const hookNote = ` Hook (first 1-2s) score: ${output.hookScore}/10 — ${output.hookNotes}`;
       await insertReviewLog(
         {
           tenantId: run.tenantId,
@@ -397,7 +404,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}${factualConcernsNote}`,
+          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}`,
         },
         tx,
       );
@@ -449,7 +456,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // Restart-safety (Week 5 Task 3, KNOWN_ISSUES_AND_BLOCKERS.md): a
   // 'running' gate1 attempt already exists when this run was paused_gate1
   // and the process restarted (resume-on-startup.ts re-invokes this
-  // function). Reuse that same attempt — re-sending the Telegram prompt and
+  // function). Reuse that same attempt — re-sending the gate prompt and
   // re-registering the pending reply — rather than creating a second one;
   // the DB record of "gate1 is open" doesn't need to change, only the
   // in-memory pending-reply state does.
@@ -475,6 +482,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // PipelineRun.status = 'paused_gate1' represents.
   const outcome = await requestGate1Decision({
     runId,
+    channel,
     channelName: channel.name,
     briefText: run.briefText,
     scriptText: scriptOutput.scriptText,
@@ -556,6 +564,14 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
 // reproduce a known-bad plan shape on attempt 1; every other caller
 // (resume-on-startup.ts, every other dry-run command) never passes it, so a
 // real run always makes a real planning call, including on regen.
+
+// Sprint 2 Task 3 (F1) — narrows creationOptions.audioLayer (stored as a
+// plain string) against the real AUDIO_LAYERS list, same reasoning as
+// visualSource's own narrowing below: an unrecognized value is "no
+// override," never trusted via a blind cast.
+function resolveAudioLayerOverride(value: string | undefined): AudioLayer | undefined {
+  return (AUDIO_LAYERS as readonly string[]).includes(value ?? '') ? (value as AudioLayer) : undefined;
+}
 export async function runVideoGenerationStage(
   runId: string,
   testOverrides?: { forcedPlan?: ProductionPlan },
@@ -596,6 +612,17 @@ export async function runVideoGenerationStage(
     );
   const fixNotes = latestFixNotesLog?.rationale;
 
+  // Sprint 2 Task 1 (D2) — the three-step creation-option resolution order:
+  // an explicit per-run override always wins, else the channel's own
+  // default, else media/registry.ts's unchanged hardcoded fallback.
+  // Resolved to a concrete value here (never left as an unresolved override
+  // or null) so generateVideo/synthesizeSpeech always receive something
+  // real, regardless of which of the three cases applied.
+  const resolvedVoice = resolveVoice({
+    overrideVoice: run.creationOptions?.voice,
+    channelDefaultVoice: channel.defaultVoice,
+  });
+
   await updatePipelineRun(runId, {
     status: 'running',
     currentStage: 'video_generation',
@@ -607,6 +634,7 @@ export async function runVideoGenerationStage(
     scriptText: sanctionedScriptText,
     brandAssets: channel.brandAssets,
     fixNotes: fixNotes ?? null,
+    resolvedVoice,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
@@ -646,6 +674,26 @@ export async function runVideoGenerationStage(
         scriptText: sanctionedScriptText,
         topic: run.intakeParsed!.topic,
         fixNotes: fixNotes ?? undefined,
+        // Sprint 2 Task 2 (E2) — an explicit per-run choice always wins; with
+        // no override, the planning LLM decides (defaulting to
+        // 'stock-footage'). Unlike voice, there's no channel-level default
+        // for visualSource (no schema field for one — Task 2's Schema
+        // Impact is explicitly "no new tables or columns"). Narrowed here,
+        // not cast — creationOptions.visualSource is stored as a plain
+        // string (validated at the API edge, runs.ts, before it ever gets
+        // here), but this drives a real disclosure-policy flag downstream,
+        // so an unrecognized value is treated as "no override" rather than
+        // trusted blindly.
+        visualSourceOverride:
+          run.creationOptions?.visualSource === 'stock-footage' || run.creationOptions?.visualSource === 'ai-stills'
+            ? run.creationOptions.visualSource
+            : undefined,
+        // Sprint 2 Task 3 (F1) — same narrowing posture as visualSource
+        // above: creationOptions.audioLayer is a plain string (validated at
+        // the API edge before it gets here), narrowed against the real
+        // AUDIO_LAYERS list rather than cast, so an unrecognized value is
+        // "no override," not trusted blindly.
+        audioLayerOverride: resolveAudioLayerOverride(run.creationOptions?.audioLayer),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -689,6 +737,7 @@ export async function runVideoGenerationStage(
         scriptText: sanctionedScriptText,
         brandAssets: channel.brandAssets,
         plan,
+        voice: resolvedVoice,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -752,10 +801,14 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run video_review`);
   }
-  const videoOutput = videoGenStage.output as { videoPath?: string };
+  const videoOutput = videoGenStage.output as { videoPath?: string; plan?: { visualSource?: string } };
   if (!videoOutput.videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
   }
+  // Sprint 2 Task 2 (E3) — which review rubric variant to apply. Falls back
+  // to 'stock-footage' for a pre-Sprint-2 stage row that predates this
+  // field, matching the behavior every such run already had.
+  const visualSource: VisualSource = videoOutput.plan?.visualSource === 'ai-stills' ? 'ai-stills' : 'stock-footage';
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
@@ -771,7 +824,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
 
   const previousAttempt = await findLatestAttempt(runId, 'video_review');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
-  const stageInput = { videoPath: videoOutput.videoPath, topic: run.intakeParsed.topic };
+  const stageInput = { videoPath: videoOutput.videoPath, topic: run.intakeParsed.topic, visualSource };
   const stage = await createStageAttempt({
     pipelineRunId: runId,
     stageName: 'video_review',
@@ -784,6 +837,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       videoPath: videoOutput.videoPath,
       topic: run.intakeParsed.topic,
       scriptText: sanctionedScriptText,
+      visualSource,
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -897,8 +951,8 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   // founder-availability convention, a simulated one for testing).
   const outcome = await requestGate2Decision({
     runId,
+    channel,
     channelName: channel.name,
-    videoPath,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
     restarted: isRestartReopen,
@@ -1031,10 +1085,22 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run publishing`);
   }
-  const videoPath = (videoGenStage.output as { videoPath?: string }).videoPath;
+  const videoGenOutput = videoGenStage.output as {
+    videoPath?: string;
+    durationSeconds?: number;
+    plan?: { visualSource?: string };
+  };
+  const videoPath = videoGenOutput.videoPath;
   if (!videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
   }
+  const durationSeconds = videoGenOutput.durationSeconds;
+  // Sprint 2 Task 2 (E4) — the real YouTube disclosure-policy flag, derived
+  // directly from the plan actually used to render this video, never a
+  // separately-set flag that could disagree with it. Falls back to `false`
+  // for a pre-Sprint-2 stage row (every such video really was stock
+  // footage, since 'ai-stills' didn't exist yet).
+  const containsSyntheticMedia = videoGenOutput.plan?.visualSource === 'ai-stills';
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
@@ -1117,13 +1183,51 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   try {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
-    const attemptUploadOnce = async (): Promise<UploadResult> => uploadVideo({ videoPath, metadata, privacyStatus });
+    const attemptUploadOnce = async (): Promise<UploadResult> =>
+      uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
+
+    // Sprint 2 Task 5 (H1) — best-effort, isolated follow-up: the video is
+    // already live by this point, so a failure here (bad frame extraction, a
+    // real thumbnails.set error) must never fail the publishing stage or
+    // imply the upload itself failed. Same isolation posture Sprint 2 Task
+    // 4's G2 established for retention-curve capture. Requires a real
+    // durationSeconds from video_generation's output — falls back to
+    // `coverFrameSet: false` for a pre-Sprint-2-Task-5 stage row (or if it's
+    // ever missing) rather than crashing the whole stage over metadata.
+    let coverFrameSet = false;
+    if (typeof durationSeconds === 'number') {
+      try {
+        const framePath = await extractCoverFrame({
+          videoPath,
+          durationSeconds,
+          coverFrameTimestampRatio: metadata.coverFrameTimestampRatio,
+        });
+        await setThumbnail({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
+        coverFrameSet = true;
+      } catch (error) {
+        console.error(
+          `[publishing] run ${runId}: custom cover-frame set failed (non-blocking, video already uploaded successfully) — ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    } else {
+      console.warn(
+        `[publishing] run ${runId}: video_generation output has no durationSeconds — skipping custom cover-frame step`,
+      );
+    }
 
     // Durable checkpoint — see recordStageProgress's own comment. Written
     // before completeStage so a crash in the gap between "upload succeeded"
     // and "stage marked complete" is recoverable without re-uploading.
-    const fullOutput = { youtubeVideoId: uploadResult.youtubeVideoId, privacyStatus: uploadResult.privacyStatus, metadata };
+    const fullOutput = {
+      youtubeVideoId: uploadResult.youtubeVideoId,
+      privacyStatus: uploadResult.privacyStatus,
+      containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      coverFrameSet,
+      metadata,
+    };
     await recordStageProgress(stage.id, fullOutput);
 
     // Test-only: see PUBLISHING_TEST_KILL_DELAY_MS's own comment in env.ts.

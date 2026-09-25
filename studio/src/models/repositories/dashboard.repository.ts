@@ -1,6 +1,5 @@
 import { prisma } from '../prisma-client';
 import { Prisma } from '@prisma/client';
-import { MVP_TENANT_ID } from '../../types';
 import type {
   ContentPerformanceDashboard,
   CostDashboard,
@@ -9,12 +8,17 @@ import type {
 } from '../../types';
 
 // Frontend track Task 1 (Tasks 1-3) — the four /dashboard/* aggregate
-// queries (BUSINESS_LOGIC.md Section 3). Single-tenant for now
-// (MVP_TENANT_ID), same assumption every other repository in this codebase
-// makes. Kept in its own file rather than spread across the per-model
-// repositories since these queries genuinely span
-// PipelineRun/PipelineStage/UsageEvent/ReviewLog and don't belong to any one
-// of them.
+// queries (BUSINESS_LOGIC.md Section 3). Kept in its own file rather than
+// spread across the per-model repositories since these queries genuinely
+// span PipelineRun/PipelineStage/UsageEvent/ReviewLog and don't belong to
+// any one of them.
+//
+// Sprint 3 Task 1 (J3) — every function now takes a real `tenantId` (the
+// caller's session tenant), replacing the hardcoded MVP_TENANT_ID this file
+// used to read directly — these are reached via api/routers/dashboard.ts's
+// publicProcedures, so they're squarely inside J3's "every publicProcedure
+// currently reading MVP_TENANT_ID reads ctx.tenantId instead" scope, even
+// though the hardcoded read lived one layer down from the router itself.
 //
 // `channelId` (optional on every function, added in Task 3): every screen in
 // the app is channel-scoped per MOBILE_APP_DESIGN.md Section 4's explicit
@@ -26,28 +30,28 @@ function channelFilterSql(channelId: string | undefined, column: Prisma.Sql): Pr
   return channelId ? Prisma.sql`AND ${column} = ${channelId}::uuid` : Prisma.empty;
 }
 
-export async function getOperationalDashboard(channelId?: string): Promise<OperationalDashboard> {
+export async function getOperationalDashboard(tenantId: string, channelId?: string): Promise<OperationalDashboard> {
   const channelWhere = channelId ? { channelId } : {};
   const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedCount] =
     await Promise.all([
       prisma.pipelineRun.groupBy({
         by: ['currentStage'],
-        where: { tenantId: MVP_TENANT_ID, ...channelWhere },
+        where: { tenantId, ...channelWhere },
         _count: { _all: true },
       }),
       prisma.pipelineRun.findMany({
-        where: { tenantId: MVP_TENANT_ID, status: 'needs_attention', ...channelWhere },
+        where: { tenantId, status: 'needs_attention', ...channelWhere },
         orderBy: { updatedAt: 'desc' },
         select: { id: true, channelId: true, briefText: true, lastError: true, updatedAt: true },
       }),
       prisma.pipelineRun.findMany({
-        where: { tenantId: MVP_TENANT_ID, status: 'completed', ...channelWhere },
+        where: { tenantId, status: 'completed', ...channelWhere },
         orderBy: { completedAt: 'desc' },
         take: 10,
         select: { id: true, channelId: true, briefText: true, completedAt: true },
       }),
-      prisma.pipelineRun.count({ where: { tenantId: MVP_TENANT_ID, status: 'completed', ...channelWhere } }),
-      prisma.pipelineRun.count({ where: { tenantId: MVP_TENANT_ID, status: 'failed', ...channelWhere } }),
+      prisma.pipelineRun.count({ where: { tenantId, status: 'completed', ...channelWhere } }),
+      prisma.pipelineRun.count({ where: { tenantId, status: 'failed', ...channelWhere } }),
     ]);
 
   const terminalCount = completedCount + failedCount;
@@ -67,22 +71,22 @@ export async function getOperationalDashboard(channelId?: string): Promise<Opera
   };
 }
 
-export async function getCostDashboard(channelId?: string): Promise<CostDashboard> {
+export async function getCostDashboard(tenantId: string, channelId?: string): Promise<CostDashboard> {
   const channelWhere = channelId ? { channelId } : {};
   const [totalAgg, quota, byChannelRaw, byStageRaw, publishedCount] = await Promise.all([
     prisma.usageEvent.aggregate({
-      where: { tenantId: MVP_TENANT_ID, ...channelWhere },
+      where: { tenantId, ...channelWhere },
       _sum: { costUsd: true },
     }),
     prisma.agentQuota.findUnique({
-      where: { tenantId_platform: { tenantId: MVP_TENANT_ID, platform: 'youtube' } },
+      where: { tenantId_platform: { tenantId, platform: 'youtube' } },
     }),
     prisma.$queryRaw<{ channelId: string; channelName: string; spendUsd: Prisma.Decimal }[]>(
       Prisma.sql`
         SELECT c.id AS "channelId", c.name AS "channelName", COALESCE(SUM(ue."costUsd"), 0) AS "spendUsd"
         FROM channels c
         LEFT JOIN usage_events ue ON ue."channelId" = c.id
-        WHERE c."tenantId" = ${MVP_TENANT_ID}::uuid ${channelFilterSql(channelId, Prisma.sql`c.id`)}
+        WHERE c."tenantId" = ${tenantId}::uuid ${channelFilterSql(channelId, Prisma.sql`c.id`)}
         GROUP BY c.id, c.name
         ORDER BY "spendUsd" DESC
       `,
@@ -93,7 +97,7 @@ export async function getCostDashboard(channelId?: string): Promise<CostDashboar
         FROM pipeline_stages ps
         JOIN usage_events ue ON ue."stageId" = ps.id
         JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
-        WHERE pr."tenantId" = ${MVP_TENANT_ID}::uuid ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
+        WHERE pr."tenantId" = ${tenantId}::uuid ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
         GROUP BY ps."stageName"
         ORDER BY "spendUsd" DESC
       `,
@@ -102,7 +106,7 @@ export async function getCostDashboard(channelId?: string): Promise<CostDashboar
       where: {
         stageName: 'publishing',
         status: 'completed',
-        pipelineRun: { tenantId: MVP_TENANT_ID, ...channelWhere },
+        pipelineRun: { tenantId, ...channelWhere },
       },
     }),
   ]);
@@ -134,7 +138,10 @@ export async function getCostDashboard(channelId?: string): Promise<CostDashboar
 // query and treats a missing table as "no data yet" (available: false)
 // rather than an error — the same honest-empty-state the design doc asks for,
 // extended to the one step earlier case where the table doesn't exist at all.
-export async function getContentPerformanceDashboard(channelId?: string): Promise<ContentPerformanceDashboard> {
+export async function getContentPerformanceDashboard(
+  tenantId: string,
+  channelId?: string,
+): Promise<ContentPerformanceDashboard> {
   const empty: ContentPerformanceDashboard = {
     available: false,
     totalVideosTracked: 0,
@@ -155,7 +162,7 @@ export async function getContentPerformanceDashboard(channelId?: string): Promis
           ps.views, ps.likes, ps.comments
         FROM performance_snapshots ps
         JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
-        WHERE pr."tenantId" = ${MVP_TENANT_ID}::uuid ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
+        WHERE pr."tenantId" = ${tenantId}::uuid ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
         ORDER BY ps."youtubeVideoId", ps."snapshotAt" DESC
       `,
     );
@@ -183,7 +190,7 @@ export async function getContentPerformanceDashboard(channelId?: string): Promis
                ps.views, ps.likes, ps.comments
         FROM performance_snapshots ps
         JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
-        WHERE pr."tenantId" = ${MVP_TENANT_ID}::uuid ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
+        WHERE pr."tenantId" = ${tenantId}::uuid ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
         ORDER BY ps."snapshotAt" ASC
         LIMIT 200
       `,
@@ -234,13 +241,13 @@ export async function getContentPerformanceDashboard(channelId?: string): Promis
   }
 }
 
-export async function getQualityDashboard(channelId?: string): Promise<QualityDashboard> {
+export async function getQualityDashboard(tenantId: string, channelId?: string): Promise<QualityDashboard> {
   const [scoreRows, videoGenAttempts, gate1Rows, gate2Rows] = await Promise.all([
     prisma.$queryRaw<{ score: string; count: bigint }[]>(
       Prisma.sql`
         SELECT rl.verdict AS "score", COUNT(*) AS "count"
         FROM review_logs rl
-        WHERE rl."tenantId" = ${MVP_TENANT_ID}::uuid AND rl.agent = 'script-review'
+        WHERE rl."tenantId" = ${tenantId}::uuid AND rl.agent = 'script-review'
           ${channelFilterSql(channelId, Prisma.sql`rl."channelId"`)}
         GROUP BY rl.verdict
         ORDER BY rl.verdict
@@ -251,7 +258,7 @@ export async function getQualityDashboard(channelId?: string): Promise<QualityDa
         SELECT ps."pipelineRunId" AS "pipelineRunId", MAX(ps."attemptNumber") AS "maxAttempt"
         FROM pipeline_stages ps
         JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
-        WHERE pr."tenantId" = ${MVP_TENANT_ID}::uuid AND ps."stageName" = 'video_generation'
+        WHERE pr."tenantId" = ${tenantId}::uuid AND ps."stageName" = 'video_generation'
           ${channelFilterSql(channelId, Prisma.sql`pr."channelId"`)}
         GROUP BY ps."pipelineRunId"
       `,
@@ -261,7 +268,7 @@ export async function getQualityDashboard(channelId?: string): Promise<QualityDa
         SELECT rl.verdict, COUNT(*) AS "count"
         FROM review_logs rl
         JOIN pipeline_stages ps ON ps.id = rl."stageId"
-        WHERE rl."tenantId" = ${MVP_TENANT_ID}::uuid AND rl.agent = 'human' AND ps."stageName" = 'gate1'
+        WHERE rl."tenantId" = ${tenantId}::uuid AND rl.agent = 'human' AND ps."stageName" = 'gate1'
           ${channelFilterSql(channelId, Prisma.sql`rl."channelId"`)}
         GROUP BY rl.verdict
       `,
@@ -271,7 +278,7 @@ export async function getQualityDashboard(channelId?: string): Promise<QualityDa
         SELECT rl.verdict, COUNT(*) AS "count"
         FROM review_logs rl
         JOIN pipeline_stages ps ON ps.id = rl."stageId"
-        WHERE rl."tenantId" = ${MVP_TENANT_ID}::uuid AND rl.agent = 'human' AND ps."stageName" = 'gate2'
+        WHERE rl."tenantId" = ${tenantId}::uuid AND rl.agent = 'human' AND ps."stageName" = 'gate2'
           ${channelFilterSql(channelId, Prisma.sql`rl."channelId"`)}
         GROUP BY rl.verdict
       `,

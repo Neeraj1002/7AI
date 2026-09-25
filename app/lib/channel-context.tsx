@@ -1,8 +1,15 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from './trpc';
+import type { AppRouter } from '../../studio/src/api/router';
 
-type Channel = { id: string; name: string; platform: string };
+// Sprint 3 Task 2 (FE8): the real, server-inferred shape (now that
+// `channels.list` returns a derived `hasYoutubeCredential`), replacing the
+// hand-rolled `{id, name, platform}` stub this app started with — the whole
+// point of importing `AppRouter` directly is not needing to keep a
+// duplicate, driftable shape like that in sync by hand.
+export type Channel = inferRouterOutputs<AppRouter>['channels']['list'][number];
 
 type ChannelContextValue = {
   channels: Channel[];

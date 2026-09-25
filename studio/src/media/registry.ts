@@ -19,6 +19,49 @@ export function resolveMediaPurpose(purpose: MediaPurpose): RegistryEntry {
   return MEDIA_REGISTRY[purpose];
 }
 
+// Sprint 2 Task 1 (D1) — the preset voices OpenAI's TTS endpoint currently
+// offers, per the installed `openai` SDK's own `SpeechCreateParams.voice`
+// doc comment (node_modules/openai/resources/audio/speech.d.ts), not a
+// guessed list. `label` is what the app shows a human; the key is the exact
+// string OpenAI's API expects.
+export const TTS_VOICES = {
+  alloy: { label: 'Alloy' },
+  ash: { label: 'Ash' },
+  ballad: { label: 'Ballad' },
+  coral: { label: 'Coral' },
+  echo: { label: 'Echo' },
+  fable: { label: 'Fable' },
+  onyx: { label: 'Onyx' },
+  nova: { label: 'Nova' },
+  sage: { label: 'Sage' },
+  shimmer: { label: 'Shimmer' },
+  verse: { label: 'Verse' },
+  marin: { label: 'Marin' },
+  cedar: { label: 'Cedar' },
+} as const;
+export type TtsVoice = keyof typeof TTS_VOICES;
+// Zod's z.enum needs a non-empty tuple, not a plain string[] — this is that
+// tuple, derived once here so the API layer never hand-maintains its own copy.
+export const TTS_VOICE_KEYS = Object.keys(TTS_VOICES) as [TtsVoice, ...TtsVoice[]];
+
+// Today's previously-hardcoded voice (client.ts used to inline `?? 'alloy'`
+// directly) — now named here so it's one source of truth, matching every
+// other DEFAULT_* constant this project already has (e.g. publishing/
+// types.ts's DEFAULT_PRIVACY_STATUS).
+export const DEFAULT_TTS_VOICE: TtsVoice = 'alloy';
+
+// The three-step "creation option resolution" rule this sprint establishes
+// (sprint2/BUSINESS_LOGIC.md) — explicit per-run override wins, else the
+// channel's own default, else today's unchanged hardcoded fallback. Pure and
+// DB-free on purpose, so it's directly unit-testable (registry.test.ts) the
+// same way Week 5 Task 4's computeChannelBudgetCeilings was — this exact
+// precedence order is what Task 2 (visualSource) and Task 3 (audioLayer)
+// will each reuse verbatim, so getting it right once here matters beyond
+// just voice.
+export function resolveVoice(params: { overrideVoice?: string | null; channelDefaultVoice?: string | null }): string {
+  return params.overrideVoice ?? params.channelDefaultVoice ?? DEFAULT_TTS_VOICE;
+}
+
 // Pricing, sitting alongside the registry (same reasoning as
 // studio/src/llm/registry.ts's MODEL_PRICING). Sourced from OpenAI's own
 // published rates (2026-09): tts-1-hd $30/1M characters; whisper-1 $0.006/minute.

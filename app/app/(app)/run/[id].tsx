@@ -1,12 +1,27 @@
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TextInput, Pressable } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { inferRouterOutputs } from '@trpc/server';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTRPC } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { GateActionBar } from '../../../components/GateActionBar';
+import type { AppRouter } from '../../../../studio/src/api/router';
+
+type ReviewLogRow = inferRouterOutputs<AppRouter>['runs']['get']['reviewLogs'][number];
+
+// Backend Task 7/O4's post-hoc-tag.ts is explicit: "No fixed tag vocabulary
+// is enforced, by design... a solo founder typing their own words is the
+// actual 'cheap' this task asks for, not a rigid enum to memorize" —
+// confirmed by reading that file directly rather than assuming the frontend
+// task spec's "a tag picker constrained to [a] real tag vocabulary" framing
+// was accurate (it wasn't: there is no server-side vocabulary to read). The
+// design doc's own illustrative examples become quick-pick suggestions
+// here, not an enforced list — free text is always accepted underneath.
+const SUGGESTED_TAGS = ['weak_hook', 'topic_already_saturated', 'bad_thumbnail_frame'];
+const FOUNDER_POST_HOC_AGENT = 'founder-post-hoc';
 
 type Stage = {
   id: string;
@@ -171,7 +186,102 @@ export default function RunDetailScreen() {
           <Text style={styles.meta}>Outcome: {gate2Outcome}</Text>
         </View>
       ) : null}
+
+      {/* Post-hoc tagging (FE12) — only once a run has reached a terminal
+          state, matching the same status values this screen already checks
+          elsewhere (no new status vocabulary). */}
+      {run.status === 'completed' || run.status === 'failed' ? (
+        <PostHocTagForm runId={run.id} reviewLogs={data.reviewLogs} />
+      ) : null}
     </ScrollView>
+  );
+}
+
+// Backend Task 7/O4's own verification bar: the identical DB row shape the
+// old Telegram `tag <runId> <word> [notes]` command used to produce. Every
+// existing tag is a plain ReviewLog row (agent: 'founder-post-hoc') — shown
+// here as history, not replaced on a new submission, since the old flow
+// never prevented tagging the same run more than once either (confirmed by
+// reading post-hoc-tag.ts: it always inserts a new row, no existing-tag
+// check) — this form doesn't silently add a restriction that wasn't there
+// before.
+function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: ReviewLogRow[] }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [tag, setTag] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const existingTags = reviewLogs
+    .filter((log) => log.agent === FOUNDER_POST_HOC_AGENT)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const tagMutation = useMutation(
+    trpc.runs.tagPostHoc.mutationOptions({
+      onSuccess: async () => {
+        setTag('');
+        setNotes('');
+        await queryClient.invalidateQueries({ queryKey: trpc.runs.get.queryKey({ id: runId }) });
+      },
+    }),
+  );
+
+  const handleSubmit = () => {
+    if (!tag.trim()) return;
+    tagMutation.mutate({ runId, tag: tag.trim(), notes: notes.trim() || undefined });
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.sectionTitle}>Post-hoc tag</Text>
+
+      {existingTags.length > 0 ? (
+        <View style={styles.tagHistory}>
+          {existingTags.map((log) => (
+            <Text key={log.id} style={styles.meta}>
+              {log.verdict}
+              {log.rationale && log.rationale !== log.verdict ? ` — ${log.rationale}` : ''} (
+              {new Date(log.timestamp).toLocaleString()})
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.chipRow}>
+        {SUGGESTED_TAGS.map((suggestion) => (
+          <Pressable key={suggestion} style={styles.chip} onPress={() => setTag(suggestion)}>
+            <Text style={styles.chipText}>{suggestion}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <TextInput
+        style={styles.input}
+        value={tag}
+        onChangeText={setTag}
+        placeholder="Tag (e.g. weak_hook) — free text, no fixed list"
+        autoCapitalize="none"
+      />
+      <TextInput
+        style={styles.input}
+        value={notes}
+        onChangeText={setNotes}
+        placeholder="Notes (optional)"
+      />
+
+      {tagMutation.error ? <Text style={styles.errorText}>{tagMutation.error.message}</Text> : null}
+
+      <Pressable
+        style={[styles.tagButton, (tagMutation.isPending || !tag.trim()) && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={tagMutation.isPending || !tag.trim()}
+      >
+        {tagMutation.isPending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.tagButtonText}>Submit tag</Text>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -197,4 +307,19 @@ const styles = StyleSheet.create({
   historyRow: { fontSize: 12, color: '#666' },
   card: { marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: '#f7f7f7', gap: 8 },
   video: { width: '100%', height: 320, backgroundColor: '#000', borderRadius: 8 },
+  tagHistory: { gap: 2, marginBottom: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
+  chipText: { fontSize: 12 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  tagButton: { backgroundColor: '#111', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  buttonDisabled: { opacity: 0.6 },
+  tagButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });

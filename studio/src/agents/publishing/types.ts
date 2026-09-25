@@ -7,6 +7,14 @@ export const PublishingMetadataSchema = z.object({
   title: z.string().min(1).max(100),
   description: z.string().min(1),
   tags: z.array(z.string()).min(1),
+  // Sprint 2 Task 5 (H1) — where through the video (0 = first frame, 1 =
+  // last) to grab the real custom-cover-frame thumbnail from. A sibling
+  // output of the same metadata-generation call, same "extend the existing
+  // cheap-tier call" principle Week 5 Task 4's C3 and Sprint 2 Task 4's G3
+  // both established, since this call already reasons about the script's
+  // content and is well-placed to judge which moment makes the strongest
+  // cover (a hook beat, a clear visual — not mid-blink/mid-transition).
+  coverFrameTimestampRatio: z.number().min(0).max(1),
 });
 export type PublishingMetadata = z.infer<typeof PublishingMetadataSchema>;
 
@@ -21,13 +29,27 @@ export type PrivacyStatus = z.infer<typeof PrivacyStatusSchema>;
 
 export const DEFAULT_PRIVACY_STATUS: PrivacyStatus = 'private';
 
+// Sprint 2 Task 2 (E4, folding in MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md
+// §1's disclosure item): the real YouTube Data API v3 field is
+// `status.containsSyntheticMedia` (a boolean), verified against Google's own
+// VideoStatus API reference for this task. Not optional — every upload must
+// state one way or the other; the caller (state-machine.ts) derives it
+// directly from `plan.visualSource === 'ai-stills'`, never left to default.
 export type UploadParams = {
+  // Sprint 3 Task 5 (M3) — which channel's own AgentCredential to resolve
+  // the real OAuth2Client from. Never a shared, ambient env-var credential
+  // once this task lands.
+  channelId: string;
   videoPath: string;
   metadata: PublishingMetadata;
   privacyStatus: PrivacyStatus;
+  containsSyntheticMedia: boolean;
 };
 
 export type UploadResult = {
   youtubeVideoId: string;
   privacyStatus: PrivacyStatus;
+  // Echoed back the same way privacyStatus is — a real audit trail of what
+  // was actually sent, not just what was intended.
+  containsSyntheticMedia: boolean;
 };

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { env } from '../../config/env';
 import { NonTransientStageError, withRetryAndCircuitBreaker } from '../../run-pipeline/retry-with-backoff';
+import type { VisualSource } from '../video-generation/plan';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
 // 4.2. Deterministic checks (ffprobe/FFmpeg, zero LLM cost) run first and
@@ -135,13 +136,30 @@ const MultimodalVerdictSchema = z.object({
   notes: z.string().min(1),
 });
 
-const SYSTEM_PROMPT = `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
+// Sprint 2 Task 2 (E3) — the rubric was written and tuned entirely against
+// real photographic stock footage; an 'ai-stills' render needs a different
+// visual-quality bar, same shape as the caption-style word-flash carve-out
+// above (don't fail a video for a known, expected characteristic of the
+// visual style it deliberately chose).
+function visualContextInstruction(visualSource: VisualSource): string {
+  if (visualSource === 'ai-stills') {
+    return `the visuals are a sequence of AI-generated still images, each animated with a slow zoom/pan
+(Ken Burns style) — NOT real photography. Judge whether each still is a *reasonable*, on-topic
+backdrop for this content, the same bar real stock footage gets. Do NOT fail a frame for looking
+stylized, illustrated, painterly, or obviously AI-generated — that is the correct, expected look for
+this visual style, not a defect. Only fail if a frame is blank/corrupted, or shows content genuinely
+unrelated to the topic.`;
+  }
+  return `the background is real licensed stock footage chosen for the topic, not a custom shoot — judge
+whether it's a *reasonable* backdrop for this content, not whether it's visually impressive.`;
+}
+
+function buildSystemPrompt(visualSource: VisualSource): string {
+  return `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
 (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's
 approved for publishing, alongside the topic and script it's based on. Judge the video as a whole
 across all the frames together — not blank, not corrupted, and roughly consistent with the
-described topic and tone (the background is real licensed stock footage chosen for the topic, not
-a custom shoot — judge whether it's a *reasonable* backdrop for this content, not whether it's
-visually impressive).
+described topic and tone (${visualContextInstruction(visualSource)}).
 
 A single frame catching a momentary presentation artifact (e.g. burned-in captions caught
 mid-transition between cues, showing a partial word) should NOT by itself fail the video if the
@@ -152,6 +170,7 @@ shows something genuinely wrong (blank/corrupted footage, content unrelated to t
 Respond with ONLY a JSON object: {"verdict": "pass" | "fail", "notes": string}
 "notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.
 Respond with raw JSON only — no markdown code fences, no commentary.`;
+}
 
 export type VideoIntelligenceOutcome = {
   verdict: 'pass' | 'fail';
@@ -164,6 +183,12 @@ export async function reviewVideo(params: {
   videoPath: string;
   topic: string;
   scriptText: string;
+  // Sprint 2 Task 2 (E3) — which rubric variant to apply. Required, not
+  // defaulted: the caller (state-machine.ts) always has a completed
+  // video_generation stage's plan.visualSource by this point, and silently
+  // defaulting here risks judging an 'ai-stills' render against the
+  // stock-footage bar by accident.
+  visualSource: VisualSource;
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath);
   if (!deterministic.passed) {
@@ -184,7 +209,7 @@ export async function reviewVideo(params: {
   const llm = await withRetryAndCircuitBreaker(() =>
     callLLM({
       purpose: 'video-intelligence-own-draft',
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(params.visualSource),
       messages: [
         {
           role: 'user',

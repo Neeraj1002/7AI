@@ -1,19 +1,51 @@
-import { initTRPC } from '@trpc/server';
+import { initTRPC, TRPCError } from '@trpc/server';
+import type { CreateFastifyContextOptions } from '@trpc/server/adapters/fastify';
 import superjson from 'superjson';
+import { resolveRequestIdentity } from '../auth';
+import { MVP_TENANT_ID, type UserRole } from '../types';
 
-// Frontend track Task 1 — auth is a single shared token checked once, at the
-// Fastify layer (server.ts's onRequest hook), before a request ever reaches
-// tRPC — see SCHEMA.md: no session table, nothing per-request to attach to a
-// context. That keeps this file deliberately thin: no context, no auth
-// middleware, just the router/procedure builders every route file imports.
-//
+// Sprint 3 Task 1 (J2) — real per-request identity, replacing the "no
+// session table, nothing per-request to attach to a context" posture this
+// file's comment used to describe. Every request reaching here has already
+// passed api/server.ts's onRequest hook (a real session or the
+// API_AUTH_TOKEN ops fallback) — resolveRequestIdentity is called again
+// here (not passed through from the hook) since Fastify's hook and tRPC's
+// createContext are separate mechanisms with no shared per-request state;
+// see auth/request-identity.ts's own comment for why the classification
+// logic itself lives in one shared place rather than being duplicated.
+export type Context = {
+  tenantId: string;
+  userId: string | null;
+  role: UserRole;
+};
+
+export function createContext({ req }: CreateFastifyContextOptions): Context {
+  const identity = resolveRequestIdentity(req.headers.authorization);
+
+  if (identity.kind === 'session') {
+    return { tenantId: identity.tenantId, userId: identity.userId, role: identity.role };
+  }
+  if (identity.kind === 'ops-token') {
+    // Ops/script tooling acts as the founder/owner on the single MVP
+    // tenant — matches this project's pre-Sprint-3 single-tenant behavior
+    // exactly, so scripts/dry-run.ts and similar tooling keep working
+    // unchanged.
+    return { tenantId: MVP_TENANT_ID, userId: null, role: 'owner' };
+  }
+
+  // Defensive, not the expected path in production: api/server.ts's
+  // onRequest hook already rejects an unauthenticated request with a 401
+  // before it ever reaches tRPC. Never silently fall back to a real tenant.
+  throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No valid session or ops token' });
+}
+
 // superjson as the transformer: several response shapes here carry real
 // Date/Decimal/BigInt values (PipelineRun.completedAt, UsageEvent.costUsd,
 // performance_snapshots.views, ...) — Task 2's app is meant to consume this
 // router's inferred types directly, and those types only match what actually
 // arrives on the wire if rich types round-trip instead of silently
 // flattening to strings/numbers under plain JSON.
-const t = initTRPC.create({ transformer: superjson });
+const t = initTRPC.context<Context>().create({ transformer: superjson });
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
