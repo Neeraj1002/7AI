@@ -21,11 +21,11 @@ export type { VideoStats } from './types';
 // YOUTUBE_STUB=1 swaps the real Data API call for the stub — same flag
 // Publishing's upload uses (both blocked by the exact same missing
 // YOUTUBE_REFRESH_TOKEN, Week 1 Task 7 still open).
-async function fetchVideoStats(youtubeVideoId: string): Promise<VideoStats> {
+async function fetchVideoStats(channelId: string, youtubeVideoId: string): Promise<VideoStats> {
   if (env.YOUTUBE_STUB === '1') {
     return stubFetchVideoStats(youtubeVideoId);
   }
-  return fetchVideoStatsViaProvider(youtubeVideoId);
+  return fetchVideoStatsViaProvider(channelId, youtubeVideoId);
 }
 
 // Sprint 2 Task 4 (G1/G2) — deliberately isolated from fetchVideoStats
@@ -37,12 +37,12 @@ async function fetchVideoStats(youtubeVideoId: string): Promise<VideoStats> {
 // must never regress just because retention-curve capture — a genuinely
 // new, still-gated capability — isn't available yet. Returns undefined
 // (-> retentionCurve stays null) on any failure, logged once, not thrown.
-async function fetchRetentionCurve(youtubeVideoId: string): Promise<RetentionCurvePoint[] | undefined> {
+async function fetchRetentionCurve(channelId: string, youtubeVideoId: string): Promise<RetentionCurvePoint[] | undefined> {
   try {
     if (env.YOUTUBE_ANALYTICS_STUB === '1') {
       return await stubFetchRetentionCurve(youtubeVideoId);
     }
-    return await fetchRetentionCurveViaProvider(youtubeVideoId);
+    return await fetchRetentionCurveViaProvider(channelId, youtubeVideoId);
   } catch (error) {
     console.warn(
       `[performance-analytics] retention-curve fetch failed for video ${youtubeVideoId} (real spend/other snapshot fields unaffected):`,
@@ -68,8 +68,8 @@ export async function recordSnapshot(params: {
   pipelineRunId: string;
   youtubeVideoId: string;
 }): Promise<PerformanceSnapshot> {
-  const stats = await fetchVideoStats(params.youtubeVideoId);
-  const retentionCurve = await fetchRetentionCurve(params.youtubeVideoId);
+  const stats = await fetchVideoStats(params.channelId, params.youtubeVideoId);
+  const retentionCurve = await fetchRetentionCurve(params.channelId, params.youtubeVideoId);
   return insertPerformanceSnapshot({
     tenantId: params.tenantId,
     channelId: params.channelId,

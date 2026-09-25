@@ -32,25 +32,86 @@ model Tenant {
   agentQuotas          AgentQuota[]
   usageEvents          UsageEvent[]
   performanceSnapshots PerformanceSnapshot[]
+  // Sprint 3 Task 1 (J1) — a User belongs to exactly one Tenant, not a
+  // many-to-many join: MVP_PART2 §0 frames each of the ~10 testers as
+  // bringing their own account, not joining someone else's. See
+  // sprint3/BUSINESS_LOGIC.md for the full rationale.
+  users                User[]
+  notifications        Notification[]
 
   @@map("tenants")
 }
 
+// Sprint 3 Task 1 (J1) — the real user model MVP_PART2 §1 flagged as the
+// biggest open gap. Two roles only, not a full RBAC system: 'owner'
+// (everything — approve gates, manage channels/credentials, invite) and
+// 'approver' (view + approve gates, nothing else) — matches the design
+// doc's own gate-ownership note ("probably just 'the channel's owner' to
+// start"), extendable later if a real need for more roles shows up. VARCHAR
+// + CHECK, not a native enum, same convention this schema uses everywhere
+// (see this file's own header comment).
+model User {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @db.Uuid
+  email    String  @unique @db.VarChar(255)
+  name     String? @db.VarChar(255)
+  role     String  @default("owner") @db.VarChar(20)
+
+  // Sprint 3 Task 7 (O1) — set via a real device registering its Expo push
+  // token (notifications.registerPushToken), once per device. Replaces
+  // Task 3 (K2)'s original chat-linking equivalent (retired by this same
+  // task's O2, which removed that whole notification channel — it was only
+  // ever a testing convenience, not meant to be permanent). null means
+  // "in-app notifications only" — a fully valid, handled state, not a
+  // degraded one.
+  expoPushToken String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  loginTokens   LoginToken[]
+  // Sprint 3 Task 2 (K1) — reverse side of Channel.ownerUserId.
+  ownedChannels Channel[]
+  notifications Notification[]
+
+  @@index([tenantId], map: "idx_users_tenant")
+  @@map("users")
+}
+
+// Sprint 3 Task 1 (J2) — one row per issued magic-link token. The JWT
+// signature alone only proves authenticity, not first-use; usedAt (checked
+// and set at /auth/verify) is what actually prevents replay of a link that
+// leaked (e.g. forwarded email, a shoulder-surfed screen).
+model LoginToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @db.Uuid
+  jti       String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_login_tokens_user")
+  @@map("login_tokens")
+}
+
 model Channel {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String   @db.Uuid
-  platform           String   @default("youtube") @db.VarChar(20)
-  name               String   @db.VarChar(255)
-  externalChannelId  String?  @db.VarChar(255)
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String  @db.Uuid
+  platform          String  @default("youtube") @db.VarChar(20)
+  name              String  @db.VarChar(255)
+  externalChannelId String? @db.VarChar(255)
 
-  nicheDescription   String   @db.Text
-  styleGuide         String?  @db.Text
+  nicheDescription String  @db.Text
+  styleGuide       String? @db.Text
 
-  brandAssets        Json     @default("{}")
+  brandAssets Json @default("{}")
 
-  postingCadence     String?  @db.VarChar(255)
-  approvalGateConfig Json     @default("{\"gate1Enabled\": true, \"gate2Enabled\": true}")
-  priorsScope        String   @default("isolated") @db.VarChar(20)
+  postingCadence     String? @db.VarChar(255)
+  approvalGateConfig Json    @default("{\"gate1Enabled\": true, \"gate2Enabled\": true}")
+  priorsScope        String  @default("isolated") @db.VarChar(20)
 
   // Week 5 Task 4 (C2, KNOWN_ISSUES_AND_BLOCKERS.md "no fair-access policy
   // across channels") — nullable, default null for every existing and
@@ -59,7 +120,7 @@ model Channel {
   // channel on this (tenantId, platform)"; a set value means "this
   // channel's ceiling is exactly this, regardless of channel count." See
   // studio/src/run-pipeline/budget-gate.ts's computeChannelBudgetCeilings.
-  budgetOverrideUsd  Decimal? @db.Decimal(10, 2)
+  budgetOverrideUsd Decimal? @db.Decimal(10, 2)
 
   // Sprint 2 Task 1 (D1/D2) — nullable, default null for every existing and
   // newly-created channel: null means "use media/registry.ts's hardcoded
@@ -68,32 +129,116 @@ model Channel {
   // it doesn't explicitly override the voice per-brief. See
   // studio/src/run-pipeline/state-machine.ts's runVideoGenerationStage for
   // the full three-step resolution order.
-  defaultVoice       String?  @db.VarChar(50)
+  defaultVoice String? @db.VarChar(50)
+
+  // Sprint 3 Task 2 (K1) — nullable FK to User, deliberately: a channel
+  // created before this migration, or one whose owning user was since
+  // removed, degrades to "any owner-role user on the tenant may resolve its
+  // gates" rather than becoming permanently unapprovable. This migration's
+  // own backfill sets every existing Channel row to its tenant's seeded
+  // owner — no real, currently-working channel is left null as a side
+  // effect of adding this column. See api/routers/runs.ts's gate1/gate2
+  // ownership check.
+  ownerUserId String? @db.Uuid
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
-  tenant               Tenant                 @relation(fields: [tenantId], references: [id])
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  ownerUser            User?                 @relation(fields: [ownerUserId], references: [id])
   pipelineRuns         PipelineRun[]
   reviewLogs           ReviewLog[]
   usageEvents          UsageEvent[]
   performanceSnapshots PerformanceSnapshot[]
+  notifications        Notification[]
+  agentCredential      AgentCredential?
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
+  @@index([ownerUserId], map: "idx_channels_owner")
   @@map("channels")
 }
 
+// Sprint 3 Task 5 (M1) — AGENT_FLEET_DESIGN.md §6.2's own original naming.
+// week1/SCHEMA.md's own deferral note: "a Week 2+ task once a second
+// channel makes env-var-per-channel unworkable — still one channel, so
+// still not yet." This is that deferred work, picked up on schedule.
+// refreshTokenEncrypted is base64(iv || authTag || ciphertext) — AES-256-GCM
+// via Node's built-in crypto, no new dependency (models/credential-crypto.ts).
+// encryptionKeyVersion defaults to 1 so a future key rotation can identify
+// which key encrypted a given row without forcing every channel to
+// re-consent at once.
+model AgentCredential {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId             String   @unique @db.Uuid
+  platform              String   @db.VarChar(20)
+  refreshTokenEncrypted String   @db.Text
+  encryptionKeyVersion  Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id])
+
+  @@unique([channelId, platform])
+  @@map("agent_credentials")
+}
+
+// Sprint 3 Task 3 (K2) — the real in-app notification channel
+// MVP_PART2 §1 asked for: "in-app push through the dashboard is probably
+// the right default channel, with [a second channel] as one optional
+// channel." Every gate that opens produces at least one of these — never a
+// gate silently waiting with no visible trace anywhere a user would look.
+//
+// channelId is nullable, a real deviation from this task's own initial
+// sketch: a tenant-wide notification (the daily digest, which spans every
+// channel on a tenant, not one) has no single channel to attribute the row
+// to. Every gate-related row (kind: 'approval_request', and the reminder
+// variant of 'notify') sets a real channelId; only the digest leaves it
+// null. See sprint3/reports/task3.md.
+model Notification {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @db.Uuid
+  channelId String? @db.Uuid
+  userId    String  @db.Uuid
+
+  // 'notify' | 'approval_request', VARCHAR + CHECK per this schema's own convention.
+  kind    String @db.VarChar(20)
+  message String @db.Text
+
+  // Set only for kind = 'approval_request' — the same threadKey
+  // (PipelineRun id) the in-memory pending-approval map
+  // (notifications/pending-approvals.ts) already keys on, so an in-app
+  // resolution and any other channel's own resolution attempt resolve the
+  // exact same pending gate, never two independent ones.
+  threadKey String? @db.VarChar(255)
+
+  // Set once this notification's underlying gate (or reminder) has been
+  // acted on — via *any* channel, not necessarily this row's own. A
+  // 'notify'-kind row (the digest, a reminder) is never itself "resolved";
+  // stays null.
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  channel Channel? @relation(fields: [channelId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], map: "idx_notifications_user_time")
+  @@index([threadKey], map: "idx_notifications_thread")
+  @@map("notifications")
+}
+
 model PipelineRun {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String   @db.Uuid
-  channelId    String   @db.Uuid
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @db.Uuid
+  channelId String @db.Uuid
 
-  status       String   @default("pending") @db.VarChar(20)
-  currentStage String?  @db.VarChar(50)
+  status       String  @default("pending") @db.VarChar(20)
+  currentStage String? @db.VarChar(50)
 
-  briefText    String   @db.Text
+  briefText    String @db.Text
   intakeParsed Json?
 
   // Sprint 2 Task 1 (D2) — deliberately a separate column from
@@ -106,13 +251,13 @@ model PipelineRun {
   // parallel columns. Nullable, no backfill — every existing run is null.
   creationOptions Json?
 
-  retryCount   Int      @default(0)
-  lastError    String?  @db.Text
+  retryCount Int     @default(0)
+  lastError  String? @db.Text
 
-  startedAt    DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
   channel Channel @relation(fields: [channelId], references: [id])
@@ -128,11 +273,11 @@ model PipelineRun {
 }
 
 model PipelineStage {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pipelineRunId String   @db.Uuid
-  stageName     String   @db.VarChar(50)
-  status        String   @default("pending") @db.VarChar(20)
-  attemptNumber Int      @default(1)
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pipelineRunId String @db.Uuid
+  stageName     String @db.VarChar(50)
+  status        String @default("pending") @db.VarChar(20)
+  attemptNumber Int    @default(1)
 
   input  Json?
   output Json?
@@ -153,22 +298,22 @@ model PipelineStage {
 }
 
 model ReviewLog {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String   @db.Uuid
-  channelId     String   @db.Uuid
-  pipelineRunId String   @db.Uuid
-  stageId       String?  @db.Uuid
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String  @db.Uuid
+  channelId     String  @db.Uuid
+  pipelineRunId String  @db.Uuid
+  stageId       String? @db.Uuid
 
-  agent        String  @db.VarChar(100)
-  verdict      String  @db.VarChar(50)
-  rationale    String  @db.Text
+  agent        String @db.VarChar(100)
+  verdict      String @db.VarChar(50)
+  rationale    String @db.Text
   editedOutput Json?
 
   timestamp DateTime @default(now())
 
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
-  channel     Channel       @relation(fields: [channelId], references: [id])
-  pipelineRun PipelineRun   @relation(fields: [pipelineRunId], references: [id])
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  channel     Channel        @relation(fields: [channelId], references: [id])
+  pipelineRun PipelineRun    @relation(fields: [pipelineRunId], references: [id])
   stage       PipelineStage? @relation(fields: [stageId], references: [id])
 
   @@index([pipelineRunId], map: "idx_reviewlog_run")
@@ -249,7 +394,7 @@ model PerformanceSnapshot {
   // granted (YOUTUBE_STUB=1 or an ungranted scope both leave this null).
   // Nothing reads this yet — Continuous Learning (a later sprint) is what
   // eventually will; "cheap now, expensive to reconstruct later."
-  retentionCurve Json?
+  retentionCurve   Json?
 
   snapshotAt DateTime
   createdAt  DateTime @default(now())

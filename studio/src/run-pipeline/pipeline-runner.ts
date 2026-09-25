@@ -79,8 +79,8 @@ export async function runPipelineToNextGate(runId: string): Promise<PipelineRun>
 // gate left pending across a process restart is handled by
 // resume-on-startup.ts (Week 5 Task 3): on boot, it re-invokes the matching
 // gate function for every `paused_gate1`/`paused_gate2` run, which re-sends
-// the Telegram prompt and re-registers the pending reply — this driver
-// doesn't need its own restart-recovery path.
+// the gate prompt and re-registers the pending reply — this driver doesn't
+// need its own restart-recovery path.
 export function startPipelineInBackground(runId: string): void {
   void runPipelineToNextGate(runId).catch((error) => {
     console.error(`[pipeline-runner] run ${runId} — unhandled error driving the pipeline:`, error);

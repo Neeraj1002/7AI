@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env';
 import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { findDecryptedRefreshTokenForChannel } from '../../models/repositories/agent-credential.repository';
 import type { UploadParams, UploadResult } from './types';
 
 // The only file allowed to touch the YouTube Data API v3's upload endpoint —
@@ -24,14 +25,28 @@ const MULTIPART_BOUNDARY = '7ai-publishing-boundary-314159265358979';
 // building this, not assumed.
 const YOUTUBE_THUMBNAILS_SET_URL = 'https://www.googleapis.com/upload/youtube/v3/thumbnails/set';
 
-function getOAuthClient(): OAuth2Client {
-  if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.YOUTUBE_REFRESH_TOKEN) {
+// Sprint 3 Task 5 (M3) — resolves the real per-channel refresh token from
+// AgentCredential, never a shared, ambient env-var value. YOUTUBE_CLIENT_ID/
+// SECRET stay env vars deliberately — they identify the OAuth *application*,
+// shared across every channel, not a per-channel credential; only the
+// refresh token moved. A channel with no AgentCredential row fails with a
+// clear, specific error naming the real cause — never a generic auth
+// failure that reads like a code bug rather than "this channel isn't
+// connected yet."
+async function getOAuthClient(channelId: string): Promise<OAuth2Client> {
+  if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET) {
     throw new NonTransientStageError(
-      'YouTube OAuth credentials are not configured (YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET/YOUTUBE_REFRESH_TOKEN) — cannot upload for real. Set YOUTUBE_STUB=1 to use the stub upload path instead.',
+      'YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET are not set — the OAuth application identity is not configured.',
+    );
+  }
+  const refreshToken = await findDecryptedRefreshTokenForChannel(channelId);
+  if (!refreshToken) {
+    throw new NonTransientStageError(
+      `Channel ${channelId} has no connected YouTube account — connect it via the app's channel settings (Sprint 3 Task 5's real OAuth connect flow) before publishing. Set YOUTUBE_STUB=1 to use the stub upload path instead.`,
     );
   }
   const client = new OAuth2Client(env.YOUTUBE_CLIENT_ID, env.YOUTUBE_CLIENT_SECRET, env.YOUTUBE_REDIRECT_URI);
-  client.setCredentials({ refresh_token: env.YOUTUBE_REFRESH_TOKEN });
+  client.setCredentials({ refresh_token: refreshToken });
   return client;
 }
 
@@ -80,7 +95,7 @@ export function mapGoogleError(error: unknown, context: Record<string, unknown>)
 export async function uploadVideoViaProvider(params: UploadParams): Promise<UploadResult> {
   const context = { provider: 'youtube' };
   try {
-    const client = getOAuthClient();
+    const client = await getOAuthClient(params.channelId);
     const videoBuffer = await fs.readFile(params.videoPath);
 
     const metadataPart = {
@@ -128,10 +143,14 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
 // failure. The caller (state-machine.ts) isolates this the same way Sprint
 // 2 Task 4's G2 isolated retention-curve capture — logged, not thrown
 // further, not escalated to needs_attention.
-export async function setThumbnailViaProvider(params: { youtubeVideoId: string; imagePath: string }): Promise<void> {
+export async function setThumbnailViaProvider(params: {
+  channelId: string;
+  youtubeVideoId: string;
+  imagePath: string;
+}): Promise<void> {
   const context = { provider: 'youtube', operation: 'thumbnails.set' };
   try {
-    const client = getOAuthClient();
+    const client = await getOAuthClient(params.channelId);
     const imageBuffer = await fs.readFile(params.imagePath);
     const url = new URL(YOUTUBE_THUMBNAILS_SET_URL);
     url.searchParams.set('videoId', params.youtubeVideoId);

@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env';
 import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { findDecryptedRefreshTokenForChannel } from '../../models/repositories/agent-credential.repository';
 import type { VideoStats } from './types';
 
 // The only file allowed to touch the YouTube Data API v3's videos.list
@@ -13,14 +14,24 @@ import type { VideoStats } from './types';
 
 const YOUTUBE_VIDEOS_LIST_URL = 'https://www.googleapis.com/youtube/v3/videos';
 
-function getOAuthClient(): OAuth2Client {
-  if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.YOUTUBE_REFRESH_TOKEN) {
+// Sprint 3 Task 5 (M3) — same real per-channel credential resolution
+// youtube-client.ts's own getOAuthClient now uses; duplicated here rather
+// than imported, matching this file's own existing "agents don't share
+// hidden state" convention (see this file's header comment).
+async function getOAuthClient(channelId: string): Promise<OAuth2Client> {
+  if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET) {
     throw new NonTransientStageError(
-      'YouTube OAuth credentials are not configured (YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET/YOUTUBE_REFRESH_TOKEN) — cannot fetch real stats. Set YOUTUBE_STUB=1 to use the stub path instead.',
+      'YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET are not set — the OAuth application identity is not configured.',
+    );
+  }
+  const refreshToken = await findDecryptedRefreshTokenForChannel(channelId);
+  if (!refreshToken) {
+    throw new NonTransientStageError(
+      `Channel ${channelId} has no connected YouTube account — cannot fetch real stats. Set YOUTUBE_STUB=1 to use the stub path instead.`,
     );
   }
   const client = new OAuth2Client(env.YOUTUBE_CLIENT_ID, env.YOUTUBE_CLIENT_SECRET, env.YOUTUBE_REDIRECT_URI);
-  client.setCredentials({ refresh_token: env.YOUTUBE_REFRESH_TOKEN });
+  client.setCredentials({ refresh_token: refreshToken });
   return client;
 }
 
@@ -38,10 +49,10 @@ type VideosListResponse = {
   items?: { statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }[];
 };
 
-export async function fetchVideoStatsViaProvider(youtubeVideoId: string): Promise<VideoStats> {
+export async function fetchVideoStatsViaProvider(channelId: string, youtubeVideoId: string): Promise<VideoStats> {
   const context = { provider: 'youtube' };
   try {
-    const client = getOAuthClient();
+    const client = await getOAuthClient(channelId);
     const url = new URL(YOUTUBE_VIDEOS_LIST_URL);
     url.searchParams.set('part', 'statistics');
     url.searchParams.set('id', youtubeVideoId);

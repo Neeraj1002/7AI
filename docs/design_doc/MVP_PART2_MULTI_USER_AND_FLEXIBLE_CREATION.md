@@ -21,19 +21,35 @@ This is a sensible, common shape (the thing that's *theirs* — channel, audienc
 theirs; the thing that's shared infrastructure stays centralized) but it makes a few things
 non-optional that weren't urgent before:
 
-- **Per-tenant budget enforcement is now required, not someday.** `KNOWN_ISSUES_AND_BLOCKERS.md`
-  Section 3 already flags "pooled per-platform budget has no fair-access policy across channels" as a
-  future concern for a second channel of *yours*. With 10 people sharing your keys, one tester
-  without a real per-tenant ceiling can both overspend and starve the other nine. The existing
-  approval-gate design (nothing renders or publishes without a human approving first) already limits
-  runaway spend structurally — worth keeping that property, not something to relax later for
-  convenience — but each tenant still needs its own real `AgentQuota` ceiling, enforced, before this
-  goes to real testers.
-- **YouTube API quota is per Google Cloud project, not per connected channel.** If all 10 testers
-  authorize through the one OAuth app already registered (`YOUTUBE_CLIENT_ID`), their uploads *and*
-  Performance Analytics' polling all draw from one shared daily quota. Worth checking current quota
-  and requesting an increase proactively (historically 1-2 week lead time, same lesson as Week 1 Task
-  7) rather than discovering the ceiling live during the test.
+- **Per-tenant budget enforcement is now required, not someday — picked up by Sprint 3 Task 4 (L1).**
+  `KNOWN_ISSUES_AND_BLOCKERS.md` Section 3 already flags "pooled per-platform budget has no
+  fair-access policy across channels" as a future concern for a second channel of *yours*. With 10
+  people sharing your keys, one tester without a real per-tenant ceiling can both overspend and starve
+  the other nine. The existing approval-gate design (nothing renders or publishes without a human
+  approving first) already limits runaway spend structurally — worth keeping that property, not
+  something to relax later for convenience — but each tenant still needs its own real `AgentQuota`
+  ceiling, enforced, before this goes to real testers.
+
+  **Closed**: every real `Tenant` created via the real invite flow (`scripts/invite-tenant.ts`) now
+  gets a real `AgentQuota` row in the same transaction, no longer only the founder's own hand-seeded
+  one. Verified live: a genuinely new tenant's first real brief passed the real budget gate. See
+  `docs/execution/sprint3/reports/task4.md`.
+- **YouTube API quota is per Google Cloud project, not per connected channel — investigated by
+  Sprint 3 Task 4 (L2).** If all 10 testers authorize through the one OAuth app already registered
+  (`YOUTUBE_CLIENT_ID`), their uploads *and* Performance Analytics' polling all draw from one shared
+  daily quota. Worth checking current quota and requesting an increase proactively (historically 1-2
+  week lead time, same lesson as Week 1 Task 7) rather than discovering the ceiling live during the
+  test.
+
+  **Investigated, no increase requested**: real, primary-source research found this note's own cost
+  assumption stale — `videos.insert` now costs ~1 unit in its own dedicated 100/day bucket (not
+  ~1,600 units from the shared pool), a real API change in the last year. At a realistic ~10-tester
+  cadence, the real estimate shows comfortable near-term headroom against the shared 10,000-unit/day
+  pool; the actual longer-term risk is Performance Analytics' own unbounded "poll every historical
+  video forever" design, not upload volume. This project's *actual* Cloud Console quota numbers
+  couldn't be checked live (requires the founder's own Google login) — a real, quick verification
+  item, not a blocking request. See `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1/§4 and
+  `docs/execution/sprint3/reports/task4.md`.
 - **Other people's real OAuth refresh tokens need real security handling** — encrypted at rest (not
   stored the way the single env-var token is today), scoped to the minimum
   (`youtube.upload`/`youtube.readonly`, same as now, no broader ask), with a clear disconnect path in
@@ -54,29 +70,82 @@ has only ever used one hardcoded `MVP_TENANT_ID`. That's the cheap part already 
 is everything *around* the data model.
 
 ### What's actually missing
-- **No `User` model exists at all.** `Tenant` today stands in for "the founder's one account," not a
-  real many-user structure. Needs: a real `User` table, and a decision on the User↔Tenant↔Channel
-  relationship — one user per tenant? multiple users per tenant with roles (owner/approver/viewer)?
-  Does a "tenant" become "one person's whole account" the way it conceptually already half-is, or
-  does it become "one team," with users inside it?
-- **No real per-user auth.** The API is `publicProcedure` today, gated only by one blanket
-  `API_AUTH_TOKEN` (a dev-only CORS story on top of that, per `KNOWN_ISSUES_AND_BLOCKERS.md`). Needs
-  real sessions/identity — worth considering something lightweight first (magic-link email, or even
-  Telegram-based login since Telegram's already wired in) rather than building a full auth system
-  before it's needed.
-- **Per-user notification routing.** One hardcoded `TELEGRAM_FOUNDER_CHAT_ID` today. Ties directly
-  into the Telegram-as-notify-only conversation already had — for a real multi-user product, in-app
-  push through the dashboard is probably the right default channel, with Telegram as one optional
-  channel a user links themselves, not *the* channel.
-- **Gate ownership.** Right now "the founder" approves every gate for the one channel that exists.
-  Multi-user needs an explicit answer to "who can approve gates for this channel" — not necessarily
-  complex (probably just "the channel's owner" to start), but currently there's no concept of
-  ownership to check at all.
-- **Per-user YouTube credentials — decided above, still the biggest single piece of work.**
-  `YOUTUBE_REFRESH_TOKEN` is a single env var today, meaning every run publishes to *your* YouTube
-  channel. Needs OAuth tokens to move from env vars to encrypted per-Channel storage in the DB, with a
-  real OAuth connect flow per user (`google-auth-library` is already a dependency — the library
-  groundwork exists, this is mostly flow + storage work, not a new integration from scratch).
+- **No `User` model exists at all — picked up by Sprint 3 Task 1 (J1).** `Tenant` today stands in for
+  "the founder's one account," not a real many-user structure. Needs: a real `User` table, and a
+  decision on the User↔Tenant↔Channel relationship — one user per tenant? multiple users per tenant
+  with roles (owner/approver/viewer)? Does a "tenant" become "one person's whole account" the way it
+  conceptually already half-is, or does it become "one team," with users inside it?
+
+  **Closed**: a real `User` table (`tenantId` FK, `email` unique, `role`). Decision made concrete: a
+  `Tenant` is one account (an individual or small team), a `User` belongs to exactly one `Tenant` —
+  not a many-to-many join, since each of the ~10 testers brings their own account per this doc's own
+  §0. Two roles only — `owner` (everything) and `approver` (view + approve gates) — matching this
+  section's own "probably just 'the channel's owner' to start" gate-ownership note. The founder's own
+  `MVP_TENANT_ID` row was seeded with a real `User` (`owner`) in the same migration. See
+  `docs/execution/sprint3/reports/task1.md`.
+- **No real per-user auth — picked up by Sprint 3 Task 1 (J2).** The API is `publicProcedure` today,
+  gated only by one blanket `API_AUTH_TOKEN` (a dev-only CORS story on top of that, per
+  `KNOWN_ISSUES_AND_BLOCKERS.md`). Needs real sessions/identity — worth considering something
+  lightweight first (magic-link email, or even Telegram-based login since Telegram's already wired
+  in) rather than building a full auth system before it's needed.
+
+  **Closed**: real magic-link email login — a signed, short-lived (15 min), single-use JWT
+  (DB-tracked via a new `LoginToken` table, since a signature alone doesn't prove first-use), verified
+  at `/auth/verify` and exchanged for a real session JWT (`userId`/`tenantId`/`role`, no DB session
+  table needed). No transactional-email provider exists yet, so for now the real link is logged to
+  the server console and relayed over the existing Telegram channel — a real, working flow, not a
+  stub. `api/trpc.ts` gained a real `Context`; every `publicProcedure` that used to read the hardcoded
+  `MVP_TENANT_ID` now reads `ctx.tenantId`, verified live against a genuinely separate second tenant
+  (not just the founder's own, where the values would coincidentally match). `API_AUTH_TOKEN` is
+  downgraded to an explicit ops/script fallback, not removed. See
+  `docs/execution/sprint3/reports/task1.md`.
+- **Per-user notification routing — picked up by Sprint 3 Task 3 (K2).** One hardcoded
+  `TELEGRAM_FOUNDER_CHAT_ID` today. Ties directly into the Telegram-as-notify-only conversation
+  already had — for a real multi-user product, in-app push through the dashboard is probably the
+  right default channel, with Telegram as one optional channel a user links themselves, not *the*
+  channel.
+
+  **Closed**: exactly this shape — a real `InAppFounderChannel` (a new `Notification` table, a real
+  `notifications.list` dashboard query), dispatched to always; Telegram dispatched to only if the
+  recipient has linked it via a real `/link <code>` flow (`TelegramLinkCode` table), with a real
+  disconnect path (`notifications.unlinkTelegram`). Verified live: a gate for an unlinked user
+  produced only a real in-app row and resolved via the API alone; a real `/link` flow (simulated
+  Telegram input) set a real `telegramChatId`; the founder's own existing flow (real Telegram message
+  + real reply) still works, now also writing a real in-app row that gets marked resolved the same
+  way. Found and fixed a real bug along the way (a reply-send failure could crash the message
+  handler even after the underlying action succeeded) and a real privacy gap (every user's login link
+  used to relay to the founder's own Telegram). See `docs/execution/sprint3/reports/task3.md`.
+- **Gate ownership — picked up by Sprint 3 Task 2 (K1).** Right now "the founder" approves every gate
+  for the one channel that exists. Multi-user needs an explicit answer to "who can approve gates for
+  this channel" — not necessarily complex (probably just "the channel's owner" to start), but
+  currently there's no concept of ownership to check at all.
+
+  **Closed**: exactly the minimal shape this note anticipated — `Channel.ownerUserId` (nullable FK,
+  backfilled to each tenant's seeded owner), checked before `gate1`/`gate2` resolve
+  (`ctx.tenantId === channel.tenantId && (ctx.userId === channel.ownerUserId || ctx.role ===
+  'owner')`), fail-closed on a null owner. Real, live-verified against a genuinely separate second
+  tenant, a same-tenant non-owner, and an ownerless channel. Run/channel *creation*-time tenant
+  ownership is a distinct, still-open gap (see `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §3). See
+  `docs/execution/sprint3/reports/task2.md`.
+- **Per-user YouTube credentials — decided above, was the biggest single piece of work. Picked up by
+  Sprint 3 Task 5 (M1-M3).**
+
+  **Closed, with one real founder-action item remaining.** A real `AgentCredential` table (encrypted
+  at rest, AES-256-GCM), a real in-app connect flow (`channels.getYoutubeConnectUrl` →
+  `/oauth2callback`, replacing the old one-time `scripts/youtube-oauth.ts` terminal script) with a
+  real disconnect path (`channels.disconnectYoutube`), and all three YouTube client modules
+  (Publishing, Performance Analytics' stats + retention-curve fetches) migrated off the single shared
+  `env.YOUTUBE_REFRESH_TOKEN` onto real per-channel lookups — there is no code path left that reads
+  the old env var for a real publish or stats poll. Encryption verified live via a direct raw-column
+  DB read (genuine ciphertext, not the plaintext re-encoded). The connect flow's URL generation and
+  Google-side wiring verified live (a real browser reached Google's actual consent screen, correctly
+  identifying the app and scopes). **What's not yet proven live**: a real publish/stats-poll actually
+  succeeding through the new path end-to-end — blocked on a real, external fact found during this
+  task's own verification (the founder's existing refresh token is expired/revoked at Google's end,
+  confirmed independently via a direct call to Google's own token endpoint, unrelated to this task's
+  code). Closing this needs one real founder action: complete a fresh Google consent through the new
+  in-app flow. See `docs/execution/sprint3/reports/task5.md` and
+  `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §1.
 - **Budget fairness across tenants — now required, see Section 0.**
 
 ---

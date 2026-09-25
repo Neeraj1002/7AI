@@ -2,14 +2,76 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-16, after Sprint 2 Task 5 (custom cover frame + title/description A/B
-testing investigation). See `docs/execution/sprint2/reports/task5.md`.
+**Last updated**: 2026-09-22, after the Sprint 3 Hardening fix (run creation-time tenant ownership
+check). See `docs/execution/sprint3/reports/hardening-tenant-check.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
 ---
 
 ## 1. Founder action required (external, blocking)
+
+### Open — O1: confirm real push delivery on a real physical device (Sprint 3 Task 7)
+Every backend piece of real push notification infrastructure is built and verified as far as this
+agent can verify it without a physical device: `User.expoPushToken` (real migration),
+`notifications.registerPushToken` (real mutation, verified via a real, validly-shaped test token),
+`ExpoPushChannel` (real `expo-server-sdk` integration — a real send was confirmed to reach Expo's own
+push API and receive a real, specific `DeviceNotRegistered` response for the fake test token used,
+proving the integration itself is genuine, not mocked). **What this agent cannot do**: register a
+real device's push token (that requires the frontend's own `expo-notifications` work — Sprint 3
+frontend Task 3's rewritten FE11 — running on a real physical device; simulators don't deliver real
+push) and confirm actual on-device delivery via Expo's push-receipt API, the task's own explicitly
+required verification bar (a send succeeding isn't the same as the real notification arriving).
+Founder action: install the app on a real device, sign in, let it register a real push token, open a
+real gate with the app backgrounded, and confirm the notification arrives — then check Expo's
+push-receipt API for that ticket to confirm real delivery, not just acceptance. See
+`sprint3/reports/task7.md`.
+
+### Open — M2/M3: complete a real Google OAuth consent to get a fresh, valid per-channel refresh token (Sprint 3 Task 5)
+`AgentCredential` storage, the real in-app connect flow (`channels.getYoutubeConnectUrl` →
+`/oauth2callback`), and all three YouTube client modules' migration off `env.YOUTUBE_REFRESH_TOKEN`
+are all built, migrated, and verified as far as this agent can verify them — but two of the task's
+three real-verification requirements are blocked on the same real, external fact, confirmed live, not
+assumed: **the founder's existing `YOUTUBE_REFRESH_TOKEN` (migrated into their channel's
+`AgentCredential` row) is itself expired or revoked at Google's end.** Confirmed two ways: (1) a real
+publish attempt with the env var genuinely unset reached Google using the migrated credential and got
+a real `invalid_grant` / *"Token has been expired or revoked"* response; (2) independently, a raw
+`curl` POST of the exact plaintext token straight to `https://oauth2.googleapis.com/token` (outside
+this project's code entirely) produced the identical error. Most likely cause: this OAuth client is
+still in Google's "Testing" publishing status, where test-user refresh tokens expire after a fixed
+window, regardless of use. **Founder action**: sign in with your Google account and complete a fresh
+consent — either by re-connecting your own existing channel through the new in-app flow
+(`GET /channels/:id/youtube/connect`, then follow the returned URL — replaces re-running
+`scripts/youtube-oauth.ts` and re-pasting into `.env.local`), or by connecting a genuinely new second
+channel the same way. This agent cannot do this step itself: it requires signing in to a real Google
+account, which is categorically out of scope regardless of authorization. Once done, re-run a real
+publish and a real stats poll (both already coded and ready) to close out Task 5's M3 verification —
+no further code changes are expected to be needed. See `sprint3/reports/task5.md`.
+
+### Open — the YouTube OAuth client's registered redirect URI needs updating once a real deployed callback URL exists (Sprint 3 Task 5)
+M2's real in-app connect flow moves `YOUTUBE_REDIRECT_URI` from `scripts/youtube-oauth.ts`'s dev-only
+`http://localhost:3000/oauth2callback` default to the real deployed API's own `/oauth2callback` route.
+Once a real deployed URL exists, the founder must also update the registered redirect URI in the
+Google Cloud Console's OAuth client settings (APIs & Services → Credentials → this OAuth 2.0 Client
+ID → Authorized redirect URIs) — the same "external console step, hand this off" posture Week 1 Task
+7 and Sprint 3 Task 4/L2 both already use. Not blocking today (local dev still uses the working
+localhost default); blocking only once a real deployment target exists. See
+`sprint3/reports/task5.md`.
+
+### Open — L2: confirm the real YouTube API quota console numbers match the assumed defaults (Sprint 3 Task 4)
+Not a blocking request — a real, quick verification. Live research (Google's own current developer
+docs, fetched directly) found the task's own assumed cost model was stale: `videos.insert` now costs
+~1 unit in its own dedicated 100-calls/day bucket (changed 2025-12-04 and again 2026-06-01), not the
+~1,600 units from the shared pool the task text described. At a realistic ~10-tester cadence, the
+real estimate is comfortable headroom against the documented default 10,000-units/day shared pool —
+**but this project's own actual Google Cloud Console quota numbers were never checked live**, since
+that page requires the founder's own Google login (confirmed live: no authenticated session exists in
+this environment, and entering credentials on the founder's behalf is out of scope regardless). A
+real 2-minute check — `console.cloud.google.com` → APIs & Services → YouTube Data API v3 → Quotas —
+confirms whether this project's real numbers match the assumed defaults (a prior increase or
+restriction would change the estimate). No quota-increase request is warranted by the real math as
+computed; this is a verification item, not a founder-action-required-to-unblock item. See
+`sprint3/reports/task4.md`.
 
 ### Open — H1: custom-thumbnail permission — a separate eligibility gate from long-uploads verification (Sprint 2 Task 5)
 `setThumbnail`/`thumbnails.set` is built, wired into Publishing (isolated — see §5), and confirmed
@@ -232,7 +294,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 - **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Correctly applied on the first attempt in Week 5 Task 1's real re-run of this same test. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`, `week5/reports/task1.md`*
 
-- **`dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) can't coexist with a persistent `npm run dev` instance** on the same Telegram bot token — both start a long-poll loop, and Telegram allows only one active `getUpdates` poller per token, so the second one to start gets a `409 Conflict`. Worked around in Week 5 Task 1 by stopping the persistent instance for the duration of testing and restarting it after. Not fixed — worth a real fix (detect an already-running poller and defer to it, or share one process) if live-gate testing becomes routine rather than occasional. — *`week5/reports/task1.md`*
+- **Closed by Sprint 3 Task 7 (O2)** — `dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) used to be unable to coexist with a persistent `npm run dev` instance on the same Telegram bot token (both started a long-poll loop, and Telegram allowed only one active `getUpdates` poller per token). Moot now that Telegram is retired entirely — no bot, no poller, no possible conflict. See `sprint3/reports/task7.md`.
 
 - **`videos.delete` needs a broader OAuth scope than what's currently granted** — the token only has `youtube.upload`/`youtube.readonly` (Week 1 Task 7's original scope request), so a throwaway test video uploaded during Week 5 Task 1's real kill-test (`nnY46b0vOCw`, private, harmless) couldn't be cleaned up programmatically. Low priority — a manual YouTube Studio delete closes it, or a future task can re-request the broader `youtube`/`youtube.force-ssl` scope if programmatic video cleanup becomes worth having. — *`week5/reports/task1.md`*
 
@@ -274,11 +336,38 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   isolated fix: a more defensive fence-stripping regex, or retrying once specifically on a JSON
   parse failure before escalating. — *`sprint2/reports/task2.md`*
 
+- **CLOSED — both gate *resolution* ownership (Sprint 3 Task 2, K1) and run/channel *creation*-time
+  ownership (Sprint 3 Hardening) are now checked.** Originally flagged in Task 1 as one combined
+  "gate/channel ownership" gap; live work on Task 2 clarified these are two genuinely separate checks,
+  not one — both are now closed. **Closed (K1)**: `runs.gate1`/`gate2` reject a gate-resolution
+  attempt from a session that doesn't own the run's channel (`FORBIDDEN`, not a generic 401/403) —
+  real, live-verified against a genuinely separate second tenant, a same-tenant non-owner, and an
+  ownerless channel (fail-closed to "tenant owner-role only"). See `sprint3/reports/task2.md`.
+  **Closed (Sprint 3 Hardening)**: `runs.create` now checks `channel.tenantId === ctx.tenantId`
+  immediately after the existing not-found check, reusing `assertGateOwnership`'s own `FORBIDDEN`
+  shape/message convention rather than a second authorization-error style. Real, live-verified: a
+  genuinely separate second tenant's session attempting `runs.create` against the first tenant's real
+  channel got a real `403 FORBIDDEN`, confirmed by a direct Postgres read that zero `PipelineRun` rows
+  were created for that attempt; the same session's own channel, and the first tenant's own channel
+  from its own session, both still succeeded normally (the regression check). See
+  `sprint3/reports/task1.md`, `sprint3/reports/task2.md`, `sprint3/reports/hardening-tenant-check.md`.
+
+- **The API server's CORS registration stays permissive (`origin: true`) through Sprint 3 Task 1.**
+  Real per-user sessions now exist (magic-link JWTs), but any origin can still send a request carrying
+  one — the registration's own comment has called this "dev-only, single-operator" since the frontend
+  track first added it, and that framing is now slightly stale (a stolen/leaked session token is a
+  more real risk with actual per-user credentials than with one shared ops token). Not tightened this
+  task (explicitly noted as a natural follow-on once a real deployed frontend origin exists to build
+  an allow-list from, not blocking). Worth prioritizing once real testers carry real sessions, not
+  indefinitely. — *`sprint3/reports/task1.md`*
+
 ---
 
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
 
 - **The aggregated Video Generation `UsageEvent` row's `provider`/`model` fields are a judgment call, not a confirmed convention.** One row covers two different (provider, model) pairs (TTS + transcription), so `provider` is hardcoded `'openai'` and `model` becomes a composite string (`"tts-1-hd+whisper-1"`), with the real breakdown in `metadata`. Flagged for confirmation the same way the $2.00 budget ceiling was — never explicitly confirmed by you. — *`week3/reports/task2.md`*
+- **Performance Analytics polls every historical published video, forever — a real, unbounded quota-cost growth pattern (Sprint 3 Task 4, L2).** `runPeriodicPoll` (`performance-analytics/index.ts`) queries every completed run with a published video on each tick (default every 6h), not just recently-published ones. Each poll is cheap (`videos.list`, 1 unit) and today's volume is a non-issue, but the cost grows with the *cumulative* count of ever-published videos, not daily upload volume — at a real ~10-tester cadence, a few months of sustained use could put this in the thousands-of-units/day range purely from polling old videos whose metrics have long since stabilized. Not urgent (real near-term headroom is comfortable against the 10,000-unit/day shared pool), but worth a real fix before it becomes one — e.g. stop polling a video N days/weeks after publish. — *`sprint3/reports/task4.md`*
+- **The default new-tenant `AgentQuota.budgetCeilingUsd` ($2.00, Sprint 3 Task 4, L1) reuses the founder's own original, never-explicitly-confirmed figure** rather than a fresh number — a deliberate choice (consistency over guessing a new one), but still genuinely unconfirmed by you, same as the original. — *`sprint3/reports/task4.md`*
 - **CLOSED, not viable as scoped — Title/thumbnail A/B testing (H2, Sprint 2 Task 5).**
   `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md` §2 proposed Publishing drive YouTube's native
   title/thumbnail "Test and Compare" feature directly. Live research against Google's own current

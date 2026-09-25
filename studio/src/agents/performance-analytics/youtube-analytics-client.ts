@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env';
 import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { findDecryptedRefreshTokenForChannel } from '../../models/repositories/agent-credential.repository';
 import type { RetentionCurvePoint } from '../../types';
 
 // The only file allowed to touch the YouTube Analytics API v2's reports.query
@@ -12,14 +13,24 @@ import type { RetentionCurvePoint } from '../../types';
 
 const YOUTUBE_ANALYTICS_REPORTS_URL = 'https://youtubeanalytics.googleapis.com/v2/reports';
 
-function getOAuthClient(): OAuth2Client {
-  if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.YOUTUBE_REFRESH_TOKEN) {
+// Sprint 3 Task 5 (M3) — same real per-channel credential resolution as
+// youtube-client.ts/youtube-stats-client.ts, duplicated here rather than
+// imported (this file's own header comment already establishes the
+// "agents don't share hidden state" convention).
+async function getOAuthClient(channelId: string): Promise<OAuth2Client> {
+  if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET) {
     throw new NonTransientStageError(
-      'YouTube OAuth credentials are not configured (YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET/YOUTUBE_REFRESH_TOKEN) — cannot fetch a real retention curve. Set YOUTUBE_ANALYTICS_STUB=1 to use the stub path instead.',
+      'YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET are not set — the OAuth application identity is not configured.',
+    );
+  }
+  const refreshToken = await findDecryptedRefreshTokenForChannel(channelId);
+  if (!refreshToken) {
+    throw new NonTransientStageError(
+      `Channel ${channelId} has no connected YouTube account — cannot fetch a real retention curve. Set YOUTUBE_ANALYTICS_STUB=1 to use the stub path instead.`,
     );
   }
   const client = new OAuth2Client(env.YOUTUBE_CLIENT_ID, env.YOUTUBE_CLIENT_SECRET, env.YOUTUBE_REDIRECT_URI);
-  client.setCredentials({ refresh_token: env.YOUTUBE_REFRESH_TOKEN });
+  client.setCredentials({ refresh_token: refreshToken });
   return client;
 }
 
@@ -102,10 +113,10 @@ type YoutubeAnalyticsReportResponse = {
 // channel id) is the documented form for the authenticated user's own
 // channel, matching this project's single-channel-per-token posture
 // (SCHEMA.md Section 2).
-export async function fetchRetentionCurveViaProvider(youtubeVideoId: string): Promise<RetentionCurvePoint[]> {
+export async function fetchRetentionCurveViaProvider(channelId: string, youtubeVideoId: string): Promise<RetentionCurvePoint[]> {
   const context = { provider: 'youtube-analytics' };
   try {
-    const client = getOAuthClient();
+    const client = await getOAuthClient(channelId);
     const url = new URL(YOUTUBE_ANALYTICS_REPORTS_URL);
     url.searchParams.set('ids', 'channel==MINE');
     // A video's retention curve is fixed once it stops accumulating new

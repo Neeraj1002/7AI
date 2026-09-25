@@ -456,7 +456,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // Restart-safety (Week 5 Task 3, KNOWN_ISSUES_AND_BLOCKERS.md): a
   // 'running' gate1 attempt already exists when this run was paused_gate1
   // and the process restarted (resume-on-startup.ts re-invokes this
-  // function). Reuse that same attempt — re-sending the Telegram prompt and
+  // function). Reuse that same attempt — re-sending the gate prompt and
   // re-registering the pending reply — rather than creating a second one;
   // the DB record of "gate1 is open" doesn't need to change, only the
   // in-memory pending-reply state does.
@@ -482,6 +482,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // PipelineRun.status = 'paused_gate1' represents.
   const outcome = await requestGate1Decision({
     runId,
+    channel,
     channelName: channel.name,
     briefText: run.briefText,
     scriptText: scriptOutput.scriptText,
@@ -950,8 +951,8 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   // founder-availability convention, a simulated one for testing).
   const outcome = await requestGate2Decision({
     runId,
+    channel,
     channelName: channel.name,
-    videoPath,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
     restarted: isRestartReopen,
@@ -1183,7 +1184,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
     const attemptUploadOnce = async (): Promise<UploadResult> =>
-      uploadVideo({ videoPath, metadata, privacyStatus, containsSyntheticMedia });
+      uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Sprint 2 Task 5 (H1) — best-effort, isolated follow-up: the video is
@@ -1202,7 +1203,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
           durationSeconds,
           coverFrameTimestampRatio: metadata.coverFrameTimestampRatio,
         });
-        await setThumbnail({ youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
+        await setThumbnail({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
         coverFrameSet = true;
       } catch (error) {
         console.error(

@@ -2,7 +2,6 @@ import { env } from './config/env';
 import { resumeOnStartup } from './run-pipeline/resume-on-startup';
 import { runGateReminderCheck } from './run-pipeline/gate-reminder';
 import { runFounderDigestCheck } from './run-pipeline/founder-digest';
-import { startTelegramReceiveLoop } from './notify-founder';
 import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
 
@@ -56,12 +55,6 @@ async function main(): Promise<void> {
   console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);
 
   await resumeOnStartup();
-
-  if (env.TELEGRAM_BOT_TOKEN) {
-    startTelegramReceiveLoop();
-  } else {
-    console.log('[boot] TELEGRAM_BOT_TOKEN not set — skipping Telegram bot startup');
-  }
 
   startPerformanceAnalyticsPoller();
   startGateReminderChecker();

@@ -29,10 +29,10 @@ import type { PipelineRun, PipelineStage, StageName } from '../types';
 // restart would be surprising founder-facing behavior, and nothing
 // schedules a re-check) — now closed: `PipelineRun.status` staying
 // `paused_gate1`/`paused_gate2` across a crash was always durable, but the
-// in-memory `pendingByThreadKey` map (`telegram-channel.ts`) that a real
-// reply or the app's gate1/gate2 API call resolves against lived only in the
+// in-memory `pendingByThreadKey` map (`notifications/pending-approvals.ts`)
+// that the app's gate1/gate2 API call resolves against lived only in the
 // crashed process's memory. Without re-establishing it, a paused run was
-// stranded forever — no reply, Telegram or API, could ever reach it again.
+// stranded forever — no reply could ever reach it again.
 const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<PipelineRun>>> = {
   intake: runIntakeStage,
   script_generation: runScriptGenerationStage,
@@ -149,12 +149,12 @@ async function resumeRunningRuns(): Promise<void> {
 //
 // Deliberately fire-and-forget (not awaited per-run): requestGate1Decision/
 // requestGate2Decision block on a real human reply, sometimes for hours.
-// resumeOnStartup() itself must return promptly so the rest of main()'s boot
-// sequence (the Telegram receive loop, the API server) actually starts —
-// otherwise a single pending gate would block the whole orchestrator from
-// ever coming back up, and then nothing could ever answer it. The gate
-// resolution proceeds in the background exactly as it would have if the
-// process had never restarted.
+// resumeOnStartup() itself must return promptly so the rest of main()'s
+// boot sequence (the periodic background checkers, the API server)
+// actually starts — otherwise a single pending gate would block the whole
+// orchestrator from ever coming back up, and then nothing could ever
+// answer it. The gate resolution proceeds in the background exactly as it
+// would have if the process had never restarted.
 async function reopenPausedGates(): Promise<void> {
   const pausedGate1Runs = await listRunsByStatus('paused_gate1');
   for (const run of pausedGate1Runs) {
