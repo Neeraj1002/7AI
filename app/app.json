@@ -17,7 +17,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.neeraj_1002.sevenaistudio"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -27,6 +28,12 @@
       "expo-status-bar",
       "expo-secure-store",
       "expo-video"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d0c7c763-2b09-443c-95ba-70f4e1811c67"
+      }
+    }
   }
 }
