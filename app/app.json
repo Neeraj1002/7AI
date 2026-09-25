@@ -29,13 +29,27 @@
       "expo-secure-store",
       "expo-video",
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {},
       "eas": {
         "projectId": "d0c7c763-2b09-443c-95ba-70f4e1811c67"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d0c7c763-2b09-443c-95ba-70f4e1811c67"
     }
   }
 }
