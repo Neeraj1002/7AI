@@ -407,3 +407,38 @@ model PerformanceSnapshot {
   @@index([pipelineRunId], map: "idx_snapshots_run")
   @@map("performance_snapshots")
 }
+
+// Testing-phase utility, not a real product model — a lightweight bug inbox
+// for manual app testing, deliberately outside the Tenant/User model
+// entirely: a tester reporting a bug may not be signed in, or the bug may
+// be that they can't sign in at all, so this has no auth and no tenancy
+// scoping. `status` isn't exposed on the one-field public form at all — it
+// exists purely so a later pass through this table (by a human or an
+// agent) can mark rows worked through instead of re-reading the same ones
+// every time. Plan is to remove this table (or replace it with something
+// more sophisticated) once real testing winds down — see api/server.ts's
+// /bugs routes and api/bug-report-page.ts for the rest of this feature.
+model BugReport {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  description String @db.Text
+  status      String @default("open") @db.VarChar(20)
+
+  // Run/screen context — added so a report can be cross-checked against
+  // Postgres the same way every other fix in this project has been, instead
+  // of relying on the tester's own prose description of where they were.
+  // Deliberately no relation/FK to PipelineRun: a bug report should never be
+  // blocked by referential integrity (a stale or deleted run must not make
+  // the report un-loggable) — a bad/garbage runId is trivially obvious when
+  // triaging and not worth guarding against. Derived fresh from the router
+  // at tap time (app/components/ReportBugButton.tsx), never from any
+  // separately-maintained "current context" state.
+  runId         String? @db.Uuid
+  screenContext String? @db.VarChar(255)
+  // Captured server-side from the request header (api/server.ts's POST
+  // /bugs handler), never typed or supplied by the tester.
+  userAgent     String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@map("bug_reports")
+}
