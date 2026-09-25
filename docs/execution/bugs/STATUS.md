@@ -18,18 +18,26 @@ pushing straight to `main` — now a hard, no-exceptions violation of scope, and
 frontend work, which matters a lot given Task 2 below — see the protocol's new **Track Roles**
 (`BE`/`FE`/`APP`) section.
 
-**Folder status**: 2 items logged. **Task 1's code is fully on `main`**: R1 (`expo-build-properties`/
-cleartext), then R2 (login default) and R4 (channel-picker states) — all confirmed by direct read as of
-2026-09-25, all landed via the founder pushing directly from 7fe to `main` (a deliberate founder action,
-not a hot-fixer push; the no-direct-push-to-`main` rule in the protocol binds hot-fixer/agent sessions,
-not the founder). **No report has ever been written for Task 1 anywhere durable** — that's the one real
-remaining item, plus R3's process step and real on-device verification. Task 2 is a new, high priority
-production task: bundle every other pending native-config change into the next build (so this is the
-last native-only rebuild needed for a while) and finish the OTA (`expo-updates`) setup — which turned
-out, on inspection, to be already partially in place (the package and an `updates.url` are already
-there; the policy/`checkAutomatically` decisions and real verification are what's missing).
-**Last updated**: 2026-09-26 (Task 1 closed out — report written and committed; worktree situation
-resolved differently than planned, see checkout-location note below).
+**Folder status**: 2 items logged, both **code-complete**, both waiting only on founder-side real-device
+verification. Task 1's R1/R2/R4 are confirmed on `main`, reported at `reports/task1.md`. Task 2's audit
+found nothing else pending, and `expo-updates` is now fully configured (`fingerprint` runtime policy,
+`ON_LOAD` auto-check) on branch `BUGS_APP_b2` — reported at `reports/task2.md`. What's left for both:
+the founder needs to build (`eas build --platform android --profile preview` from a clean checkout with
+Task 1+2's changes merged), install, and run the real-device checks each report spells out — including
+Task 2's one-time real OTA proof (publish a trivial JS change via `eas update --branch preview`, confirm
+the installed app picks it up without a new APK).
+**Last updated**: 2026-09-26 (Task 2 code complete — native-config audit done, `expo-updates` fully
+configured; real on-device/OTA verification pending, founder action).
+
+**Shipping boundary — read this before deciding whether a fix needs a rebuild.** As of Task 2 landing,
+`expo-updates` is fully configured (`runtimeVersion.policy: "fingerprint"`,
+`updates.checkAutomatically: "ON_LOAD"`). Going forward: a **JS/React-Native-logic-only** change (no new
+native dependency, no new permission, no `app.json` plugin, nothing in `android`/`ios` — same shape as
+Task 1's own R2/R4) ships via `eas update --branch preview`, **no new APK, no reinstall**. Only a
+genuinely **native** change (a new native dependency, a new permission, an `app.json` plugin addition, or
+touching `runtimeVersion`/`updates` itself) needs another full `eas build` — and per Task 2's own bundling
+principle, whoever finds one next should check whether anything else pending can be bundled into that
+same build too, rather than shipping native rebuilds one at a time.
 
 **Checkout location — read this before touching anything.** This track's docs are now kept in sync in
 **two** places, not one: this Project (read by any chat via the docs tool) and the actual worktree the
@@ -48,7 +56,7 @@ prevent happening again.
 | Task | Name | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|
 | 1 | First Device Test — Login Unreachable, Wrong Host Default, Stale Build, Empty Channel Picker | Done — action needed | **Founder** (real-device verification only) | `BUGS_TASK1_REPORT` (docs-only closure commit — see `reports/task1.md`'s Branch note for why this isn't `BUGS_FE`) | R1 (`APP`), R2 (`FE`), R4 (`FE`) all confirmed on `main` by direct read; R3's process step reconfirmed (7fe's merge conflict is now resolved). Report written and committed at `reports/task1.md` — the only thing left is real on-device verification, which no hot-fixer session has had the tooling/device for. |
-| 2 | Bundle All Remaining Native-Config Changes + Finish OTA Update Support | In Progress | Hot-fixer chat, started 2026-09-26 | `BUGS_APP_b2` (`eas build:version:get --platform android` returned current versionCode 1, so `<N> = 2`) | HIGH PRIORITY / production issue. Role `APP`. Audits for any other pending native-config change and bundles it into this build; finishes `expo-updates` configuration (already partially in place — see task doc's corrected R2). See `tasks/task2.md`. |
+| 2 | Bundle All Remaining Native-Config Changes + Finish OTA Update Support | Done — action needed | **Founder** (build + real device/OTA verification only) | `BUGS_APP_b2` (`eas build:version:get --platform android` returned current versionCode 1, so `<N> = 2`) | R1's audit found no other pending native-config gap (confirmed via `git log -p` on the EAS-config commit, `KNOWN_ISSUES_AND_BLOCKERS.md`, and a plugins-vs-dependencies cross-check). R2: `runtimeVersion.policy` set to `"fingerprint"` (was `"appVersion"`), `updates.checkAutomatically` set to `"ON_LOAD"`. Build/lint/typecheck all pass. Real build + on-device install + one real `eas update` OTA proof are founder-action-pending — see `reports/task2.md`. |
 
 ## Naming and branch convention
 Same per-task git discipline as every other track in this repo (see `docs/execution/templates/TASK_TEMPLATE.md`
@@ -66,13 +74,13 @@ Roles section for the full definitions):
 All three are distinct from any `SPRINT[N]_BE`/`_FE` or `FRONTEND_FE` branch, since a production-bug fix
 should never get tangled up with in-flight sprint scope on the same branch.
 
-**Worktree correction (2026-09-25)**: Task 1's hot-fixer session created a worktree at
-`D:\Study Material\7AI-bugs-fe`, named by analogy to the branch suffix (`BUGS_FE`) — a reasonable
-inference, but the wrong model. This track works one task at a time regardless of which side of the
-codebase it touches, so it uses a **single shared worktree** at `D:\Study Material\7AI-bugs` (no `-fe`
-suffix), not one worktree per branch suffix. `7AI-bugs-fe` should be reused/renamed to `7AI-bugs` rather
-than left in place with a second worktree created alongside it. See the revised protocol's Coordination
-§4.
+**Worktree correction (2026-09-25, resolved 2026-09-26)**: Task 1's hot-fixer session created a worktree
+at `D:\Study Material\7AI-bugs-fe`, named by analogy to the branch suffix (`BUGS_FE`) — a reasonable
+inference, but the wrong model; this track uses a **single shared worktree**,
+`D:\Study Material\7AI-bugs`. The rename couldn't be completed (OS-level file lock — see the
+checkout-location note above), so `7AI-bugs` was created fresh from `origin/main` instead, per the
+protocol's own fallback. `7AI-bugs-fe` is dead and should be deleted by hand once the lock clears; do not
+resume work from it.
 
 ## Full detail
 Task docs: `docs/execution/bugs/tasks/task1.md`, `docs/execution/bugs/tasks/task2.md` (more will be
