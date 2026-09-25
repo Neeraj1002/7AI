@@ -2,8 +2,8 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-20, after Sprint 3 Task 7 (retire Telegram — real push notifications +
-in-app digest & tagging). See `docs/execution/sprint3/reports/task7.md`.
+**Last updated**: 2026-09-22, after the Sprint 3 Hardening fix (run creation-time tenant ownership
+check). See `docs/execution/sprint3/reports/hardening-tenant-check.md`.
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -336,23 +336,21 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   isolated fix: a more defensive fence-stripping regex, or retrying once specifically on a JSON
   parse failure before escalating. — *`sprint2/reports/task2.md`*
 
-- **PARTIALLY CLOSED — gate *resolution* ownership closed by Sprint 3 Task 2 (K1); run/channel
-  *creation*-time ownership is a distinct gap, still open.** Originally flagged in Task 1 as one
-  combined "gate/channel ownership" gap; live work on Task 2 clarified these are two genuinely
-  separate checks, not one. **Closed (K1)**: `runs.gate1`/`gate2` now reject a gate-resolution
+- **CLOSED — both gate *resolution* ownership (Sprint 3 Task 2, K1) and run/channel *creation*-time
+  ownership (Sprint 3 Hardening) are now checked.** Originally flagged in Task 1 as one combined
+  "gate/channel ownership" gap; live work on Task 2 clarified these are two genuinely separate checks,
+  not one — both are now closed. **Closed (K1)**: `runs.gate1`/`gate2` reject a gate-resolution
   attempt from a session that doesn't own the run's channel (`FORBIDDEN`, not a generic 401/403) —
   real, live-verified against a genuinely separate second tenant, a same-tenant non-owner, and an
   ownerless channel (fail-closed to "tenant owner-role only"). See `sprint3/reports/task2.md`.
-  **Still open**: `runs.create` validates the target `channelId` exists (`findChannelById`) but never
-  checks that channel actually belongs to `ctx.tenantId` — a signed-in user's session can still
-  *create* a run against any tenant's channel if they know its id (K1's fix only stops a wrong-tenant
-  user from *approving* that run's gates afterward, not from creating it in the first place). Real
-  and live-demonstrated, not hypothetical: Task 1's own J3 verification deliberately used a second
-  tenant's own channel to prove `ctx.tenantId` threading works at all, and nothing in the code today
-  stops that same session from passing a *different* tenant's `channelId`. Worth closing before real
-  multi-tenant testers exist — the fix is a straightforward `channel.tenantId === ctx.tenantId` check
-  at the same point `findChannelById`'s not-found check already happens in `runs.create`. —
-  *`sprint3/reports/task1.md`, `sprint3/reports/task2.md`*
+  **Closed (Sprint 3 Hardening)**: `runs.create` now checks `channel.tenantId === ctx.tenantId`
+  immediately after the existing not-found check, reusing `assertGateOwnership`'s own `FORBIDDEN`
+  shape/message convention rather than a second authorization-error style. Real, live-verified: a
+  genuinely separate second tenant's session attempting `runs.create` against the first tenant's real
+  channel got a real `403 FORBIDDEN`, confirmed by a direct Postgres read that zero `PipelineRun` rows
+  were created for that attempt; the same session's own channel, and the first tenant's own channel
+  from its own session, both still succeeded normally (the regression check). See
+  `sprint3/reports/task1.md`, `sprint3/reports/task2.md`, `sprint3/reports/hardening-tenant-check.md`.
 
 - **The API server's CORS registration stays permissive (`origin: true`) through Sprint 3 Task 1.**
   Real per-user sessions now exist (magic-link JWTs), but any origin can still send a request carrying

@@ -3,9 +3,12 @@
 **Status**: Active. "Sprint" replaces "Week" as the execution unit starting Sprint 2 — see
 `docs/execution/templates/TASK_TEMPLATE.md`'s 2026-09-13 update for the full convention. Sprint 1's
 folders/branches (`week[N]`) are not renamed retroactively.
-**Date**: 2026-09-13
+**Date**: 2026-09-25 (Sprint 4 inserted; former Sprint 4 — Deferred Fleet Agents + Cross-Posting —
+renumbered to Sprint 5, not otherwise changed).
 **Sources**: `MVP_ROADMAP_OCT15.md`, `KNOWN_ISSUES_AND_BLOCKERS.md`, `week5/STATUS.md`,
-`MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md`, `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md`.
+`MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md`, `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md`,
+the "Channel-agnostic content & channel setup requirements (v3)" proposal (content-analyser session,
+2026-09-25).
 
 ---
 
@@ -71,9 +74,50 @@ better product after Sprint 2 lands first.
 
 ---
 
-## Sprint 4 — Deferred Fleet Agents + Cross-Posting
+## Sprint 4 — Channel Profiles, Formats & Content-Quality Configurability
+
+A deliberately scoped-down implementation of the "Channel-agnostic content & channel setup
+requirements (v3)" proposal (content-analyser session, 2026-09-25, run against this same Project):
+per-channel configurable script/visual/audio/packaging profiles (`ChannelProfileVersion`, a shared
+`resolveChannelConfig` resolver), an in-repo library of 9 reusable content formats, and a real
+channel/format comparison dashboard — sized for the founder's actual near-term plan (solo use for 2-3
+weeks, then opening to other testers), not the source proposal's full ambition.
+
+**Why this before Sprint 5's fleet agents**: the founder's immediate goal is testing which channels
+and formats are actually worth continuing, before other testers arrive — this sprint gives that a real
+mechanism (configurable profiles + formats to compare against each other) and a real place to see the
+comparison (Task 7). Sprint 5's Continuous Learning agent benefits from having formats/profiles and a
+few weeks of comparative history to learn from, so doing this first also strengthens Sprint 5 rather
+than just running in parallel with it.
+
+**A rule this sprint's tasks follow**: nothing is deferred just because it depends on something else
+unbuilt — the dependency becomes its own task, and the feature that needed it ships for real in the
+next one. `{editor}`/`{sources}` packaging credit fields, for example, needed a real `ReviewLog`
+approver-identity field that didn't exist — Task 4 builds that plumbing specifically so Task 5 can ship
+the real credit line, not a placeholder.
+
+**Deliberately deferred from the source proposal, not silently dropped** — genuine scope-size calls,
+not dependency gaps; see `docs/execution/sprint4/STATUS.md` for the full list: AI-drafted/guided-wizard
+channel setup (Advanced raw-fields path only, for an audience of one founder), a DB-backed
+no-deploy-editable format table (a static in-repo manifest is enough for 9 formats today), and version
+diff/rollback on the channel profile screen (a version-history list ships; diff/rollback once there's
+more than a handful of versions to compare).
+
+**Also picked up this sprint**: a hardening item resolving the real, still-open Sprint 2 Task 5
+custom-thumbnail `403` by testing a concrete phone-verification hypothesis instead of leaving it as an
+open guess — see `docs/execution/sprint4/tasks/hardening-thumbnail-phone-verification.md`.
+
+Task docs: `docs/execution/sprint4/tasks/task1.md`–`task7.md`,
+`docs/execution/sprint4/tasks/frontend-task1.md`,
+`docs/execution/sprint4/tasks/hardening-thumbnail-phone-verification.md`.
+Status: `docs/execution/sprint4/STATUS.md` (all tasks not started as of 2026-09-25 — task docs only).
+
+---
+
+## Sprint 5 — Deferred Fleet Agents + Cross-Posting
 
 Trend Identification, Content Prediction, Continuous Learning, Video Intelligence's competitor mode
 (`AGENT_FLEET_DESIGN.md` §3) — now genuinely worth building, since Sprint 2's retention/tagging capture
-and Sprint 3's multi-channel volume together give them real history to learn from. Cross-posting
+and Sprint 3's multi-channel volume together give them real history to learn from, and Sprint 4's
+formats/profiles give Continuous Learning real, comparable variables to learn across. Cross-posting
 (`MVP_PART3` §4) rides Sprint 3's credential-storage pattern rather than building OAuth storage twice.
