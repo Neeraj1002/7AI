@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable, StyleSheet, RefreshControl } from 'rea
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
+import { useAuth } from '../../lib/auth';
 
 const QUEUE_STATUSES = ['paused_gate1', 'paused_gate2', 'needs_attention'] as const;
 
@@ -19,15 +20,39 @@ const STATUS_LABEL: Record<string, string> = {
 // channel switcher is pointed elsewhere.
 export default function QueueScreen() {
   const trpc = useTRPC();
+  const { signOut } = useAuth();
   const { data, isLoading, isFetching, refetch } = useQuery(
     trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }),
   );
+  // Sprint 3 Task 3 (FE10) — a badge/entry point from the screen the founder
+  // actually opens most, so a pending notification is visible without
+  // navigating away first.
+  const { data: notifications } = useQuery(trpc.notifications.list.queryOptions());
+  const pendingCount = notifications?.filter((n) => !n.resolvedAt).length ?? 0;
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/login');
+  };
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.dashboardLink} onPress={() => router.push('/dashboard')}>
-        <Text style={styles.dashboardLinkText}>View Dashboard →</Text>
-      </Pressable>
+      <View style={styles.topRow}>
+        <Pressable onPress={handleSignOut}>
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
+        <Pressable style={styles.dashboardLink} onPress={() => router.push('/notifications')}>
+          <Text style={styles.dashboardLinkText}>
+            Notifications{pendingCount > 0 ? ` (${pendingCount})` : ''}
+          </Text>
+        </Pressable>
+        <Pressable style={styles.dashboardLink} onPress={() => router.push('/channels')}>
+          <Text style={styles.dashboardLinkText}>Channels</Text>
+        </Pressable>
+        <Pressable style={styles.dashboardLink} onPress={() => router.push('/dashboard')}>
+          <Text style={styles.dashboardLinkText}>View Dashboard →</Text>
+        </Pressable>
+      </View>
       <FlatList
         data={data ?? []}
         keyExtractor={(run) => run.id}
@@ -61,7 +86,9 @@ export default function QueueScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  dashboardLink: { padding: 12, alignItems: 'flex-end' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 },
+  signOutText: { fontSize: 13, fontWeight: '600', color: '#c00' },
+  dashboardLink: {},
   dashboardLinkText: { fontSize: 13, fontWeight: '600', color: '#3b6fd6' },
   empty: { padding: 24, textAlign: 'center', color: '#888' },
   row: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ddd' },
