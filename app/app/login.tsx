@@ -24,7 +24,12 @@ export default function LoginScreen() {
 
 function LoginForm() {
   const { apiUrl: storedApiUrl, setApiUrl, completeSignIn } = useAuth();
-  const [apiUrl, setApiUrlField] = useState(storedApiUrl ?? 'http://localhost:4000');
+  // Bugs Task 1/R2 — was defaulting to 'http://localhost:4000', which can
+  // never work on a physical device (localhost resolves to the phone
+  // itself, never the dev machine). Empty forces a deliberate LAN-IP entry
+  // instead of a plausible-looking wrong value. See the persistent hint
+  // below the field, added for the same reason.
+  const [apiUrl, setApiUrlField] = useState(storedApiUrl ?? '');
   const [email, setEmail] = useState('');
   const [pasted, setPasted] = useState('');
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
@@ -89,6 +94,10 @@ function LoginForm() {
           autoCapitalize="none"
           autoCorrect={false}
         />
+        <Text style={styles.hint}>
+          Use your computer&apos;s LAN IP (e.g. 192.168.1.23:4000) — this device can&apos;t reach your
+          computer&apos;s own localhost.
+        </Text>
 
         <Text style={styles.label}>Email</Text>
         <TextInput

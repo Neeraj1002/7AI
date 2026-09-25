@@ -11,7 +11,10 @@ import { useChannels } from '../../lib/channel-context';
 export default function NewBriefScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { channels, selectedChannelId, setSelectedChannelId } = useChannels();
+  // Bugs Task 1/R4 — channelsLoading was already exposed by useChannels()
+  // but never read here, so a loading channel list and a genuinely empty
+  // one both rendered as the same silent blank space. Now branched below.
+  const { channels, isLoading: channelsLoading, selectedChannelId, setSelectedChannelId } = useChannels();
   const [briefText, setBriefText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -41,21 +44,32 @@ export default function NewBriefScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.label}>Channel</Text>
-      <View style={styles.channelList}>
-        {channels.map((c) => (
-          <Pressable
-            key={c.id}
-            style={[styles.channelChip, c.id === selectedChannelId && styles.channelChipSelected]}
-            onPress={() => setSelectedChannelId(c.id)}
-          >
-            <Text
-              style={c.id === selectedChannelId ? styles.channelChipTextSelected : styles.channelChipText}
-            >
-              {c.name}
-            </Text>
+      {channelsLoading ? (
+        <ActivityIndicator />
+      ) : channels.length === 0 ? (
+        <View style={styles.channelEmpty}>
+          <Text style={styles.channelEmptyText}>No channels set up yet.</Text>
+          <Pressable onPress={() => router.push('/channels')}>
+            <Text style={styles.channelEmptyLink}>Set up a channel →</Text>
           </Pressable>
-        ))}
-      </View>
+        </View>
+      ) : (
+        <View style={styles.channelList}>
+          {channels.map((c) => (
+            <Pressable
+              key={c.id}
+              style={[styles.channelChip, c.id === selectedChannelId && styles.channelChipSelected]}
+              onPress={() => setSelectedChannelId(c.id)}
+            >
+              <Text
+                style={c.id === selectedChannelId ? styles.channelChipTextSelected : styles.channelChipText}
+              >
+                {c.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       <Text style={styles.label}>Brief</Text>
       <TextInput
@@ -98,6 +112,9 @@ const styles = StyleSheet.create({
   channelChipSelected: { backgroundColor: '#111', borderColor: '#111' },
   channelChipText: { fontSize: 13 },
   channelChipTextSelected: { fontSize: 13, color: '#fff', fontWeight: '600' },
+  channelEmpty: { gap: 4 },
+  channelEmptyText: { fontSize: 13, color: '#666' },
+  channelEmptyLink: { fontSize: 13, color: '#111', fontWeight: '600', textDecorationLine: 'underline' },
   textArea: {
     borderWidth: 1,
     borderColor: '#ccc',

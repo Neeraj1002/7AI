@@ -86,6 +86,20 @@ export const runsRouter = router({
       if (!channel) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} not found` });
       }
+      // Sprint 3 Hardening — closes KNOWN_ISSUES_AND_BLOCKERS.md §3's real,
+      // live-demonstrated gap: nothing previously stopped a signed-in
+      // session from creating a run against a *different* tenant's channel
+      // if it knew that channel's id. Mirrors assertGateOwnership's own
+      // FORBIDDEN shape/message convention (below) rather than inventing a
+      // second authorization-error style for the same class of check —
+      // creation-time ownership, not resolution-time (Task 2/K1, already
+      // closed).
+      if (channel.tenantId !== ctx.tenantId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `You are not allowed to create a run against channel ${input.channelId}`,
+        });
+      }
       const creationOptions =
         input.voice || input.visualSource || input.audioLayer
           ? {
@@ -95,12 +109,8 @@ export const runsRouter = router({
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
-      // MVP_TENANT_ID. Still not checked against the channel's own tenant
-      // here — Task 2 (K1)'s gate-ownership check covers gate1/gate2 only,
-      // scoped to that task's own text; runs.create's own cross-tenant gap
-      // (a session could create a run against a channel belonging to a
-      // different tenant) remains open, tracked in
-      // KNOWN_ISSUES_AND_BLOCKERS.md §3, not silently glossed over.
+      // MVP_TENANT_ID. Now guaranteed to match channel.tenantId by the
+      // check above (Sprint 3 Hardening).
       const run = await createRun({
         tenantId: ctx.tenantId,
         channelId: input.channelId,

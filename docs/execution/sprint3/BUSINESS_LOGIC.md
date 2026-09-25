@@ -135,8 +135,9 @@ request.
 `runs.create` still does not check that a submitted `channelId` belongs to the caller's own tenant —
 K1's own scope is gate resolution, not run/channel creation. This is a distinct gap from what K1
 closes (K1 stops a wrong-tenant user from *approving* a gate; it does nothing about a wrong-tenant
-user *creating* a run against someone else's channel in the first place). Still open, tracked in
-`KNOWN_ISSUES_AND_BLOCKERS.md` §3 — not silently conflated with the gap K1 actually closes.
+user *creating* a run against someone else's channel in the first place). **Closed by the Sprint 3
+Hardening fix** (landed after Sprint 3's own close-out, same `FORBIDDEN` shape/message convention as
+`assertGateOwnership` above, reused directly) — see `sprint3/reports/hardening-tenant-check.md`.
 
 ### Reference
 `sprint2/BUSINESS_LOGIC.md`'s Task 6 section — `resolvePendingApproval`'s existing "whichever caller
