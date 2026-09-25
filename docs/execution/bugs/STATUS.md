@@ -16,11 +16,11 @@ kickoff message.
 **Folder status**: 1 item logged, 0 fixed. All items below are **high priority / production issues** —
 the founder cannot currently complete a real device sign-in at all (Task 1), which blocks every other
 piece of on-device testing until it's fixed.
-**Last updated**: 2026-09-25 (Hot-fixer agent protocol added).
+**Last updated**: 2026-09-26 (Task 1 code complete, real-device verification pending).
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
-| 1 | First Device Test — Login Unreachable, Wrong Host Default, Stale Build, Empty Channel Picker | In Progress | Hot-fixer chat, started 2026-09-26 | 4 real, code-confirmed problems from the founder's first physical-device test (3 screenshots: New Brief, Queue, Dashboard). Root blocker is R1 (Android cleartext-traffic block) — nothing else in this report can be verified on-device until it's fixed. |
+| 1 | First Device Test — Login Unreachable, Wrong Host Default, Stale Build, Empty Channel Picker | Done — action needed | **Founder** | R1/R2/R4 code fixes implemented and build/lint/typecheck-verified on branch `BUGS_FE`; R3 is process-only, unchanged. **Not yet real-device verified** — this session had no `adb`/`eas` CLI or physical device. 7fe (`D:\Study Material\7AI-frontend`) also has an unresolved merge in progress, so this branch was built from a fresh worktree off `origin/main` instead — see `reports/task1.md` Deviations for what the founder needs to do to get a verifiable build. |
 
 ## Naming and branch convention
 Same per-task git discipline as every other track in this repo (see `docs/execution/templates/TASK_TEMPLATE.md`
