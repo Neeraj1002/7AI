@@ -4,6 +4,7 @@ import { runGateReminderCheck } from './run-pipeline/gate-reminder';
 import { runFounderDigestCheck } from './run-pipeline/founder-digest';
 import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
+import { runTelegramStartPollCheck } from './auth/telegram-token-delivery';
 
 // Performance Analytics' periodic poll (AGENT_FLEET_DESIGN.md 8.3, "batch
 // over real-time") — a plain setInterval tick against Postgres, matching the
@@ -51,6 +52,27 @@ function startFounderDigestChecker(): void {
   );
 }
 
+// Bugs Task 3 (R5) — same setInterval-against-an-external-source pattern as
+// the checkers above, just polling Telegram's getUpdates instead of
+// Postgres. Only started when TELEGRAM_BOT_TOKEN is actually set — a
+// checkout without one configured just skips this entirely, same
+// "optional, don't break startup" posture every other credential-gated
+// feature in this file already follows.
+function startTelegramStartPollChecker(): void {
+  if (!env.TELEGRAM_BOT_TOKEN) {
+    console.log('[boot] TELEGRAM_BOT_TOKEN not set — Telegram magic-link delivery disabled (console fallback only)');
+    return;
+  }
+  setInterval(() => {
+    runTelegramStartPollCheck().catch((error) => {
+      console.error('[telegram-token-delivery] periodic /start poll failed:', error);
+    });
+  }, env.TELEGRAM_START_POLL_INTERVAL_MS);
+  console.log(
+    `[boot] Telegram /start poll checker started (every ${env.TELEGRAM_START_POLL_INTERVAL_MS}ms)`,
+  );
+}
+
 async function main(): Promise<void> {
   console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);
 
@@ -59,6 +81,7 @@ async function main(): Promise<void> {
   startPerformanceAnalyticsPoller();
   startGateReminderChecker();
   startFounderDigestChecker();
+  startTelegramStartPollChecker();
 
   await startApiServer();
 

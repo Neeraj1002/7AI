@@ -135,6 +135,18 @@ const EnvSchema = z.object({
   // signing) once the founder sets up an Expo access token for this
   // project. Not required for real push delivery to already work.
   EXPO_ACCESS_TOKEN: z.string().optional(),
+  // Bugs Task 3 (R5) — optional by design, same convention as every other
+  // *_STUB/credential flag above: a checkout without a bot token configured
+  // just falls through to the existing console-only magic-link delivery,
+  // it doesn't fail to start. Create via Telegram's @BotFather (founder
+  // action, not code).
+  TELEGRAM_BOT_TOKEN: z.string().optional().default(''),
+  // How often the /start long-poll checker below calls Telegram's
+  // getUpdates — same two-knob shape as the other periodic checkers in this
+  // file. 3 seconds keeps the "message the bot, get your chat id back"
+  // handshake feeling instant without a webhook (which would need a public
+  // HTTPS endpoint this LAN-testing setup doesn't have).
+  TELEGRAM_START_POLL_INTERVAL_MS: z.coerce.number().optional().default(3 * 1000),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

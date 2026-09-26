@@ -11,6 +11,8 @@ export type User = {
   name: string | null;
   role: UserRole;
   expoPushToken: string | null;
+  // Bugs Task 3 (R5) — see schema.prisma's User.telegramChatId comment.
+  telegramChatId: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

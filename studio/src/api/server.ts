@@ -78,17 +78,27 @@ export async function startApiServer(): Promise<void> {
   // (see auth/magic-link.ts's own comment); an unrecognized email gets the
   // same generic response as a recognized one, so the API can't be used to
   // enumerate who has an account.
-  fastify.post<{ Body: { email?: string } }>('/auth/request-link', async (request, reply) => {
-    if (!isAuthConfigured()) {
-      return reply.code(503).send({ error: 'auth is not configured on this server (JWT_SECRET unset)' });
-    }
-    const email = request.body?.email;
-    if (!email || typeof email !== 'string') {
-      return reply.code(400).send({ error: 'email is required' });
-    }
-    await requestMagicLink({ email });
-    return reply.send({ message: 'If that email has an account, a login link was sent.' });
-  });
+  // Bugs Task 3 (R5) — telegramChatId is optional, same no-enumeration
+  // posture as email: never validated/looked-up here in a way that could
+  // tell the caller whether it's already on file for anyone.
+  fastify.post<{ Body: { email?: string; telegramChatId?: string } }>(
+    '/auth/request-link',
+    async (request, reply) => {
+      if (!isAuthConfigured()) {
+        return reply.code(503).send({ error: 'auth is not configured on this server (JWT_SECRET unset)' });
+      }
+      const email = request.body?.email;
+      if (!email || typeof email !== 'string') {
+        return reply.code(400).send({ error: 'email is required' });
+      }
+      const telegramChatId = request.body?.telegramChatId;
+      await requestMagicLink({
+        email,
+        ...(typeof telegramChatId === 'string' && telegramChatId.trim() && { telegramChatId }),
+      });
+      return reply.send({ message: 'If that email has an account, a login link was sent.' });
+    },
+  );
 
   fastify.get<{ Querystring: { token?: string } }>('/auth/verify', async (request, reply) => {
     if (!isAuthConfigured()) {

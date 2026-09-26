@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { findUserByEmail, findUserById } from '../models/repositories/user.repository';
+import { findUserByEmail, findUserById, updateUserTelegramChatId } from '../models/repositories/user.repository';
 import { insertLoginToken, findLoginTokenByJti, markLoginTokenUsed } from '../models/repositories/login-token.repository';
 import { signMagicLinkToken, verifyMagicLinkToken, signSessionToken } from './jwt';
+import { sendTelegramMessage } from './telegram-token-delivery';
 import { env } from '../config/env';
 import type { Session } from './types';
 
@@ -31,7 +32,15 @@ function buildBaseUrl(): string {
 // (the /auth/request-link route) must reply with the same generic message
 // either way, so this function's own return shape can't leak that
 // distinction by accident.
-export async function requestMagicLink(params: { email: string }): Promise<void> {
+//
+// Bugs Task 3 (R5) — `telegramChatId` is optional and, when present,
+// self-healingly overwrites User.telegramChatId (never a one-time-only
+// save) before sending. When omitted, falls back to whatever's already
+// stored on the user — this is what makes "leave it blank after the first
+// time" work, entirely server-side. Same no-enumeration posture as the
+// unrecognized-email path above: never a distinct response/log path that
+// would tell a caller whether a chat id was already on file for this user.
+export async function requestMagicLink(params: { email: string; telegramChatId?: string }): Promise<void> {
   const user = await findUserByEmail(params.email);
   if (!user) {
     console.log(`[auth] magic-link requested for an unrecognized email (${params.email}) — no link sent`);
@@ -45,6 +54,20 @@ export async function requestMagicLink(params: { email: string }): Promise<void>
   const link = `${buildBaseUrl()}/auth/verify?token=${token}`;
 
   console.log(`[auth] magic link for ${user.email}: ${link}`);
+
+  const chatId = params.telegramChatId?.trim() || user.telegramChatId;
+  if (params.telegramChatId?.trim() && params.telegramChatId.trim() !== user.telegramChatId) {
+    await updateUserTelegramChatId(user.id, params.telegramChatId.trim());
+  }
+  if (chatId) {
+    // Never instead of the console log above — Telegram delivery is an
+    // addition, the console line stays the zero-cost fallback regardless of
+    // whether this succeeds.
+    await sendTelegramMessage(
+      chatId,
+      `Your 7AI Studio sign-in token (expires in 15 minutes):\n\n${token}\n\nPaste it into the app's "sign-in link or token" field.`,
+    );
+  }
 }
 
 export type VerifyMagicLinkResult = { ok: true; sessionToken: string; session: Session } | { ok: false; error: string };
