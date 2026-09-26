@@ -5,6 +5,7 @@ import { runFounderDigestCheck } from './run-pipeline/founder-digest';
 import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
 import { runTelegramStartPollCheck } from './auth/telegram-token-delivery';
+import { isPrivateIpRedirectHost } from './config/redirect-uri-guard';
 
 // Performance Analytics' periodic poll (AGENT_FLEET_DESIGN.md 8.3, "batch
 // over real-time") — a plain setInterval tick against Postgres, matching the
@@ -80,6 +81,11 @@ async function main(): Promise<void> {
   // (and would produce the same text in a Telegram message) when this was
   // silently unset; a boot-time warning makes that never-silent again,
   // rather than only discoverable by reading a request's own output.
+  if (isPrivateIpRedirectHost(env.YOUTUBE_REDIRECT_URI)) {
+    console.warn(
+      '[boot] YOUTUBE_REDIRECT_URI resolves to a private IP — Google will reject this at OAuth time; use localhost for local testing or a real public domain',
+    );
+  }
   if (!env.PUBLIC_API_BASE_URL) {
     console.warn(
       '[boot] PUBLIC_API_BASE_URL not set — magic-link text will show localhost, unusable from a phone',
