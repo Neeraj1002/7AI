@@ -3,7 +3,7 @@
 **Date**: 2026-09-27
 **Status**: Code complete. Live-checked against Google's real authorization endpoint. Two founder steps remain.
 **Files Created**: 3 (`studio/src/config/redirect-uri-guard.ts`, its test, this report; plus `tasks/task5.md`)
-**Files Modified**: `studio/src/index.ts`, `studio/.env.example`, `docs/execution/bugs/STATUS.md`
+**Files Modified**: `studio/src/index.ts`, `studio/src/config/redirect-uri-guard.test.ts`, `studio/.env.example`, `docs/execution/bugs/STATUS.md`
 **Tests**: `tsc --noEmit`, `eslint`, and a new 3-case vitest suite for the guard all pass.
 
 ## Where `redirect_uri` actually comes from (task's step 1)
@@ -52,6 +52,27 @@ I did not boot the full server to demo the warning line: this branch is on a new
 (`20260926143250_channels_default_privacy_and_updated_at`) is not applied to the shared dev DB, and I didn't
 want to run against it or contend with the running server's Telegram polling. The guard function is
 unit-tested and the boot line is a direct call to it.
+
+## R2 — Tailscale Funnel path (documentation + verification only)
+
+R2 is documentation and verification. The Tailscale account setup and the `tailscale funnel 4001`
+invocation remain **founder actions** (same posture as R1's Console registration); nothing was scripted.
+- Added a test confirming the guard does not flag `https://<machine>.<tailnet>.ts.net/oauth2callback`
+  (it only matches literal RFC1918 IPv4 addresses, so a DNS name passes silently). 4/4 guard tests pass.
+- `.env.example` now has the one-line Funnel pointer; `task5.md` has an "R2" section with the five setup
+  steps.
+- **Live check against Google**, decoding the `authError` in each redirect (using a made-up
+  `my-machine.tail1a2b3c.ts.net` host, since I don't have your real one):
+```
+ts.net    -> redirect_uri_mismatch                                  (shape accepted; just not registered)
+LAN IP    -> invalid_request: device_id and device_name are required for private IP
+localhost -> proceeds to sign-in (no error)
+```
+So Google does **not** reject the `*.ts.net` shape the way it rejects a private IP. The mismatch is expected
+for a hostname that isn't registered on the OAuth client; it should clear once your real Funnel URL is
+registered. This does not prove that your real hostname will work end to end — only a real consent will.
+Also note that `localhost:4001` passed without a mismatch, which suggests it may already be accepted for this
+client, but I can't confirm the Console's registered list.
 
 ## Founder actions
 

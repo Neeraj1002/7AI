@@ -17,6 +17,10 @@ describe('isPrivateIpRedirectHost', () => {
     expect(isPrivateIpRedirectHost('http://8.8.8.8/oauth2callback')).toBe(false);
   });
 
+  it('does not flag a Tailscale Funnel *.ts.net hostname (a DNS name, not a raw IP)', () => {
+    expect(isPrivateIpRedirectHost('https://my-machine.tail1a2b3c.ts.net/oauth2callback')).toBe(false);
+  });
+
   it('does not throw on an unparseable value', () => {
     expect(isPrivateIpRedirectHost('not a url')).toBe(false);
   });

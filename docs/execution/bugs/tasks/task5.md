@@ -34,6 +34,24 @@ If the phone itself must complete consent, `localhost` is unreachable there — 
 HTTPS tunnel (e.g. ngrok) registered in Google Cloud Console and used as `YOUTUBE_REDIRECT_URI`. That is a
 founder decision; do not build it unprompted.
 
+## R2 (Role: `BE`, docs/verification only) — Phone testing via Tailscale Funnel
+
+`localhost` isn't reachable from the phone's browser, and a raw LAN IP is rejected by Google. A Tailscale
+Funnel URL is a real public HTTPS DNS name (`*.ts.net`), which Google accepts, and its hostname is stable
+across restarts (unlike ngrok's free tier), so the Console registration is one-time. Founder-side steps —
+manual, not scripted:
+
+1. Install Tailscale on the machine running the studio server and sign in (one-time).
+2. Enable Funnel for the tailnet in the Tailscale admin console if not already on (may depend on plan tier).
+3. Run `tailscale funnel 4001` — it prints a stable `https://<machine-name>.<tailnet>.ts.net` URL.
+4. Set `YOUTUBE_REDIRECT_URI=https://<that-hostname>/oauth2callback` in `.env.local` and restart the server.
+5. Register that exact URL as an additional authorized redirect URI in Google Cloud Console, alongside the
+   `localhost` one from R1 (an OAuth client can hold multiple redirect URIs).
+
+**Verify (done in code)**: the boot guard must not flag a `*.ts.net` host (it matches only literal RFC1918
+IPv4 addresses; covered by a test), and Google must accept the `*.ts.net` redirect_uri shape without a `400`
+(same live-check technique as R1, no consent needed).
+
 ## Testing
 `npm run build && npm run lint && npm run typecheck`, plus R1's real-connect verification.
 
