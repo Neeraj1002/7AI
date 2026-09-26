@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { requestMagicLink, verifyMagicLinkToken, extractToken } from '../lib/auth-api';
+import { getSecureItem, setSecureItem } from '../lib/storage';
+
+// Bugs Task 3 (R5) — a per-device convenience only (never used for account
+// lookup, same reasoning apiUrl's own remembered value already follows):
+// pre-fills this device's last-used Telegram Chat ID so the one-time
+// /start handshake doesn't need repeating on every sign-in. Same
+// 'sevenai.*' key convention lib/auth.tsx's own storage keys use.
+const TELEGRAM_CHAT_ID_KEY = 'sevenai.telegramChatId';
 
 // Sprint 3 Task 1 (FE6/FE7): real magic-link sign-in, replacing the old
 // "paste the shared API_AUTH_TOKEN" screen. No real transactional-email
@@ -31,11 +39,24 @@ function LoginForm() {
   // below the field, added for the same reason.
   const [apiUrl, setApiUrlField] = useState(storedApiUrl ?? '');
   const [email, setEmail] = useState('');
+  const [telegramChatId, setTelegramChatIdField] = useState('');
   const [pasted, setPasted] = useState('');
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // Bugs Task 3 (R5) — loaded via an effect, not lazy useState init like
+  // apiUrl above: unlike apiUrl (already resolved by AuthProvider before
+  // this component ever mounts), nothing else on this screen needs this
+  // value to be ready before first paint, so a brief empty flash while
+  // SecureStore resolves is an acceptable tradeoff for not coupling this
+  // per-device convenience into the global auth context.
+  useEffect(() => {
+    getSecureItem(TELEGRAM_CHAT_ID_KEY).then((stored) => {
+      if (stored) setTelegramChatIdField(stored);
+    });
+  }, []);
 
   const handleRequestLink = async () => {
     setError(null);
@@ -47,7 +68,11 @@ function LoginForm() {
     setIsRequesting(true);
     try {
       await setApiUrl(apiUrl.trim());
-      const { message } = await requestMagicLink(apiUrl.trim(), email.trim());
+      const trimmedChatId = telegramChatId.trim();
+      if (trimmedChatId) {
+        await setSecureItem(TELEGRAM_CHAT_ID_KEY, trimmedChatId);
+      }
+      const { message } = await requestMagicLink(apiUrl.trim(), email.trim(), trimmedChatId || undefined);
       // Same neutral message regardless of whether the email was recognized
       // — Sprint 3 backend Task 1's own no-enumeration design; this screen
       // must not show a different message for either case.
@@ -109,6 +134,21 @@ function LoginForm() {
           autoCorrect={false}
           keyboardType="email-address"
         />
+
+        <Text style={styles.label}>Telegram Chat ID (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={telegramChatId}
+          onChangeText={setTelegramChatIdField}
+          placeholder="e.g. 123456789"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="number-pad"
+        />
+        <Text style={styles.hint}>
+          Message the 7AI bot &quot;/start&quot; to get your Chat ID, then paste it here to receive your
+          sign-in token on Telegram. Leave blank to keep using whatever Chat ID you entered last time.
+        </Text>
 
         <Pressable style={[styles.button, isRequesting && styles.buttonDisabled]} onPress={handleRequestLink} disabled={isRequesting}>
           {isRequesting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Request link</Text>}

@@ -12,11 +12,18 @@ import type { UserRole } from './auth-types';
 
 export type Session = { userId: string; tenantId: string; role: UserRole };
 
-export async function requestMagicLink(apiUrl: string, email: string): Promise<{ message: string }> {
+// Bugs Task 3 (R5) — telegramChatId is optional, same no-enumeration
+// posture the rest of this flow already has: passing it (or not) never
+// changes the response shape.
+export async function requestMagicLink(
+  apiUrl: string,
+  email: string,
+  telegramChatId?: string,
+): Promise<{ message: string }> {
   const res = await fetch(`${apiUrl.replace(/\/$/, '')}/auth/request-link`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, ...(telegramChatId && { telegramChatId }) }),
   });
   const body = (await res.json()) as { message?: string; error?: string };
   if (!res.ok) {

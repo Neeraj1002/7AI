@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
@@ -42,63 +42,70 @@ export default function NewBriefScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.label}>Channel</Text>
-      {channelsLoading ? (
-        <ActivityIndicator />
-      ) : channels.length === 0 ? (
-        <View style={styles.channelEmpty}>
-          <Text style={styles.channelEmptyText}>No channels set up yet.</Text>
-          <Pressable onPress={() => router.push('/channels')}>
-            <Text style={styles.channelEmptyLink}>Set up a channel →</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.channelList}>
-          {channels.map((c) => (
-            <Pressable
-              key={c.id}
-              style={[styles.channelChip, c.id === selectedChannelId && styles.channelChipSelected]}
-              onPress={() => setSelectedChannelId(c.id)}
-            >
-              <Text
-                style={c.id === selectedChannelId ? styles.channelChipTextSelected : styles.channelChipText}
-              >
-                {c.name}
-              </Text>
+    // Bugs Task 3 (R4) — same KeyboardAvoidingView pattern login.tsx already
+    // uses, applied consistently here too: this screen's Brief field is a
+    // multiline TextInput that can sit anywhere on the page, so nothing
+    // pushed the visible content above the keyboard before this.
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.label}>Channel</Text>
+        {channelsLoading ? (
+          <ActivityIndicator />
+        ) : channels.length === 0 ? (
+          <View style={styles.channelEmpty}>
+            <Text style={styles.channelEmptyText}>No channels set up yet.</Text>
+            <Pressable onPress={() => router.push('/channels')}>
+              <Text style={styles.channelEmptyLink}>Set up a channel →</Text>
             </Pressable>
-          ))}
-        </View>
-      )}
-
-      <Text style={styles.label}>Brief</Text>
-      <TextInput
-        style={styles.textArea}
-        value={briefText}
-        onChangeText={setBriefText}
-        placeholder="A short video about..."
-        multiline
-        numberOfLines={6}
-      />
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <Pressable
-        style={[styles.button, createRun.isPending && styles.buttonDisabled]}
-        onPress={handleSubmit}
-        disabled={createRun.isPending}
-      >
-        {createRun.isPending ? (
-          <ActivityIndicator color="#fff" />
+          </View>
         ) : (
-          <Text style={styles.buttonText}>Create Run</Text>
+          <View style={styles.channelList}>
+            {channels.map((c) => (
+              <Pressable
+                key={c.id}
+                style={[styles.channelChip, c.id === selectedChannelId && styles.channelChipSelected]}
+                onPress={() => setSelectedChannelId(c.id)}
+              >
+                <Text
+                  style={c.id === selectedChannelId ? styles.channelChipTextSelected : styles.channelChipText}
+                >
+                  {c.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         )}
-      </Pressable>
-    </ScrollView>
+
+        <Text style={styles.label}>Brief</Text>
+        <TextInput
+          style={styles.textArea}
+          value={briefText}
+          onChangeText={setBriefText}
+          placeholder="A short video about..."
+          multiline
+          numberOfLines={6}
+        />
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Pressable
+          style={[styles.button, createRun.isPending && styles.buttonDisabled]}
+          onPress={handleSubmit}
+          disabled={createRun.isPending}
+        >
+          {createRun.isPending ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Create Run</Text>
+          )}
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   container: { padding: 16, gap: 8 },
   label: { fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 6 },
   channelList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
