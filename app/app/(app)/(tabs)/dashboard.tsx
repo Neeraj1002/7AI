@@ -1,283 +1,251 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
+import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
+import { Feather } from '@expo/vector-icons';
 import { useTRPC } from '../../../lib/trpc';
+import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
+import { channelColors, color, font, radius, space, type } from '../../../lib/theme';
+import { Screen } from '../../../components/Screen';
+import { Card } from '../../../components/Card';
+import { SecondaryButton } from '../../../components/Buttons';
+import { ChannelPickerSheet } from '../../../components/ChannelPickerSheet';
 
-// Dashboard — BUSINESS_LOGIC.md Section 3 / MOBILE_APP_DESIGN.md Section 4's
-// four groups. Sections are ordered per task3.md's own guidance: quality
-// signal and operational health first (both have real data from Weeks 1–3
-// already), cost second, content performance last (most likely to still be
-// thin). Channel-scoped via the same ChannelProvider every other screen
-// uses (Task 1's four endpoints gained an optional `channelId` input
-// specifically for this).
+const LOW_BAR = '#F6C3C0';
+const EDIT_BAR = '#F2A19D';
+
+function money(x: number): string {
+  return `$${x > 0 && x < 0.01 ? x.toFixed(4) : x.toFixed(2)}`;
+}
+
+function pct(rate: number | null): string {
+  return rate === null ? '—' : `${Math.round(rate * 100)}%`;
+}
+
 export default function DashboardScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { selectedChannelId } = useChannels();
+  const { apiUrl } = useAuth();
+  const { channels, channelIndex, channelById } = useChannels();
+  const [filterId, setFilterId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const input = { channelId: selectedChannelId ?? undefined };
+  const input = { channelId: filterId ?? undefined };
   const quality = useQuery(trpc.dashboard.quality.queryOptions(input));
   const operational = useQuery(trpc.dashboard.operational.queryOptions(input));
   const cost = useQuery(trpc.dashboard.cost.queryOptions(input));
   const content = useQuery(trpc.dashboard.content.queryOptions(input));
+  const all = [quality, operational, cost, content];
 
-  const isRefreshing = [quality, operational, cost, content].some((q) => q.isFetching && !q.isLoading);
-  const isInitialLoading = [quality, operational, cost, content].some((q) => q.isLoading);
+  const isRefreshing = all.some((q) => q.isFetching && !q.isLoading);
+  const isInitialLoading = all.some((q) => q.isLoading);
+  const allFailed = all.every((q) => q.isError);
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: trpc.dashboard.pathKey() });
 
-  const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: trpc.dashboard.pathKey() });
-  };
+  const selected = channelById(filterId);
+  const idx = channelIndex(filterId);
+  const pill = (
+    <Pressable style={styles.pill} onPress={() => setPickerOpen(true)} accessibilityRole="button">
+      <View
+        style={[
+          styles.pillDot,
+          { backgroundColor: idx >= 0 ? channelColors[idx % channelColors.length][1] : color.ink },
+        ]}
+      />
+      <Text style={styles.pillText} numberOfLines={1}>
+        {selected?.name ?? 'All channels'}
+      </Text>
+      <Feather name="chevron-down" size={16} color={color.muted} />
+    </Pressable>
+  );
 
+  const totalRuns = operational.data?.stageFunnel.find((r) => r.stage === 'intake')?.count ?? 0;
+  const noRunsOnChannel = filterId !== null && operational.data && totalRuns === 0;
+
+  let body: React.ReactNode;
   if (isInitialLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+    body = <ActivityIndicator style={styles.loading} />;
+  } else if (allFailed) {
+    body = (
+      <Card>
+        <Text style={styles.cardTitle}>Can&apos;t reach the server at {apiUrl ?? 'the API'}</Text>
+        <SecondaryButton label="Retry" icon="rotate-cw" onPress={refresh} />
+      </Card>
     );
-  }
+  } else if (noRunsOnChannel) {
+    body = (
+      <Card>
+        <Text style={styles.cardTitle}>No runs on this channel yet</Text>
+        <SecondaryButton label="New brief" icon="plus" onPress={() => router.push('/new-brief')} />
+      </Card>
+    );
+  } else {
+    const succ = operational.data?.successRate;
+    const succTotal = succ ? succ.completed + succ.failed : 0;
+    const regen = quality.data?.videoRegenRate;
+    const spend = cost.data?.totalSpendUsd ?? 0;
+    const ceiling = cost.data?.budgetCeilingUsd ?? null;
+    const perVideo = cost.data?.costPerPublishedVideo.costPerVideoUsd ?? null;
+    const g1 = quality.data?.gate1Rates;
+    const g1Total = g1 ? g1.approve + g1.edit + g1.reject : 0;
 
-  return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
-    >
-      {/* Quality signal */}
-      <Section title="Quality signal">
+    body = (
+      <>
+        <View style={styles.grid}>
+          <Card style={styles.half}>
+            <Text style={styles.statLabel}>Success rate</Text>
+            <Text style={styles.stat}>{succTotal > 0 ? pct(succ!.rate) : '—'}</Text>
+            <Text style={styles.sub}>
+              {succTotal > 0 ? `${succ!.completed} of ${succTotal} runs finished` : 'No runs yet'}
+            </Text>
+          </Card>
+          <Card style={styles.half}>
+            <Text style={styles.statLabel}>Video regen rate</Text>
+            <Text style={styles.stat}>{regen && regen.runsReachedVideoGen > 0 ? pct(regen.rate) : '—'}</Text>
+            <Text style={styles.sub}>
+              {regen && regen.runsReachedVideoGen > 0
+                ? `${regen.runsWithRegen} of ${regen.runsReachedVideoGen} needed a redo`
+                : 'No runs yet'}
+            </Text>
+          </Card>
+        </View>
+
+        {cost.data ? (
+          <Card>
+            <Text style={styles.statLabel}>Spend this period</Text>
+            <View style={styles.spendRow}>
+              <Text style={styles.stat}>{money(spend)}</Text>
+              {ceiling !== null ? <Text style={styles.sub}>of {money(ceiling)}</Text> : null}
+            </View>
+            {ceiling !== null && ceiling > 0 ? (
+              <View style={styles.track}>
+                <View style={[styles.fill, { width: `${Math.min(100, (spend / ceiling) * 100)}%`, backgroundColor: color.accent }]} />
+              </View>
+            ) : null}
+            {perVideo !== null ? <Text style={styles.sub}>{money(perVideo)} per published video</Text> : null}
+          </Card>
+        ) : null}
+
         {quality.data ? (
-          <>
-            {/* Video regen rate — deliberately the first, most visible number in
-                this section: the direct proxy for whether Week 4 Task 1's
-                review-loop fix is working, per task3.md's explicit instruction
-                not to bury it. */}
-            <BigStat
-              label="Video regen rate"
-              value={formatPct(quality.data.videoRegenRate.rate)}
-              sub={`${quality.data.videoRegenRate.runsWithRegen} of ${quality.data.videoRegenRate.runsReachedVideoGen} runs needed a regen`}
-            />
-            <SubHeading>Script Review score distribution</SubHeading>
+          <Card>
+            <Text style={styles.cardTitle}>Script review scores</Text>
             {quality.data.scriptReviewScoreDistribution.length > 0 ? (
               <BarChart
                 data={quality.data.scriptReviewScoreDistribution.map((row) => ({
                   value: row.count,
                   label: String(row.score),
+                  frontColor: row.score >= 7 ? color.accent : LOW_BAR,
                 }))}
                 height={140}
                 barWidth={20}
                 spacing={14}
                 noOfSections={4}
-                yAxisTextStyle={styles.chartAxisText}
-                xAxisLabelTextStyle={styles.chartAxisText}
-                frontColor="#3b6fd6"
+                yAxisTextStyle={styles.axis}
+                xAxisLabelTextStyle={styles.axis}
               />
             ) : (
-              <EmptyNote text="No Script Review scores yet." />
+              <Text style={styles.sub}>No Script Review scores yet.</Text>
             )}
-            <SubHeading>Gate rates</SubHeading>
-            <StatRow label="Gate 1 — approve" value={quality.data.gate1Rates.approve} />
-            <StatRow label="Gate 1 — edit" value={quality.data.gate1Rates.edit} />
-            <StatRow label="Gate 1 — reject" value={quality.data.gate1Rates.reject} />
-            <StatRow label="Gate 2 — approve" value={quality.data.gate2Rates.approve} />
-            <StatRow label="Gate 2 — revise" value={quality.data.gate2Rates.revise} />
-            <StatRow label="Gate 2 — reject" value={quality.data.gate2Rates.reject} />
-          </>
-        ) : (
-          <ErrorNote error={quality.error} />
-        )}
-      </Section>
+          </Card>
+        ) : null}
 
-      {/* Operational health */}
-      <Section title="Operational health">
-        {operational.data ? (
-          <>
-            <StatRow
-              label="Success rate"
-              value={`${formatPct(operational.data.successRate.rate)} (${operational.data.successRate.completed} / ${operational.data.successRate.completed + operational.data.successRate.failed})`}
-            />
-            <SubHeading>Stage funnel</SubHeading>
-            {operational.data.stageFunnel.length > 0 ? (
-              <BarChart
-                data={operational.data.stageFunnel.map((row) => ({ value: row.count, label: row.stage }))}
-                height={140}
-                barWidth={18}
-                spacing={10}
-                noOfSections={4}
-                yAxisTextStyle={styles.chartAxisText}
-                xAxisLabelTextStyle={styles.chartAxisTextSmall}
-                frontColor="#1a7f37"
-              />
-            ) : (
-              <EmptyNote text="No runs yet." />
-            )}
-            <SubHeading>Needs attention ({operational.data.needsAttention.length})</SubHeading>
-            {operational.data.needsAttention.slice(0, 5).map((run) => (
-              <Text key={run.id} style={styles.listRow} numberOfLines={1}>
-                {run.briefText} — {run.lastError}
-              </Text>
-            ))}
-            <SubHeading>Recent completions</SubHeading>
-            {operational.data.recentCompletions.length > 0 ? (
-              operational.data.recentCompletions.slice(0, 5).map((run) => (
-                <Text key={run.id} style={styles.listRow} numberOfLines={1}>
-                  {run.briefText}
+        {g1 ? (
+          <Card>
+            <Text style={styles.cardTitle}>Gate 1 decisions</Text>
+            {g1Total > 0 ? (
+              <>
+                <View style={styles.stack}>
+                  <View style={{ flex: g1.approve, backgroundColor: color.accent }} />
+                  <View style={{ flex: g1.edit, backgroundColor: EDIT_BAR }} />
+                  <View style={{ flex: g1.reject, backgroundColor: color.ink }} />
+                </View>
+                <Text style={styles.sub}>
+                  Approved {g1.approve} · Edited {g1.edit} · Rejected {g1.reject}
                 </Text>
-              ))
+              </>
             ) : (
-              <EmptyNote text="No completed runs yet." />
+              <Text style={styles.sub}>No decisions yet.</Text>
             )}
-          </>
-        ) : (
-          <ErrorNote error={operational.error} />
-        )}
-      </Section>
+          </Card>
+        ) : null}
 
-      {/* Cost */}
-      <Section title="Cost">
-        {cost.data ? (
-          <>
-            <BigStat
-              label="Total spend"
-              value={`$${cost.data.totalSpendUsd.toFixed(4)}`}
-              sub={
-                cost.data.budgetCeilingUsd !== null
-                  ? `of $${cost.data.budgetCeilingUsd.toFixed(2)} budget ceiling`
-                  : 'no budget ceiling set'
-              }
-            />
-            <StatRow
-              label="Cost per published video"
-              value={
-                cost.data.costPerPublishedVideo.costPerVideoUsd !== null
-                  ? `$${cost.data.costPerPublishedVideo.costPerVideoUsd.toFixed(4)} (${cost.data.costPerPublishedVideo.publishedCount} published)`
-                  : 'no published videos yet'
-              }
-            />
-            <SubHeading>By channel</SubHeading>
-            {cost.data.byChannel.map((row) => (
-              <StatRow key={row.channelId} label={row.channelName} value={`$${row.spendUsd.toFixed(4)}`} />
-            ))}
-            <SubHeading>By stage</SubHeading>
-            {cost.data.byStage.length > 0 ? (
-              cost.data.byStage.map((row) => (
-                <StatRow key={row.stage} label={row.stage} value={`$${row.spendUsd.toFixed(4)}`} />
-              ))
+        {content.data?.available ? (
+          <Card>
+            <Text style={styles.cardTitle}>Content performance</Text>
+            <Text style={styles.sub}>
+              {content.data.totalVideosTracked} videos · {content.data.totals.views} views · {content.data.totals.likes}{' '}
+              likes · {content.data.totals.comments} comments
+            </Text>
+            {content.data.trend.length > 1 ? (
+              <LineChart
+                data={content.data.trend.map((row) => ({ value: row.views }))}
+                height={140}
+                color={color.accent}
+                thickness={2}
+                yAxisTextStyle={styles.axis}
+                hideDataPoints={content.data.trend.length > 20}
+              />
             ) : (
-              <EmptyNote text="No spend recorded yet." />
+              <Text style={styles.sub}>Not enough snapshots yet for a trend.</Text>
             )}
-          </>
-        ) : (
-          <ErrorNote error={cost.error} />
-        )}
-      </Section>
+          </Card>
+        ) : content.data ? (
+          <Card>
+            <Text style={styles.cardTitle}>Content performance</Text>
+            <Text style={styles.sub}>Nothing yet — this fills in once videos are published and polled.</Text>
+          </Card>
+        ) : null}
+      </>
+    );
+  }
 
-      {/* Content performance — expected to be the thinnest group; an honest
-          empty state instead of a chart full of zeros when nothing's
-          published/polled yet. */}
-      <Section title="Content performance">
-        {content.data ? (
-          content.data.available ? (
-            <>
-              <StatRow label="Videos tracked" value={content.data.totalVideosTracked} />
-              <StatRow label="Total views" value={content.data.totals.views} />
-              <StatRow label="Total likes" value={content.data.totals.likes} />
-              <StatRow label="Total comments" value={content.data.totals.comments} />
-              <SubHeading>Views trend</SubHeading>
-              {content.data.trend.length > 1 ? (
-                <LineChart
-                  data={content.data.trend.map((row) => ({ value: row.views }))}
-                  height={140}
-                  color="#3b6fd6"
-                  thickness={2}
-                  yAxisTextStyle={styles.chartAxisText}
-                  hideDataPoints={content.data.trend.length > 20}
-                />
-              ) : (
-                <EmptyNote text="Not enough snapshots yet for a trend." />
-              )}
-              <SubHeading>Best performers</SubHeading>
-              {content.data.bestPerformers.map((row) => (
-                <StatRow key={row.youtubeVideoId} label={row.youtubeVideoId} value={`${row.views} views`} />
-              ))}
-              <SubHeading>Worst performers</SubHeading>
-              {content.data.worstPerformers.map((row) => (
-                <StatRow key={row.youtubeVideoId} label={row.youtubeVideoId} value={`${row.views} views`} />
-              ))}
-            </>
-          ) : (
-            <EmptyNote text="No content performance data yet — this fills in once videos are published and polled (Week 4 Task 3)." />
-          )
-        ) : (
-          <ErrorNote error={content.error} />
-        )}
-      </Section>
-    </ScrollView>
-  );
-}
-
-function formatPct(rate: number | null): string {
-  return rate === null ? '—' : `${Math.round(rate * 100)}%`;
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
+    <Screen variant="tabRoot" title="Dashboard">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} />}
+      >
+        {channels.length > 0 ? pill : null}
+        {body}
+      </ScrollView>
+      <ChannelPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        mode="filter"
+        selectedId={filterId}
+        onSelect={setFilterId}
+      />
+    </Screen>
   );
-}
-
-function SubHeading({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.subHeading}>{children}</Text>;
-}
-
-function BigStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <View style={styles.bigStat}>
-      <Text style={styles.bigStatValue}>{value}</Text>
-      <Text style={styles.bigStatLabel}>{label}</Text>
-      {sub ? <Text style={styles.bigStatSub}>{sub}</Text> : null}
-    </View>
-  );
-}
-
-function StatRow({ label, value }: { label: string; value: string | number }) {
-  return (
-    <View style={styles.statRow}>
-      <Text style={styles.statLabel} numberOfLines={1}>
-        {label}
-      </Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
-
-function EmptyNote({ text }: { text: string }) {
-  return <Text style={styles.emptyNote}>{text}</Text>;
-}
-
-function ErrorNote({ error }: { error: unknown }) {
-  const message = error instanceof Error ? error.message : 'Failed to load.';
-  return <Text style={styles.errorNote}>{message}</Text>;
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  section: { backgroundColor: '#f7f7f7', borderRadius: 12, padding: 14, gap: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  subHeading: { fontSize: 12, fontWeight: '700', color: '#555', marginTop: 12, marginBottom: 6 },
-  bigStat: { alignItems: 'flex-start', marginBottom: 4 },
-  bigStatValue: { fontSize: 28, fontWeight: '800' },
-  bigStatLabel: { fontSize: 12, color: '#555', marginTop: 2 },
-  bigStatSub: { fontSize: 11, color: '#888' },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  statLabel: { fontSize: 13, color: '#333', flexShrink: 1, marginRight: 8 },
-  statValue: { fontSize: 13, fontWeight: '700' },
-  listRow: { fontSize: 12, color: '#444', paddingVertical: 3 },
-  emptyNote: { fontSize: 12, color: '#999', fontStyle: 'italic', paddingVertical: 6 },
-  errorNote: { fontSize: 12, color: '#c00' },
-  chartAxisText: { fontSize: 9, color: '#888' },
-  chartAxisTextSmall: { fontSize: 8, color: '#888' },
+  container: { paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.md },
+  loading: { marginTop: space.xxl },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: space.sm,
+    height: 40,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: color.surface2,
+    maxWidth: '100%',
+  },
+  pillDot: { width: 10, height: 10, borderRadius: 5 },
+  pillText: { fontFamily: font.bold, fontSize: 14, color: color.ink, flexShrink: 1 },
+  grid: { flexDirection: 'row', gap: space.md },
+  half: { flex: 1 },
+  cardTitle: { ...type.sectionTitle, color: color.ink },
+  statLabel: { ...type.meta },
+  stat: { ...type.stat, color: color.ink },
+  sub: { ...type.meta, fontSize: 12 },
+  spendRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  track: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4 },
+  stack: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: color.surface2 },
+  axis: { fontFamily: font.regular, fontSize: 11, color: color.muted },
 });
