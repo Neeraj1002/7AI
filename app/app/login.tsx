@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { requestMagicLink, verifyMagicLinkToken, extractToken } from '../lib/auth-api';
 import { getSecureItem, setSecureItem } from '../lib/storage';
@@ -20,13 +20,21 @@ const TELEGRAM_CHAT_ID_KEY = 'sevenai.telegramChatId';
 // direct accommodation of that gap, not a permanent design — remove once
 // real email delivery exists.
 export default function LoginScreen() {
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, token } = useAuth();
   // Waits for AuthProvider's own SecureStore read before mounting the form —
   // lets LoginForm's local `apiUrl` state initialize lazily from the real
   // stored value on its very first render, rather than syncing it in from an
   // effect after the fact (which React's own lint rules flag as the wrong
   // pattern for "derive initial state from an external source").
   if (authLoading) return null;
+  // Bugs Task 4 (R2) — the mirror image of (app)/_layout.tsx's own
+  // `if (!token) return <Redirect href="/login" />`. Without this, any
+  // accidental navigation to /login while a session is already intact (e.g.
+  // R1's bug-report fallback route popping back here) renders the login form
+  // over a perfectly valid session, making it look logged-out — confirmed
+  // live: force-quitting and reopening showed the session was never actually
+  // lost. Self-corrects regardless of what causes the navigation.
+  if (token) return <Redirect href="/" />;
   return <LoginForm />;
 }
 
