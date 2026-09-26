@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   barTrack: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4 },
   videoRow: { flexDirection: 'row', gap: space.md },
-  video: { width: 118, height: 210, borderRadius: radius.sm, backgroundColor: '#000' },
+  video: { width: 118, height: 210, borderRadius: radius.sm, backgroundColor: color.video },
   videoLoading: { alignItems: 'center', justifyContent: 'center' },
   videoInfo: { flex: 1, gap: space.sm },
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },

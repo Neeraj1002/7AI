@@ -13,8 +13,6 @@ import { Card } from '../../../components/Card';
 import { SecondaryButton } from '../../../components/Buttons';
 import { ChannelPickerSheet } from '../../../components/ChannelPickerSheet';
 
-const LOW_BAR = '#F6C3C0';
-const EDIT_BAR = '#F2A19D';
 
 function money(x: number): string {
   return `$${x > 0 && x < 0.01 ? x.toFixed(4) : x.toFixed(2)}`;
@@ -136,7 +134,7 @@ export default function DashboardScreen() {
                 data={quality.data.scriptReviewScoreDistribution.map((row) => ({
                   value: row.count,
                   label: String(row.score),
-                  frontColor: row.score >= 7 ? color.accent : LOW_BAR,
+                  frontColor: row.score >= 7 ? color.accent : color.chartLow,
                 }))}
                 height={140}
                 barWidth={20}
@@ -158,7 +156,7 @@ export default function DashboardScreen() {
               <>
                 <View style={styles.stack}>
                   <View style={{ flex: g1.approve, backgroundColor: color.accent }} />
-                  <View style={{ flex: g1.edit, backgroundColor: EDIT_BAR }} />
+                  <View style={{ flex: g1.edit, backgroundColor: color.chartEdit }} />
                   <View style={{ flex: g1.reject, backgroundColor: color.ink }} />
                 </View>
                 <Text style={styles.sub}>

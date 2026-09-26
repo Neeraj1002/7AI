@@ -24,6 +24,9 @@ export const color = {
   ring: '#0F0F0F',
   future: '#CFCFCF',
   scrim: 'rgba(10,10,14,0.5)',
+  chartLow: '#F6C3C0',
+  chartEdit: '#F2A19D',
+  video: '#000000',
 };
 
 export const card = {
