@@ -41,6 +41,12 @@ function buildBaseUrl(): string {
 // unrecognized-email path above: never a distinct response/log path that
 // would tell a caller whether a chat id was already on file for this user.
 export async function requestMagicLink(params: { email: string; telegramChatId?: string }): Promise<void> {
+  // Bugs Task 4 (R4) — logged before the unrecognized-email early return
+  // too, deliberately: this line alone never distinguishes a recognized
+  // email from an unrecognized one (both log the same "present"/"none"
+  // regardless), so it doesn't create a new enumeration signal.
+  console.log(`[auth] telegramChatId on request: ${params.telegramChatId ? 'present' : 'none'}`);
+
   const user = await findUserByEmail(params.email);
   if (!user) {
     console.log(`[auth] magic-link requested for an unrecognized email (${params.email}) — no link sent`);
@@ -59,6 +65,10 @@ export async function requestMagicLink(params: { email: string; telegramChatId?:
   if (params.telegramChatId?.trim() && params.telegramChatId.trim() !== user.telegramChatId) {
     await updateUserTelegramChatId(user.id, params.telegramChatId.trim());
   }
+  // Bugs Task 4 (R4) — the exact question Task 3's own testing couldn't
+  // answer without guessing: did a chat id even resolve for this request,
+  // before we get to whether the send itself succeeded.
+  console.log(`[auth] telegram chat id resolved for ${user.email}: ${chatId ? 'yes' : 'no — console fallback only'}`);
   if (chatId) {
     // Never instead of the console log above — Telegram delivery is an
     // addition, the console line stays the zero-cost fallback regardless of
