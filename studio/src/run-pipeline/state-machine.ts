@@ -1106,6 +1106,15 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (!channel) {
     throw new Error(`Channel ${run.channelId} not found`);
   }
+  // Sprint 3 Task 8 (R3) — the "never uploads" choke point: every real path
+  // to an upload (the resume-driven one today, any live-driven one later)
+  // passes through this function, so this one check is what makes an
+  // archived channel unable to publish, independent of whichever driver
+  // reaches it. Residual: an archive landing after this check but before
+  // uploadVideo completes is not closed here (see reports/task8.md).
+  if (!channel.isActive) {
+    throw new Error(`Channel ${channel.id} is archived — refusing to publish PipelineRun ${runId}`);
+  }
 
   const gate2Stage = await findLatestAttempt(runId, 'gate2');
   if (!gate2Stage || gate2Stage.status !== 'completed' || !gate2Stage.output) {

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
-import { listActiveChannelsByTenant, findChannelById, updateChannel } from '../../models/repositories/channel.repository';
+import { listActiveChannelsByTenant, findChannelById, updateChannel, archiveChannel } from '../../models/repositories/channel.repository';
+import { listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
+import { hasPendingApproval, resolvePendingApproval } from '../../notifications';
 import type { Context } from '../trpc';
 import { PrivacyStatusSchema } from '../../agents/publishing';
 import { deleteForChannel, findByChannel } from '../../models/repositories/agent-credential.repository';
@@ -111,6 +113,9 @@ export const channelsRouter = router({
       if (!canResolveGate(ctx, channel)) {
         throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to manage channel ${input.channelId}` });
       }
+      if (!channel.isActive) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} is archived` });
+      }
       if (!ctx.userId) {
         // The ops/script fallback has no real userId to bind the OAuth
         // state to — connecting a channel's real YouTube credential is a
@@ -161,5 +166,41 @@ export const channelsRouter = router({
         defaultPrivacyStatus: input.defaultPrivacyStatus,
       });
       return withHasYoutubeCredential(updated);
+    }),
+  // POST /channels.archive — Sprint 3 Task 8 (R3). One-way soft delete: no
+  // restore path by design. Steps run in order, each independently safe to
+  // redo, so a crash midway is recovered by simply calling archive again
+  // (already-archived channels skip straight to the sweep for that reason —
+  // it only ever touches runs still in a non-terminal status).
+  archive: publicProcedure
+    .input(z.object({ channelId: z.string().uuid() }))
+    .mutation(async ({ input, ctx }) => {
+      const channel = await loadManageableChannel(input.channelId, ctx, { allowArchived: true });
+      const alreadyArchived = !channel.isActive;
+
+      if (!alreadyArchived) {
+        await archiveChannel(channel.id);
+      }
+      await deleteForChannel(channel.id);
+
+      // A run sitting at a gate right now is released through the existing
+      // reject path (sets status 'failed', lastError "Rejected at Gate N:
+      // Channel deleted" — that template is the reject handler's own, not
+      // special-cased here). Anything else non-terminal (mid automated
+      // stage) is failed directly with the literal 'Channel deleted'.
+      const inFlight = await listRuns({
+        channelId: channel.id,
+        statuses: ['pending', 'running', 'paused_gate1', 'paused_gate2'],
+      });
+      let cancelled = 0;
+      for (const run of inFlight) {
+        if (hasPendingApproval(run.id)) {
+          resolvePendingApproval(run.id, 'reject Channel deleted');
+        } else {
+          await updatePipelineRun(run.id, { status: 'failed', lastError: 'Channel deleted' });
+        }
+        cancelled += 1;
+      }
+      return { archived: true, alreadyArchived, cancelledRuns: cancelled };
     }),
 });

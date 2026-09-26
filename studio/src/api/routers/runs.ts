@@ -113,6 +113,10 @@ export const runsRouter = router({
           message: `You are not allowed to create a run against channel ${input.channelId}`,
         });
       }
+      // Sprint 3 Task 8 (R3) — an archived channel is retired for good.
+      if (!channel.isActive) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} is archived` });
+      }
       const creationOptions =
         input.voice || input.visualSource || input.audioLayer
           ? {
