@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
-import { listActiveChannelsByTenant, findChannelById } from '../../models/repositories/channel.repository';
+import { listActiveChannelsByTenant, findChannelById, updateChannel } from '../../models/repositories/channel.repository';
+import type { Context } from '../trpc';
+import { PrivacyStatusSchema } from '../../agents/publishing';
 import { deleteForChannel, findByChannel } from '../../models/repositories/agent-credential.repository';
 import { buildYoutubeConnectUrl } from '../../manage-channels/youtube-oauth-connect';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
@@ -17,6 +19,27 @@ import type { Channel } from '../../types';
 async function withHasYoutubeCredential(channel: Channel): Promise<Channel & { hasYoutubeCredential: boolean }> {
   const credential = await findByChannel(channel.id);
   return { ...channel, hasYoutubeCredential: credential !== null };
+}
+
+// Sprint 3 Task 8 — shared by update/archive: NOT_FOUND for a missing channel
+// or one on another tenant (never leak existence), FORBIDDEN unless the caller
+// passes canResolveGate. Archived-channel handling stays with each caller.
+async function loadManageableChannel(
+  channelId: string,
+  ctx: Context,
+  options: { allowArchived?: boolean } = {},
+): Promise<Channel> {
+  const channel = await findChannelById(channelId);
+  if (!channel || channel.tenantId !== ctx.tenantId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `Channel ${channelId} not found` });
+  }
+  if (!canResolveGate(ctx, channel)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to manage channel ${channelId}` });
+  }
+  if (!channel.isActive && !options.allowArchived) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${channelId} is archived` });
+  }
+  return channel;
 }
 
 export const channelsRouter = router({
@@ -113,5 +136,30 @@ export const channelsRouter = router({
       }
       await deleteForChannel(channel.id);
       return { disconnected: true };
+    }),
+
+  // POST /channels.update — Sprint 3 Task 8 (R2). Same ownership check as
+  // disconnectYoutube/getYoutubeConnectUrl; a channel on another tenant reads
+  // as NOT_FOUND. Archived channels are rejected (R3 makes archiving
+  // one-way). NOTE (product question, not decided here): every pipeline stage
+  // re-reads the channel at execution time, so a niche edit affects the
+  // not-yet-executed stages of runs already in progress.
+  update: publicProcedure
+    .input(
+      z.object({
+        channelId: z.string().uuid(),
+        name: z.string().min(1).optional(),
+        nicheDescription: z.string().min(1).optional(),
+        defaultPrivacyStatus: PrivacyStatusSchema.optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const channel = await loadManageableChannel(input.channelId, ctx);
+      const updated = await updateChannel(channel.id, {
+        name: input.name,
+        nicheDescription: input.nicheDescription,
+        defaultPrivacyStatus: input.defaultPrivacyStatus,
+      });
+      return withHasYoutubeCredential(updated);
     }),
 });

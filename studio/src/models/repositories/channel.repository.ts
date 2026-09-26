@@ -80,3 +80,31 @@ export async function insertChannel(input: CreateChannelInput): Promise<Channel>
   });
   return toDomainChannel(row);
 }
+
+// Sprint 3 Task 8 (R2) — partial patch, same shape as updatePipelineRun:
+// only keys actually present in the patch reach Prisma's `data`. `isActive`
+// exists so R3's archive is one Prisma call through the same path.
+export type ChannelPatch = {
+  name?: string;
+  nicheDescription?: string;
+  styleGuide?: string | null;
+  defaultPrivacyStatus?: Channel['defaultPrivacyStatus'];
+  isActive?: boolean;
+};
+
+export async function updateChannel(id: string, patch: ChannelPatch): Promise<Channel> {
+  const data: ChannelPatch = {};
+  if (patch.name !== undefined) data.name = patch.name;
+  if (patch.nicheDescription !== undefined) data.nicheDescription = patch.nicheDescription;
+  if (patch.styleGuide !== undefined) data.styleGuide = patch.styleGuide;
+  if (patch.defaultPrivacyStatus !== undefined) data.defaultPrivacyStatus = patch.defaultPrivacyStatus;
+  if (patch.isActive !== undefined) data.isActive = patch.isActive;
+  const row = await prisma.channel.update({ where: { id }, data });
+  return toDomainChannel(row);
+}
+
+// Sprint 3 Task 8 (R3) — one-way soft delete; there is deliberately no
+// unarchive counterpart.
+export async function archiveChannel(id: string): Promise<Channel> {
+  return updateChannel(id, { isActive: false });
+}
