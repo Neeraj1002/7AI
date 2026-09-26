@@ -13,7 +13,9 @@ import { resolvePendingApproval } from '../../notifications';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
+import { PrivacyStatusSchema } from '../../agents/publishing';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
+import type { Channel } from '../../types';
 
 // Bugs Task 3 (R1) — this run's own tenant check, same FORBIDDEN shape as
 // `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
@@ -44,7 +46,7 @@ async function getRunDetail(id: string, ctx: Context) {
 // way to spoof ownership by lying about which channel a gate belongs to.
 // The actual allow/deny decision is canResolveGate (run-pipeline/gate-ownership.ts),
 // kept pure and separate so it can be unit tested directly.
-async function assertGateOwnership(runId: string, ctx: Context): Promise<void> {
+async function assertGateOwnership(runId: string, ctx: Context): Promise<Channel> {
   const run = await findPipelineRunById(runId);
   if (!run) {
     throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${runId} not found` });
@@ -60,6 +62,7 @@ async function assertGateOwnership(runId: string, ctx: Context): Promise<void> {
       message: `You are not allowed to resolve gates for run ${runId}`,
     });
   }
+  return channel;
 }
 
 export const runsRouter = router({
@@ -109,6 +112,10 @@ export const runsRouter = router({
           code: 'FORBIDDEN',
           message: `You are not allowed to create a run against channel ${input.channelId}`,
         });
+      }
+      // Sprint 3 Task 8 (R3) — an archived channel is retired for good.
+      if (!channel.isActive) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} is archived` });
       }
       const creationOptions =
         input.voice || input.visualSource || input.audioLayer
@@ -193,17 +200,26 @@ export const runsRouter = router({
   gate2: publicProcedure
     .input(
       z.discriminatedUnion('action', [
-        z.object({ runId: z.string().uuid(), action: z.literal('approve') }),
+        z.object({
+          runId: z.string().uuid(),
+          action: z.literal('approve'),
+          // Sprint 3 Task 8 (R1) — optional per-approval visibility choice;
+          // omitted means the channel's own defaultPrivacyStatus applies.
+          privacyStatus: PrivacyStatusSchema.optional(),
+        }),
         z.object({ runId: z.string().uuid(), action: z.literal('reject'), reason: z.string().min(1) }),
         z.object({ runId: z.string().uuid(), action: z.literal('revise'), notes: z.string().min(1) }),
       ]),
     )
     .mutation(async ({ input, ctx }) => {
-      await assertGateOwnership(input.runId, ctx);
+      const channel = await assertGateOwnership(input.runId, ctx);
 
+      // Sprint 3 Task 8 (R1) — always send an explicit `approve <privacy>`
+      // (matches parseGate2Reply's APPROVE_WITH_PRIVACY exactly): the explicit
+      // choice wins, else the channel's own default — never a bare 'approve'.
       const replyText =
         input.action === 'approve'
-          ? 'approve'
+          ? `approve ${input.privacyStatus ?? channel.defaultPrivacyStatus}`
           : input.action === 'reject'
             ? `reject ${input.reason}`
             : input.notes;

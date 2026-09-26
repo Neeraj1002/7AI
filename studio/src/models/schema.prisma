@@ -152,11 +152,19 @@ model Channel {
   // ownership check.
   ownerUserId String? @db.Uuid
 
+  // UI Enhancement 1 (Sprint 3 Task 8, R1) — the privacy status Gate 2
+  // approval applies when the approver doesn't choose one explicitly.
+  // VARCHAR + CHECK (private|unlisted|public, same set as
+  // agents/publishing/types.ts's PrivacyStatusSchema), per this schema's
+  // convention. Default 'private' matches every upload's de facto
+  // behavior before this column existed.
+  defaultPrivacyStatus String @default("private") @db.VarChar(20)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  tenant               Tenant               @relation(fields: [tenantId], references: [id])
   ownerUser            User?                 @relation(fields: [ownerUserId], references: [id])
   pipelineRuns         PipelineRun[]
   reviewLogs           ReviewLog[]
