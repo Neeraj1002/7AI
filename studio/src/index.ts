@@ -76,6 +76,16 @@ function startTelegramStartPollChecker(): void {
 async function main(): Promise<void> {
   console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);
 
+  // Bugs Task 4 (R3) — a real request already produced a localhost link
+  // (and would produce the same text in a Telegram message) when this was
+  // silently unset; a boot-time warning makes that never-silent again,
+  // rather than only discoverable by reading a request's own output.
+  if (!env.PUBLIC_API_BASE_URL) {
+    console.warn(
+      '[boot] PUBLIC_API_BASE_URL not set — magic-link text will show localhost, unusable from a phone',
+    );
+  }
+
   await resumeOnStartup();
 
   startPerformanceAnalyticsPoller();

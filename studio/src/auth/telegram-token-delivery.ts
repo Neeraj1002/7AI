@@ -23,22 +23,30 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
   if (!isConfigured()) {
     return false;
   }
-  try {
-    const res = await fetch(`${TELEGRAM_API_BASE}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.error(`[telegram-token-delivery] sendMessage failed (${res.status}): ${body}`);
+  const ok = await (async () => {
+    try {
+      const res = await fetch(`${TELEGRAM_API_BASE}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error(`[telegram-token-delivery] sendMessage failed (${res.status}): ${body}`);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('[telegram-token-delivery] sendMessage threw:', error);
       return false;
     }
-    return true;
-  } catch (error) {
-    console.error('[telegram-token-delivery] sendMessage threw:', error);
-    return false;
-  }
+  })();
+  // Bugs Task 4 (R4) — the missing half of the trail: a failure already
+  // logged above, but a *success* previously logged nothing at all,
+  // making "never attempted" and "sent fine" indistinguishable from the
+  // console alone. Reuses the same `ok` the function already returns.
+  console.log(`[telegram-token-delivery] sendMessage to ${chatId}: ${ok ? 'ok' : 'failed'}`);
+  return ok;
 }
 
 type TelegramUpdate = {
