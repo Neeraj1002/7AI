@@ -19,7 +19,7 @@ else about this template changes — every section, the Git Workflow mechanics, 
 below apply identically, with `sprint[N]` wherever `week[N]` is written.
 
 **Updated 2026-09-25 — branch discipline and checkout locations, hardened after three real incidents.**
-Three things go wrong when they're left implicit: (1) a *track's own* task doc/report/`STATUS.md`
+Three things go wrong when they're left implicit: (1) a _track's own_ task doc/report/`STATUS.md`
 written only into the main checkout's `docs/` folder is invisible to a session working from that
 track's own checkout/worktree until it's explicitly synced — commit each of those into the checkout
 that track actually works from (see **Where task docs and work happen** under Git Workflow below); (2)
@@ -53,7 +53,7 @@ yourself, and always record the exact branch name in that track's `STATUS.md` th
 **Success Criteria**: What makes this task complete
 ```
 
-*(This "read the template first" line is boilerplate — every task file includes it verbatim, right after the title, before `**Objective**`. Its purpose is exactly what you're reading: so nobody has to remember to say "also check TASK_TEMPLATE.md" out loud before handing a task file to Claude Code. From Sprint 2 onward, the header reads `# Sprint [N] Task [ID]: [Task Name]` — same shape, new unit.)*
+_(This "read the template first" line is boilerplate — every task file includes it verbatim, right after the title, before `**Objective**`. Its purpose is exactly what you're reading: so nobody has to remember to say "also check TASK_TEMPLATE.md" out loud before handing a task file to Claude Code. From Sprint 2 onward, the header reads `# Sprint [N] Task [ID]: [Task Name]` — same shape, new unit.)_
 
 ### Task Requirement
 
@@ -65,51 +65,62 @@ yourself, and always record the exact branch name in that track's `STATUS.md` th
 [Any constraints or notes]
 
 ### Context
+
 [Background from MVP_ROADMAP_OCT15.md or AGENT_FLEET_DESIGN.md, if relevant]
 
 ### Acceptance Criteria
+
 - [ ] Criterion 1
 - [ ] Criterion 2
 ```
 
-### Schema Impact *(new — not in the yt_shorts template)*
+### Schema Impact _(new — not in the yt_shorts template)_
 
 ```markdown
 ## Schema Impact
 
 ### Tables Created
+
 - `table_name` — purpose, key fields (full definition lives in `SCHEMA.md`, not repeated here)
 
 ### Tables Modified
+
 - `table_name` — what changes, why, migration considerations (backfill needed? breaking for in-flight PipelineRuns?)
 
 ### Migration File
+
 - `migrations/00XX_description.sql` (or the Prisma migration name, once ORM choice is locked)
 
 ### Reference
+
 Full field-level definitions live in `execution/week[N]/SCHEMA.md`. This section states only the delta this task introduces — SCHEMA.md is the single source of truth, so a task file never repeats a full table definition.
 ```
 
 Skip this section entirely (write "No schema changes") for tasks that don't touch the database — not every task does, and a forced-but-empty section is worse than an omitted one.
 
-### Business Logic / State Transition *(new — not in the yt_shorts template)*
+### Business Logic / State Transition _(new — not in the yt_shorts template)_
 
 ```markdown
 ## Business Logic / State Transition
 
 ### What this task implements
+
 [e.g. "PipelineRun transitions pending → running on Intake completion; on Intake failure, transitions to needs_attention rather than failed, since a bad brief is a human-fixable input error, not a system fault."]
 
 ### Preconditions
+
 - [State/data that must already exist before this logic runs]
 
 ### Postconditions
+
 - [State/data guaranteed to exist afterward — including on partial failure. This is what makes a run resumable: a crash between postconditions of task N and the start of task N+1 must never leave the system in an ambiguous state.]
 
 ### Failure Modes & Handling
+
 - [What can go wrong, and what happens: retry with backoff? circuit-break? escalate to the human queue as "needs attention"? Reference BUSINESS_LOGIC.md's general retry/circuit-breaker rules rather than re-deriving them per task.]
 
 ### Reference
+
 Full state machine and control-flow rules live in `execution/week[N]/BUSINESS_LOGIC.md`.
 ```
 
@@ -121,19 +132,24 @@ Skip this section (write "No new control flow") for pure plumbing tasks — e.g.
 ## Implementation
 
 ### Files to Create
+
 - `path/to/file1.ts` — Description
 
 ### Files to Modify
+
 - `existing/file.ts` — What changes
 
 ### Key Code Patterns
+
 [Code snippet or architecture pattern to follow]
 
 ### Detailed Steps
+
 1. Step 1
 2. Step 2
 
 ### Integration Points
+
 - Module A connects to Module B via [interface/import]
 - Which agent contract (if any) this task implements or calls, per `AGENT_FLEET_DESIGN.md` Section 4
 ```
@@ -144,22 +160,27 @@ Skip this section (write "No new control flow") for pure plumbing tasks — e.g.
 ## Testing
 
 ### Test Commands
+
 \`\`\`bash
 npm run build
 npm run lint
+
 # task-specific test commands
+
 \`\`\`
 
 ### Expected Results
+
 - TypeScript compilation: No errors
 - ESLint: No warnings
 - [Task-specific check]: Passes
 - [Integration check]: Works with the task(s) it depends on
 
 ### How to Verify
+
 1. Run `npm run build`
 2. Run the specific check(s) above
-3. For schema tasks: confirm the migration applies cleanly to a fresh DB *and* is a no-op on a DB that already has it (idempotent migrations)
+3. For schema tasks: confirm the migration applies cleanly to a fresh DB _and_ is a no-op on a DB that already has it (idempotent migrations)
 ```
 
 ### Reporting
@@ -178,24 +199,30 @@ Generate at: `execution/week[N]/reports/task[ID].md`
 **Tests**: All Passing
 
 ## What Was Done
+
 [Summary]
 
 ## Files Created/Modified
+
 - Created: [list]
 - Modified: [list]
 
 ## Schema Changes Applied
+
 [Actual migration(s) run, or "None"]
 
 ## Test Results
+
 \`\`\`
 [Test output]
 \`\`\`
 
 ## Deviations from Spec
+
 [Any changes made during implementation, and why]
 
 ## Sign-Off
+
 - Task Objective: Met
 - Schema Impact: Matches SCHEMA.md (or: SCHEMA.md updated to reflect the deviation)
 - Business Logic: Matches BUSINESS_LOGIC.md (or: BUSINESS_LOGIC.md updated)
@@ -203,7 +230,7 @@ Generate at: `execution/week[N]/reports/task[ID].md`
 - Ready for Integration: Yes
 ```
 
-### Weekly Status Tracker *(new — not in the yt_shorts template; `Branch` column added 2026-09-25)*
+### Weekly Status Tracker _(new — not in the yt_shorts template; `Branch` column added 2026-09-25)_
 
 After writing the per-task report, upsert this task's row in `execution/week[N]/STATUS.md` — one row per task, one file per week, so the founder can see a week's status at a glance without opening every report. Create the file (with the header below) if this is the week's first task to complete.
 
@@ -213,28 +240,30 @@ After writing the per-task report, upsert this task's row in `execution/week[N]/
 **Week status**: [one line — e.g. "Core deliverables complete. 2 items pending founder action."]
 **Last updated**: YYYY-MM-DD (after Task [ID])
 
-| Task | Name | Status | Owner | Branch | Notes |
-|---|---|---|---|---|---|
-| 1 | [Task Name] | Done | Claude Code | `[TRACK]_[SUFFIX]` | |
-| 2 | [Task Name] | Done — action needed | **Founder** | `[TRACK]_[SUFFIX]` | [what the founder needs to do, and where the steps live] |
+| Task | Name        | Status               | Owner       | Branch             | Notes                                                    |
+| ---- | ----------- | -------------------- | ----------- | ------------------ | -------------------------------------------------------- |
+| 1    | [Task Name] | Done                 | Claude Code | `[TRACK]_[SUFFIX]` |                                                          |
+| 2    | [Task Name] | Done — action needed | **Founder** | `[TRACK]_[SUFFIX]` | [what the founder needs to do, and where the steps live] |
 
 ## Full detail
+
 Per-task reports: `reports/task[1-N].md`. Full narrative (once written): `reports/week[N]-summary.md`.
 ```
 
 **Status** values: `Done`, `Done — action needed` (the code/task is finished but something can't close out without the founder — a credential, an external console step, a decision), `In Progress`, `Blocked`.
 **Owner** values: `Claude Code` (nothing further needed from the founder) or `Founder` (the ball is in the founder's court — used whenever Status is `Done — action needed` or `Blocked` on something only the founder can do).
-**Branch** *(added 2026-09-25)*: the exact branch name this task's commits actually live on (e.g. `SPRINT4_BE`, `FRONTEND_FE`, `BUGS_TASK3`). Fill this in the moment the branch is created — before the task's own commit even lands — so a later session (this chat resumed, or a different one entirely) reads this table first and finds a branch already in flight instead of creating a duplicate or guessing at a name. Leave it blank only in the instant between "task claimed" and "branch created," never longer.
+**Branch** _(added 2026-09-25)_: the exact branch name this task's commits actually live on (e.g. `SPRINT4_BE`, `FRONTEND_FE`, `BUGS_APP_b3`). Fill this in the moment the branch is created — before the task's own commit even lands — so a later session (this chat resumed, or a different one entirely) reads this table first and finds a branch already in flight instead of creating a duplicate or guessing at a name. Leave it blank only in the instant between "task claimed" and "branch created," never longer.
 
-Update the row for *this* task only — never rewrite other tasks' rows, and never let this file's status contradict what the task's own report says. If a later task changes an earlier task's status (e.g. the founder's Telegram token finally gets added and Task 6 becomes fully `Done`), that's the task that's actually doing the work updating the row, not a retroactive edit from whichever task happens to run next.
+Update the row for _this_ task only — never rewrite other tasks' rows, and never let this file's status contradict what the task's own report says. If a later task changes an earlier task's status (e.g. the founder's Telegram token finally gets added and Task 6 becomes fully `Done`), that's the task that's actually doing the work updating the row, not a retroactive edit from whichever task happens to run next.
 
 The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (one `BUGS_TASK<N>` branch per release, covering every item regardless of role — changed 2026-09-26 from an earlier per-role split that was producing conflicting sibling PRs). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
 
-### Git Workflow *(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations)*
+### Git Workflow _(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations)_
 
 **Branch per track-iteration, commit per task, PR per track-iteration — merging to `main` is always a founder decision, never automatic.**
 
 **Hard rules — apply to every task, every track, no exceptions:**
+
 1. **Never push or merge to `main` directly, under any circumstance** — not even to "quickly resolve a
    conflict I hit mid-task." Whatever you're doing — resolving a conflict, fixing a broken lockfile,
    anything — the result goes on a `[TRACK]_[SUFFIX]` branch and becomes a (draft) PR. If finishing a
@@ -254,6 +283,7 @@ The frontend track follows this exact same pattern at `docs/execution/frontend/S
 
 **Where task docs and work happen (checkout locations)** — added 2026-09-25, after a task doc written
 only into the main checkout wasn't visible to a session working from a different track's own checkout:
+
 - **Frontend track** (`FRONTEND_FE` / `SPRINT[N]_FE`): work, commit, and write this track's task docs
   from `D:\Study Material\7AI-frontend`.
 - **Backend track** (`WEEK[N]_BE` / `SPRINT[N]_BE`): work, commit, and write this track's task docs from
@@ -270,21 +300,23 @@ only into the main checkout wasn't visible to a session working from a different
 A task's doc, its `STATUS.md` row, and its report should be committed from the **same checkout** the
 code changes themselves are committed from — not just the main checkout — so anyone actually working
 from that checkout sees the full picture without needing to separately sync another worktree by hand.
-This applies to a *track's own* docs (its task files, `STATUS.md`, reports) — it does **not** apply to
+This applies to a _track's own_ docs (its task files, `STATUS.md`, reports) — it does **not** apply to
 shared, foundational docs like this template file itself, which live only on `main` and reach every
 checkout the normal way, by that checkout pulling/branching from `origin/main` (see the note at the top
 of this document). When in doubt which checkout a piece of work belongs to, ask rather than guessing;
 the Project (this same "7AI" Project, read via the docs tool) is always kept in sync as the
-cross-checkout source of truth for reading, but a *committed* git history — not a manually duplicated
+cross-checkout source of truth for reading, but a _committed_ git history — not a manually duplicated
 file — is still what makes a local checkout's own `docs/` folder correct.
 
 Two independent tracks now build against this repo at the same time: the **backend track** (`docs/execution/sprint[N]/` from Sprint 2 onward; `week[N]` for the historical Sprint 1) and the **frontend track** (`docs/execution/frontend/`, not sprint-numbered — one ongoing track rather than a sequence of sprints). Every branch, commit message, and PR title carries a suffix identifying which track it belongs to — **`_BE`** for backend, **`_FE`** for frontend — so it's unambiguous at a glance, in `git log`, the GitHub PR list, or anywhere else, which track a given change came from now that both can be in flight simultaneously.
 
 **Track identifier** (used in place of `[TRACK]` below):
+
 - Backend: `SPRINT[N]` from Sprint 2 onward — e.g. `SPRINT2`. (`WEEK[N]` stays as the historical identifier for Sprint 1's already-merged work — never renamed retroactively.)
 - Frontend: `FRONTEND` — the whole track is one identifier, since it isn't sprint-numbered
 
 **Starting a new track-iteration** (first task only — a new sprint for backend, or the first time the frontend track picks up work):
+
 1. `git checkout main && git pull` — start from a current `main`.
 2. If no `origin` remote exists yet: `gh repo create 7AI --private --source=. --remote=origin` (ask the founder to run `gh auth login` first if `gh auth status` isn't authenticated — don't try to work around this).
 3. **Read that track's `STATUS.md` `Branch` column first.** If a `[TRACK]_[SUFFIX]` branch is already
@@ -295,15 +327,19 @@ Two independent tracks now build against this repo at the same time: the **backe
 4. After this first task's commit is pushed (below), open the PR as a draft: `gh pr create --draft --title "[TRACK]_[SUFFIX]: [Theme]" --body "Tracking PR for [TRACK]. Live status: docs/execution/[sprint[N]|frontend]/STATUS.md. Do not merge until marked ready for review."` — e.g. title `SPRINT2_BE: Flexible Creation + Content Intelligence` or `FRONTEND_FE: API Layer, App Scaffold, Dashboard`. The body links to `STATUS.md` rather than duplicating it (same "documented once" principle as the rest of this template), so it never needs editing as the track progresses.
 
 **After every task** (every task, every track), once its report and `STATUS.md` row (including its `Branch` column) are written:
+
 1. `git add` the task's code changes together with its report and `STATUS.md` update — one atomic commit per task.
 2. Commit message shape:
+
    ```
    [TRACK]_TASK[ID]_[SUFFIX]: [Task Name]
 
    [1-2 sentence summary of what changed]
    [One line per deviation from spec, if any]
    ```
+
    e.g. `SPRINT2_TASK1_BE: Flexible Creation — Voice Selection + Second Visual-Source Backend` or `FRONTEND_TASK1_FE: API Layer`.
+
 3. `git push` (`-u origin [TRACK]_[SUFFIX]` on the track-iteration's first push, plain `git push` after) — every task's work reaches GitHub immediately, not just at the end.
 
 **Finishing a track-iteration** (last task only): after the final task's commit and push, `gh pr ready` to mark the PR ready for review. **Do not merge, and do not push to `main` yourself, under any circumstance** — that's a deliberate founder action (via the GitHub PR review, or telling me to merge once reviewed), per Hard rule 1 above. This is the one point where a founder actually looks at a diff before it becomes `main`, worth keeping even solo — and worth it more, not less, now that two-plus tracks can land on `main` independently: nothing about the `_BE`/`_FE`/track-role naming changes that all of them still need a real look before merging.
@@ -314,12 +350,15 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 
 ```markdown
 ## Additional Notes
+
 [Design decisions, forward-looking notes]
 
 ## Known Issues / Future Improvements
+
 [Known limitations, deferred to a later week]
 
 ## Links & References
+
 - [MVP_ROADMAP_OCT15.md](../../roadmap/MVP_ROADMAP_OCT15.md) — relevant section
 - [AGENT_FLEET_DESIGN.md](../../design_doc/agents/all_agents/AGENT_FLEET_DESIGN.md) — relevant section
 - [SCHEMA.md](../SCHEMA.md)
@@ -417,4 +456,4 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
 6. **Schema and business logic documented once, referenced everywhere** — a task file states only its delta; `SCHEMA.md`/`BUSINESS_LOGIC.md` are the single source of truth for a given week/sprint or track. This avoids the duplication `yt_shorts` had between `WEEK1_PLAN.md` (which inlined the full Prisma schema) and `DATA_MODEL.md` (which also had it) — two places that could silently drift apart.
 7. **Track identity is never ambiguous** — every branch, commit, and PR carries `_BE` or `_FE` (or, for the bugs track, one `BUGS_TASK<N>` branch per release with a `BE`/`FE`/`APP` role tag per item for shipping purposes only — see `HOTFIXER_AGENT_PROTOCOL.md`; or, for the UI/UX track, its own `FE`/`APP` role, no `BE` — see `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`), so two people (or two Claude Code chats) working different tracks in parallel never collide on naming or accidentally review the wrong diff against the wrong track's `STATUS.md`.
 8. **Historical units are never renamed** — Sprint 1's work stays `week[N]` exactly as merged; only planning language and everything from Sprint 2 forward uses `sprint[N]`.
-9. **Branch discipline is explicit, not assumed** *(added 2026-09-25)* — never push or merge to `main` directly; only ever commit to a branch you created yourself; always record the branch name in `STATUS.md` the moment it's created. These are hard rules, not defaults to override when a task feels urgent.
+9. **Branch discipline is explicit, not assumed** _(added 2026-09-25)_ — never push or merge to `main` directly; only ever commit to a branch you created yourself; always record the branch name in `STATUS.md` the moment it's created. These are hard rules, not defaults to override when a task feels urgent.
