@@ -7,7 +7,21 @@ import {
   runVideoReviewStage,
   runGate2Stage,
 } from './state-machine';
+import { findChannelById } from '../models/repositories/channel.repository';
+import { updatePipelineRun } from '../models/repositories/pipeline-run.repository';
 import type { PipelineRun } from '../types';
+
+// Sprint 3 Task 8 (R3) — defense in depth for archiving a channel: before each
+// stage, stop burning LLM/TTS/video-gen spend on a channel that was archived
+// mid-flight. A stage that was already executing when the archive landed can
+// still finish and overwrite the run's status; this check re-fails it at the
+// next iteration. (The unconditional "never uploads" guarantee lives in
+// runPublishingStage itself.)
+async function failRunIfChannelArchived(run: PipelineRun): Promise<PipelineRun | null> {
+  const channel = await findChannelById(run.channelId);
+  if (channel && channel.isActive) return null;
+  return updatePipelineRun(run.id, { status: 'failed', lastError: 'Channel deleted' });
+}
 
 // Frontend track Task 1 — the piece the design doc calls out as genuinely
 // missing (MOBILE_APP_DESIGN.md Section 3: "there's no programmatic 'start a
@@ -34,6 +48,8 @@ export async function runPipelineToNextGate(runId: string): Promise<PipelineRun>
   let run = await runIntakeStage(runId);
 
   while (run.status !== 'needs_attention' && run.status !== 'failed') {
+    const archivedRun = await failRunIfChannelArchived(run);
+    if (archivedRun) return archivedRun;
     switch (run.currentStage) {
       case 'script_generation':
         run = await runScriptGenerationStage(runId);

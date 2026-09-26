@@ -54,6 +54,10 @@ export type Channel = {
   // studio/src/run-pipeline/state-machine.ts's voice-resolution order.
   defaultVoice: string | null;
 
+  // Sprint 3 Task 8 (R1) — 'private' | 'unlisted' | 'public'; applied at Gate 2
+  // approval when no explicit choice is made.
+  defaultPrivacyStatus: 'private' | 'unlisted' | 'public';
+
   // Sprint 3 Task 2 (K1) — nullable FK to User. null degrades to "any
   // owner-role user on the tenant may resolve this channel's gates" rather
   // than becoming permanently unapprovable. See
