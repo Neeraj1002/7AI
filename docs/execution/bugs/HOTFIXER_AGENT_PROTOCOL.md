@@ -30,8 +30,9 @@ already states.
   Where/Fix/Verify) — only when the founder hands it a bug directly and no task doc for it exists yet.
   It still writes the doc before touching code, same as every other track in this repo — "just fix it"
   is not a license to skip the paper trail everything else here has.
-- This track covers backend, non-native app, and native app bugs — see **Track Roles** below for the
-  three-way split (`BE` / `FE` / `APP`) that replaces the old two-way `_BE`/`_FE` split, and why.
+- This track covers backend, non-native app, and native app bugs, tagged with a `BE`/`FE`/`APP` **role**
+  per item — see **Role Tags** below for what each means and, critically, what they no longer mean
+  (they stopped determining branch choice as of the **Release & Branch Model** change below).
 
 **Out of scope — never touched by a hot-fixer chat**:
 - Anything under `docs/execution/sprint[N]/` or `docs/execution/frontend/` — planned feature work
@@ -43,35 +44,90 @@ already states.
   resolve a conflict I hit mid-task."** This is a hard rule with no exceptions, added after a real
   incident: a session resolving a merge conflict pushed the result straight to `main` without a
   branch or PR, entirely out of this protocol's own scope. Whatever you are doing — resolving a
-  conflict, fixing a broken lockfile, anything — the result goes on a `BUGS_*` branch and becomes a
-  draft PR. If finishing a task requires touching `main` directly, stop and ask the founder first; do
-  not treat "the conflict forced my hand" as an exception. `main`'s branch protection on GitHub is a
-  backstop for this rule, not a substitute for following it.
+  conflict, fixing a broken lockfile, anything — the result goes on this release's `BUGS_TASK<N>`
+  branch and becomes a draft PR. If finishing a task requires touching `main` directly, stop and ask the
+  founder first; do not treat "the conflict forced my hand" as an exception. `main`'s branch protection
+  on GitHub is a backstop for this rule, not a substitute for following it.
+- **Opening a second pull request for the same release, under any circumstance.** One `BUGS_TASK<N>`
+  branch, one PR, for the whole release, from the moment its first item is picked up until the whole
+  release is verified and the PR is marked ready. See **Release & Branch Model** below — this replaced
+  the old per-role branch split specifically because it was producing multiple concurrent, conflicting
+  PRs for what should have been one reviewable unit.
 
-## Track Roles — BE / FE / APP
+## Release & Branch Model *(replaced 2026-09-26 — see below for why)*
 
-**Added 2026-09-25**, replacing the old two-way `_BE`/`_FE` split, after Task 2 made clear that
-"frontend" was hiding two genuinely different kinds of fix with different build/ship mechanics. Every
-task doc, branch, and commit in this track now tags itself with exactly one of three roles:
+**One branch per release, one commit per item, one PR for the whole release.** A "release" is one
+numbered Bugs Task (`task1.md`, `task2.md`, `task3.md`, ...) — the unit that already gets one report and
+one `STATUS.md` row. Starting with **Task 4 onward** (this section was drafted concurrently with Task 3's
+own implementation — see the note below on why Task 3 itself still predates it, not Task 3 onward as
+originally intended):
+
+- **Branch**: `BUGS_TASK<N>` — one branch for the entire release, covering every `R#` item in that
+  task doc regardless of role (`BE`, `FE`, or `APP` — see Role Tags below). Branch fresh from a
+  just-pulled `origin/main` when the release's first item is picked up, and record that name in
+  `STATUS.md`'s `Branch` column immediately (`TASK_TEMPLATE.md` Hard rule 3).
+- **Commits**: one commit per `R#` item, in whatever order they're actually implemented — commit
+  message shape `BUGS_TASK<N>_R<X>: <short description>`, e.g. `BUGS_TASK3_R1: Fix cross-tenant leak in
+  runs.list/runs.get`. Implement, test, and commit each item as it's finished — don't batch multiple
+  items into one commit, and don't wait until the whole release is done to make the first commit.
+- **Report + `STATUS.md` closure**: once every item in the release is implemented and verified, write
+  `reports/task<N>.md`, upsert the `STATUS.md` row (status, final notes, the `Branch` value), and commit
+  that as one more commit on the same branch — `BUGS_TASK<N>_REPORT: <release name>`.
+- **PR**: open the draft PR the moment the branch is created (the release's first item's commit, same
+  timing `TASK_TEMPLATE.md`'s "Starting a new track-iteration" already describes for other tracks), push
+  every subsequent commit to it, and mark it ready (`gh pr ready`) only once the whole release — every
+  item, plus the report/`STATUS.md` commit — is done. Never open a second PR for the same release, and
+  never open one at all unless the founder asked for it or this protocol's own timing (first commit of a
+  new release) says to.
+
+**Why this replaced the old per-role (`BUGS_BE`/`BUGS_FE`/`BUGS_APP_b<N>`) branch split**: that model
+produced multiple sibling branches all cut from `main` around the same time for the same release,
+frequently touching the same shared files (`STATUS.md` above all) — which is exactly what caused five
+open PRs to pile up in conflict with each other and with `main`. Collapsing to one branch per release
+removes the sibling-branch collision entirely, and matches how `TASK_TEMPLATE.md` already works for
+every other track (one branch per track-iteration, one commit per task) — this was a deviation from that
+existing pattern, not something the bugs track needed to justify having in the first place.
+
+**What if one item is urgent and the rest of the release isn't ready?** Don't split the branch to solve
+this — that's exactly the problem being removed. Flag it to the founder and let them decide whether to
+fast-track that one item as its own small release (a new, separate `BUGS_TASK<N+1>` for just that item)
+rather than improvising a branch split mid-release.
+
+**Task 1, Task 2, and Task 3 predate this change and are not retroactively renamed or restructured** —
+their existing branches (`BUGS_TASK1_REPORT`, `BUGS_APP_b2`, and Task 3's `BUGS_BE`/`BUGS_FE_TASK3`/
+`BUGS_TASK3_REPORT`) and PRs stay exactly as they are, same "historical units aren't renamed" principle
+`TASK_TEMPLATE.md` already applies to `week[N]` vs `sprint[N]`. **Task 3 is the concrete reason this
+note had to be widened past Task 1/2**: this section was originally drafted assuming Task 3 hadn't
+started yet (intending it to be the first release under the new model), but Task 3 was, in fact, already
+fully implemented across three sibling branches by the time that assumption was written down — a real
+concurrent-edit gap between this doc and the actual work in flight, not a hypothetical one. The new
+one-branch-per-release model takes effect starting with **Task 4**.
+
+## Role Tags — BE / FE / APP *(informational only — no longer determine branch choice)*
+
+Every `R#` item in a task doc still tags itself with exactly one role, because the *shipping and
+verification* implications are still real and still differ — this just no longer decides which branch
+an item's commit lands on (see Release & Branch Model above; every role's commits land on the same
+`BUGS_TASK<N>` branch).
 
 - **`BE`** — backend/API code (`studio/`). No native build concept applies — it's deployed by running
   the server, not installed as a package. Verification bar: a real API call / log line, same as always.
 - **`FE`** — JS/React-Native **logic-only** changes inside `app/` that touch no native config: no new
   native dependency, no new permission, no `app.json` plugin, nothing in the `android`/`ios` blocks.
-  This is the set of changes that, once Bugs Task 2's OTA setup is live and verified, ships via
-  `eas update --branch preview` — **no new APK, no reinstall.** Bugs Task 1's R2 (login default) and R4
-  (channel-picker states) are both `FE` by this definition.
+  This is the set of changes that ship via `eas update --branch preview` once merged — **no new APK, no
+  reinstall.**
 - **`APP`** — changes to `app/` that touch native config: a new native dependency, a new permission, an
   `app.json` `plugins` entry, anything under `android`/`ios`, or the `runtimeVersion`/`updates` block
   itself. These can only ever ship via a fresh `eas build` + reinstall — OTA is structurally incapable of
-  delivering them, no matter how OTA is configured. Bugs Task 1's R1 (cleartext plugin) and all of Bugs
-  Task 2 are `APP`.
+  delivering them, no matter how OTA is configured. State the target Android version code for an `APP`
+  item directly in that item's own Fix/Verify section (`eas build:version:get --platform android`, plus
+  1) — this used to live in the branch name (`BUGS_APP_b<N>`); now it's just a fact recorded in the task
+  doc/report, since the branch itself no longer encodes it.
 
-**Why this split matters in practice**: a hot-fixer chat that doesn't check which role a fix falls into
-risks telling the founder "this will go out with the next OTA update" for a change that structurally
-never can (a native one), or bundling a trivial JS tweak into an unnecessary native rebuild. Tag every
-`R#` item in a task doc with its role (see Bugs Task 1/2 for the pattern) and pick the branch per that
-role, not per a guess at "frontend vs backend."
+**Why this still matters in practice**: a hot-fixer chat that doesn't check which role an item falls
+into risks telling the founder "this will go out with the next OTA update" for a change that
+structurally never can (a native one), or bundling a trivial JS tweak into an unnecessary native
+rebuild. Tag every `R#` item with its role regardless of the (now unified) branch it commits to.
 
 ## Coordination — how it avoids colliding with other chats
 
@@ -86,57 +142,37 @@ role, not per a guess at "frontend vs backend."
 3. **Before touching any file on the linked computer**, run `git status` and `git log -1` in the repo.
    If the working tree isn't clean, or `HEAD` isn't what `STATUS.md`/the task doc expects, stop and
    report the discrepancy rather than guessing — another chat may be mid-edit.
-4. **Worktree**: use a single shared worktree for this entire track — not a separate worktree per branch
-   suffix/role. The target name is `D:\Study Material\7AI-bugs` (no suffix). **As of 2026-09-25 the
-   rename hasn't happened yet** — the actual worktree on disk is still `D:\Study Material\7AI-bugs-fe`,
-   left over from Task 1's session naming it by analogy to `BUGS_FE`. Rename it to `7AI-bugs` as part of
-   picking up the next task rather than creating a second worktree alongside it, and update
-   `STATUS.md`'s checkout-location note once done. Until the rename happens, treat `7AI-bugs-fe` as the
-   real worktree — don't create `7AI-bugs` as a *third* location while `7AI-bugs-fe` still has the
-   actual in-progress state.
-   **Write this track's docs (task files, `STATUS.md`, this protocol) into whichever of these is
-   currently real** — not only into the main checkout (`D:\Study Material\7AI`). A doc committed only
-   to the main checkout is invisible to a session working from the bugs worktree until that worktree is
-   separately pulled/merged; this exact gap caused Task 1's report to never get written anywhere durable.
-   The Project (read via the docs tool) is the cross-checkout source of truth, but the local worktree's
-   own `docs/execution/bugs/` should match it too.
-5. **Branch**, per the Track Roles above:
-   - `BE` fix → `BUGS_BE`.
-   - `FE` fix (non-native, OTA-eligible) → `BUGS_FE`.
-   - `APP` fix (native, rebuild-required) → **`BUGS_APP_b<N>`**, where `<N>` is the Android version code
-     this branch's work will ship in. This repo's `app/eas.json` sets `appVersionSource: "remote"` —
-     there is no static version code sitting in `app.json` to read, EAS tracks it — so get the real
-     current value with `eas build:version:get --platform android` (run from the app's directory, needs
-     `eas login` to already be set up, which it is on this machine) and use **current + 1** as `<N>`,
-     since this branch's changes will land in the *next* build, not the last one. If a task's changes
-     touch more than one role (e.g. Task 1 originally bundled an `APP` item with two `FE` items), split
-     the commits across the matching branches rather than forcing everything onto one — a task doc can
-     span roles; a branch should not.
-   - Branch fresh from a just-pulled `origin/main` for each new task/role unless a `BUGS_*` branch from
-     an unmerged prior bug task already exists and this task is a direct continuation of *that same
-     task and role* — check before assuming either way, and confirm with the founder if `main` looks
-     like it might not be current/stable to branch from.
-6. **Only ever commit to a branch you created yourself this task** (`TASK_TEMPLATE.md`'s Hard rule 2,
-   binding here too) — never rebase, force-push, or add commits to a `BUGS_*` branch you didn't create.
-   Confirm via `git log`/`git branch -vv` and `STATUS.md`'s `Branch` column before touching an existing
-   branch. If it has commits you don't recognize, treat it as another chat's in-flight work — stop and
-   ask rather than overwriting. The abandoned `BUGS_FE` branch from Task 1's first session (created on
-   the old `7AI-bugs-fe` worktree, never pushed) is dead — branch fresh from `origin/main` rather than
-   trying to resume it.
+4. **Worktree**: use a single shared worktree for this entire track — `D:\Study Material\7AI-bugs`.
+   **Write this track's docs (task files, `STATUS.md`, this protocol) into this worktree** — not only
+   into the main checkout (`D:\Study Material\7AI`). A doc committed only to the main checkout is
+   invisible to a session working from the bugs worktree until that worktree is separately
+   pulled/merged; this exact gap caused Task 1's report to never get written anywhere durable the first
+   time. The Project (read via the docs tool) is the cross-checkout source of truth, but the local
+   worktree's own `docs/execution/bugs/` should match it too.
+5. **Branch**: one `BUGS_TASK<N>` branch for the whole release currently being worked — see **Release &
+   Branch Model** above for the full rule. Branch fresh from a just-pulled `origin/main` for a new
+   release unless that exact release's branch already exists and is unmerged, in which case check it out
+   and continue on it rather than branching again.
+6. **Only ever commit to a branch you created yourself this release** (`TASK_TEMPLATE.md`'s Hard rule 2,
+   binding here too) — never rebase, force-push, or add commits to a `BUGS_TASK<N>` branch you didn't
+   create. Confirm via `git log`/`git branch -vv` and `STATUS.md`'s `Branch` column before touching an
+   existing branch. If it has commits you don't recognize, treat it as another chat's in-flight work —
+   stop and ask rather than overwriting.
 7. **Document the branch name the instant you create it**: write the exact branch name into
    `STATUS.md`'s `Branch` column (`TASK_TEMPLATE.md`'s Hard rule 3) before or immediately after
-   `git checkout -b`, not only once the task finishes — so the next session (this chat resumed, or a
+   `git checkout -b`, not only once the release finishes — so the next session (this chat resumed, or a
    different one) checks there first instead of guessing or creating a duplicate.
 8. **After finishing** (report written, `STATUS.md` row updated to its final status including the real
-   `Branch` value, commit pushed to the `BUGS_*` branch, draft PR opened/updated), re-read `STATUS.md`
-   one more time before ending the session's work on that task, in case another chat's concurrent write
+   `Branch` value, all commits pushed to the `BUGS_TASK<N>` branch, draft PR marked ready), re-read
+   `STATUS.md` one more time before ending the session's work, in case another chat's concurrent write
    needs merging in by hand rather than being silently overwritten.
 
 ## Per-task workflow
-Otherwise identical to `TASK_TEMPLATE.md`'s own 10-step flow: read the task doc in full, implement,
-test, write the report at `docs/execution/bugs/reports/task[N].md`, upsert the `STATUS.md` row, commit
-(code + report + `STATUS.md` together, one atomic commit), push to the `BUGS_*` branch, open/update the
-draft PR, mark ready for review once the fix is verified live — never merge, never push to `main`.
+For each `R#` item in the release: read it in full, implement, test (`npm run build`/`lint`/`typecheck`
+plus that item's own real-verification bar), commit immediately (`BUGS_TASK<N>_R<X>: ...`), push. Once
+every item in the release is done: write the report at `docs/execution/bugs/reports/task[N].md`, upsert
+the `STATUS.md` row, commit that (`BUGS_TASK<N>_REPORT: ...`), push, and mark the PR ready for review —
+never merge, never push to `main`.
 
 ## Definition of done / verification bar
 Matches this repo's existing standard, not a lower one because it's "just a bug fix": every task doc in
@@ -148,12 +184,13 @@ tenant-check.md` and every sprint task doc already hold themselves to.
 ## Guardrails — when to stop and ask the founder
 - The fix, once started, turns out to need a schema change, a new dependency with licensing/cost
   implications, or touches `auth.tsx`/session/token logic beyond what the task doc already specifies.
-- A `BUGS_*` branch already has unrecognized commits (see Coordination §6).
+- A `BUGS_TASK<N>` branch already has unrecognized commits (see Coordination §6).
 - Two task rows in `STATUS.md` look contradictory (e.g. both `In Progress` with different owners on
   what reads like the same underlying issue) — resolve by asking, not by picking one silently.
 - Anything that would require deleting user data, rotating a live credential, or touching the
   production DB directly rather than through the app's own code paths.
-- Anything that would require pushing to `main` directly — see Scope above. Always stop and ask first.
+- Anything that would require pushing to `main` directly, or opening a second PR for the same release —
+  see Scope above. Always stop and ask first.
 
 ## New-bug intake
 The founder (or a planning chat) is the normal source of new task docs here, same as this session wrote
@@ -167,14 +204,15 @@ computer this repo lives on (same "Link to this computer" step used for any sess
 real files), and open with something like:
 
 > You are the hot-fixer for the 7AI project's `docs/execution/bugs/` track. Read
-> `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` in full and follow it exactly — especially Track
-> Roles (BE/FE/APP now replaces the old BE/FE split, with its own branch-naming rule for `APP`) and
-> Coordination, since other chats may be working on this repo at the same time. Read
-> `docs/execution/bugs/STATUS.md`, claim the next task per the protocol, and work it end to end:
-> implement, verify live, report, update `STATUS.md`, commit on the correct `BUGS_*`/`BUGS_APP_b<N>`
-> branch per its role, open/update the draft PR. Stop and ask me before merging anything, before
-> touching sprint-track files, before pushing to `main` under any circumstance, or if you hit any of
-> the Guardrails in the protocol doc.
+> `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` in full and follow it exactly — especially the
+> **Release & Branch Model** (one `BUGS_TASK<N>` branch and one PR for the whole release, one commit per
+> `R#` item — never a branch or PR per item, never a second PR for the same release) and Coordination,
+> since other chats may be working on this repo at the same time. Read `docs/execution/bugs/STATUS.md`,
+> claim the next task per the protocol, and work it end to end: implement each item, verify it live,
+> commit it immediately on the release's one branch, and once every item is done write the report,
+> update `STATUS.md`, and mark the PR ready. Stop and ask me before merging anything, before touching
+> sprint-track files, before pushing to `main` under any circumstance, before opening a second PR for the
+> same release, or if you hit any of the Guardrails in the protocol doc.
 
 ## Links & References
 - [TASK_TEMPLATE.md](../templates/TASK_TEMPLATE.md)
