@@ -11,8 +11,8 @@ the same computer, acts as this track's own "UI/UX agent" — see
 [UI_UX_AGENT_PROTOCOL.md](UI_UX_AGENT_PROTOCOL.md) for its scope, the `FE`/`APP` branch convention
 (no `BE` — this track never touches `studio/`), and a ready-to-paste kickoff message.
 
-**Folder status**: 1 item logged — UI Enhancement 1 (task 1) code complete, awaiting on-device verification.
-**Last updated**: 2026-09-26 (task 1 implemented).
+**Folder status**: 2 items — Enhancement 1 code-complete (device verification pending), Enhancement 2 specced.
+**Last updated**: 2026-09-26 (task 2 filed).
 
 **Checkout location**: this track works from its own dedicated worktree, **`D:\Study Material\7AI-UI`**,
 created fresh from `origin/main` — separate from `D:\Study Material\7AI-frontend` (**"7fe"**, the
@@ -27,6 +27,7 @@ reference this track reads from.
 | Task | Name | Sprint | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|---|
 | 1 | UI Enhancement 1 — Visual Foundation + Core Screen Redesign (direction C "Bold red"; theme, bottom tabs, Queue, Run detail Gate 1/2, New brief + channel picker, Dashboard, Channels + Channel detail + delete, Sign in, keyboard handling) | Sprint 4 | Done — action needed | **Founder** | `UIUX_ENH1_FE` (created from `origin/main` 2026-09-26) | Report: `reports/task1.md`. Code complete; founder must verify on the OnePlus (no screenshots yet). Fingerprint identical to main → OTA-eligible. Full spec: `tasks/task1.md`. Design locked by founder 2026-09-26 on the "7AI Studio — Visual Directions" canvas. FE-only / OTA-eligible unless the fingerprint check in the task's Shipping section says otherwise. 3 controls ship hidden behind `app/lib/feature-flags.ts` until backend items B1 (Gate 2 visibility), B2 (edit channel), B3 (soft-delete channel) land — handed to the architect chat 2026-09-26. E8 supersedes Bugs Task 3/R4's Android keyboard handling, which is a no-op on Android (`behavior: undefined`). |
+| 2 | UI Enhancement 2 — Channel Settings + New Brief Options (full Channel settings: style guide, default voice, captions, watermark, default visibility, gate switches, budget limit; New brief Options: voice, visuals, music, length) | Sprint 4 | Not started — waits for Enhancement 1 (PR #26) to merge | Frontend dev (next pickup) | `UIUX_ENH2_FE` (planned — create from `origin/main` after #26 merges) | Full spec: `tasks/task2.md`. Design: "7AI Studio — Future Screens" canvas (Channel settings, New brief boards) with the deviations listed in the task. New brief voice/visuals/music need no backend. Flag-gated until backend lands: `channelSettings` (B5), `watermarkUpload` (B6), `gateToggles` (B7 — founder decision on gate-off behaviour pending), `briefLength` (B10); handed to the architect chat 2026-09-26. |
 
 ## Naming and branch convention
 **UI enhancements (added 2026-09-26, founder direction)**: one branch per UI enhancement, named
@@ -44,7 +45,7 @@ No `UIUX_BE` — backend changes are out of this track's scope; a finding that t
 handed back to the founder/BA chat instead of a task doc here.
 
 ## Full detail
-Task docs: `docs/execution/ui-ux/tasks/task1.md`.
+Task docs: `docs/execution/ui-ux/tasks/task1.md`, `docs/execution/ui-ux/tasks/task2.md`.
 Protocol: `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`.
 
 ## Communication shorthand used in these docs
