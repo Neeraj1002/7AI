@@ -3,6 +3,9 @@
 // (docs/execution/ui-ux/ENH1_BACKEND_REQUIREMENTS.md) land. While a flag is
 // false, the related UI is hidden entirely, never shown-but-disabled — the
 // app must never offer an action the API can't perform.
+// When flipping channelEdit or channelDelete, also replace the loosely typed
+// PendingBackendClient calls in app/(app)/channel/[id].tsx with the real
+// AppRouter types in the same commit.
 export const flags = {
   gate2Visibility: false, // B1 — runs.gate2 accepting privacyStatus
   channelEdit: false, // B2 — channels.update

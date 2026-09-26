@@ -95,14 +95,13 @@ export default function RunDetailScreen() {
   const videoReviewStage = latestStage(stages, 'video_review');
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
-  const beats = scriptGenStage?.output?.beats;
-  const beatCount = Array.isArray(beats) ? beats.length : undefined;
-  const durationSec = scriptGenStage?.output?.estimatedDurationSec as number | undefined;
+  const wordCount = scriptText.trim() ? scriptText.trim().split(/s+/).length : 0;
+  const approxSec = wordCount > 0 ? Math.round(wordCount / 2.5) : undefined;
   const reviewScore = scriptReviewStage?.output?.score as number | undefined;
   const reviewNotes = scriptReviewStage?.output?.notes as string | undefined;
   const videoVerdict = videoReviewStage?.output?.verdict as string | undefined;
   const videoRationale = videoReviewStage?.output?.rationale as string | undefined;
-  const videoPassed = videoVerdict ? /pass|approve|ok/i.test(videoVerdict) : undefined;
+  const videoPassed = videoVerdict === 'pass' ? true : videoVerdict === 'fail' ? false : undefined;
   const videoAttempts = stages.filter((s) => s.stageName === 'video_generation').length;
   const regensUsed = videoAttempts > 0 ? videoAttempts - 1 : undefined;
 
@@ -191,13 +190,7 @@ export default function RunDetailScreen() {
           </Card>
           <Card>
             <Text style={styles.cardTitle}>Script</Text>
-            {durationSec !== undefined || beatCount !== undefined ? (
-              <Text style={styles.meta}>
-                {[durationSec !== undefined ? `~${Math.round(durationSec)} sec` : null, beatCount !== undefined ? `${beatCount} beats` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-            ) : null}
+            {approxSec !== undefined ? <Text style={styles.meta}>~{approxSec} sec (approx.)</Text> : null}
             <Text style={styles.body}>{scriptText}</Text>
           </Card>
         </>

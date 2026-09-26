@@ -68,14 +68,13 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  // Not blocking: until Archivo resolves, text renders in the system font.
+  useFonts({
     Archivo_400Regular,
     Archivo_600SemiBold,
     Archivo_700Bold,
     Archivo_800ExtraBold,
   });
-
-  if (!fontsLoaded) return null;
 
   return (
     <AuthProvider>
