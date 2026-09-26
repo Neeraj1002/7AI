@@ -14,7 +14,7 @@
 
 ## Deviations / open points
 - **Watermark**: `expo-image-picker` isn't installed and would change the fingerprint, so the row is omitted (part of the next native build).
-- **B5/B7 field names** (`styleGuide`, `defaultVoice`, `captionsEnabled`, `spendLimitUsd`, `gate1Enabled`, `gate2Enabled`) are working names in a `PendingFields` type; align with the merged backend tasks and delete that type in the commit that flips those flags.
+- **B5/B7 field names** (`styleGuide`, `defaultVoice`, `captionsEnabled`, `budgetOverrideUsd`, `gate1Enabled`, `gate2Enabled`) are working names in a `PendingFields` type; align with the merged backend tasks and delete that type in the commit that flips those flags.
 - **Approvals captions** are neutral placeholders — the B7 task's verbatim wording wasn't available. The "disable Gate 2 unless Private" rule was not implemented (B7's restriction unknown).
 - "Default: equal share of the pool" has no pool figure (none returned by `dashboard.cost`).
 - Task 2's run-creation Verify (voice/visual/music in `video_generation` input) and the persistence Verify need the founder's device and a backend with B5.

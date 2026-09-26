@@ -33,7 +33,7 @@ type PendingFields = {
   styleGuide?: string;
   defaultVoice?: string;
   captionsEnabled?: boolean;
-  spendLimitUsd?: number | null;
+  budgetOverrideUsd?: number | null;
   gate1Enabled?: boolean;
   gate2Enabled?: boolean;
 };
@@ -72,7 +72,7 @@ export default function ChannelSettingsScreen() {
   const changes: Draft = { ...draft };
   if (spendText !== null && !spendInvalid) {
     const next = spendText.trim() === '' ? null : Number(spendText);
-    if (next !== (saved.spendLimitUsd ?? null)) changes.spendLimitUsd = next;
+    if (next !== (saved.budgetOverrideUsd ?? null)) changes.budgetOverrideUsd = next;
   }
   // Drop entries equal to what's already saved so only real changes are sent.
   const persisted: Record<string, unknown> = { ...saved, name: channel?.name, nicheDescription: channel?.nicheDescription };
@@ -174,7 +174,7 @@ export default function ChannelSettingsScreen() {
   const visibility: Privacy = draft.defaultPrivacyStatus ?? saved.defaultPrivacyStatus ?? 'private';
   const gate1 = draft.gate1Enabled ?? saved.gate1Enabled ?? true;
   const gate2 = draft.gate2Enabled ?? saved.gate2Enabled ?? true;
-  const limit = spendText !== null ? Number(spendText) : (saved.spendLimitUsd ?? null);
+  const limit = spendText !== null ? Number(spendText) : (saved.budgetOverrideUsd ?? null);
   const limitValid = limit !== null && !Number.isNaN(limit) && limit > 0;
 
   const canEdit = flags.channelEdit || flags.channelSettings || flags.gateToggles;
@@ -342,7 +342,7 @@ export default function ChannelSettingsScreen() {
             <Text style={styles.rowValue}>$</Text>
             <TextInput
               style={styles.moneyInput}
-              value={spendText ?? (saved.spendLimitUsd != null ? String(saved.spendLimitUsd) : '')}
+              value={spendText ?? (saved.budgetOverrideUsd != null ? String(saved.budgetOverrideUsd) : '')}
               onChangeText={setSpendText}
               placeholder="auto"
               placeholderTextColor={color.muted}
