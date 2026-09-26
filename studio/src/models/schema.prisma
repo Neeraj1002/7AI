@@ -66,6 +66,17 @@ model User {
   // degraded one.
   expoPushToken String? @db.VarChar(255)
 
+  // Bugs Task 3 (R5) — re-added: a column of this exact name/type existed
+  // from Sprint 3 Task 1 (J1) through Task 7 (O2), which dropped it when the
+  // old founder-only Telegram relay was retired entirely (not just left
+  // unused, as this task's own doc first assumed — confirmed by direct read
+  // of migration 20260920075853_sprint3_retire_telegram_add_push, which
+  // includes `DROP COLUMN "telegramChatId"`). This task rebuilds Telegram
+  // delivery narrowly for the magic-link flow only, so the column is
+  // reintroduced fresh here rather than "restored," even though the shape
+  // is identical to before.
+  telegramChatId String? @db.VarChar(50)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 

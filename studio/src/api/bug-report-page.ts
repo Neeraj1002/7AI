@@ -71,9 +71,15 @@ export const BUG_REPORT_PAGE_HTML = `<!DOCTYPE html>
         return res.json();
       })
       .then(function () {
-        textarea.value = '';
-        status.textContent = 'Thanks — logged.';
-        status.className = 'ok';
+        // Bugs Task 3 (R2) — redirecting here (rather than just clearing the
+        // textarea/showing a status line) is what makes
+        // WebBrowser.openAuthSessionAsync in ReportBugButton.tsx resolve and
+        // auto-close the in-app browser: openAuthSessionAsync watches for a
+        // navigation to its returnUrl, not for any DOM change on the page it
+        // opened. Only the success path redirects — a failure below still
+        // shows the red error text with the browser left open, so a real
+        // failure stays visible for the tester to read and retry.
+        window.location.href = 'sevenai://bugs-submitted';
       })
       .catch(function () {
         status.textContent = 'Something went wrong — try again.';

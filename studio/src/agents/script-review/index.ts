@@ -4,10 +4,20 @@ import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 // Script Review agent — AGENT_FLEET_DESIGN.md Section 4.5. A lightweight
 // rubric score + notes over Script Generation's output, including the
-// video-generation-fit check (4.5's updated responsibilities) — no
-// auto-revision loop, a low score still reaches Gate 1 for the human to
-// judge. Cheap/fast model tier (registry.ts's 'script-review' purpose) per
-// Section 8.1's classification/scoring row.
+// video-generation-fit check (4.5's updated responsibilities). Cheap/fast
+// model tier (registry.ts's 'script-review' purpose) per Section 8.1's
+// classification/scoring row.
+//
+// Bugs Task 3 (R3) — a score below SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD no
+// longer reaches Gate 1 automatically: state-machine.ts's
+// runScriptReviewStage loops back into script_generation for a fresh
+// attempt instead, up to MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS times (same
+// attemptNumber-based cap convention as video-intelligence's own
+// MAX_VIDEO_REGEN_ATTEMPTS), after which it proceeds to Gate 1 regardless of
+// score so a genuinely hard brief still reaches a human. Founder's own
+// decision, replacing this agent's original "no auto-revision loop" design.
+export const SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD = 7;
+export const MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS = 3;
 
 export const ScriptReviewOutputSchema = z.object({
   score: z.number().min(0).max(10),

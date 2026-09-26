@@ -58,13 +58,24 @@ export async function listRunsByStatus(status: PipelineRunStatus): Promise<Pipel
 // paused_gate1/paused_gate2/needs_attention") — listRunsByStatus above only
 // takes one status, kept as-is since resume-on-startup.ts already depends on
 // its exact signature.
+//
+// Bugs Task 3 (R1) — tenantId is optional here, not required, deliberately:
+// gate-reminder.ts's background cron legitimately scans pending runs across
+// every tenant (it's a system job, not a client session, and each run's own
+// notification recipients are still resolved per-channel/tenant downstream).
+// The actual leak this task closes is the *client-facing* caller —
+// runs.ts's `list` tRPC procedure — which must always pass ctx.tenantId.
+// Any new caller reachable from a signed-in session must do the same; only
+// a trusted internal/system caller may omit it.
 export async function listRuns(params: {
+  tenantId?: string;
   statuses?: PipelineRunStatus[];
   stage?: StageName;
   channelId?: string;
 }): Promise<PipelineRun[]> {
   const rows = await prisma.pipelineRun.findMany({
     where: {
+      ...(params.tenantId && { tenantId: params.tenantId }),
       ...(params.statuses && params.statuses.length > 0 && { status: { in: params.statuses } }),
       ...(params.stage && { currentStage: params.stage }),
       ...(params.channelId && { channelId: params.channelId }),

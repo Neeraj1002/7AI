@@ -11,6 +11,7 @@ function toDomainUser(row: PrismaUser): User {
     name: row.name,
     role: row.role as UserRole,
     expoPushToken: row.expoPushToken,
+    telegramChatId: row.telegramChatId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -58,5 +59,16 @@ export async function listUsersByTenantAndRole(tenantId: string, role: UserRole)
 // (retired by this task) already established.
 export async function updateUserExpoPushToken(userId: string, token: string | null): Promise<User> {
   const row = await prisma.user.update({ where: { id: userId }, data: { expoPushToken: token } });
+  return toDomainUser(row);
+}
+
+// Bugs Task 3 (R5) — requestMagicLink's own self-healing upsert: overwrites
+// on every request that supplies a chat id (never a one-time-only save), so
+// a tester who later starts a fresh chat with the bot doesn't stay pinned to
+// a stale id. Same null-vs-undefined "explicit clear" semantics as
+// updateUserExpoPushToken above, though nothing currently calls this with
+// null — kept symmetric in case a future "forget my chat id" action wants it.
+export async function updateUserTelegramChatId(userId: string, chatId: string | null): Promise<User> {
+  const row = await prisma.user.update({ where: { id: userId }, data: { telegramChatId: chatId } });
   return toDomainUser(row);
 }

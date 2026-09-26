@@ -19,7 +19,12 @@ import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext } from './retry-with-backoff';
 import { isBudgetAvailable } from './budget-gate';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
-import { reviewScript, type ScriptReviewOutput } from '../agents/script-review';
+import {
+  reviewScript,
+  SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD,
+  MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS,
+  type ScriptReviewOutput,
+} from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
@@ -289,10 +294,12 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   }
 }
 
-// Runs (or re-runs, on resume) the script_review stage — Week 2 Task 5.
-// Deliberately lightweight: a rubric score + notes, no auto-revision loop —
-// a low score is a review outcome, not a stage failure, so only a genuine
-// technical failure (LLM error, malformed output) routes to needs_attention.
+// Runs (or re-runs, on resume, or on a Bugs Task 3 auto-retry loop-back) the
+// script_review stage — Week 2 Task 5, score-gated by Bugs Task 3 (R3). A
+// genuine technical failure (LLM error, malformed output) still routes to
+// needs_attention; a low *score* is a review outcome, not a stage failure,
+// but it now loops back into a fresh script_generation attempt instead of
+// reaching Gate 1 — see the runPatch computation below.
 // See docs/execution/week2/BUSINESS_LOGIC.md Section 3.
 export async function runScriptReviewStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
@@ -373,11 +380,28 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
   try {
     const output = await withRetryAndCircuitBreaker(attemptOnce);
 
-    // The stage always completes once a well-formed review comes back — no
-    // score threshold gates this. Stage completion, the ReviewLog entry, and
-    // the run's advance to paused_gate1 all commit as one transaction (B1
-    // fix) — a crash between them used to risk a completed stage with no
-    // ReviewLog row, which gate1 depends on to find the review score/notes.
+    // Bugs Task 3 (R3) — same attemptNumber-based cap idiom
+    // runVideoReviewStage's own regen-cap decision already uses (below):
+    // computed once, up front, so every branch inside the transaction
+    // applies the exact same patch it would have applied outside one. Unlike
+    // the video-review cap (which escalates to needs_attention), exceeding
+    // this cap still reaches a human at Gate 1 — a genuinely hard brief
+    // shouldn't fail silently, per the founder's own instruction for this
+    // fix.
+    const belowThreshold = output.score < SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD;
+    const autoRejectAndRetry = belowThreshold && attemptNumber <= MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS;
+    const autoRetryCapReached = belowThreshold && !autoRejectAndRetry;
+
+    const runPatch: Parameters<typeof updatePipelineRun>[1] = autoRejectAndRetry
+      ? { status: 'running', currentStage: 'script_generation' }
+      : { status: 'paused_gate1', currentStage: nextStageAfter('script_review') };
+
+    // The stage always completes once a well-formed review comes back,
+    // regardless of score — a low score is a review outcome, not a stage
+    // failure. Stage completion, the ReviewLog entry/entries, and the run's
+    // next transition all commit as one transaction (B1 fix) — a crash
+    // between them used to risk a completed stage with no ReviewLog row,
+    // which gate1 depends on to find the review score/notes.
     return await prisma.$transaction(async (tx) => {
       await completeStage(stage.id, output, tx);
 
@@ -396,6 +420,12 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       // the founder at Gate 1 in the same rationale text, not just the raw
       // stage output only a direct DB query would surface.
       const hookNote = ` Hook (first 1-2s) score: ${output.hookScore}/10 — ${output.hookNotes}`;
+      // R3: when the auto-retry cap is reached, this is the ReviewLog whose
+      // rationale runGate1Stage reads as reviewNotes — flag it here so the
+      // founder sees why a low-scoring script still reached Gate 1.
+      const autoRetryCapNote = autoRetryCapReached
+        ? ` [Auto-retry limit reached (${MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS}) — sent to Gate 1 despite low score.]`
+        : '';
       await insertReviewLog(
         {
           tenantId: run.tenantId,
@@ -404,19 +434,31 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}`,
+          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}${autoRetryCapNote}`,
         },
         tx,
       );
 
-      return await updatePipelineRun(
-        runId,
-        {
-          status: 'paused_gate1',
-          currentStage: nextStageAfter('script_review'),
-        },
-        tx,
-      );
+      // R3: a separate, clearly-labeled row recording the auto-reject
+      // decision itself — kept distinct from the score-verdict row above so
+      // "what was the review" and "what did the system do about it" are two
+      // separately readable facts in the run's history, not conflated.
+      if (autoRejectAndRetry) {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'script-review',
+            verdict: 'auto-reject',
+            rationale: output.notes,
+          },
+          tx,
+        );
+      }
+
+      return await updatePipelineRun(runId, runPatch, tx);
     });
   } catch (error) {
     return await failStageAndEscalate(stage.id, runId, error);

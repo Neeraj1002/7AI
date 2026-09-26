@@ -15,10 +15,20 @@ import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 
-async function getRunDetail(id: string) {
+// Bugs Task 3 (R1) — this run's own tenant check, same FORBIDDEN shape as
+// `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
+// below. `list`/`get` were both missed by that hardening pass — this closes
+// the second of the two.
+async function getRunDetail(id: string, ctx: Context) {
   const run = await findPipelineRunById(id);
   if (!run) {
     throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${id} not found` });
+  }
+  if (run.tenantId !== ctx.tenantId) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: `You are not allowed to view run ${id}`,
+    });
   }
   const [channel, stages, reviewLogs] = await Promise.all([
     findChannelById(run.channelId),
@@ -122,6 +132,9 @@ export const runsRouter = router({
     }),
 
   // GET /runs — Queue screen (Task 2): filterable by status/stage.
+  // Bugs Task 3 (R1) — tenant-scoped: ctx.tenantId always threaded through,
+  // same as `create`'s own tenant check. Previously queried every tenant's
+  // runs unconditionally.
   list: publicProcedure
     .input(
       z.object({
@@ -130,14 +143,14 @@ export const runsRouter = router({
         channelId: z.string().uuid().optional(),
       }),
     )
-    .query(async ({ input }) => {
-      return listRuns(input);
+    .query(async ({ input, ctx }) => {
+      return listRuns({ ...input, tenantId: ctx.tenantId });
     }),
 
   // GET /runs/:id — full detail: run + channel + full stage history +
   // review logs (script, video, gate decisions all live here).
-  get: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
-    return getRunDetail(input.id);
+  get: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input, ctx }) => {
+    return getRunDetail(input.id, ctx);
   }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same
