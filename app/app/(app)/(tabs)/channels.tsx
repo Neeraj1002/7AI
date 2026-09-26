@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC, useTRPCClient } from '../../lib/trpc';
-import { useChannels, type Channel } from '../../lib/channel-context';
+import { useTRPC, useTRPCClient } from '../../../lib/trpc';
+import { useChannels, type Channel } from '../../../lib/channel-context';
 
 // Sprint 3 Frontend Task 2 (FE8/FE9) — the Channels screen
 // MOBILE_APP_DESIGN.md Section 4 explicitly deferred out of v1, un-deferred

@@ -2,8 +2,7 @@ import React from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { useTRPC } from '../../lib/trpc';
-import { useAuth } from '../../lib/auth';
+import { useTRPC } from '../../../lib/trpc';
 
 const QUEUE_STATUSES = ['paused_gate1', 'paused_gate2', 'needs_attention'] as const;
 
@@ -20,39 +19,12 @@ const STATUS_LABEL: Record<string, string> = {
 // channel switcher is pointed elsewhere.
 export default function QueueScreen() {
   const trpc = useTRPC();
-  const { signOut } = useAuth();
   const { data, isLoading, isFetching, refetch } = useQuery(
     trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }),
   );
-  // Sprint 3 Task 3 (FE10) — a badge/entry point from the screen the founder
-  // actually opens most, so a pending notification is visible without
-  // navigating away first.
-  const { data: notifications } = useQuery(trpc.notifications.list.queryOptions());
-  const pendingCount = notifications?.filter((n) => !n.resolvedAt).length ?? 0;
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace('/login');
-  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.topRow}>
-        <Pressable onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </Pressable>
-        <Pressable style={styles.dashboardLink} onPress={() => router.push('/notifications')}>
-          <Text style={styles.dashboardLinkText}>
-            Notifications{pendingCount > 0 ? ` (${pendingCount})` : ''}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.dashboardLink} onPress={() => router.push('/channels')}>
-          <Text style={styles.dashboardLinkText}>Channels</Text>
-        </Pressable>
-        <Pressable style={styles.dashboardLink} onPress={() => router.push('/dashboard')}>
-          <Text style={styles.dashboardLinkText}>View Dashboard →</Text>
-        </Pressable>
-      </View>
       <FlatList
         data={data ?? []}
         keyExtractor={(run) => run.id}

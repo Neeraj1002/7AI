@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
-import { useTRPC } from '../../lib/trpc';
-import { useChannels } from '../../lib/channel-context';
+import { useTRPC } from '../../../lib/trpc';
+import { useChannels } from '../../../lib/channel-context';
 
 // Dashboard — BUSINESS_LOGIC.md Section 3 / MOBILE_APP_DESIGN.md Section 4's
 // four groups. Sections are ordered per task3.md's own guidance: quality

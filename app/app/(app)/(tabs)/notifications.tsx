@@ -2,9 +2,9 @@ import React from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
-import { useTRPC } from '../../lib/trpc';
-import { GateActionBar } from '../../components/GateActionBar';
-import type { AppRouter } from '../../../studio/src/api/router';
+import { useTRPC } from '../../../lib/trpc';
+import { GateActionBar } from '../../../components/GateActionBar';
+import type { AppRouter } from '../../../../studio/src/api/router';
 
 // Real, server-inferred shape — same convention Task 2's channel-context.tsx
 // established for `channels.list`.
