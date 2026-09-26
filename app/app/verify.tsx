@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet, Pressable } from 'react-nati
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuth } from '../lib/auth';
 import { verifyMagicLinkToken } from '../lib/auth-api';
+import { color, font, radius, space, type } from '../lib/theme';
 
 // Sprint 3 Task 1 (FE7) — the deep-link half of magic-link sign-in.
 // `app.json`'s existing `scheme: "sevenai"` means Expo Router maps
@@ -62,17 +63,17 @@ export default function VerifyScreen() {
 
   return (
     <View style={styles.center}>
-      <ActivityIndicator size="large" />
+      <ActivityIndicator size="large" color={color.accent} />
       <Text style={styles.status}>Signing you in…</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
-  status: { fontSize: 14, color: '#666' },
-  errorTitle: { fontSize: 18, fontWeight: '700' },
-  error: { color: '#c00', fontSize: 14, textAlign: 'center' },
-  button: { marginTop: 12, backgroundColor: '#111', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24 },
-  buttonText: { color: '#fff', fontWeight: '600' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xxl, gap: space.md, backgroundColor: color.bg },
+  status: { ...type.body, color: color.muted },
+  errorTitle: { ...type.stackTitle, color: color.ink },
+  error: { ...type.body, color: color.danger, textAlign: 'center' },
+  button: { marginTop: space.md, backgroundColor: color.accent, borderRadius: radius.lg, height: 54, paddingHorizontal: space.xxl, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontFamily: font.black, fontSize: 16, color: color.onAccent },
 });

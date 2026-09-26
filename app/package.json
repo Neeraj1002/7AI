@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/archivo": "^0.4.2",
     "@expo/metro-runtime": "~57.0.15",
+    "@expo/vector-icons": "^15.0.2",
     "@tanstack/react-query": "^5.102.8",
     "@trpc/client": "^11.18.0",
     "@trpc/server": "^11.18.0",

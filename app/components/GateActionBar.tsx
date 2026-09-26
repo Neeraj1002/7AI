@@ -1,24 +1,42 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { BottomSheet } from './BottomSheet';
+import { ConfirmSheet } from './ConfirmSheet';
+import { DangerTextButton, PrimaryButton, SecondaryButton } from './Buttons';
+import { flags } from '../lib/feature-flags';
+import { color, font, radius, space, type } from '../lib/theme';
 
-type Mode = 'idle' | 'reject' | 'edit';
+export type Privacy = 'private' | 'unlisted' | 'public';
+type Mode = 'reject' | 'edit' | null;
 
-// The unified three-action pattern task2.md asks both gate sections to share:
-// Approve / Reject (with a reason) / Edit-or-Revise (opens a text field).
-// `editFieldLabel` and the outcome of `onEditOrRevise` are the only things
-// that differ between Gate 1 (free text becomes the new sanctioned script —
-// agents/gate1's parseGateReply treats any non-approve/non-reject reply this
-// way, there's no separate "notes" payload shape server-side) and Gate 2
-// (free text is always revision notes, since a video can't be hand-edited).
+const PRIVACY_OPTIONS: { value: Privacy; label: string }[] = [
+  { value: 'private', label: 'Private' },
+  { value: 'unlisted', label: 'Unlisted' },
+  { value: 'public', label: 'Public' },
+];
+const PRIVACY_HINT: Record<Privacy, string> = {
+  private: 'Only you can see it on YouTube.',
+  unlisted: 'Anyone with the link can watch it.',
+  public: 'Goes live for everyone as soon as it uploads.',
+};
+
+// Approve / Reject / Edit-or-Revise for either gate. Reject and Edit/Revise
+// open a bottom sheet for text entry (rises above the keyboard). Used by Run
+// detail (inside a BottomActionBar) and by the Inbox.
 export function GateActionBar(props: {
-  editFieldLabel: string;
+  gate: 1 | 2;
   isSubmitting: boolean;
-  onApprove: () => void;
+  initialEditText?: string;
+  defaultPrivacy?: Privacy;
+  onApprove: (privacy?: Privacy) => void;
   onReject: (reason: string) => void;
   onEditOrRevise: (text: string) => void;
 }) {
-  const [mode, setMode] = useState<Mode>('idle');
-  const [text, setText] = useState('');
+  const [mode, setMode] = useState<Mode>(null);
+  const [privacy, setPrivacy] = useState<Privacy>(props.defaultPrivacy ?? 'private');
+  const [confirmPublic, setConfirmPublic] = useState(false);
+  const showVisibility = props.gate === 2 && flags.gate2Visibility;
+  const effective: Privacy = showVisibility ? privacy : 'private';
 
   if (props.isSubmitting) {
     return (
@@ -29,81 +47,159 @@ export function GateActionBar(props: {
     );
   }
 
-  if (mode === 'idle') {
-    return (
-      <View style={styles.row}>
-        <Pressable style={[styles.button, styles.approve]} onPress={props.onApprove}>
-          <Text style={styles.buttonTextLight}>Approve</Text>
-        </Pressable>
-        <Pressable style={[styles.button, styles.reject]} onPress={() => setMode('reject')}>
-          <Text style={styles.buttonTextLight}>Reject</Text>
-        </Pressable>
-        <Pressable style={[styles.button, styles.edit]} onPress={() => setMode('edit')}>
-          <Text style={styles.buttonTextDark}>Edit / Revise</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const approveLabel =
+    props.gate === 1
+      ? 'Approve script'
+      : effective === 'public'
+        ? 'Approve & publish publicly'
+        : `Approve & upload as ${effective}`;
+
+  const handleApprove = () => {
+    if (props.gate === 2 && effective === 'public') setConfirmPublic(true);
+    else props.onApprove(showVisibility ? effective : undefined);
+  };
 
   return (
-    <View style={styles.sheet}>
-      <Text style={styles.sheetLabel}>{mode === 'reject' ? 'Reason for rejection' : props.editFieldLabel}</Text>
+    <View style={styles.wrap}>
+      {showVisibility ? (
+        <View style={styles.visibility}>
+          <Text style={styles.visibilityLabel}>YouTube visibility</Text>
+          <View style={styles.segment}>
+            {PRIVACY_OPTIONS.map((o) => (
+              <Pressable
+                key={o.value}
+                onPress={() => setPrivacy(o.value)}
+                style={[styles.segmentItem, privacy === o.value && styles.segmentItemActive]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: privacy === o.value }}
+              >
+                <Text style={[styles.segmentText, privacy === o.value && styles.segmentTextActive]}>{o.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[styles.hint, privacy === 'public' && styles.hintWarn]}>{PRIVACY_HINT[privacy]}</Text>
+        </View>
+      ) : null}
+
+      {props.gate === 1 ? (
+        <View style={styles.row}>
+          <DangerTextButton label="Reject" icon="x" onPress={() => setMode('reject')} />
+          <SecondaryButton label="Edit" icon="edit-2" onPress={() => setMode('edit')} />
+          <PrimaryButton label={approveLabel} icon="check" onPress={handleApprove} style={styles.flex} />
+        </View>
+      ) : (
+        <>
+          <View style={styles.row}>
+            <SecondaryButton label="Reject" icon="x" onPress={() => setMode('reject')} style={styles.flex} />
+            <SecondaryButton label="Revise" icon="rotate-cw" onPress={() => setMode('edit')} style={styles.flex} />
+          </View>
+          <PrimaryButton label={approveLabel} icon="arrow-up" onPress={handleApprove} />
+        </>
+      )}
+
+      <TextEntrySheet
+        visible={mode !== null}
+        title={
+          mode === 'reject' ? 'Reason for rejection' : props.gate === 1 ? 'Edited script text' : 'Revision notes'
+        }
+        initialText={mode === 'edit' && props.gate === 1 ? (props.initialEditText ?? '') : ''}
+        placeholder={mode === 'reject' ? 'Why is this being rejected?' : 'Enter text…'}
+        submitLabel={mode === 'reject' ? 'Reject' : props.gate === 1 ? 'Save edit' : 'Send revision'}
+        onClose={() => setMode(null)}
+        onSubmit={(text) => {
+          const m = mode;
+          setMode(null);
+          if (m === 'reject') props.onReject(text);
+          else props.onEditOrRevise(text);
+        }}
+      />
+
+      <ConfirmSheet
+        visible={confirmPublic}
+        onClose={() => setConfirmPublic(false)}
+        icon="arrow-up"
+        title="Publish publicly?"
+        body="It goes live on the channel for everyone as soon as it uploads."
+        confirmLabel="Publish"
+        onConfirm={() => {
+          setConfirmPublic(false);
+          props.onApprove('public');
+        }}
+      />
+    </View>
+  );
+}
+
+function TextEntrySheet(props: {
+  visible: boolean;
+  title: string;
+  initialText: string;
+  placeholder: string;
+  submitLabel: string;
+  onClose: () => void;
+  onSubmit: (text: string) => void;
+}) {
+  return (
+    <BottomSheet visible={props.visible} onClose={props.onClose}>
+      {/* remounted per open so the initial text is re-applied */}
+      {props.visible ? <TextEntryBody {...props} /> : null}
+    </BottomSheet>
+  );
+}
+
+function TextEntryBody({ title, initialText, placeholder, submitLabel, onClose, onSubmit }: Parameters<typeof TextEntrySheet>[0]) {
+  const [text, setText] = useState(initialText);
+  return (
+    <>
+      <Text style={styles.sheetTitle}>{title}</Text>
       <TextInput
         style={styles.sheetInput}
         value={text}
         onChangeText={setText}
         multiline
+        scrollEnabled
         autoFocus
-        placeholder={mode === 'reject' ? 'Why is this being rejected?' : 'Enter text…'}
+        placeholder={placeholder}
+        placeholderTextColor={color.muted}
       />
       <View style={styles.row}>
-        <Pressable
-          style={[styles.button, styles.cancel]}
-          onPress={() => {
-            setMode('idle');
-            setText('');
-          }}
-        >
-          <Text style={styles.buttonTextDark}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.button, styles.confirm]}
-          onPress={() => {
-            if (!text.trim()) return;
-            if (mode === 'reject') props.onReject(text.trim());
-            else props.onEditOrRevise(text.trim());
-            setText('');
-            setMode('idle');
-          }}
-        >
-          <Text style={styles.buttonTextLight}>Submit</Text>
-        </Pressable>
+        <SecondaryButton label="Cancel" onPress={onClose} style={styles.flex} />
+        <PrimaryButton
+          label={submitLabel}
+          disabled={!text.trim()}
+          onPress={() => onSubmit(text.trim())}
+          style={styles.flex}
+        />
       </View>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 8 },
-  button: { flex: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-  approve: { backgroundColor: '#1a7f37' },
-  reject: { backgroundColor: '#c0392b' },
-  edit: { backgroundColor: '#eee' },
-  cancel: { backgroundColor: '#eee' },
-  confirm: { backgroundColor: '#111' },
-  buttonTextLight: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  buttonTextDark: { color: '#111', fontWeight: '700', fontSize: 14 },
-  sheet: { gap: 10 },
-  sheetLabel: { fontSize: 13, fontWeight: '600' },
+  wrap: { gap: space.sm },
+  row: { flexDirection: 'row', gap: space.sm, alignItems: 'center' },
+  flex: { flex: 1 },
+  submitting: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'center', padding: space.md },
+  submittingText: { ...type.meta },
+  visibility: { gap: 6 },
+  visibilityLabel: { fontFamily: font.bold, fontSize: 12, color: color.muted, textTransform: 'uppercase' },
+  segment: { flexDirection: 'row', backgroundColor: color.surface2, borderRadius: radius.md, padding: 3 },
+  segmentItem: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  segmentItemActive: { backgroundColor: color.bg },
+  segmentText: { fontFamily: font.semibold, fontSize: 14, color: color.muted },
+  segmentTextActive: { color: color.ink },
+  hint: { ...type.meta, fontSize: 12 },
+  hintWarn: { color: color.warnText },
+  sheetTitle: { ...type.stackTitle, color: color.ink },
   sheetInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
-    minHeight: 80,
+    borderWidth: 2,
+    borderColor: color.inputBorder,
+    borderRadius: radius.lg,
+    padding: space.md,
+    minHeight: 120,
+    maxHeight: 220,
     textAlignVertical: 'top',
-    fontSize: 14,
+    ...type.body,
+    color: color.ink,
   },
-  submitting: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', padding: 12 },
-  submittingText: { color: '#666' },
 });

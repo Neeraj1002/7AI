@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import { useFonts, Archivo_400Regular, Archivo_600SemiBold, Archivo_700Bold, Archivo_800ExtraBold } from '@expo-google-fonts/archivo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { TRPCProvider, createTrpcClient } from '../lib/trpc';
@@ -56,8 +57,8 @@ function RootNavigator() {
   usePushNotificationTapHandler();
   return (
     <>
-      <StatusBar style="auto" />
-      <Stack>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ title: 'Sign in' }} />
         <Stack.Screen name="verify" options={{ title: 'Signing in…' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
@@ -67,6 +68,14 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  // Not blocking: until Archivo resolves, text renders in the system font.
+  useFonts({
+    Archivo_400Regular,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    Archivo_800ExtraBold,
+  });
+
   return (
     <AuthProvider>
       <Providers>
