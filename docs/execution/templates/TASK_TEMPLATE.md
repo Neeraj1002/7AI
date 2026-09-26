@@ -224,11 +224,11 @@ Per-task reports: `reports/task[1-N].md`. Full narrative (once written): `report
 
 **Status** values: `Done`, `Done — action needed` (the code/task is finished but something can't close out without the founder — a credential, an external console step, a decision), `In Progress`, `Blocked`.
 **Owner** values: `Claude Code` (nothing further needed from the founder) or `Founder` (the ball is in the founder's court — used whenever Status is `Done — action needed` or `Blocked` on something only the founder can do).
-**Branch** *(added 2026-09-25)*: the exact branch name this task's commits actually live on (e.g. `SPRINT4_BE`, `FRONTEND_FE`, `BUGS_APP_b3`). Fill this in the moment the branch is created — before the task's own commit even lands — so a later session (this chat resumed, or a different one entirely) reads this table first and finds a branch already in flight instead of creating a duplicate or guessing at a name. Leave it blank only in the instant between "task claimed" and "branch created," never longer.
+**Branch** *(added 2026-09-25)*: the exact branch name this task's commits actually live on (e.g. `SPRINT4_BE`, `FRONTEND_FE`, `BUGS_TASK3`). Fill this in the moment the branch is created — before the task's own commit even lands — so a later session (this chat resumed, or a different one entirely) reads this table first and finds a branch already in flight instead of creating a duplicate or guessing at a name. Leave it blank only in the instant between "task claimed" and "branch created," never longer.
 
 Update the row for *this* task only — never rewrite other tasks' rows, and never let this file's status contradict what the task's own report says. If a later task changes an earlier task's status (e.g. the founder's Telegram token finally gets added and Task 6 becomes fully `Done`), that's the task that's actually doing the work updating the row, not a retroactive edit from whichever task happens to run next.
 
-The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`BUGS_BE`/`BUGS_FE`/`BUGS_APP_b<N>`). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
+The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (one `BUGS_TASK<N>` branch per release, covering every item regardless of role — changed 2026-09-26 from an earlier per-role split that was producing conflicting sibling PRs). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
 
 ### Git Workflow *(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations)*
 
@@ -261,10 +261,11 @@ only into the main checkout wasn't visible to a session working from a different
 - **Bugs track** (`BUGS_*`): its own dedicated worktree, separate from both of the above — the current
   path and naming convention are authoritative in `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`
   (not repeated here, since that path has already changed once as the track matured).
-- **UI/UX track** (`UIUX_*`): frontend-only, no backend role — works, commits, and writes this track's
-  task docs from `D:\Study Material\7AI-frontend`, the same checkout the frontend track uses (no
-  separate worktree needed, since this track never touches `studio/`). Full scope, role model, and
-  kickoff message live in `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`.
+- **UI/UX track** (`UIUX_*`): frontend-only, no backend role — its own dedicated worktree,
+  `D:\Study Material\7AI-UI`, separate from `D:\Study Material\7AI-frontend` so it never collides with
+  the frontend track's own concurrent work in that checkout (same reasoning as the bugs track's own
+  dedicated worktree). Full scope, role model, and kickoff message live in
+  `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`.
 
 A task's doc, its `STATUS.md` row, and its report should be committed from the **same checkout** the
 code changes themselves are committed from — not just the main checkout — so anyone actually working
@@ -355,7 +356,8 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 │   └── reports/
 │       └── ...
 ├── bugs/  (founder-found production issues — not sprint-numbered, own STATUS.md/tasks/reports —
-│           see HOTFIXER_AGENT_PROTOCOL.md for its own BE/FE/APP role & branch convention)
+│           see HOTFIXER_AGENT_PROTOCOL.md: one BUGS_TASK<N> branch per release, BE/FE/APP role tags
+│           per item for shipping purposes only)
 │   ├── STATUS.md
 │   ├── HOTFIXER_AGENT_PROTOCOL.md
 │   ├── tasks/
@@ -413,6 +415,6 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
 4. **Consistent** — same shape across all weeks/sprints and across both tracks.
 5. **Progressive** — tasks build on prior weeks'/sprints' (or, for frontend, prior tasks') work.
 6. **Schema and business logic documented once, referenced everywhere** — a task file states only its delta; `SCHEMA.md`/`BUSINESS_LOGIC.md` are the single source of truth for a given week/sprint or track. This avoids the duplication `yt_shorts` had between `WEEK1_PLAN.md` (which inlined the full Prisma schema) and `DATA_MODEL.md` (which also had it) — two places that could silently drift apart.
-7. **Track identity is never ambiguous** — every branch, commit, and PR carries `_BE` or `_FE` (or, for the bugs track, its own `BE`/`FE`/`APP` role — see `HOTFIXER_AGENT_PROTOCOL.md`; or, for the UI/UX track, its own `FE`/`APP` role, no `BE` — see `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`), so two people (or two Claude Code chats) working different tracks in parallel never collide on naming or accidentally review the wrong diff against the wrong track's `STATUS.md`.
+7. **Track identity is never ambiguous** — every branch, commit, and PR carries `_BE` or `_FE` (or, for the bugs track, one `BUGS_TASK<N>` branch per release with a `BE`/`FE`/`APP` role tag per item for shipping purposes only — see `HOTFIXER_AGENT_PROTOCOL.md`; or, for the UI/UX track, its own `FE`/`APP` role, no `BE` — see `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`), so two people (or two Claude Code chats) working different tracks in parallel never collide on naming or accidentally review the wrong diff against the wrong track's `STATUS.md`.
 8. **Historical units are never renamed** — Sprint 1's work stays `week[N]` exactly as merged; only planning language and everything from Sprint 2 forward uses `sprint[N]`.
 9. **Branch discipline is explicit, not assumed** *(added 2026-09-25)* — never push or merge to `main` directly; only ever commit to a branch you created yourself; always record the branch name in `STATUS.md` the moment it's created. These are hard rules, not defaults to override when a task feels urgent.
