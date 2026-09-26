@@ -27,6 +27,7 @@ reference this track reads from.
 | Task | Name | Sprint | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|---|
 | 1 | UI Enhancement 1 — Visual Foundation + Core Screen Redesign (direction C "Bold red"; theme, bottom tabs, Queue, Run detail Gate 1/2, New brief + channel picker, Dashboard, Channels + Channel detail + delete, Sign in, keyboard handling) | Sprint 4 | Done — action needed | **Founder** | `UIUX_ENH1_FE` (created from `origin/main` 2026-09-26) | Report: `reports/task1.md`. Code complete; founder must verify on the OnePlus (no screenshots yet). Fingerprint identical to main → OTA-eligible. Full spec: `tasks/task1.md`. Design locked by founder 2026-09-26 on the "7AI Studio — Visual Directions" canvas. FE-only / OTA-eligible unless the fingerprint check in the task's Shipping section says otherwise. 3 controls ship hidden behind `app/lib/feature-flags.ts` until backend items B1 (Gate 2 visibility), B2 (edit channel), B3 (soft-delete channel) land — handed to the architect chat 2026-09-26. E8 supersedes Bugs Task 3/R4's Android keyboard handling, which is a no-op on Android (`behavior: undefined`). |
+| 2 | UI Enhancement 2 — Channel Settings + New Brief Options | Sprint 4 | In Progress | Claude Code | `UIUX_ENH2_FE` (created from `origin/main` 2026-09-27) | Spec: `tasks/task2.md`. FE-only; flag-gated on backend B5–B7, B10. |
 
 ## Naming and branch convention
 **UI enhancements (added 2026-09-26, founder direction)**: one branch per UI enhancement, named
