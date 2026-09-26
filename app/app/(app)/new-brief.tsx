@@ -10,6 +10,10 @@ import { FormScreen } from '../../components/FormScreen';
 import { ChannelAvatar } from '../../components/ChannelAvatar';
 import { ChannelPickerSheet } from '../../components/ChannelPickerSheet';
 import { PrimaryButton } from '../../components/Buttons';
+import { OptionSheet } from '../../components/OptionSheet';
+import { SegmentedControl } from '../../components/SegmentedControl';
+import { flags } from '../../lib/feature-flags';
+import { LENGTHS, MUSIC_MOODS, VISUAL_SOURCES, VOICES } from '../../lib/pipeline-options';
 
 export default function NewBriefScreen() {
   const trpc = useTRPC();
@@ -27,8 +31,18 @@ export default function NewBriefScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [length, setLength] = useState<(typeof LENGTHS)[number] | 'auto'>('auto');
+  const [visual, setVisual] = useState<(typeof VISUAL_SOURCES)[number]['value'] | 'auto'>('auto');
+  const [voice, setVoice] = useState<(typeof VOICES)[number]['value'] | null>(null);
+  const [music, setMusic] = useState<(typeof MUSIC_MOODS)[number]['value'] | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [musicOpen, setMusicOpen] = useState(false);
 
   const selected = channelById(selectedChannelId);
+  const channelVoice = (selected as { defaultVoice?: string | null } | undefined)?.defaultVoice;
+  const channelVoiceLabel = VOICES.find((v) => v.value === channelVoice)?.label ?? 'Alloy';
+  const voiceLabel = voice ? VOICES.find((v) => v.value === voice)!.label : `Channel default (${channelVoiceLabel})`;
+  const musicLabel = music ? MUSIC_MOODS.find((m) => m.value === music)!.label : 'Auto (let the pipeline pick)';
 
   const createRun = useMutation(
     trpc.runs.create.mutationOptions({
@@ -50,7 +64,15 @@ export default function NewBriefScreen() {
       setError('Brief text is required.');
       return;
     }
-    createRun.mutate({ channelId: selectedChannelId, briefText: briefText.trim() });
+    // Only non-default picks are sent, so channel defaults and the planner keep working.
+    createRun.mutate({
+      channelId: selectedChannelId,
+      briefText: briefText.trim(),
+      ...(voice ? { voice } : {}),
+      ...(visual !== 'auto' ? { visualSource: visual } : {}),
+      ...(music ? { audioLayer: music } : {}),
+      ...(flags.briefLength && length !== 'auto' ? ({ targetDurationSec: length } as object) : {}),
+    });
   };
 
   return (
@@ -92,16 +114,76 @@ export default function NewBriefScreen() {
       />
       <Text style={styles.tip}>Tip: the more specific the angle, the better the script.</Text>
 
+      <View style={styles.optionsHeader}>
+        <Text style={styles.optionsTitle}>Options</Text>
+        <Text style={styles.tip}>Channel defaults unless changed</Text>
+      </View>
+      {flags.briefLength ? (
+        <>
+          <Text style={styles.label}>Length</Text>
+          <SegmentedControl
+            options={[...LENGTHS.map((l) => ({ value: l, label: `${l}s` })), { value: 'auto' as const, label: 'Auto' }]}
+            value={length}
+            onChange={setLength}
+          />
+        </>
+      ) : null}
+      <Text style={styles.label}>Visuals</Text>
+      <SegmentedControl
+        options={[{ value: 'auto' as const, label: 'Auto' }, ...VISUAL_SOURCES]}
+        value={visual}
+        onChange={setVisual}
+      />
+      <Pressable style={styles.optionRow} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
+        <Feather name="mic" size={20} color={color.muted} />
+        <View style={styles.channelText}>
+          <Text style={styles.channelMeta}>Voice</Text>
+          <Text style={styles.channelName} numberOfLines={1}>{voiceLabel}</Text>
+        </View>
+        <Feather name="chevron-right" size={20} color={color.muted} />
+      </Pressable>
+      <Pressable style={styles.optionRow} onPress={() => setMusicOpen(true)} accessibilityRole="button">
+        <Feather name="music" size={20} color={color.muted} />
+        <View style={styles.channelText}>
+          <Text style={styles.channelMeta}>Background music</Text>
+          <Text style={styles.channelName} numberOfLines={1}>{musicLabel}</Text>
+        </View>
+        <Feather name="chevron-right" size={20} color={color.muted} />
+      </Pressable>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <PrimaryButton label="Create run" onPress={handleSubmit} loading={createRun.isPending} />
 
+      <OptionSheet
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        title="Voice"
+        options={[{ value: null, label: `Channel default (${channelVoiceLabel})` }, ...VOICES]}
+        selected={voice}
+        onSelect={setVoice}
+      />
+      <OptionSheet
+        visible={musicOpen}
+        onClose={() => setMusicOpen(false)}
+        title="Background music"
+        options={[{ value: null, label: 'Auto (let the pipeline pick)' }, ...MUSIC_MOODS]}
+        selected={music}
+        onSelect={setMusic}
+      />
       <ChannelPickerSheet
         visible={pickerOpen}
         onClose={() => setPickerOpen(false)}
         mode="select"
         selectedId={selectedChannelId}
-        onSelect={(id) => id && setSelectedChannelId(id)}
+        onSelect={(id) => {
+          if (!id) return;
+          setSelectedChannelId(id);
+          setVoice(null);
+          setVisual('auto');
+          setMusic(null);
+          setLength('auto');
+        }}
       />
     </FormScreen>
   );
@@ -138,5 +220,16 @@ const styles = StyleSheet.create({
   },
   inputFocused: { borderColor: color.accent },
   tip: { ...type.meta, fontSize: 12 },
+  optionsHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: space.md },
+  optionsTitle: { fontFamily: font.black, fontSize: 15, color: color.ink },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderWidth: 1.5,
+    borderColor: color.future,
+    borderRadius: radius.lg,
+  },
   error: { ...type.body, color: color.danger },
 });
