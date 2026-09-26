@@ -65,7 +65,7 @@ function RootNavigator() {
   return (
     <>
       <StatusBar style="dark" />
-      <Stack>
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ title: 'Sign in' }} />
         <Stack.Screen name="verify" options={{ title: 'Signing in…' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />

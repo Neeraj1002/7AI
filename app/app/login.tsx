@@ -1,57 +1,43 @@
 import React, { useEffect, useState } from 'react';
-import { Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { requestMagicLink, verifyMagicLinkToken, extractToken } from '../lib/auth-api';
 import { getSecureItem, setSecureItem } from '../lib/storage';
+import { EMAIL_KEY } from '../lib/session-keys';
+import { color, font, radius, space, type } from '../lib/theme';
+import { FormScreenPlain } from '../components/FormScreen';
+import { PrimaryButton } from '../components/Buttons';
 
-// Bugs Task 3 (R5) — a per-device convenience only (never used for account
-// lookup, same reasoning apiUrl's own remembered value already follows):
-// pre-fills this device's last-used Telegram Chat ID so the one-time
-// /start handshake doesn't need repeating on every sign-in. Same
-// 'sevenai.*' key convention lib/auth.tsx's own storage keys use.
+// Per-device convenience only (never used for account lookup): pre-fills this
+// device's last-used Telegram Chat ID (Bugs Task 3/R5).
 const TELEGRAM_CHAT_ID_KEY = 'sevenai.telegramChatId';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BOT_NAME = process.env.EXPO_PUBLIC_TELEGRAM_BOT_NAME || 'the 7AI Telegram bot';
 
-// Sprint 3 Task 1 (FE6/FE7): real magic-link sign-in, replacing the old
-// "paste the shared API_AUTH_TOKEN" screen. No real transactional-email
-// provider exists yet (Sprint 3 backend Task 1's own stated scope) — the
-// real link is logged to the server console and, if the account has a
-// linked Telegram, relayed there too. The manual-paste fallback below is a
-// direct accommodation of that gap, not a permanent design — remove once
-// real email delivery exists.
+// Waits for AuthProvider's SecureStore read so LoginForm's local apiUrl state
+// can initialize lazily from the real stored value.
 export default function LoginScreen() {
   const { isLoading: authLoading } = useAuth();
-  // Waits for AuthProvider's own SecureStore read before mounting the form —
-  // lets LoginForm's local `apiUrl` state initialize lazily from the real
-  // stored value on its very first render, rather than syncing it in from an
-  // effect after the fact (which React's own lint rules flag as the wrong
-  // pattern for "derive initial state from an external source").
   if (authLoading) return null;
   return <LoginForm />;
 }
 
 function LoginForm() {
   const { apiUrl: storedApiUrl, setApiUrl, completeSignIn } = useAuth();
-  // Bugs Task 1/R2 — was defaulting to 'http://localhost:4000', which can
-  // never work on a physical device (localhost resolves to the phone
-  // itself, never the dev machine). Empty forces a deliberate LAN-IP entry
-  // instead of a plausible-looking wrong value. See the persistent hint
-  // below the field, added for the same reason.
   const [apiUrl, setApiUrlField] = useState(storedApiUrl ?? '');
+  const [editingServer, setEditingServer] = useState(!storedApiUrl);
+  const [tab, setTab] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
   const [telegramChatId, setTelegramChatIdField] = useState('');
   const [pasted, setPasted] = useState('');
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Bugs Task 3 (R5) — loaded via an effect, not lazy useState init like
-  // apiUrl above: unlike apiUrl (already resolved by AuthProvider before
-  // this component ever mounts), nothing else on this screen needs this
-  // value to be ready before first paint, so a brief empty flash while
-  // SecureStore resolves is an acceptable tradeoff for not coupling this
-  // per-device convenience into the global auth context.
   useEffect(() => {
     getSecureItem(TELEGRAM_CHAT_ID_KEY).then((stored) => {
       if (stored) setTelegramChatIdField(stored);
@@ -59,35 +45,37 @@ function LoginForm() {
   }, []);
 
   const handleRequestLink = async () => {
-    setError(null);
+    setRequestError(null);
     setRequestMessage(null);
-    if (!apiUrl.trim() || !email.trim()) {
-      setError('API URL and email are both required.');
+    if (!apiUrl.trim()) {
+      setEditingServer(true);
+      setRequestError('Server URL is required.');
+      return;
+    }
+    if (!EMAIL_PATTERN.test(email.trim())) {
+      setRequestError('Enter a valid email address.');
       return;
     }
     setIsRequesting(true);
     try {
       await setApiUrl(apiUrl.trim());
       const trimmedChatId = telegramChatId.trim();
-      if (trimmedChatId) {
-        await setSecureItem(TELEGRAM_CHAT_ID_KEY, trimmedChatId);
-      }
+      if (trimmedChatId) await setSecureItem(TELEGRAM_CHAT_ID_KEY, trimmedChatId);
       const { message } = await requestMagicLink(apiUrl.trim(), email.trim(), trimmedChatId || undefined);
-      // Same neutral message regardless of whether the email was recognized
-      // — Sprint 3 backend Task 1's own no-enumeration design; this screen
-      // must not show a different message for either case.
+      // Same neutral message whether or not the email is recognized (no-enumeration).
       setRequestMessage(message || 'If that email has an account, a login link was sent.');
+      setTab(2);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to request a link.');
+      setRequestError(err instanceof Error ? err.message : 'Failed to request a link.');
     } finally {
       setIsRequesting(false);
     }
   };
 
   const handleVerify = async () => {
-    setError(null);
+    setVerifyError(null);
     if (!apiUrl.trim() || !pasted.trim()) {
-      setError('API URL and a pasted link/token are both required.');
+      setVerifyError('Server URL and a pasted link/token are both required.');
       return;
     }
     setIsVerifying(true);
@@ -96,117 +84,156 @@ function LoginForm() {
       const token = extractToken(pasted);
       const result = await verifyMagicLinkToken(apiUrl.trim(), token);
       await completeSignIn(result, apiUrl.trim());
+      if (EMAIL_PATTERN.test(email.trim())) await setSecureItem(EMAIL_KEY, email.trim());
       router.replace('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      setVerifyError(err instanceof Error ? err.message : 'Sign-in failed.');
     } finally {
       setIsVerifying(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>7AI Studio</Text>
-        <Text style={styles.subtitle}>Sign in with a magic link sent to your email.</Text>
+    <FormScreenPlain contentContainerStyle={styles.container}>
+      <View style={styles.brand}>
+        <Text style={styles.brandMark}>7</Text>
+      </View>
+      <Text style={styles.title}>7AI Studio</Text>
+      <Text style={styles.subtitle}>Sign in to review and ship your Shorts.</Text>
 
-        <Text style={styles.label}>API base URL</Text>
-        <TextInput
-          style={styles.input}
-          value={apiUrl}
-          onChangeText={setApiUrlField}
-          placeholder="http://192.168.1.10:4000"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Text style={styles.hint}>
-          Use your computer&apos;s LAN IP (e.g. 192.168.1.23:4000) — this device can&apos;t reach your
-          computer&apos;s own localhost.
-        </Text>
+      <View style={styles.serverBox}>
+        <View style={styles.serverRow}>
+          <Feather name="server" size={18} color={color.muted} />
+          <Text style={styles.serverLabel}>Server</Text>
+          <Text style={styles.serverValue} numberOfLines={1}>
+            {apiUrl || 'Not set'}
+          </Text>
+          <Pressable onPress={() => setEditingServer((v) => !v)} accessibilityRole="button">
+            <Text style={styles.link}>{editingServer ? 'Done' : 'Change'}</Text>
+          </Pressable>
+        </View>
+        {editingServer ? (
+          <>
+            <TextInput
+              style={styles.input}
+              value={apiUrl}
+              onChangeText={setApiUrlField}
+              placeholder="http://192.168.1.10:4000"
+              placeholderTextColor={color.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.hint}>
+              Use your computer&apos;s LAN IP (e.g. 192.168.1.23:4000) — this device can&apos;t reach your
+              computer&apos;s own localhost.
+            </Text>
+          </>
+        ) : null}
+      </View>
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@example.com"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-        />
+      <View style={styles.segment}>
+        {([1, 2] as const).map((t) => (
+          <Pressable
+            key={t}
+            onPress={() => setTab(t)}
+            style={[styles.segmentItem, tab === t && styles.segmentItemActive]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t }}
+          >
+            <Text style={[styles.segmentText, tab === t && { color: color.ink }]}>
+              {t === 1 ? '1 · Get a token' : '2 · Enter token'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
-        <Text style={styles.label}>Telegram Chat ID (optional)</Text>
-        <TextInput
-          style={styles.input}
-          value={telegramChatId}
-          onChangeText={setTelegramChatIdField}
-          placeholder="e.g. 123456789"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="number-pad"
-        />
-        <Text style={styles.hint}>
-          Message the 7AI bot &quot;/start&quot; to get your Chat ID, then paste it here to receive your
-          sign-in token on Telegram. Leave blank to keep using whatever Chat ID you entered last time.
-        </Text>
-
-        <Pressable style={[styles.button, isRequesting && styles.buttonDisabled]} onPress={handleRequestLink} disabled={isRequesting}>
-          {isRequesting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Request link</Text>}
-        </Pressable>
-
-        {requestMessage ? <Text style={styles.info}>{requestMessage}</Text> : null}
-
-        <Text style={styles.sectionDivider}>— or —</Text>
-
-        <Text style={styles.label}>Paste your sign-in link or token</Text>
-        <Text style={styles.hint}>
-          No email delivery is wired up yet — copy the link from the server console (or your linked
-          Telegram) and paste it here.
-        </Text>
-        <TextInput
-          style={styles.input}
-          value={pasted}
-          onChangeText={setPasted}
-          placeholder="http://.../auth/verify?token=... or the raw token"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-
-        <Pressable style={[styles.button, isVerifying && styles.buttonDisabled]} onPress={handleVerify} disabled={isVerifying}>
-          {isVerifying ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & sign in</Text>}
-        </Pressable>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {tab === 1 ? (
+        <View style={styles.form}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            placeholderTextColor={color.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+          />
+          <Text style={styles.label}>Telegram chat ID (optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={telegramChatId}
+            onChangeText={setTelegramChatIdField}
+            placeholder="e.g. 123456789"
+            placeholderTextColor={color.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="number-pad"
+          />
+          <Text style={styles.hint}>
+            Send /start to {BOT_NAME} on Telegram — it replies with your ID. Needed once; this phone
+            remembers it.
+          </Text>
+          <PrimaryButton label="Send my token" onPress={handleRequestLink} loading={isRequesting} />
+          {requestMessage ? <Text style={styles.ok}>{requestMessage}</Text> : null}
+          {requestError ? <Text style={styles.error}>{requestError}</Text> : null}
+        </View>
+      ) : (
+        <View style={styles.form}>
+          <Text style={styles.label}>Sign-in link or token</Text>
+          <TextInput
+            style={styles.input}
+            value={pasted}
+            onChangeText={setPasted}
+            placeholder="Paste the link or raw token"
+            placeholderTextColor={color.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <PrimaryButton label="Verify & sign in" onPress={handleVerify} loading={isVerifying} />
+          {verifyError ? <Text style={styles.error}>{verifyError}</Text> : null}
+        </View>
+      )}
+    </FormScreenPlain>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  container: { padding: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
-  label: { fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 4 },
-  hint: { fontSize: 12, color: '#888', marginBottom: 6 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  info: { color: '#1a7f37', marginTop: 12, fontSize: 13 },
-  error: { color: '#c00', marginTop: 12 },
-  sectionDivider: { textAlign: 'center', color: '#999', marginVertical: 20, fontSize: 13 },
-  button: {
-    marginTop: 16,
-    backgroundColor: '#111',
-    borderRadius: 8,
-    paddingVertical: 14,
+  container: { padding: space.xxl, gap: space.md },
+  brand: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.xl,
+    backgroundColor: color.accent,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: space.xl,
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  brandMark: { fontFamily: font.black, fontSize: 30, color: color.onAccent },
+  title: { fontFamily: font.black, fontSize: 32, color: color.ink },
+  subtitle: { ...type.body, color: color.muted, marginBottom: space.sm },
+  serverBox: { borderWidth: 1.5, borderColor: color.ink, borderRadius: radius.lg, padding: space.md, gap: space.sm },
+  serverRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  serverLabel: { fontFamily: font.bold, fontSize: 13, color: color.ink },
+  serverValue: { ...type.meta, flex: 1 },
+  link: { fontFamily: font.bold, fontSize: 14, color: color.accentText },
+  segment: { flexDirection: 'row', backgroundColor: color.surface2, borderRadius: radius.md, padding: 3 },
+  segmentItem: { flex: 1, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  segmentItemActive: { backgroundColor: color.bg },
+  segmentText: { fontFamily: font.semibold, fontSize: 14, color: color.muted },
+  form: { gap: space.sm },
+  label: { fontFamily: font.bold, fontSize: 13, color: color.ink },
+  hint: { ...type.meta, fontSize: 12 },
+  input: {
+    borderWidth: 2,
+    borderColor: color.inputBorder,
+    borderRadius: radius.lg,
+    paddingHorizontal: space.md,
+    paddingVertical: 12,
+    ...type.body,
+    color: color.ink,
+  },
+  ok: { ...type.body, color: color.okText },
+  error: { ...type.body, color: color.danger },
 });

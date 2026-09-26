@@ -1,6 +1,8 @@
 import React from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Screen } from './Screen';
+import { color } from '../lib/theme';
 
 // Every screen with a TextInput uses this instead of Screen directly (E8).
 // `behavior="padding"` on both platforms — the pre-Enhancement-1 pattern
@@ -46,3 +48,26 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1 },
 });
+
+// Header-less variant for full-page forms outside the (app) shell (Sign in).
+export function FormScreenPlain({
+  children,
+  contentContainerStyle,
+}: {
+  children: React.ReactNode;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <SafeAreaView style={[styles.flex, { backgroundColor: color.bg }]} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={0}>
+        <ScrollView
+          contentContainerStyle={[styles.content, contentContainerStyle]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
