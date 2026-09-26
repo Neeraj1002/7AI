@@ -10,9 +10,15 @@ shouldn't compete with sprint task numbering for space.
 
 **Why its own track, not sprint-numbered**: same reasoning that gave the bugs track its own folder —
 this work is discovered by testing, not planned in advance, and volume/timing don't follow a sprint's
-shape. Unlike bugs (which spans `BE`/`FE`/`APP`), this track is frontend-only by design (see Scope
-below), so it reuses the frontend track's own checkout rather than needing a dedicated worktree the way
-bugs did.
+shape.
+
+**Why its own worktree, not shared with the frontend track**: this chat runs concurrently with the
+frontend track's own work in `7AI-frontend` — two chats editing the same working directory at the same
+time is exactly the collision the bugs track's dedicated worktree already exists to prevent, so this
+track gets the same treatment rather than repeating that lesson. Its worktree is
+**`D:\Study Material\7AI-UI`**, created fresh from `origin/main` (same approach the bugs track ultimately
+used for its own worktree, `7AI-bugs` — see `docs/execution/bugs/STATUS.md`'s own note on why a fresh
+worktree, not a rename of anything, is the safe default when standing up a new one).
 
 **Why a separate chat, not the BA chat**: the founder's own split — one chat (BA/overall-checks) stays
 scoped to backend/business-logic analysis and task creation; UI/UX judgment is a different lens on the
@@ -37,11 +43,16 @@ and hands it back to the founder/BA chat rather than writing a backend fix itsel
 
 - **This Project** ("7AI") via the docs tool — same project this chat and the bugs-track chats already
   use, for `project_read`/`project_search`/`project_write`.
-- **The linked computer**, specifically `D:\Study Material\7AI-frontend` (**"7fe"** — the checkout the
-  founder actually builds and tests from, where the real current UI lives; the `main` checkout at
-  `D:\Study Material\7AI` can lag behind or hold code 7fe hasn't merged yet). No separate worktree is
-  needed for this track — it never touches `studio/`, so 7fe alone covers everything it needs to read or
-  where its task docs get written.
+- **The linked computer**, specifically its own dedicated worktree, **`D:\Study Material\7AI-UI`**
+  (create it fresh from `origin/main` if it doesn't already exist — `git worktree add "D:\Study Material\7AI-UI" main`
+  from the main checkout, then `git pull` inside it to confirm it's current — never a rename of an
+  existing checkout, same lesson the bugs track's own worktree history already learned the hard way).
+  This is where this track works, commits, and writes its own task docs — separate from
+  `D:\Study Material\7AI-frontend` (**"7fe"**, the frontend track's own checkout), so the two never
+  collide by editing the same working directory at the same time. Still read actual screen code from
+  whichever checkout is actually current — 7fe is where the founder builds/tests from, so pull from
+  `origin/main` in `7AI-UI` before trusting it reflects the latest merged frontend work, and cross-check
+  against 7fe directly if anything looks stale.
 - **Screenshots the founder shares directly in chat** — this chat should ask for a specific screen/flow
   when it needs one, rather than guessing at what a screen looks like from code alone.
 
@@ -49,8 +60,8 @@ and hands it back to the founder/BA chat rather than writing a backend fix itsel
 
 1. `docs/execution/templates/TASK_TEMPLATE.md` in full — task-doc format, the Hard rules (never push/merge
    to `main` directly, only commit to a branch created for that purpose, document the branch in `STATUS.md`
-   immediately), and the "where docs and work happen" convention (this track → `7AI-frontend`, same as
-   the frontend track).
+   immediately), and the "where docs and work happen" convention (this track → its own worktree,
+   `7AI-UI`, distinct from the frontend track's `7AI-frontend`).
 2. `docs/execution/ui-ux/STATUS.md` (this track's own — check before starting anything, so a resumed or
    parallel chat doesn't duplicate work) and `docs/execution/bugs/STATUS.md`. In particular, Bugs Task 3
    already has two UI items open — **R2** (bug-report tool's broken submit/no-feedback/browser-never-closes)
@@ -76,10 +87,11 @@ This track is frontend-only, so it uses a two-way split, not the bugs track's th
 - **`UIUX_APP_b<N>`** — a fix that needs a native/`app.json`-level change (e.g. Android's
   `softwareKeyboardLayoutMode`, if R4-style audits turn up something that can't be fixed in JS alone) —
   always needs a fresh `eas build` + reinstall, never OTA. `<N>` is the Android version code this
-  branch's work ships in, same derivation as the bugs track's own `BUGS_APP_b<N>`: read from
-  `eas build:version:get --platform android`, plus 1 — and check `docs/execution/bugs/STATUS.md` first,
-  since a bugs-track `APP` branch may already be queued for the next build; bundle in rather than
-  shipping a separate native rebuild for one small UI fix if one's already pending.
+  branch's work ships in: read from `eas build:version:get --platform android`, plus 1 — and check
+  `docs/execution/bugs/STATUS.md` first for the bugs track's current release (`BUGS_TASK<N>`, one branch
+  per release under that track's own model — see its `STATUS.md`) for a pending native-change item
+  (e.g. Task 3's R4, if it turns out to need one); bundle in rather than shipping a separate native
+  rebuild for one small UI fix if a native change is already pending there.
 
 No `UIUX_BE` exists — if a finding needs a backend change, it's out of scope here (see Scope above),
 not a third branch type.
@@ -89,9 +101,11 @@ not a third branch type.
 1. Read the grounding docs above.
 2. Work through whatever screenshots the founder has shared (or ask for specific ones — a screen, a flow,
    "before vs. after tapping X").
-3. For each screen under review, **read its actual current implementation** in `7fe` before writing any
+3. For each screen under review, **read its actual current implementation** before writing any
    recommendation — a finding must cite the real component/file, not an assumption about how it's likely
-   built.
+   built. Pull `7AI-UI` to current before trusting it; if anything looks like it might be stale (a screen
+   the founder describes doesn't match what's in `7AI-UI`), cross-check the same file in `7fe` directly,
+   since 7fe is what's actually built/tested from and can be ahead of whatever `7AI-UI` last pulled.
 4. Write findings up as task docs (`docs/execution/ui-ux/tasks/task<N>.md`, next available number — check
    this track's own `STATUS.md` first) — Objective, Where (exact file/component), Fix (concrete enough to
    hand to a dev chat with no further design decisions needed), Role (`FE` or `APP`, per the convention
@@ -101,9 +115,9 @@ not a third branch type.
    sprint's screens/flow this finding came from testing (e.g. "Sprint 4"), or "—" if it's not tied to a
    specific sprint's new work. This is a reference/traceability column only — it doesn't mean the task is
    filed under that sprint's own numbering.
-6. Deliver every doc to **both** this Project (`project_write`) and the real `7AI-frontend` checkout on
-   disk (via the device bridge), matching how every other task doc in this project has been delivered —
-   never leave one only in the Project or only on disk.
+6. Deliver every doc to **both** this Project (`project_write`) and the real `7AI-UI` checkout on disk
+   (via the device bridge), matching how every other task doc in this project has been delivered — never
+   leave one only in the Project or only on disk.
 7. If something found here turns out to be backend-rooted, or genuinely needs a decision only the founder
    can make (e.g. a real navigation/IA restructuring, not a local screen fix), say so plainly and stop
    short of writing a task doc that assumes the decision's already made.
@@ -123,11 +137,20 @@ docs** in this project's own dedicated UI/UX track — you don't write or edit a
 specify exactly what should change and why, detailed enough that a separate chat with real
 implementation access can build it without further design decisions of its own.
 
-Before looking at anything, read (in this order):
+Before doing anything else, set up your own workspace: create a **new, dedicated git worktree** at
+`D:\Study Material\7AI-UI`, fresh from `origin/main` (`git worktree add "D:\Study Material\7AI-UI" main`
+from the main checkout, then `git pull` inside it) — **never** a rename or copy of
+`D:\Study Material\7AI-frontend`. You run alongside the frontend track's own work in that checkout, so
+you get your own working directory to avoid the exact collision this project's bugs track already hit
+once and fixed the same way (see `docs/execution/bugs/STATUS.md`'s own note on that). If you don't have
+shell/git access to create it yourself, ask the founder to create it and confirm the path before you go
+further.
+
+Then read (in this order):
 1. `docs/execution/templates/TASK_TEMPLATE.md` — the task-doc format and this project's Hard rules
    (never push/merge to `main` directly, always document a branch name immediately once one exists, and
-   the convention that both the frontend track and this UI/UX track work from the `7AI-frontend`
-   checkout, not `main`).
+   the convention that this track works from its own `7AI-UI` worktree, not `main` and not
+   `7AI-frontend`).
 2. `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md` (this track's own full protocol — scope, branch
    convention, process) and `docs/execution/ui-ux/STATUS.md` (check what's already been found/filed
    before starting).
@@ -137,19 +160,20 @@ Before looking at anything, read (in this order):
 4. `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md`.
 
 You have access to this same "7AI" Project (for reading/writing docs) and to the linked computer's
-`D:\Study Material\7AI-frontend` checkout (shorthand **"7fe"** in this project's docs — the checkout
-actually built and tested from; `D:\Study Material\7AI` is the same repo's `main` checkout and can lag
-behind or hold un-merged local state). I'll paste screenshots directly into this chat — ask me for a
-specific screen or flow whenever you need one rather than guessing.
+`D:\Study Material\7AI-UI` (your own worktree, created above). `D:\Study Material\7AI-frontend`
+("7fe") is the frontend track's own checkout, the one actually built and tested from — pull `7AI-UI` to
+current before trusting it reflects the latest merged work, and cross-check a file directly in 7fe if
+anything looks stale, but do your own reading and writing from `7AI-UI`. I'll paste screenshots directly
+into this chat — ask me for a specific screen or flow whenever you need one rather than guessing.
 
-For every finding: read the real screen's implementation in 7fe first, then write a task doc into
-`docs/execution/ui-ux/tasks/task<N>.md` (next available number per this track's own `STATUS.md`) with a
-concrete, buildable fix — not a vague design note — tagged `Role: FE` or `Role: APP` per the protocol's
-branch convention, and add a row to `docs/execution/ui-ux/STATUS.md` (including its extra **Sprint**
-column, noting which sprint's screens the finding came from, for reference only). Write every doc to
-both this Project and the real 7fe checkout on disk, same as every other doc in this project. Stay
-inside UI/UX and the frontend layer — if something looks broken because of an API/backend issue rather
-than layout or logic, say so and hand it back rather than proposing a backend fix.
+For every finding: read the real screen's current implementation first (see above), then write a task
+doc into `docs/execution/ui-ux/tasks/task<N>.md` (next available number per this track's own `STATUS.md`)
+with a concrete, buildable fix — not a vague design note — tagged `Role: FE` or `Role: APP` per the
+protocol's branch convention, and add a row to `docs/execution/ui-ux/STATUS.md` (including its extra
+**Sprint** column, noting which sprint's screens the finding came from, for reference only). Write every
+doc to both this Project and the real `7AI-UI` checkout on disk, same as every other doc in this project.
+Stay inside UI/UX and the frontend layer — if something looks broken because of an API/backend issue
+rather than layout or logic, say so and hand it back rather than proposing a backend fix.
 
 To start: tell me which screens you'd like screenshots of first, or I'll share what I have and you can
 tell me what's missing.
