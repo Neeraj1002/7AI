@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Pressable, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { usePathname } from 'expo-router';
 import { useAuth } from '../lib/auth';
+import { IconButton } from './IconButton';
 
 // Bugs Task 3 (R2) — the deep link bug-report-page.ts's success handler
 // redirects to once a report is actually saved. openAuthSessionAsync
@@ -60,14 +61,24 @@ export function ReportBugButton() {
     }
   };
 
+  if (isSubmitting) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="small" />
+      </View>
+    );
+  }
+
   return (
-    <Pressable onPress={handlePress} style={styles.button} hitSlop={8} disabled={isSubmitting}>
-      {isSubmitting ? <ActivityIndicator size="small" /> : <Text style={styles.icon}>🐞</Text>}
-    </Pressable>
+    <IconButton
+      name="bug-outline"
+      variant="community"
+      onPress={handlePress}
+      accessibilityLabel="Report a bug"
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  button: { paddingHorizontal: 4, paddingVertical: 4 },
-  icon: { fontSize: 18 },
+  loading: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

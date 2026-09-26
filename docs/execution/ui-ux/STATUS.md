@@ -11,13 +11,8 @@ the same computer, acts as this track's own "UI/UX agent" — see
 [UI_UX_AGENT_PROTOCOL.md](UI_UX_AGENT_PROTOCOL.md) for its scope, the `FE`/`APP` branch convention
 (no `BE` — this track never touches `studio/`), and a ready-to-paste kickoff message.
 
-**Folder status**: 0 items logged yet — this track was just set up (2026-09-26), spun out of `sprint4`'s
-task numbering into its own folder before it started, the same way the `bugs` track got its own space
-once founder-found issues stopped fitting cleanly into sprint numbering. Two related UI items are
-already open in the **bugs** track, not here — `docs/execution/bugs/tasks/task3.md`'s R2 (bug-report
-tool's broken submit/no feedback/browser-never-closes) and R4 (keyboard overlap on every screen) — the
-UI/UX agent should read those before starting and build on R4 rather than re-scoping it here.
-**Last updated**: 2026-09-26 (track created, no findings yet).
+**Folder status**: 1 item logged — UI Enhancement 1 (task 1), design locked, not started.
+**Last updated**: 2026-09-26 (task 1 filed).
 
 **Checkout location**: this track works from its own dedicated worktree, **`D:\Study Material\7AI-UI`**,
 created fresh from `origin/main` — separate from `D:\Study Material\7AI-frontend` (**"7fe"**, the
@@ -25,13 +20,20 @@ frontend track's own checkout), so this track's chat and the frontend track's ow
 editing the same working directory at once. Same reasoning that gave `bugs` its own worktree
 (`D:\Study Material\7AI-bugs`) — see that track's `STATUS.md` for the full history. 7fe is still the
 real "what's actually built and tested" reference — pull `7AI-UI` to current before trusting it, and
-cross-check 7fe directly if anything looks stale.
+cross-check 7fe directly if anything looks stale. **Update 2026-09-26**: the founder confirmed
+`D:\Study Material\7AI-frontend` no longer exists — `7AI-UI` (pulled from `origin/main`) is the only
+reference this track reads from.
 
 | Task | Name | Sprint | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|---|
-| *(none yet)* | | | | | | |
+| 1 | UI Enhancement 1 — Visual Foundation + Core Screen Redesign (direction C "Bold red"; theme, bottom tabs, Queue, Run detail Gate 1/2, New brief + channel picker, Dashboard, Channels + Channel detail + delete, Sign in, keyboard handling) | Sprint 4 | In Progress | Claude Code | `UIUX_ENH1_FE` (created from `origin/main` 2026-09-26) | Full spec: `tasks/task1.md`. Design locked by founder 2026-09-26 on the "7AI Studio — Visual Directions" canvas. FE-only / OTA-eligible unless the fingerprint check in the task's Shipping section says otherwise. 3 controls ship hidden behind `app/lib/feature-flags.ts` until backend items B1 (Gate 2 visibility), B2 (edit channel), B3 (soft-delete channel) land — handed to the architect chat 2026-09-26. E8 supersedes Bugs Task 3/R4's Android keyboard handling, which is a no-op on Android (`behavior: undefined`). |
 
 ## Naming and branch convention
+**UI enhancements (added 2026-09-26, founder direction)**: one branch per UI enhancement, named
+**`UIUX_ENH<N>_FE`** (or `UIUX_ENH<N>_APP` if it turns out to need a native rebuild), unless an
+enhancement is too large for one branch — then split it and record every branch here. One commit per
+`E#` item, one draft PR per enhancement. Single small findings still use the convention below.
+
 See [UI_UX_AGENT_PROTOCOL.md](UI_UX_AGENT_PROTOCOL.md) for the full definitions:
 - **`UIUX_FE`** — non-native JS/React-Native layout/logic fixes — OTA-eligible.
 - **`UIUX_APP_b<N>`** — a fix that needs a native/`app.json`-level change — needs a fresh `eas build`.
@@ -42,7 +44,7 @@ No `UIUX_BE` — backend changes are out of this track's scope; a finding that t
 handed back to the founder/BA chat instead of a task doc here.
 
 ## Full detail
-Task docs: `docs/execution/ui-ux/tasks/` (none yet — created as findings come in).
+Task docs: `docs/execution/ui-ux/tasks/task1.md`.
 Protocol: `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`.
 
 ## Communication shorthand used in these docs

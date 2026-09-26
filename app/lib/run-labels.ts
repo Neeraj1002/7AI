@@ -1,0 +1,114 @@
+// The only place raw run/stage values become words a human reads. No raw
+// internal string (status enum, stage name, [tag]-prefixed lastError) should
+// ever reach a screen directly — route it through here instead.
+import type { StatusChipKind } from '../components/StatusChip';
+
+export function statusLabel(status: string): string {
+  switch (status) {
+    case 'paused_gate1':
+      return 'Waiting on you · Gate 1 script review';
+    case 'paused_gate2':
+      return 'Waiting on you · Gate 2 video review';
+    case 'needs_attention':
+      return 'Needs attention';
+    case 'running':
+      return 'In progress';
+    case 'pending':
+      return 'Starting';
+    case 'completed':
+      return 'Published';
+    case 'failed':
+      return 'Failed';
+    default:
+      return status;
+  }
+}
+
+export function statusChipKind(status: string): StatusChipKind {
+  switch (status) {
+    case 'paused_gate1':
+    case 'paused_gate2':
+      return 'waiting';
+    case 'needs_attention':
+      return 'attention';
+    case 'failed':
+      return 'failed';
+    case 'completed':
+      return 'ok';
+    default:
+      return 'neutral';
+  }
+}
+
+export function queueChip(status: string): string {
+  switch (status) {
+    case 'paused_gate1':
+      return 'Gate 1 · Script';
+    case 'paused_gate2':
+      return 'Gate 2 · Video';
+    default:
+      return statusLabel(status);
+  }
+}
+
+// Ordered patterns matched against the real `lastError` shapes written by
+// studio/src/run-pipeline/state-machine.ts / resume-on-startup.ts (checked
+// 2026-09-26). A new backend message is a one-line addition to this table.
+const ERROR_PATTERNS: Array<{ test: (msg: string) => boolean; label: string }> = [
+  { test: (m) => m.startsWith('[stale-resume-skip]'), label: 'Stalled — no progress 30+ min' },
+  { test: (m) => m.startsWith('Video Intelligence regen cap'), label: 'Video retry limit reached' },
+  { test: (m) => m.startsWith('Gate 2 regen cap'), label: 'Revision limit reached' },
+  { test: (m) => m.startsWith('Rejected at Gate 1'), label: 'Rejected at Gate 1' },
+  { test: (m) => m.startsWith('Rejected at Gate 2'), label: 'Rejected at Gate 2' },
+  { test: (m) => m.includes('budget ceiling'), label: 'Budget ceiling reached' },
+  { test: (m) => m.startsWith('Channel deleted'), label: 'Channel deleted' },
+];
+
+export function humanizeRunError(lastError: string | null | undefined): string {
+  if (!lastError) return '';
+  for (const pattern of ERROR_PATTERNS) {
+    if (pattern.test(lastError)) return pattern.label;
+  }
+  const firstSentence = lastError.split(/(?<=[.!?])\s/)[0] ?? lastError;
+  const stripped = firstSentence.replace(/^\[[^\]]*\]\s*/, '');
+  return stripped.length > 60 ? `${stripped.slice(0, 57)}…` : stripped;
+}
+
+// Stepper's 7 steps, mapped from stage names. `analytics` is not shown.
+export const STEPPER_STEPS = ['Brief', 'Script', 'Review', 'Gate 1', 'Video', 'Gate 2', 'Publish'] as const;
+
+export function stepperIndexForStage(stageName: string | null | undefined): number {
+  switch (stageName) {
+    case 'intake':
+      return 0;
+    case 'script_generation':
+      return 1;
+    case 'script_review':
+      return 2;
+    case 'gate1':
+      return 3;
+    case 'video_generation':
+    case 'video_review':
+      return 4;
+    case 'gate2':
+      return 5;
+    case 'publishing':
+      return 6;
+    default:
+      return 0;
+  }
+}
+
+export function relativeTime(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 5) return `${diffDay}d ago`;
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}

@@ -3,9 +3,17 @@ import { Platform } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts, Archivo_400Regular, Archivo_600SemiBold, Archivo_700Bold, Archivo_800ExtraBold } from '@expo-google-fonts/archivo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { TRPCProvider, createTrpcClient } from '../lib/trpc';
+
+// Held up until Archivo resolves (UI Enhancement 1) — every screen's type
+// tokens (lib/theme.ts) name Archivo font families directly, so a screen
+// rendered before it loads falls back to the system font instead of erroring,
+// but would flash an unstyled title first.
+void SplashScreen.preventAutoHideAsync();
 
 // Sprint 3 Task 3 (FE11') — tapping a real push notification deep-links
 // straight into the relevant screen, reusing the exact payload shape
@@ -56,7 +64,7 @@ function RootNavigator() {
   usePushNotificationTapHandler();
   return (
     <>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
       <Stack>
         <Stack.Screen name="login" options={{ title: 'Sign in' }} />
         <Stack.Screen name="verify" options={{ title: 'Signing in…' }} />
@@ -67,6 +75,19 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Archivo_400Regular,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    Archivo_800ExtraBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) void SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <AuthProvider>
       <Providers>
