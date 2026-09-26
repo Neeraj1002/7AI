@@ -15,6 +15,7 @@ export function FormScreen({
   subtitle,
   variant,
   right,
+  onBack,
   children,
   footer,
   contentContainerStyle,
@@ -23,13 +24,14 @@ export function FormScreen({
   subtitle?: string;
   variant: 'tabRoot' | 'stack';
   right?: React.ReactNode;
+  onBack?: () => void;
   children: React.ReactNode;
   /** Rendered inside the keyboard-avoiding view, e.g. a BottomActionBar, so it rises with the keyboard. */
   footer?: React.ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
 }) {
   return (
-    <Screen title={title} subtitle={subtitle} variant={variant} right={right}>
+    <Screen title={title} subtitle={subtitle} variant={variant} right={right} onBack={onBack}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={0}>
         <ScrollView
           contentContainerStyle={[styles.content, contentContainerStyle]}

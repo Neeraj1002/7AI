@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, Switch, BackHandler } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { inferRouterInputs } from '@trpc/server';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useChannels } from '../../../lib/channel-context';
 import { flags } from '../../../lib/feature-flags';
+import { VOICES } from '../../../lib/pipeline-options';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -14,22 +16,32 @@ import { ChannelAvatar } from '../../../components/ChannelAvatar';
 import { StatusChip } from '../../../components/StatusChip';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { ConfirmSheet } from '../../../components/ConfirmSheet';
+import { OptionSheet } from '../../../components/OptionSheet';
+import { SegmentedControl } from '../../../components/SegmentedControl';
 import { PrimaryButton, SecondaryButton } from '../../../components/Buttons';
+import type { AppRouter } from '../../../../studio/src/api/router';
 
-type Privacy = 'private' | 'unlisted' | 'public';
+type UpdateInput = inferRouterInputs<AppRouter>['channels']['update'];
+type Privacy = NonNullable<UpdateInput['defaultPrivacyStatus']>;
 
-// channels.update / channels.archive don't exist server-side until backend
-// items B2/B3 merge; every call below sits behind flags.channelEdit /
-// flags.channelDelete, so this loose typing is never exercised while the
-// flags are false. Replace with the real inferred types when flipping them.
-type PendingBackendClient = {
-  channels: {
-    update: { mutate: (i: { channelId: string; name?: string; nicheDescription?: string; defaultPrivacyStatus?: Privacy }) => Promise<unknown> };
-    archive: { mutate: (i: { channelId: string }) => Promise<unknown> };
-  };
+// Fields added by backend items B5 (settings) and B7 (gate switches) don't
+// exist in the real channels.update input yet. Field names below are the
+// app's working names — align them with the merged backend task, and delete
+// this type, in the same commit that flips flags.channelSettings /
+// flags.gateToggles.
+type PendingFields = {
+  styleGuide?: string;
+  defaultVoice?: string;
+  captionsEnabled?: boolean;
+  budgetOverrideUsd?: number | null;
+  gate1Enabled?: boolean;
+  gate2Enabled?: boolean;
 };
+type Draft = Partial<Pick<UpdateInput, 'name' | 'nicheDescription' | 'defaultPrivacyStatus'>> & PendingFields;
 
-export default function ChannelDetailScreen() {
+const SPEND_PATTERN = /^\d+(\.\d{1,2})?$/;
+
+export default function ChannelSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
@@ -37,43 +49,82 @@ export default function ChannelDetailScreen() {
   const { channelById, channelIndex } = useChannels();
   const channel = channelById(id);
   const index = channelIndex(id);
+  // Server-side values for fields the inferred channel type doesn't list yet.
+  const saved = (channel ?? {}) as PendingFields & { defaultPrivacyStatus?: Privacy };
 
   const operational = useQuery(trpc.dashboard.operational.queryOptions({ channelId: id }));
   const cost = useQuery(trpc.dashboard.cost.queryOptions({ channelId: id }));
 
   const [barHeight, setBarHeight] = useState(0);
-  const [name, setName] = useState<string | null>(null);
-  const [niche, setNiche] = useState<string | null>(null);
-  const [privacy, setPrivacy] = useState<Privacy | null>(null);
+  const [draft, setDraft] = useState<Draft>({});
+  const [spendText, setSpendText] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
+  const set = (patch: Draft) => setDraft((d) => ({ ...d, ...patch }));
+
+  const spendInvalid = spendText !== null && spendText.trim() !== '' && (!SPEND_PATTERN.test(spendText.trim()) || Number(spendText) <= 0);
+  const changes: Draft = { ...draft };
+  if (spendText !== null && !spendInvalid) {
+    const next = spendText.trim() === '' ? null : Number(spendText);
+    if (next !== (saved.budgetOverrideUsd ?? null)) changes.budgetOverrideUsd = next;
+  }
+  // Drop entries equal to what's already saved so only real changes are sent.
+  const persisted: Record<string, unknown> = { ...saved, name: channel?.name, nicheDescription: channel?.nicheDescription };
+  for (const key of Object.keys(changes) as (keyof Draft)[]) {
+    if (changes[key] === persisted[key]) delete changes[key];
+  }
+  const dirty = Object.keys(changes).length > 0 || spendInvalid;
+  const emptyName = draft.name !== undefined && !draft.name.trim();
+  const emptyNiche = draft.nicheDescription !== undefined && !draft.nicheDescription.trim();
+  const canSave = Object.keys(changes).length > 0 && !spendInvalid && !emptyName && !emptyNiche;
+
+  const goBack = () => {
+    if (dirty) setDiscardOpen(true);
+    else router.back();
+  };
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (dirty) {
+        setDiscardOpen(true);
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [dirty]);
 
   const disconnect = useMutation(
     trpc.channels.disconnectYoutube.mutationOptions({ onSuccess: () => invalidateChannels() }),
   );
 
   const save = useMutation({
-    mutationFn: () =>
-      (trpcClient as unknown as PendingBackendClient).channels.update.mutate({
-        channelId: id!,
-        name: (name ?? channel?.name ?? '').trim(),
-        nicheDescription: (niche ?? channel?.nicheDescription ?? '').trim(),
-        ...(flags.gate2Visibility && privacy ? { defaultPrivacyStatus: privacy } : {}),
-      }),
+    mutationFn: () => {
+      // Real typed call; B5/B7 extras ride along in the same single request.
+      const payload = { channelId: id!, ...changes } as UpdateInput;
+      return trpcClient.channels.update.mutate(payload);
+    },
     onSuccess: async () => {
-      setName(null);
-      setNiche(null);
-      setPrivacy(null);
-      await invalidateChannels();
+      setError(null);
+      setDraft({});
+      setSpendText(null);
+      await Promise.all([
+        invalidateChannels(),
+        queryClient.invalidateQueries({ queryKey: trpc.dashboard.cost.queryKey({ channelId: id }) }),
+      ]);
+      setSavedNote(true);
+      setTimeout(() => setSavedNote(false), 2000);
     },
     onError: (err) => setError(err instanceof Error ? err.message : 'Failed to save.'),
   });
 
   const remove = useMutation({
-    mutationFn: () => (trpcClient as unknown as PendingBackendClient).channels.archive.mutate({ channelId: id! }),
+    mutationFn: () => trpcClient.channels.archive.mutate({ channelId: id! }),
     onSuccess: async () => {
       await invalidateChannels();
       router.replace('/channels');
@@ -115,14 +166,25 @@ export default function ChannelDetailScreen() {
     spend !== undefined ? `$${spend.toFixed(2)} spent` : null,
   ].filter(Boolean);
 
-  const dirty =
-    (name !== null && name.trim() !== channel.name) ||
-    (niche !== null && niche.trim() !== channel.nicheDescription) ||
-    privacy !== null;
-  const canSave = dirty && !!(name ?? channel.name).trim() && !!(niche ?? channel.nicheDescription).trim();
+  const name = draft.name ?? channel.name;
+  const niche = draft.nicheDescription ?? channel.nicheDescription;
+  const styleGuide = draft.styleGuide ?? saved.styleGuide ?? '';
+  const voice = draft.defaultVoice ?? saved.defaultVoice ?? null;
+  const captions = draft.captionsEnabled ?? saved.captionsEnabled ?? true;
+  const visibility: Privacy = draft.defaultPrivacyStatus ?? saved.defaultPrivacyStatus ?? 'private';
+  const gate1 = draft.gate1Enabled ?? saved.gate1Enabled ?? true;
+  const gate2 = draft.gate2Enabled ?? saved.gate2Enabled ?? true;
+  const limit = spendText !== null ? Number(spendText) : (saved.budgetOverrideUsd ?? null);
+  const limitValid = limit !== null && !Number.isNaN(limit) && limit > 0;
 
-  const footer = flags.channelEdit ? (
+  const canEdit = flags.channelEdit || flags.channelSettings || flags.gateToggles;
+  const showVoiceLook = flags.channelSettings;
+  const showPublishingVisibility = flags.gate2Visibility && flags.channelEdit;
+
+  const footer = canEdit ? (
     <BottomActionBar onHeight={setBarHeight}>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {savedNote ? <Text style={styles.saved}>Saved</Text> : null}
       <PrimaryButton label="Save changes" onPress={() => save.mutate()} disabled={!canSave} loading={save.isPending} />
     </BottomActionBar>
   ) : null;
@@ -131,6 +193,7 @@ export default function ChannelDetailScreen() {
     <FormScreen
       variant="stack"
       title="Channel"
+      onBack={goBack}
       contentContainerStyle={[styles.content, { paddingBottom: barHeight + space.xl }]}
       footer={footer}
     >
@@ -145,15 +208,10 @@ export default function ChannelDetailScreen() {
       </View>
 
       <Card>
-        <Text style={styles.cardTitle}>Details</Text>
+        <Text style={styles.cardTitle}>Identity</Text>
         <Text style={styles.label}>Name</Text>
         {flags.channelEdit ? (
-          <TextInput
-            style={styles.input}
-            value={name ?? channel.name}
-            onChangeText={setName}
-            placeholderTextColor={color.muted}
-          />
+          <TextInput style={styles.input} value={name} onChangeText={(v) => set({ name: v })} />
         ) : (
           <Text style={styles.body}>{channel.name}</Text>
         )}
@@ -162,48 +220,73 @@ export default function ChannelDetailScreen() {
           <>
             <TextInput
               style={[styles.input, styles.multiline]}
-              value={niche ?? channel.nicheDescription}
-              onChangeText={setNiche}
+              value={niche}
+              onChangeText={(v) => set({ nicheDescription: v })}
               multiline
               scrollEnabled
-              placeholderTextColor={color.muted}
             />
-            <Text style={styles.meta}>
-              Scripts for new runs use this. Runs already in progress keep the old version.
-            </Text>
+            <Text style={styles.meta}>Scripts for new runs use this. Runs already in progress keep the old version.</Text>
           </>
         ) : (
           <Text style={styles.body}>{channel.nicheDescription}</Text>
         )}
-        {flags.channelEdit && flags.gate2Visibility ? (
+        {flags.channelSettings ? (
           <>
-            <Text style={styles.label}>Default YouTube visibility</Text>
-            <View style={styles.segment}>
-              {(['private', 'unlisted', 'public'] as Privacy[]).map((p) => {
-                const current =
-                  privacy ?? (channel as { defaultPrivacyStatus?: Privacy }).defaultPrivacyStatus ?? 'private';
-                const active = current === p;
-                return (
-                  <Pressable
-                    key={p}
-                    onPress={() => setPrivacy(p)}
-                    style={[styles.segmentItem, active && styles.segmentItemActive]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text style={[styles.segmentText, active && { color: color.ink }]}>
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Text style={styles.label}>Style guide</Text>
+            <TextInput
+              style={[styles.input, styles.multiline, styles.styleGuide]}
+              value={styleGuide}
+              onChangeText={(v) => set({ styleGuide: v })}
+              placeholder="Tone, words to avoid, how hooks should sound, audience…"
+              placeholderTextColor={color.muted}
+              multiline
+              scrollEnabled
+            />
           </>
         ) : null}
       </Card>
 
+      {showVoiceLook ? (
+        <Card>
+          <Text style={styles.cardTitle}>Voice &amp; look</Text>
+          <Pressable style={styles.row} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
+            <Feather name="mic" size={20} color={color.muted} />
+            <View style={styles.rowText}>
+              <Text style={styles.rowCaption}>Default voice</Text>
+              <Text style={styles.rowValue}>{VOICES.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={color.muted} />
+          </Pressable>
+          <View style={styles.switchRow}>
+            <Text style={styles.rowValue}>Captions</Text>
+            <Switch
+              value={captions}
+              onValueChange={(v) => set({ captionsEnabled: v })}
+              trackColor={{ true: color.accent, false: color.future }}
+              thumbColor={color.bg}
+            />
+          </View>
+          {/* Watermark upload (flags.watermarkUpload / B6) is not built: expo-image-picker isn't installed and adding it would change the native fingerprint. */}
+        </Card>
+      ) : null}
+
       <Card>
-        <Text style={styles.cardTitle}>YouTube</Text>
+        <Text style={styles.cardTitle}>Publishing</Text>
+        {showPublishingVisibility ? (
+          <>
+            <Text style={styles.label}>Default visibility</Text>
+            <SegmentedControl
+              options={[
+                { value: 'private' as const, label: 'Private' },
+                { value: 'unlisted' as const, label: 'Unlisted' },
+                { value: 'public' as const, label: 'Public' },
+              ]}
+              value={visibility}
+              onChange={(v) => set({ defaultPrivacyStatus: v })}
+            />
+          </>
+        ) : null}
+        <Text style={styles.label}>YouTube</Text>
         <View style={styles.youtubeRow}>
           <StatusChip
             kind={channel.hasYoutubeCredential ? 'ok' : 'attention'}
@@ -221,7 +304,70 @@ export default function ChannelDetailScreen() {
         </View>
       </Card>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {flags.gateToggles ? (
+        <Card>
+          <Text style={styles.cardTitle}>Approvals</Text>
+          <View style={styles.switchRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowValue}>Gate 1 · approve scripts</Text>
+              <Text style={styles.meta}>Pause for your review before video is made.</Text>
+            </View>
+            <Switch
+              value={gate1}
+              onValueChange={(v) => set({ gate1Enabled: v })}
+              trackColor={{ true: color.accent, false: color.future }}
+              thumbColor={color.bg}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowValue}>Gate 2 · approve videos</Text>
+              <Text style={styles.meta}>Pause for your review before upload.</Text>
+            </View>
+            <Switch
+              value={gate2}
+              onValueChange={(v) => set({ gate2Enabled: v })}
+              trackColor={{ true: color.accent, false: color.future }}
+              thumbColor={color.bg}
+            />
+          </View>
+        </Card>
+      ) : null}
+
+      {flags.channelSettings ? (
+        <Card>
+          <Text style={styles.cardTitle}>Budget</Text>
+          <Text style={styles.label}>Spend limit</Text>
+          <View style={[styles.input, styles.moneyRow, spendInvalid && styles.inputInvalid]}>
+            <Text style={styles.rowValue}>$</Text>
+            <TextInput
+              style={styles.moneyInput}
+              value={spendText ?? (saved.budgetOverrideUsd != null ? String(saved.budgetOverrideUsd) : '')}
+              onChangeText={setSpendText}
+              placeholder="auto"
+              placeholderTextColor={color.muted}
+              keyboardType="decimal-pad"
+            />
+          </View>
+          {spendInvalid ? (
+            <Text style={styles.error}>Enter a number above 0 with at most 2 decimals, or leave blank.</Text>
+          ) : (
+            <Text style={styles.meta}>Default: equal share of the pool</Text>
+          )}
+          {limitValid && spend !== undefined ? (
+            <>
+              <View style={styles.track}>
+                <View style={[styles.fill, { width: `${Math.min(100, (spend / limit!) * 100)}%` }]} />
+              </View>
+              <Text style={styles.meta}>
+                ${spend.toFixed(2)} used of ${limit!.toFixed(2)} this period
+              </Text>
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {!canEdit && error ? <Text style={styles.error}>{error}</Text> : null}
 
       {flags.channelDelete ? (
         <Pressable style={styles.delete} onPress={() => setDeleteOpen(true)} accessibilityRole="button">
@@ -230,6 +376,27 @@ export default function ChannelDetailScreen() {
         </Pressable>
       ) : null}
 
+      <OptionSheet
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        title="Default voice"
+        options={VOICES}
+        selected={(voice as (typeof VOICES)[number]['value'] | null) ?? 'alloy'}
+        onSelect={(v) => v && set({ defaultVoice: v })}
+      />
+      <ConfirmSheet
+        visible={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        icon="alert-triangle"
+        title="Discard changes?"
+        body="Your unsaved edits to this channel will be lost."
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => {
+          setDiscardOpen(false);
+          router.back();
+        }}
+      />
       <ConfirmSheet
         visible={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -265,13 +432,29 @@ const styles = StyleSheet.create({
     ...type.body,
     color: color.ink,
   },
+  inputInvalid: { borderColor: color.danger },
   multiline: { minHeight: 90, maxHeight: 200, textAlignVertical: 'top' },
-  segment: { flexDirection: 'row', backgroundColor: color.surface2, borderRadius: radius.md, padding: 3 },
-  segmentItem: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
-  segmentItemActive: { backgroundColor: color.bg },
-  segmentText: { fontFamily: font.semibold, fontSize: 14, color: color.muted },
+  styleGuide: { minHeight: 120, maxHeight: 240 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderWidth: 1.5,
+    borderColor: color.future,
+    borderRadius: radius.lg,
+  },
+  rowText: { flex: 1 },
+  rowCaption: { ...type.meta, fontSize: 12 },
+  rowValue: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  moneyRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  moneyInput: { flex: 1, ...type.body, color: color.ink, padding: 0 },
+  track: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4, backgroundColor: color.accent },
   youtubeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
-  error: { ...type.body, color: color.danger },
+  error: { ...type.meta, color: color.danger },
+  saved: { ...type.meta, color: color.okText },
   delete: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,13 +1,16 @@
-// UI Enhancement 1 — controls hidden until their backend item merges. Flip
-// each to true in a one-line follow-up once B1/B2/B3
-// (docs/execution/ui-ux/ENH1_BACKEND_REQUIREMENTS.md) land. While a flag is
+// Controls hidden until their backend item merges. Flip each to true in a
+// one-line follow-up once the item is merged, never before. While a flag is
 // false, the related UI is hidden entirely, never shown-but-disabled — the
 // app must never offer an action the API can't perform.
-// When flipping channelEdit or channelDelete, also replace the loosely typed
-// PendingBackendClient calls in app/(app)/channel/[id].tsx with the real
-// AppRouter types in the same commit.
+// Backend items B1–B3, B5–B7 and B10 are owned by the architect chat.
+// When flipping a flag whose call goes through a loosely typed client, replace
+// it with the real AppRouter types in the same commit.
 export const flags = {
   gate2Visibility: false, // B1 — runs.gate2 accepting privacyStatus
   channelEdit: false, // B2 — channels.update
   channelDelete: false, // B3 — channels.archive
+  channelSettings: false, // B5 — extended channels.update (style guide, voice, captions, spend limit)
+  watermarkUpload: false, // B6 — watermark upload
+  gateToggles: false, // B7 — per-channel Gate 1 / Gate 2 switches
+  briefLength: false, // B10 — runs.create target length
 };

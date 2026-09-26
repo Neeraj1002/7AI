@@ -15,12 +15,15 @@ export function Screen({
   subtitle,
   variant,
   right,
+  onBack,
   children,
 }: {
   title: string;
   subtitle?: string;
   variant: 'tabRoot' | 'stack';
   right?: React.ReactNode;
+  /** Overrides the back chevron (e.g. to guard unsaved changes). */
+  onBack?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -29,7 +32,7 @@ export function Screen({
         <View style={styles.headerLeft}>
           {variant === 'stack' ? (
             <Pressable
-              onPress={() => router.back()}
+              onPress={onBack ?? (() => router.back())}
               style={styles.backButton}
               hitSlop={8}
               accessibilityRole="button"
