@@ -1,73 +1,47 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  ActivityIndicator,
-  Platform,
-  KeyboardAvoidingView,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, RefreshControl } from 'react-native';
+import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
+import { useAuth } from '../../../lib/auth';
 import { useChannels, type Channel } from '../../../lib/channel-context';
+import { deleteSecureItem, getSecureItem } from '../../../lib/storage';
+import { EMAIL_KEY } from '../../../lib/session-keys';
+import { color, font, radius, space, type } from '../../../lib/theme';
+import { Screen } from '../../../components/Screen';
+import { Card } from '../../../components/Card';
+import { ChannelAvatar } from '../../../components/ChannelAvatar';
+import { StatusChip } from '../../../components/StatusChip';
+import { BottomSheet } from '../../../components/BottomSheet';
+import { ConfirmSheet } from '../../../components/ConfirmSheet';
+import { PrimaryButton } from '../../../components/Buttons';
 
-// Sprint 3 Frontend Task 2 (FE8/FE9) — the Channels screen
-// MOBILE_APP_DESIGN.md Section 4 explicitly deferred out of v1, un-deferred
-// now that Sprint 3 backend Tasks 5/6 give it real endpoints to reach:
-// `channels.create`, `channels.getYoutubeConnectUrl`, `channels.disconnectYoutube`.
+const MAX_CHANNELS = 7;
+
 export default function ChannelsScreen() {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
+  const { apiUrl, signOut } = useAuth();
   const { channels, isLoading } = useChannels();
 
-  const [name, setName] = useState('');
-  const [nicheDescription, setNicheDescription] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSecureItem(EMAIL_KEY).then(setEmail);
+  }, []);
 
   const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
 
-  const createChannel = useMutation(
-    trpc.channels.create.mutationOptions({
-      onSuccess: async () => {
-        setName('');
-        setNicheDescription('');
-        await invalidateChannels();
-      },
-      // FE8's real cap-exceeded proof: the same setError(err.message) pattern
-      // new-brief.tsx/login.tsx already use — no new error-handling pattern
-      // invented for this one case.
-      onError: (err) => setCreateError(err.message),
-    }),
-  );
-
-  const disconnectYoutube = useMutation(
-    trpc.channels.disconnectYoutube.mutationOptions({
-      onSuccess: () => invalidateChannels(),
-    }),
-  );
-
-  const handleCreate = () => {
-    setCreateError(null);
-    if (!name.trim() || !nicheDescription.trim()) {
-      setCreateError('Name and niche description are both required.');
-      return;
-    }
-    createChannel.mutate({ platform: 'youtube', name: name.trim(), nicheDescription: nicheDescription.trim() });
-  };
-
-  // FE9's real OAuth round trip: fetches the real Google consent URL via a
-  // one-off imperative call (not a background useQuery — this only ever runs
-  // on a tap), opens it via expo-web-browser's openAuthSessionAsync (the
-  // standard Expo pattern for a flow that needs to hand control back to the
-  // app), then refetches `channels.list` on return — never optimistic, since
-  // the flow can be cancelled or fail on Google's own side.
+  // Opens Google's consent page via openAuthSessionAsync, then refetches
+  // channels.list on return — never optimistic, since the flow can be
+  // cancelled or fail on Google's side.
   const handleConnect = async (channel: Channel) => {
     setConnectError(null);
     setConnectingId(channel.id);
@@ -82,125 +56,210 @@ export default function ChannelsScreen() {
     }
   };
 
-  const handleDisconnect = (channel: Channel) => {
-    setConnectError(null);
-    disconnectYoutube.mutate({ channelId: channel.id });
+  const atCap = channels.length >= MAX_CHANNELS;
+  const host = apiUrl?.replace(/^https?:\/\//, '').replace(/\/$/, '') ?? '—';
+
+  const handleSignOut = async () => {
+    setSignOutOpen(false);
+    await deleteSecureItem(EMAIL_KEY);
+    await signOut();
+    router.replace('/login');
   };
 
   return (
-    // Bugs Task 3 (R4) — same KeyboardAvoidingView pattern as the other
-    // screens: the "Create channel" name/niche-description fields live in
-    // this FlatList's own footer, which a bare FlatList never pushes above
-    // the keyboard on its own.
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <FlatList
-      contentContainerStyle={styles.container}
-      data={channels}
-      keyExtractor={(c) => c.id}
-      ListHeaderComponent={
-        <>
-          <Text style={styles.sectionTitle}>Channels</Text>
-          {isLoading ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null}
-          {connectError ? <Text style={styles.error}>{connectError}</Text> : null}
-        </>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          <View style={styles.rowInfo}>
-            <Text style={styles.rowName}>{item.name}</Text>
-            <Text style={styles.rowMeta}>{item.platform}</Text>
-            <Text style={item.hasYoutubeCredential ? styles.badgeConnected : styles.badgeNotConnected}>
-              {item.hasYoutubeCredential ? 'YouTube connected' : 'YouTube not connected'}
+    <Screen variant="tabRoot" title="Channels" subtitle={`${channels.length} of ${MAX_CHANNELS} channels used`}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => void invalidateChannels()} />}
+      >
+        {isLoading ? <Text style={styles.meta}>Loading…</Text> : null}
+        {connectError ? <Text style={styles.error}>{connectError}</Text> : null}
+
+        {channels.map((c, i) => (
+          <Card key={c.id} style={styles.channelCard}>
+            <Pressable
+              style={styles.channelTop}
+              onPress={() => router.push(`/channel/${c.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${c.name}`}
+            >
+              <ChannelAvatar index={i} size={44} />
+              <View style={styles.channelText}>
+                <Text style={styles.channelName} numberOfLines={1}>
+                  {c.name}
+                </Text>
+                <Text style={styles.meta} numberOfLines={2}>
+                  {c.nicheDescription}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={color.muted} />
+            </Pressable>
+            <View style={styles.channelBottom}>
+              <StatusChip
+                kind={c.hasYoutubeCredential ? 'ok' : 'attention'}
+                label={c.hasYoutubeCredential ? 'YouTube connected' : 'YouTube not connected'}
+              />
+              {!c.hasYoutubeCredential ? (
+                <Pressable
+                  style={styles.connect}
+                  onPress={() => handleConnect(c)}
+                  disabled={connectingId === c.id}
+                  accessibilityRole="button"
+                >
+                  <Feather name="play" size={14} color={color.accentText} />
+                  <Text style={styles.connectText}>{connectingId === c.id ? 'Opening…' : 'Connect'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Card>
+        ))}
+
+        <Pressable
+          style={[styles.add, atCap && styles.addDisabled]}
+          onPress={() => setCreateOpen(true)}
+          disabled={atCap}
+          accessibilityRole="button"
+        >
+          <Feather name="plus" size={18} color={atCap ? color.muted : color.ink} />
+          <Text style={[styles.addText, atCap && { color: color.muted }]}>
+            {atCap ? `${MAX_CHANNELS} of ${MAX_CHANNELS} used` : 'Add channel'}
+          </Text>
+        </Pressable>
+
+        <Text style={styles.sectionTitle}>Account</Text>
+        <Card style={styles.account}>
+          {email ? (
+            <View style={styles.accountRow}>
+              <Text style={styles.meta}>Signed in as</Text>
+              <Text style={styles.accountValue} numberOfLines={1}>
+                {email}
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.accountRow}>
+            <Text style={styles.meta}>Server</Text>
+            <Text style={styles.accountValue} numberOfLines={1}>
+              {host}
             </Text>
           </View>
-          {item.hasYoutubeCredential ? (
-            <Pressable
-              style={[styles.smallButton, styles.disconnectButton]}
-              onPress={() => handleDisconnect(item)}
-              disabled={disconnectYoutube.isPending}
-            >
-              <Text style={styles.smallButtonText}>Disconnect</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={styles.smallButton}
-              onPress={() => handleConnect(item)}
-              disabled={connectingId === item.id}
-            >
-              {connectingId === item.id ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.smallButtonText}>Connect YouTube</Text>
-              )}
-            </Pressable>
-          )}
-        </View>
-      )}
-      ListFooterComponent={
-        <View style={styles.createSection}>
-          <Text style={styles.sectionTitle}>Create channel</Text>
-          <Text style={styles.label}>Name</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Channel name" />
-          <Text style={styles.label}>Niche description</Text>
-          <TextInput
-            style={styles.input}
-            value={nicheDescription}
-            onChangeText={setNicheDescription}
-            placeholder="e.g. Bite-sized science facts"
-          />
-          <Text style={styles.hint}>Platform: YouTube (the only one supported today)</Text>
-          {createError ? <Text style={styles.error}>{createError}</Text> : null}
-          <Pressable
-            style={[styles.button, createChannel.isPending && styles.buttonDisabled]}
-            onPress={handleCreate}
-            disabled={createChannel.isPending}
-          >
-            {createChannel.isPending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Create channel</Text>
-            )}
+          <Pressable style={styles.signOut} onPress={() => setSignOutOpen(true)} accessibilityRole="button">
+            <Feather name="log-out" size={18} color={color.danger} />
+            <Text style={styles.signOutText}>Sign out</Text>
           </Pressable>
-        </View>
-      }
-    />
-    </KeyboardAvoidingView>
+        </Card>
+      </ScrollView>
+
+      <CreateChannelSheet visible={createOpen} onClose={() => setCreateOpen(false)} />
+      <ConfirmSheet
+        visible={signOutOpen}
+        onClose={() => setSignOutOpen(false)}
+        icon="log-out"
+        title="Sign out?"
+        body="You'll need a new sign-in token to get back in."
+        confirmLabel="Sign out"
+        destructive
+        onConfirm={handleSignOut}
+      />
+    </Screen>
+  );
+}
+
+function CreateChannelSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [nicheDescription, setNicheDescription] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const createChannel = useMutation(
+    trpc.channels.create.mutationOptions({
+      onSuccess: async () => {
+        setName('');
+        setNicheDescription('');
+        await queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
+        onClose();
+      },
+      // Surfaces ChannelCapExceededError's message as-is.
+      onError: (err) => setError(err.message),
+    }),
+  );
+
+  const handleCreate = () => {
+    setError(null);
+    if (!name.trim() || !nicheDescription.trim()) {
+      setError('Name and niche description are both required.');
+      return;
+    }
+    createChannel.mutate({ platform: 'youtube', name: name.trim(), nicheDescription: nicheDescription.trim() });
+  };
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Text style={styles.sheetTitle}>Add channel</Text>
+      <Text style={styles.label}>Name</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+        placeholder="Channel name"
+        placeholderTextColor={color.muted}
+      />
+      <Text style={styles.label}>Niche description</Text>
+      <TextInput
+        style={[styles.input, styles.multiline]}
+        value={nicheDescription}
+        onChangeText={setNicheDescription}
+        placeholder="e.g. Bite-sized science facts"
+        placeholderTextColor={color.muted}
+        multiline
+        scrollEnabled
+      />
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <PrimaryButton label="Create channel" onPress={handleCreate} loading={createChannel.isPending} />
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  container: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  row: {
+  container: { paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.md },
+  meta: { ...type.meta },
+  error: { ...type.body, color: color.danger },
+  channelCard: { gap: space.md },
+  channelTop: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  channelText: { flex: 1 },
+  channelName: { fontFamily: font.bold, fontSize: 16, color: color.ink },
+  channelBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  connect: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: space.sm },
+  connectText: { fontFamily: font.bold, fontSize: 14, color: color.accentText },
+  add: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
+    justifyContent: 'center',
+    gap: space.sm,
+    height: 54,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: color.ink,
   },
-  rowInfo: { flex: 1, marginRight: 12 },
-  rowName: { fontSize: 15, fontWeight: '600' },
-  rowMeta: { fontSize: 12, color: '#888', marginTop: 2 },
-  badgeConnected: { fontSize: 12, color: '#1a7f37', fontWeight: '600', marginTop: 4 },
-  badgeNotConnected: { fontSize: 12, color: '#888', marginTop: 4 },
-  smallButton: { backgroundColor: '#111', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  disconnectButton: { backgroundColor: '#c0392b' },
-  smallButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  createSection: { marginTop: 24, gap: 4 },
-  label: { fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 4 },
-  hint: { fontSize: 12, color: '#888', marginTop: 4 },
+  addDisabled: { borderColor: color.border },
+  addText: { fontFamily: font.bold, fontSize: 15, color: color.ink },
+  sectionTitle: { ...type.sectionTitle, color: color.ink, marginTop: space.md },
+  account: { gap: space.md },
+  accountRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  accountValue: { fontFamily: font.semibold, fontSize: 14, color: color.ink, flexShrink: 1 },
+  signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.xs },
+  signOutText: { fontFamily: font.bold, fontSize: 15, color: color.danger },
+  sheetTitle: { ...type.stackTitle, color: color.ink },
+  label: { fontFamily: font.bold, fontSize: 13, color: color.ink },
   input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderWidth: 2,
+    borderColor: color.inputBorder,
+    borderRadius: radius.lg,
+    paddingHorizontal: space.md,
     paddingVertical: 10,
-    fontSize: 15,
+    ...type.body,
+    color: color.ink,
   },
-  error: { color: '#c00', marginTop: 8 },
-  button: { marginTop: 16, backgroundColor: '#111', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  multiline: { minHeight: 90, maxHeight: 180, textAlignVertical: 'top' },
 });
