@@ -1,22 +1,34 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Feather } from '@expo/vector-icons';
 import { useTRPC } from '../../lib/trpc';
 import { useChannels } from '../../lib/channel-context';
+import { color, font, radius, space, type } from '../../lib/theme';
+import { FormScreen } from '../../components/FormScreen';
+import { ChannelAvatar } from '../../components/ChannelAvatar';
+import { ChannelPickerSheet } from '../../components/ChannelPickerSheet';
+import { PrimaryButton } from '../../components/Buttons';
 
-// New Brief screen — MOBILE_APP_DESIGN.md Section 4. Backend-side this is
-// genuinely new (per BUSINESS_LOGIC.md): before Task 1, the only way to
-// start a PipelineRun was scripts/dry-run.ts from a terminal.
 export default function NewBriefScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  // Bugs Task 1/R4 — channelsLoading was already exposed by useChannels()
-  // but never read here, so a loading channel list and a genuinely empty
-  // one both rendered as the same silent blank space. Now branched below.
-  const { channels, isLoading: channelsLoading, selectedChannelId, setSelectedChannelId } = useChannels();
+  const {
+    channels,
+    isLoading: channelsLoading,
+    selectedChannelId,
+    setSelectedChannelId,
+    isLastUsed,
+    channelIndex,
+    channelById,
+  } = useChannels();
   const [briefText, setBriefText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+
+  const selected = channelById(selectedChannelId);
 
   const createRun = useMutation(
     trpc.runs.create.mutationOptions({
@@ -42,103 +54,89 @@ export default function NewBriefScreen() {
   };
 
   return (
-    // Bugs Task 3 (R4) — same KeyboardAvoidingView pattern login.tsx already
-    // uses, applied consistently here too: this screen's Brief field is a
-    // multiline TextInput that can sit anywhere on the page, so nothing
-    // pushed the visible content above the keyboard before this.
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>Channel</Text>
-        {channelsLoading ? (
-          <ActivityIndicator />
-        ) : channels.length === 0 ? (
-          <View style={styles.channelEmpty}>
-            <Text style={styles.channelEmptyText}>No channels set up yet.</Text>
-            <Pressable onPress={() => router.push('/channels')}>
-              <Text style={styles.channelEmptyLink}>Set up a channel →</Text>
-            </Pressable>
+    <FormScreen variant="stack" title="New brief" contentContainerStyle={styles.content}>
+      <Text style={styles.label}>Channel</Text>
+      {channelsLoading ? (
+        <ActivityIndicator />
+      ) : channels.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No channels set up yet.</Text>
+          <Pressable onPress={() => router.push('/channels')}>
+            <Text style={styles.emptyLink}>Set up a channel →</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable style={styles.channelField} onPress={() => setPickerOpen(true)} accessibilityRole="button">
+          <ChannelAvatar index={channelIndex(selectedChannelId)} size={40} />
+          <View style={styles.channelText}>
+            <Text style={styles.channelName} numberOfLines={1}>
+              {selected?.name ?? 'Select channel'}
+            </Text>
+            {isLastUsed ? <Text style={styles.channelMeta}>Last used · tap to change</Text> : null}
           </View>
-        ) : (
-          <View style={styles.channelList}>
-            {channels.map((c) => (
-              <Pressable
-                key={c.id}
-                style={[styles.channelChip, c.id === selectedChannelId && styles.channelChipSelected]}
-                onPress={() => setSelectedChannelId(c.id)}
-              >
-                <Text
-                  style={c.id === selectedChannelId ? styles.channelChipTextSelected : styles.channelChipText}
-                >
-                  {c.name}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        <Text style={styles.label}>Brief</Text>
-        <TextInput
-          style={styles.textArea}
-          value={briefText}
-          onChangeText={setBriefText}
-          placeholder="A short video about..."
-          multiline
-          numberOfLines={6}
-        />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable
-          style={[styles.button, createRun.isPending && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={createRun.isPending}
-        >
-          {createRun.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Create Run</Text>
-          )}
+          <Feather name="chevron-down" size={20} color={color.muted} />
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      )}
+
+      <Text style={styles.label}>What&apos;s the short about?</Text>
+      <TextInput
+        style={[styles.input, focused && styles.inputFocused]}
+        value={briefText}
+        onChangeText={setBriefText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={'Topic, angle and length — e.g. "30 sec on why octopuses have three hearts"'}
+        placeholderTextColor={color.muted}
+        multiline
+        scrollEnabled
+      />
+      <Text style={styles.tip}>Tip: the more specific the angle, the better the script.</Text>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <PrimaryButton label="Create run" onPress={handleSubmit} loading={createRun.isPending} />
+
+      <ChannelPickerSheet
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        mode="select"
+        selectedId={selectedChannelId}
+        onSelect={(id) => id && setSelectedChannelId(id)}
+      />
+    </FormScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  container: { padding: 16, gap: 8 },
-  label: { fontSize: 13, fontWeight: '600', marginTop: 12, marginBottom: 6 },
-  channelList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  channelChip: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  channelChipSelected: { backgroundColor: '#111', borderColor: '#111' },
-  channelChipText: { fontSize: 13 },
-  channelChipTextSelected: { fontSize: 13, color: '#fff', fontWeight: '600' },
-  channelEmpty: { gap: 4 },
-  channelEmptyText: { fontSize: 13, color: '#666' },
-  channelEmptyLink: { fontSize: 13, color: '#111', fontWeight: '600', textDecorationLine: 'underline' },
-  textArea: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    minHeight: 140,
-    textAlignVertical: 'top',
-  },
-  error: { color: '#c00', marginTop: 8 },
-  button: {
-    marginTop: 20,
-    backgroundColor: '#111',
-    borderRadius: 8,
-    paddingVertical: 14,
+  content: { padding: space.lg, gap: space.sm },
+  label: { fontFamily: font.bold, fontSize: 14, color: color.ink, marginTop: space.sm },
+  channelField: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderWidth: 1.5,
+    borderColor: color.ink,
+    borderRadius: radius.lg,
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  channelText: { flex: 1 },
+  channelName: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
+  channelMeta: { ...type.meta, fontSize: 12 },
+  empty: { gap: 4 },
+  emptyText: { ...type.meta },
+  emptyLink: { fontFamily: font.bold, fontSize: 14, color: color.accentText, textDecorationLine: 'underline' },
+  input: {
+    minHeight: 168,
+    maxHeight: 320,
+    borderWidth: 2,
+    borderColor: color.inputBorder,
+    borderRadius: radius.lg,
+    padding: space.md,
+    textAlignVertical: 'top',
+    ...type.body,
+    color: color.ink,
+  },
+  inputFocused: { borderColor: color.accent },
+  tip: { ...type.meta, fontSize: 12 },
+  error: { ...type.body, color: color.danger },
 });
