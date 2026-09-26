@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TextInput, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  TextInput,
+  Pressable,
+  Platform,
+  KeyboardAvoidingView,
+} from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
@@ -114,7 +124,12 @@ export default function RunDetailScreen() {
   const gate2Outcome = gate2Stage?.output?.outcome as string | undefined;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    // Bugs Task 3 (R4) — same KeyboardAvoidingView pattern as login.tsx/
+    // new-brief.tsx: this screen's GateActionBar (reject/edit text) and
+    // PostHocTagForm (tag/notes) fields can both end up near the bottom of a
+    // long scroll, exactly where an unhandled keyboard would cover them.
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.statusBadge}>{run.status}</Text>
       <Text style={styles.sectionTitle}>Brief</Text>
       <Text style={styles.body}>{run.briefText}</Text>
@@ -193,7 +208,8 @@ export default function RunDetailScreen() {
       {run.status === 'completed' || run.status === 'failed' ? (
         <PostHocTagForm runId={run.id} reviewLogs={data.reviewLogs} />
       ) : null}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -286,6 +302,7 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   container: { padding: 16, gap: 4 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   statusBadge: {

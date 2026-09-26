@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
+} from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '../../lib/trpc';
@@ -78,6 +88,11 @@ export default function ChannelsScreen() {
   };
 
   return (
+    // Bugs Task 3 (R4) — same KeyboardAvoidingView pattern as the other
+    // screens: the "Create channel" name/niche-description fields live in
+    // this FlatList's own footer, which a bare FlatList never pushes above
+    // the keyboard on its own.
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <FlatList
       contentContainerStyle={styles.container}
       data={channels}
@@ -149,10 +164,12 @@ export default function ChannelsScreen() {
         </View>
       }
     />
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   container: { padding: 16 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   row: {
