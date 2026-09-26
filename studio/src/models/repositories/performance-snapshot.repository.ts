@@ -60,7 +60,11 @@ export async function listCompletedRunsWithPublishedVideo(): Promise<
     where: {
       stageName: 'publishing',
       status: 'completed',
-      pipelineRun: { status: 'completed' },
+      // Sprint 3 Task 8 (R3.10) — an archived channel has had its credential
+      // deleted, so polling its videos could only ever log "no connected
+      // YouTube account" on every tick, forever. Existing snapshots stay
+      // readable; this only stops new polling.
+      pipelineRun: { status: 'completed', channel: { isActive: true } },
     },
     orderBy: { attemptNumber: 'desc' },
     include: { pipelineRun: { select: { tenantId: true, channelId: true } } },

@@ -24,6 +24,8 @@ paused_gate2` runs (pending gate → `resolvePendingApproval(id, 'reject Channel
 `updatePipelineRun(failed, 'Channel deleted')`). Idempotent (second call = success, sweep finds nothing).
 `runPublishingStage` throws for an archived channel before any metadata/upload work; `pipeline-runner.ts` re-checks
 before every stage; `runs.create` and `getYoutubeConnectUrl` reject archived channels. No restore path.
+**R3.10 (R3b commit)**: `listCompletedRunsWithPublishedVideo` (the only source of the Performance Analytics poll's targets)
+now filters `pipelineRun.channel.isActive = true`, so archived channels are never polled; existing snapshots stay readable.
 
 **R4 — `auth.me`.** New `auth` tRPC router, `me` → `{ email }` (null for the ops-token fallback). No JWT change.
 
@@ -42,6 +44,8 @@ before every stage; `runs.create` and `getYoutubeConnectUrl` reject archived cha
   `runs.create` / `channels.update` / `getYoutubeConnectUrl` all `BAD_REQUEST … is archived`, `runs.list`/`runs.get` still
   return the archived channel's run, archived channel absent from `channels.list`. `runPublishingStage` on that run threw
   `Channel … is archived — refusing to publish`. A grep confirmed no history/dashboard code filters on `isActive`.
+- **R3.10**: a completed, published fixture run on a throwaway channel: the real `runPeriodicPoll` errored on it before archive
+  ("no connected YouTube account"); after `channels.archive` the next poll made no attempt on it. Fixture removed.
 - **R4**: real session → the user's real email; ops fallback → `{ email: null }`.
 - (A first R3 attempt failed at video review — stock footage mismatched an "otters" brief — unrelated to this change;
   rerun with a cats topic. A run on a tenant without an `AgentQuota` also hit `NoBudgetConfiguredError`; unrelated.)
@@ -54,6 +58,9 @@ before every stage; `runs.create` and `getYoutubeConnectUrl` reject archived cha
   it is a simple pre-stage `isActive` check.
 - The `archive` sweep's `failed` write for a mid-stage run can be overwritten if that already-executing stage finishes
   afterwards; the runner's next-iteration check re-fails it, but only when driven by the live runner.
+
+## Note
+The analytics-polling gap I raised mid-task is fixed here (R3b), not deferred.
 
 ## Known residual gaps (stated honestly, not rounded up)
 1. **Publish-time race is not closed.** An archive landing after `runPublishingStage`'s `isActive` check but before
