@@ -442,6 +442,19 @@ model BugReport {
   description String @db.Text
   status      String @default("open") @db.VarChar(20)
 
+  // Bugs Task 7 (R2) — 'bug' | 'feedback', tester-supplied at submission,
+  // required. Defaults every existing (pre-this-migration) row to 'bug',
+  // accurate: this table had no other kind of report before now.
+  reportType String @default("bug") @db.VarChar(20)
+  // Bugs Task 7 (R2) — 'blocker' | 'annoying' | 'minor', tester-supplied,
+  // required only when reportType = 'bug' (validated server-side in
+  // insertBugReport, not enforced at the DB level — feedback rows are
+  // expected to leave this null).
+  priority String? @db.VarChar(20)
+  // Bugs Task 7 (R3) — 'BE' | 'FE' | 'APP', never tester-facing. null means
+  // "not yet triaged." Set only via bugsRouter.updateTriage.
+  area String? @db.VarChar(20)
+
   // Run/screen context — added so a report can be cross-checked against
   // Postgres the same way every other fix in this project has been, instead
   // of relying on the tester's own prose description of where they were.

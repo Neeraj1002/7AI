@@ -20,16 +20,39 @@ export const BUG_REPORT_PAGE_HTML = `<!DOCTYPE html>
   #status { margin-top: 12px; font-size: 14px; min-height: 20px; }
   #status.ok { color: #16803c; }
   #status.err { color: #c0392b; }
+  .hidden { display: none; }
+  .typeChoice { padding: 20px 16px; font-size: 17px; text-align: left; }
+  #typeFeedback { background: #444; }
+  .chipRow { display: flex; gap: 8px; margin-top: 8px; }
+  .chip { flex: 1; margin-top: 0; padding: 10px 8px; font-size: 14px; background: #fff; color: #333; border: 1px solid #ccc; }
+  .chip.selected { background: #2563eb; color: #fff; border-color: #2563eb; }
 </style>
 </head>
 <body>
 <main>
   <h1>Report a bug</h1>
-  <p class="hint">Describe what happened — the more specific, the easier it is to fix (what you tapped, what you expected, what happened instead).</p>
-  <div id="context"></div>
-  <textarea id="description" placeholder="e.g. Tapped Approve on Gate 1, screen froze for ~10s then showed a blank Run Detail screen"></textarea>
-  <button id="submit">Submit</button>
-  <div id="status"></div>
+
+  <div id="typeStep">
+    <p class="hint">What's this about?</p>
+    <button id="typeBug" class="typeChoice">🐛 Something's broken</button>
+    <button id="typeFeedback" class="typeChoice">💡 Suggestion or feedback</button>
+  </div>
+
+  <div id="formStep" class="hidden">
+    <p class="hint">Describe what happened — the more specific, the easier it is to fix (what you tapped, what you expected, what happened instead).</p>
+    <div id="context"></div>
+    <textarea id="description" placeholder="e.g. Tapped Approve on Gate 1, screen froze for ~10s then showed a blank Run Detail screen"></textarea>
+    <div id="priorityStep" class="hidden">
+      <p class="hint" style="margin-top:12px;margin-bottom:4px;">How bad is it?</p>
+      <div class="chipRow">
+        <button type="button" class="chip" id="priorityBlocker" data-priority="blocker">Blocks me</button>
+        <button type="button" class="chip" id="priorityAnnoying" data-priority="annoying">Annoying</button>
+        <button type="button" class="chip" id="priorityMinor" data-priority="minor">Minor</button>
+      </div>
+    </div>
+    <button id="submit">Submit</button>
+    <div id="status"></div>
+  </div>
 </main>
 <script>
   // Read-only, shown up front rather than hidden — a tester should be able
@@ -48,6 +71,33 @@ export const BUG_REPORT_PAGE_HTML = `<!DOCTYPE html>
     contextEl.textContent = 'No screen context captured — opened outside the app.';
   }
 
+  // Bugs Task 7 (R2) — a fast pre-step, not a rewrite: two taps (type, then
+  // for a bug, priority) ahead of the existing textarea/submit flow, which
+  // is otherwise completely unchanged below.
+  var reportType = null;
+  var priority = null;
+  var typeStep = document.getElementById('typeStep');
+  var formStep = document.getElementById('formStep');
+  var priorityStep = document.getElementById('priorityStep');
+
+  function chooseType(type) {
+    reportType = type;
+    typeStep.className = 'hidden';
+    formStep.className = '';
+    priorityStep.className = type === 'bug' ? '' : 'hidden';
+  }
+  document.getElementById('typeBug').addEventListener('click', function () { chooseType('bug'); });
+  document.getElementById('typeFeedback').addEventListener('click', function () { chooseType('feedback'); });
+
+  var chips = document.querySelectorAll('.chip');
+  for (var i = 0; i < chips.length; i++) {
+    chips[i].addEventListener('click', function () {
+      for (var j = 0; j < chips.length; j++) chips[j].className = 'chip';
+      this.className = 'chip selected';
+      priority = this.getAttribute('data-priority');
+    });
+  }
+
   var btn = document.getElementById('submit');
   var textarea = document.getElementById('description');
   var status = document.getElementById('status');
@@ -58,13 +108,18 @@ export const BUG_REPORT_PAGE_HTML = `<!DOCTYPE html>
       status.className = 'err';
       return;
     }
+    if (reportType === 'bug' && !priority) {
+      status.textContent = 'Pick how bad it is first.';
+      status.className = 'err';
+      return;
+    }
     btn.disabled = true;
     status.textContent = 'Submitting…';
     status.className = '';
     fetch('/bugs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: description, runId: runId, screenContext: screen })
+      body: JSON.stringify({ description: description, reportType: reportType, priority: priority, runId: runId, screenContext: screen })
     })
       .then(function (res) {
         if (!res.ok) throw new Error('Server rejected the report');
