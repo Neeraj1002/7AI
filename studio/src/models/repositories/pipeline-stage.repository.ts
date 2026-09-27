@@ -146,3 +146,16 @@ export async function createSkippedStageAttempt(params: {
   });
   return toDomainStage(row);
 }
+
+// Bugs Task 10 (R1) — the newest attempt that actually produced output.
+// findLatestAttempt can land on a budget-skipped row, which has none.
+export async function findLatestCompletedAttempt(
+  pipelineRunId: string,
+  stageName: StageName,
+): Promise<PipelineStage | null> {
+  const row = await prisma.pipelineStage.findFirst({
+    where: { pipelineRunId, stageName, status: 'completed' },
+    orderBy: { attemptNumber: 'desc' },
+  });
+  return row ? toDomainStage(row) : null;
+}

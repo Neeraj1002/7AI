@@ -10,6 +10,7 @@ import {
   createStageAttempt,
   failStage,
   findLatestAttempt,
+  findLatestCompletedAttempt,
   recordStageProgress,
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
@@ -260,15 +261,19 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     // note appended to the run's most recent review rationale (no fresh
     // review ran this attempt to attach the note to directly, unlike the
     // cap-reached case).
-    if (attemptNumber > 1) {
-      const reviewLogs = await listReviewLogsForRun(runId);
-      const latestReview = [...reviewLogs].reverse().find((log) => log.agent === 'script-review');
-      if (latestReview) {
-        await updateReviewLogRationale(
-          latestReview.id,
-          `${latestReview.rationale} [Budget ceiling reached during auto-retry — sent to Gate 1 with the last available draft despite low score.]`,
-        );
-      }
+    // Bugs Task 10 (R1) — attemptNumber > 1 alone isn't proof a draft exists:
+    // a manual Retry after a first-attempt refusal is attempt 2 with only
+    // skipped rows behind it, and routing that to Gate 1 left a run that
+    // could never open its gate (41bdf456 errored on every boot). Only hand
+    // Gate 1 a run that actually has a completed draft and a review.
+    const lastDraft = attemptNumber > 1 ? await findLatestCompletedAttempt(runId, 'script_generation') : null;
+    const reviewLogs = lastDraft ? await listReviewLogsForRun(runId) : [];
+    const latestReview = [...reviewLogs].reverse().find((log) => log.agent === 'script-review');
+    if (lastDraft && latestReview) {
+      await updateReviewLogRationale(
+        latestReview.id,
+        `${latestReview.rationale} [Budget ceiling reached during auto-retry — sent to Gate 1 with the last available draft despite low score.]`,
+      );
       return await updatePipelineRun(runId, {
         status: 'paused_gate1',
         currentStage: nextStageAfter('script_review'),
@@ -589,7 +594,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     throw new Error(`Channel ${run.channelId} not found`);
   }
 
-  const scriptGenStage = await findLatestAttempt(runId, 'script_generation');
+  const scriptGenStage = await findLatestCompletedAttempt(runId, 'script_generation');
   if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed script_generation output — cannot open Gate 1`);
   }
@@ -1348,7 +1353,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     throw new Error(`PipelineRun ${runId} has no sanctioned script text from gate1`);
   }
 
-  const scriptGenStage = await findLatestAttempt(runId, 'script_generation');
+  const scriptGenStage = await findLatestCompletedAttempt(runId, 'script_generation');
   if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed script_generation output — cannot run publishing`);
   }

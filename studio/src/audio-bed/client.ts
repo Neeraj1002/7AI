@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { NonTransientStageError } from '../run-pipeline/retry-with-backoff';
 import { AUDIO_BED_MANIFEST } from './manifest';
 import type { AudioBedTrack, MoodTag } from './types';
@@ -24,6 +25,12 @@ export function pickTrackByMood(manifest: AudioBedTrack[], moodTag: MoodTag): Au
     throw new NonTransientStageError(
       `Audio-bed track for mood '${moodTag}' (${track.filePath}) is missing license metadata — refusing to use it. Add a real license value to audio-bed/manifest.ts before this track can be picked.`,
     );
+  }
+  // Bugs Task 10 (R2) — a missing file used to reach ffmpeg as a plain error,
+  // retried 3x and surfaced only as "Stage attempt failed after 3 retries"
+  // (the repo-root-cwd video failures). Fail once, with the path.
+  if (!fs.existsSync(track.filePath)) {
+    throw new NonTransientStageError(`Audio-bed file for mood '${moodTag}' is missing on disk: ${track.filePath}`);
   }
   return track;
 }
