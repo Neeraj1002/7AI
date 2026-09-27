@@ -14,7 +14,7 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
-import { insertReviewLog, listReviewLogsForRun } from '../models/repositories/review-log.repository';
+import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext } from './retry-with-backoff';
 import { isBudgetAvailable } from './budget-gate';
@@ -234,6 +234,29 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
       input: stageInput,
       reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
     });
+    // Bugs Task 6 (R2) — a budget refusal on a genuine first attempt is
+    // unchanged (needs_attention: no partial progress or review history
+    // exists yet to hand a human). A refusal mid-retry (attemptNumber > 1)
+    // is arguably the same kind of normal, expected outcome as hitting the
+    // auto-retry cap (Bugs Task 3/R3) — not a bug — so it's routed the same
+    // way: paused_gate1 with the last available draft/score, flagged with a
+    // note appended to the run's most recent review rationale (no fresh
+    // review ran this attempt to attach the note to directly, unlike the
+    // cap-reached case).
+    if (attemptNumber > 1) {
+      const reviewLogs = await listReviewLogsForRun(runId);
+      const latestReview = [...reviewLogs].reverse().find((log) => log.agent === 'script-review');
+      if (latestReview) {
+        await updateReviewLogRationale(
+          latestReview.id,
+          `${latestReview.rationale} [Budget ceiling reached during auto-retry — sent to Gate 1 with the last available draft despite low score.]`,
+        );
+      }
+      return await updatePipelineRun(runId, {
+        status: 'paused_gate1',
+        currentStage: nextStageAfter('script_review'),
+      });
+    }
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
       lastError: 'Script Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
