@@ -4,9 +4,9 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { useFonts, Archivo_400Regular, Archivo_600SemiBold, Archivo_700Bold, Archivo_800ExtraBold } from '@expo-google-fonts/archivo';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../lib/auth';
-import { TRPCProvider, createTrpcClient } from '../lib/trpc';
+import { TRPCProvider, createTrpcClient, isServerUnreachableError } from '../lib/trpc';
 
 // Sprint 3 Task 3 (FE11') — tapping a real push notification deep-links
 // straight into the relevant screen, reusing the exact payload shape
@@ -31,14 +31,37 @@ function usePushNotificationTapHandler(): void {
 }
 
 function Providers({ children }: { children: React.ReactNode }) {
-  const { token, apiUrl } = useAuth();
+  const { token, apiUrl, reportServerUnreachable } = useAuth();
 
   // Recreated whenever the stored credentials change (e.g. right after
   // signing in) — a stale client would otherwise keep using an old token.
   // Placeholder values before sign-in are harmless: the login screen doesn't
   // issue any tRPC calls, and every other route is gated on `token` being
   // set (app/(app)/_layout.tsx).
-  const queryClient = useMemo(() => new QueryClient(), []);
+  // Bugs Task 8 (R2) — a network-level failure (see isServerUnreachableError)
+  // flips the app to the server-down screen, and isn't retried 3x first
+  // (react-query's default), which is what kept the old spinner going.
+  const queryClient = useMemo(
+    () =>
+      new QueryClient({
+        queryCache: new QueryCache({
+          onError: (error) => {
+            if (isServerUnreachableError(error)) reportServerUnreachable();
+          },
+        }),
+        mutationCache: new MutationCache({
+          onError: (error) => {
+            if (isServerUnreachableError(error)) reportServerUnreachable();
+          },
+        }),
+        defaultOptions: {
+          queries: {
+            retry: (failureCount, error) => !isServerUnreachableError(error) && failureCount < 3,
+          },
+        },
+      }),
+    [reportServerUnreachable],
+  );
   const trpcClient = useMemo(
     () => createTrpcClient(apiUrl ?? 'http://localhost:4000', token ?? ''),
     [apiUrl, token],
@@ -61,6 +84,7 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ title: 'Sign in' }} />
         <Stack.Screen name="verify" options={{ title: 'Signing in…' }} />
+        <Stack.Screen name="server-down" options={{ title: 'Server unavailable' }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack>
     </>

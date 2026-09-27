@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getSecureItem, setSecureItem, deleteSecureItem } from './storage';
-import type { Session } from './auth-api';
+import { isServerReachable, type Session } from './auth-api';
 import type { UserRole } from './auth-types';
 import { registerForPushNotificationsAsync } from './push';
 
@@ -33,6 +33,14 @@ type AuthState = {
   // *current* apiUrl for push-token registration, not a lagging one).
   completeSignIn: (result: { sessionToken: string; session: Session }, apiUrl: string) => Promise<void>;
   signOut: () => Promise<void>;
+  // Bugs Task 8 (R2) — 'unknown' until the first /health ping (only made once
+  // there's a stored session + API URL; the login screen has its own errors).
+  // 'down' routes the signed-in app to /server-down instead of spinning.
+  serverStatus: 'unknown' | 'up' | 'down';
+  // Re-pings /health; resolves true when the server answered.
+  checkServer: () => Promise<boolean>;
+  // Called by the shared QueryClient when a request fails at the network level.
+  reportServerUnreachable: () => void;
 };
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -49,6 +57,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [serverStatus, setServerStatus] = useState<AuthState['serverStatus']>('unknown');
+
+  const checkServer = useCallback(async () => {
+    if (!apiUrl) return false;
+    const reachable = await isServerReachable(apiUrl);
+    setServerStatus(reachable ? 'up' : 'down');
+    return reachable;
+  }, [apiUrl]);
+
+  const reportServerUnreachable = useCallback(() => setServerStatus('down'), []);
+
+  // Ping once the stored session/URL are loaded (and again if the URL changes
+  // after sign-in), so a dead server is caught before any screen starts
+  // spinning on it.
+  useEffect(() => {
+    if (isLoading || !token || !apiUrl) return;
+    let cancelled = false;
+    void isServerReachable(apiUrl).then((reachable) => {
+      if (!cancelled) setServerStatus(reachable ? 'up' : 'down');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, token, apiUrl]);
 
   useEffect(() => {
     void (async () => {
@@ -108,8 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTenantId(null);
         setRole(null);
       },
+      serverStatus,
+      checkServer,
+      reportServerUnreachable,
     }),
-    [isLoading, token, apiUrl, userId, tenantId, role],
+    [isLoading, token, apiUrl, userId, tenantId, role, serverStatus, checkServer, reportServerUnreachable],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

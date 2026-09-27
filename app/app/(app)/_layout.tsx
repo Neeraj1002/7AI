@@ -14,10 +14,12 @@ import { ChannelProvider } from '../../lib/channel-context';
 // otherwise), a known, accepted scope limit given the project's ~10-tester
 // scale, not an oversight.
 export default function AppGroupLayout() {
-  const { isLoading, token } = useAuth();
+  const { isLoading, token, serverStatus } = useAuth();
 
   if (isLoading) return null;
   if (!token) return <Redirect href="/login" />;
+  // Bugs Task 8 (R2) — see lib/auth.tsx serverStatus.
+  if (serverStatus === 'down') return <Redirect href="/server-down" />;
 
   return (
     <ChannelProvider>

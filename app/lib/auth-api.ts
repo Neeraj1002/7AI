@@ -58,3 +58,34 @@ export async function verifyMagicLinkToken(apiUrl: string, token: string): Promi
   }
   return { sessionToken: body.sessionToken, session: body.session };
 }
+
+// Bugs Task 8 (R2) — a server that's down (or a wrong/stale API URL) used to
+// leave every screen spinning forever: fetch has no timeout of its own and
+// react-query retried each call. One bounded GET /health tells the app which
+// case it's in so it can show a real "can't reach the server" screen.
+export const SERVER_TIMEOUT_MS = 10_000;
+
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = SERVER_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Honour a caller's own abort (react-query cancels queries on unmount).
+  init.signal?.addEventListener('abort', () => controller.abort());
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function isServerReachable(apiUrl: string): Promise<boolean> {
+  try {
+    const res = await fetchWithTimeout(`${apiUrl.replace(/\/$/, '')}/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
