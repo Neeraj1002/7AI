@@ -200,10 +200,26 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
 
   const previousAttempt = await findLatestAttempt(runId, 'script_generation');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+
+  // Bugs Task 6 (R1) — same live-lookup shape as runVideoGenerationStage's
+  // own fixNotes resolution (not persisted via creationOptions): on a retry
+  // (attemptNumber > 1), find the most recent auto-reject ReviewLog Bugs
+  // Task 3/R3 already writes and forward its rationale. undefined on a
+  // genuine first attempt — no review exists yet to have rejected anything.
+  let fixNotes: string | undefined;
+  if (attemptNumber > 1) {
+    const reviewLogs = await listReviewLogsForRun(runId);
+    const latestAutoReject = [...reviewLogs]
+      .reverse()
+      .find((log) => log.agent === 'script-review' && log.verdict === 'auto-reject');
+    fixNotes = latestAutoReject?.rationale;
+  }
+
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: run.intakeParsed.constraints,
     styleGuide: channel.styleGuide,
+    fixNotes: fixNotes ?? null,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -242,6 +258,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
+        fixNotes: fixNotes ?? undefined,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
