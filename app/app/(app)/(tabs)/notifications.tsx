@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { inferRouterOutputs } from '@trpc/server';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../../../lib/trpc';
 import { flags } from '../../../lib/feature-flags';
 import { relativeTime } from '../../../lib/run-labels';
@@ -14,6 +14,7 @@ import { GateActionBar } from '../../../components/GateActionBar';
 import type { AppRouter } from '../../../../studio/src/api/router';
 
 type NotificationRow = inferRouterOutputs<AppRouter>['notifications']['list'][number];
+type Gate2Input = inferRouterInputs<AppRouter>['runs']['gate2'];
 
 // The in-app inbox. A pending approval_request reuses the same GateActionBar
 // as Run detail, wired to the same runs.gate1/gate2 mutations — resolving
@@ -111,8 +112,12 @@ function PendingGateActions({ runId }: { runId: string }) {
           gate={2}
           isSubmitting={gate2Mutation.isPending}
           onApprove={(privacy) => {
-            const input = { runId, action: 'approve' as const };
-            gate2Mutation.mutate(flags.gate2Visibility && privacy ? ({ ...input, privacyStatus: privacy } as typeof input) : input);
+            const payload: Gate2Input = {
+              runId,
+              action: 'approve',
+              ...(flags.gate2Visibility && privacy ? { privacyStatus: privacy } : {}),
+            };
+            gate2Mutation.mutate(payload);
           }}
           onReject={(reason) => gate2Mutation.mutate({ runId, action: 'reject', reason })}
           onEditOrRevise={(notes) => gate2Mutation.mutate({ runId, action: 'revise', notes })}

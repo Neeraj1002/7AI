@@ -41,7 +41,7 @@ export default function NewBriefScreen() {
   const selected = channelById(selectedChannelId);
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
   const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
-  const channelVoice = (selected as { defaultVoice?: string | null } | undefined)?.defaultVoice;
+  const channelVoice = selected?.defaultVoice;
   const channelVoiceLabel = VOICES.find((v) => v.value === channelVoice)?.label ?? 'Alloy';
   const voiceLabel = voice ? VOICES.find((v) => v.value === voice)!.label : `Channel default (${channelVoiceLabel})`;
   const musicLabel = music ? MUSIC_MOODS.find((m) => m.value === music)!.label : 'Auto (let the pipeline pick)';

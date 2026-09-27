@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TextInput, Pressable, Linking } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { inferRouterOutputs } from '@trpc/server';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { Feather } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTRPC } from '../../../lib/trpc';
@@ -23,6 +23,7 @@ import { ConfirmSheet } from '../../../components/ConfirmSheet';
 import type { AppRouter } from '../../../../studio/src/api/router';
 
 type ReviewLogRow = inferRouterOutputs<AppRouter>['runs']['get']['reviewLogs'][number];
+type Gate2Input = inferRouterInputs<AppRouter>['runs']['gate2'];
 
 // No fixed tag vocabulary is enforced server-side (Backend Task 7/O4); these
 // are quick-pick suggestions only, free text is always accepted.
@@ -149,7 +150,7 @@ export default function RunDetailScreen() {
   const currentStage = isGate1 ? 'gate1' : isGate2 ? 'gate2' : run.currentStage;
   const stepIndex = run.status === 'completed' ? 7 : stepperIndexForStage(currentStage);
 
-  const defaultPrivacy = (channel as { defaultPrivacyStatus?: Privacy } | undefined)?.defaultPrivacyStatus;
+  const defaultPrivacy: Privacy | undefined = channel?.defaultPrivacyStatus;
 
   const openGateStage = isGate1 ? latestStage(stages, 'gate1') : isGate2 ? latestStage(stages, 'gate2') : undefined;
   const decisionSent = decisionSentFor !== null && decisionSentFor === openGateStage?.id;
@@ -166,8 +167,12 @@ export default function RunDetailScreen() {
           onApprove={(privacy) => {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'approve' });
             else {
-              const input = { runId: run.id, action: 'approve' as const };
-              gate2Mutation.mutate(flags.gate2Visibility && privacy ? ({ ...input, privacyStatus: privacy } as typeof input) : input);
+              const payload: Gate2Input = {
+                runId: run.id,
+                action: 'approve',
+                ...(flags.gate2Visibility && privacy ? { privacyStatus: privacy } : {}),
+              };
+              gate2Mutation.mutate(payload);
             }
           }}
           onReject={(reason) => {
