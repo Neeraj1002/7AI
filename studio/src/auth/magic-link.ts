@@ -73,10 +73,10 @@ export async function requestMagicLink(params: { email: string; telegramChatId?:
     // Never instead of the console log above — Telegram delivery is an
     // addition, the console line stays the zero-cost fallback regardless of
     // whether this succeeds.
-    await sendTelegramMessage(
-      chatId,
-      `Your 7AI Studio sign-in token (expires in 15 minutes):\n\n${token}\n\nPaste it into the app's "sign-in link or token" field.`,
-    );
+    // Sprint 3 Task 10 (R3) — just the raw token, nothing else: the founder
+    // wants to copy-paste this directly into the app's token field, and any
+    // surrounding sentence has to be edited out first before that works.
+    await sendTelegramMessage(chatId, token);
   }
 }
 

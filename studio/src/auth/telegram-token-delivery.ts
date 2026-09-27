@@ -62,6 +62,36 @@ type TelegramUpdate = {
 let updateOffset: number | undefined;
 let pollInFlight = false;
 
+// Sprint 3 Task 10 (R4) — a long-held HTTPS connection to Telegram's
+// getUpdates gets periodically reset by Telegram's own side (a normal,
+// transient characteristic of long-polling, confirmed real and recurring
+// from the founder: TypeError: fetch failed / SocketError: other side
+// closed). Before this, every tick's own catch logged unconditionally —
+// harmless to the poll loop itself (the outer setInterval, src/index.ts,
+// always calls again regardless), but noisy during a bad patch. Tracked
+// per consecutive-failure streak, not per tick: log once when a streak
+// starts, back off exponentially (capped) while it continues, reset to
+// nothing the moment a call succeeds again.
+let consecutiveFailures = 0;
+let nextAttemptAt = 0;
+const BACKOFF_BASE_MS = 3_000;
+// Never wait longer than this between attempts — a cap, not a permanent
+// stop: even a long, unusually bad patch keeps retrying, just slowly.
+const BACKOFF_MAX_MS = 60_000;
+
+function recordFailure(message: string, error?: unknown): void {
+  consecutiveFailures += 1;
+  if (consecutiveFailures === 1) {
+    if (error !== undefined) {
+      console.error(`[telegram-token-delivery] ${message}:`, error);
+    } else {
+      console.error(`[telegram-token-delivery] ${message}`);
+    }
+  }
+  const backoff = Math.min(BACKOFF_BASE_MS * 2 ** (consecutiveFailures - 1), BACKOFF_MAX_MS);
+  nextAttemptAt = Date.now() + backoff;
+}
+
 // The one-time handshake Telegram itself requires: a bot can't message a
 // chat that has never messaged it first. A tester sends /start once and
 // gets their numeric chat id back to paste into the login screen — no
@@ -72,6 +102,13 @@ export async function runTelegramStartPollCheck(): Promise<{ handled: number }> 
   if (!isConfigured() || pollInFlight) {
     return { handled: 0 };
   }
+  // Still backing off from a recent failure streak — skip this tick
+  // silently (the outer setInterval will call again in
+  // TELEGRAM_START_POLL_INTERVAL_MS regardless; this just makes some of
+  // those ticks no-ops instead of a real attempt).
+  if (Date.now() < nextAttemptAt) {
+    return { handled: 0 };
+  }
   pollInFlight = true;
   try {
     const params = new URLSearchParams({ timeout: '0' });
@@ -80,14 +117,16 @@ export async function runTelegramStartPollCheck(): Promise<{ handled: number }> 
     }
     const res = await fetch(`${TELEGRAM_API_BASE}/bot${env.TELEGRAM_BOT_TOKEN}/getUpdates?${params}`);
     if (!res.ok) {
-      console.error(`[telegram-token-delivery] getUpdates failed (${res.status})`);
+      recordFailure(`getUpdates failed (${res.status})`);
       return { handled: 0 };
     }
     const body = (await res.json()) as { ok: boolean; result: TelegramUpdate[] };
     if (!body.ok) {
+      recordFailure('getUpdates returned ok:false');
       return { handled: 0 };
     }
 
+    consecutiveFailures = 0;
     let handled = 0;
     for (const update of body.result) {
       updateOffset = update.update_id + 1;
@@ -104,7 +143,7 @@ export async function runTelegramStartPollCheck(): Promise<{ handled: number }> 
     }
     return { handled };
   } catch (error) {
-    console.error('[telegram-token-delivery] getUpdates threw:', error);
+    recordFailure('getUpdates threw', error);
     return { handled: 0 };
   } finally {
     pollInFlight = false;
