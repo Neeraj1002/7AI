@@ -1,5 +1,5 @@
 import { prisma } from '../prisma-client';
-import type { Channel as PrismaChannel } from '@prisma/client';
+import type { Channel as PrismaChannel, Prisma } from '@prisma/client';
 import type { Channel, ChannelPlatform, CreateChannelInput, PriorsScope } from '../../types';
 
 function toDomainChannel(row: PrismaChannel): Channel {
@@ -106,8 +106,18 @@ export async function updateChannelBrandAssets(
   patch: Partial<Channel['brandAssets']>,
 ): Promise<Channel> {
   const current = await prisma.channel.findUniqueOrThrow({ where: { id }, select: { brandAssets: true } });
-  const merged = { ...((current.brandAssets ?? {}) as Channel['brandAssets']), ...patch };
-  const row = await prisma.channel.update({ where: { id }, data: { brandAssets: merged } });
+  const merged: Record<string, unknown> = { ...((current.brandAssets ?? {}) as Channel['brandAssets']), ...patch };
+  // A patch value of `undefined` means "remove this key" (R3's watermark
+  // DELETE), not "store the literal value undefined" — stripped explicitly
+  // rather than relying on the DB driver's own JSON-serialization behavior
+  // for an undefined-valued key to do the right thing.
+  for (const key of Object.keys(merged)) {
+    if (merged[key] === undefined) delete merged[key];
+  }
+  const row = await prisma.channel.update({
+    where: { id },
+    data: { brandAssets: merged as Prisma.InputJsonValue },
+  });
   return toDomainChannel(row);
 }
 
