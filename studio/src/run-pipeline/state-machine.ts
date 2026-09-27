@@ -16,7 +16,7 @@ import { findChannelById } from '../models/repositories/channel.repository';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
-import { withRetryAndCircuitBreaker, getStageErrorContext } from './retry-with-backoff';
+import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { isBudgetAvailable } from './budget-gate';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
@@ -73,8 +73,22 @@ function nextStageAfter(stage: StageName): StageName | null {
 // Every function's error path does the exact same thing (fail the stage,
 // escalate the run to `needs_attention`), so it's pulled into one shared,
 // transactional helper rather than repeated nine times.
-async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
+// Bugs Task 7 (R1) — a CircuitBreakerTrippedError's own message is only the
+// generic "failed after N retries"; the real cause (ffmpeg, TTS, footage
+// API...) lives on its lastError. Append it so stage.errorMessage and
+// run.lastError actually say what broke.
+function describeStageError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof CircuitBreakerTrippedError && error.lastError !== undefined) {
+    const cause = error.lastError instanceof Error ? error.lastError.message : String(error.lastError);
+    return `${message}: ${cause}`;
+  }
+  return message;
+}
+
+async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
+  const message = describeStageError(error);
+  console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
     await failStage(stageId, message, tx);
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);

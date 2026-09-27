@@ -10,7 +10,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { relativeTime, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { humanizeRunError, relativeTime, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -18,7 +18,8 @@ import { StatusChip } from '../../../components/StatusChip';
 import { Stepper } from '../../../components/Stepper';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { GateActionBar, type Privacy } from '../../../components/GateActionBar';
-import { PrimaryButton } from '../../../components/Buttons';
+import { PrimaryButton, SecondaryButton } from '../../../components/Buttons';
+import { ConfirmSheet } from '../../../components/ConfirmSheet';
 import type { AppRouter } from '../../../../studio/src/api/router';
 
 type ReviewLogRow = inferRouterOutputs<AppRouter>['runs']['get']['reviewLogs'][number];
@@ -53,7 +54,19 @@ export default function RunDetailScreen() {
   const [barHeight, setBarHeight] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
 
-  const { data, isLoading, error } = useQuery(trpc.runs.get.queryOptions({ id: id! }));
+  // Bugs Task 7 (R4) — poll while the pipeline is working, so the screen moves
+  // to the gate / needs-attention state on its own instead of looking frozen.
+  const { data, isLoading, error } = useQuery(
+    trpc.runs.get.queryOptions(
+      { id: id! },
+      {
+        refetchInterval: (query) => {
+          const status = query.state.data?.run.status;
+          return status === 'running' || status === 'pending' ? 5_000 : false;
+        },
+      },
+    ),
+  );
 
   const invalidate = () =>
     Promise.all([
@@ -64,6 +77,17 @@ export default function RunDetailScreen() {
 
   const gate1Mutation = useMutation(trpc.runs.gate1.mutationOptions({ onSuccess: () => invalidate() }));
   const gate2Mutation = useMutation(trpc.runs.gate2.mutationOptions({ onSuccess: () => invalidate() }));
+  // Bugs Task 7 (R3) — the way out of needs_attention.
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const retryMutation = useMutation(trpc.runs.retry.mutationOptions({ onSuccess: () => invalidate() }));
+  const cancelMutation = useMutation(
+    trpc.runs.cancel.mutationOptions({
+      onSuccess: () => {
+        setConfirmCancel(false);
+        return invalidate();
+      },
+    }),
+  );
 
   const videoUrl = useMemo(
     () => (apiUrl && data ? `${apiUrl.replace(/\/$/, '')}/runs/${data.run.id}/video` : null),
@@ -95,7 +119,7 @@ export default function RunDetailScreen() {
   const videoReviewStage = latestStage(stages, 'video_review');
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
-  const wordCount = scriptText.trim() ? scriptText.trim().split(/s+/).length : 0;
+  const wordCount = scriptText.trim() ? scriptText.trim().split(/\s+/).length : 0;
   const approxSec = wordCount > 0 ? Math.round(wordCount / 2.5) : undefined;
   const reviewScore = scriptReviewStage?.output?.score as number | undefined;
   const reviewNotes = scriptReviewStage?.output?.notes as string | undefined;
@@ -107,6 +131,7 @@ export default function RunDetailScreen() {
 
   const isGate1 = run.status === 'paused_gate1';
   const isGate2 = run.status === 'paused_gate2';
+  const isNeedsAttention = run.status === 'needs_attention';
   const currentStage = isGate1 ? 'gate1' : isGate2 ? 'gate2' : run.currentStage;
   const stepIndex = run.status === 'completed' ? 7 : stepperIndexForStage(currentStage);
 
@@ -138,9 +163,27 @@ export default function RunDetailScreen() {
           }}
         />
       </BottomActionBar>
+    ) : isNeedsAttention ? (
+      <BottomActionBar onHeight={setBarHeight}>
+        <PrimaryButton
+          label="Retry this step"
+          icon="rotate-cw"
+          loading={retryMutation.isPending}
+          disabled={cancelMutation.isPending}
+          onPress={() => retryMutation.mutate({ runId: run.id })}
+        />
+        <SecondaryButton
+          label="Cancel run"
+          icon="x"
+          disabled={retryMutation.isPending || cancelMutation.isPending}
+          onPress={() => setConfirmCancel(true)}
+        />
+      </BottomActionBar>
     ) : null;
 
-  const mutationError = (isGate1 ? gate1Mutation.error : gate2Mutation.error)?.message;
+  const mutationError = (
+    isGate1 ? gate1Mutation.error : isGate2 ? gate2Mutation.error : (retryMutation.error ?? cancelMutation.error)
+  )?.message;
 
   return (
     <FormScreen
@@ -162,6 +205,32 @@ export default function RunDetailScreen() {
       </Card>
 
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
+
+      {isNeedsAttention ? (
+        <Card>
+          <Text style={styles.cardTitle}>What went wrong</Text>
+          <Text style={styles.body}>
+            {humanizeRunError(run.lastError) || 'This run stopped and needs a decision.'}
+            {run.currentStage ? ` (at ${run.currentStage.replace(/_/g, ' ')})` : ''}
+          </Text>
+          {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
+          <Text style={styles.meta}>
+            Retry runs this step again from scratch. Cancel stops the run for good.
+          </Text>
+        </Card>
+      ) : null}
+
+      <ConfirmSheet
+        visible={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        icon="x-circle"
+        title="Cancel this run?"
+        body="The run will be marked as failed and won't continue. This can't be undone."
+        confirmLabel="Cancel run"
+        destructive
+        isConfirming={cancelMutation.isPending}
+        onConfirm={() => cancelMutation.mutate({ runId: run.id })}
+      />
 
       {isGate1 ? (
         <>

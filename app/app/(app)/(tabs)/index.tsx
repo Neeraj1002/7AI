@@ -21,7 +21,9 @@ export default function QueueScreen() {
   const trpc = useTRPC();
   const { channelById, channelIndex } = useChannels();
   const { data, isLoading, isFetching, refetch } = useQuery(
-    trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }),
+    // Bugs Task 7 (R4) — a freshly started run only lands here once it reaches
+    // Gate 1 (seconds to minutes later), and nothing refetched in the meantime.
+    trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }, { refetchInterval: 15_000 }),
   );
 
   const { waiting, attention } = useMemo(() => {

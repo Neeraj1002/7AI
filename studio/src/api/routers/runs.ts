@@ -2,12 +2,12 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
-import { findPipelineRunById, listRuns } from '../../models/repositories/pipeline-run.repository';
+import { findPipelineRunById, listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import { listStagesForRun } from '../../models/repositories/pipeline-stage.repository';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
-import { startPipelineInBackground } from '../../run-pipeline/pipeline-runner';
+import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { resolvePendingApproval } from '../../notifications';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
@@ -237,6 +237,63 @@ export const runsRouter = router({
       }
       return { resolved: true };
     }),
+
+  // Bugs Task 7 (R3) — a needs_attention run had no way out from the app
+  // (three separate tester reports: "no way to resolve it", "how do you
+  // cancel", "stuck at a run which does nothing"). retry re-enters the
+  // runner at the run's currentStage (the stage that escalated) — each
+  // runXStage starts a fresh attempt, and the budget gate/circuit breakers
+  // still apply exactly as on a first attempt. Same ownership check as the
+  // gates: moving a run forward or killing it is at least as sensitive.
+  retry: publicProcedure.input(z.object({ runId: z.string().uuid() })).mutation(async ({ input, ctx }) => {
+    const channel = await assertGateOwnership(input.runId, ctx);
+    // Same rule as create — the runner would only re-fail it as 'Channel deleted'.
+    if (!channel.isActive) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${channel.id} is archived — cancel this run instead` });
+    }
+    const run = await findPipelineRunById(input.runId);
+    if (!run || run.status !== 'needs_attention') {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: `Run ${input.runId} can only be retried from Needs attention (it is '${run?.status}')`,
+      });
+    }
+    if (!run.currentStage) {
+      throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
+    }
+    // Flip to 'running' first — the runner loop exits immediately on
+    // needs_attention.
+    const updated = await updatePipelineRun(run.id, { status: 'running', lastError: null });
+    continuePipelineInBackground(run.id);
+    return updated;
+  }),
+
+  // Cancel = the existing terminal 'failed' status with an explicit reason
+  // (no new status value → no schema/enum change). A run paused at a gate is
+  // cancelled through that gate's own reject path so the blocked
+  // runGate1Stage/runGate2Stage call records it and returns; anything
+  // mid-stage ('running') is refused rather than racing the stage's own write.
+  cancel: publicProcedure.input(z.object({ runId: z.string().uuid() })).mutation(async ({ input, ctx }) => {
+    await assertGateOwnership(input.runId, ctx);
+    const run = await findPipelineRunById(input.runId);
+    if (!run) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    }
+    if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
+      if (resolvePendingApproval(run.id, 'reject Cancelled by user').resolved) {
+        return { cancelled: true };
+      }
+      // Gate not registered in this process (e.g. mid-restart) — fall through
+      // to the direct write; the stale gate attempt is harmless once failed.
+    } else if (run.status !== 'needs_attention' && run.status !== 'pending') {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: `Run ${input.runId} can't be cancelled while '${run.status}'`,
+      });
+    }
+    await updatePipelineRun(run.id, { status: 'failed', lastError: 'Cancelled by user' });
+    return { cancelled: true };
+  }),
 
   // POST /runs/:id/tag-post-hoc — Sprint 3 Task 7 (O4). Replaces the old
   // bot-only `tag <runId> <word> [notes]` text command (Sprint 2 Task 6)
