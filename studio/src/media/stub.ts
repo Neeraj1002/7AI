@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { env } from '../config/env';
 import type { SynthesizeSpeechResult, TranscribeResult, TranscriptSegment, VoiceConfig } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // Testing-only stand-ins for the real OpenAI-backed calls, used only when
 // MEDIA_STUB=1 — no OPENAI_API_KEY has been available in any session so far.
@@ -14,7 +15,7 @@ import type { SynthesizeSpeechResult, TranscribeResult, TranscriptSegment, Voice
 // word-level timing to work with, not empty/fake-shaped data.
 
 const execFileAsync = promisify(execFile);
-const MEDIA_TMP_DIR = path.resolve(process.cwd(), 'data', 'media-tmp');
+const MEDIA_TMP_DIR = path.resolve(DATA_DIR, 'media-tmp');
 
 // Roughly matches natural speaking pace (~150 words/minute at ~5 chars/word)
 // so the placeholder clip's duration is plausible relative to the input text

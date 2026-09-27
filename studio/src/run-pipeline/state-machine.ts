@@ -641,7 +641,38 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     restarted: isRestartReopen,
   });
 
-  if (outcome.type === 'reject') {
+  const recordGate1Outcome = async (): Promise<PipelineRun> => {
+    if (outcome.type === 'reject') {
+      return await prisma.$transaction(async (tx) => {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'human',
+            verdict: 'reject',
+            rationale: outcome.reason,
+          },
+          tx,
+        );
+        await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
+        return await updatePipelineRun(
+          runId,
+          {
+            status: 'failed',
+            lastError: `Rejected at Gate 1: ${outcome.reason}`,
+          },
+          tx,
+        );
+      });
+    }
+
+    // On edit, the edited text — not the original AI output — becomes the
+    // sanctioned input for whatever reads gate1's stage output next. The
+    // original stays in script_generation's own stage row, never overwritten.
+    const sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
+
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(
         {
@@ -650,54 +681,37 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
           pipelineRunId: runId,
           stageId: stage.id,
           agent: 'human',
-          verdict: 'reject',
-          rationale: outcome.reason,
+          verdict: outcome.type,
+          rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
+          editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
         },
         tx,
       );
-      await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
+
+      await completeStage(stage.id, { outcome: outcome.type, sanctionedScriptText }, tx);
+
       return await updatePipelineRun(
         runId,
         {
-          status: 'failed',
-          lastError: `Rejected at Gate 1: ${outcome.reason}`,
+          status: 'running',
+          currentStage: nextStageAfter('gate1'),
         },
         tx,
       );
     });
+  };
+
+  // Bugs Task 9 (R2) — the pending reply is consumed the moment it arrives, so if
+  // recording it failed (seen live: Prisma P2028, transaction expired) the run sat
+  // at paused_gate1 with no live gate — Approve/Reject did nothing until a
+  // restart. Re-open the same attempt instead (the running stage row is reused),
+  // so the founder can simply answer again.
+  try {
+    return await recordGate1Outcome();
+  } catch (error) {
+    console.error(`[gate1] run ${runId}: recording the Gate 1 decision failed — re-opening the gate:`, error);
+    return runGate1Stage(runId);
   }
-
-  // On edit, the edited text — not the original AI output — becomes the
-  // sanctioned input for whatever reads gate1's stage output next. The
-  // original stays in script_generation's own stage row, never overwritten.
-  const sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
-
-  return await prisma.$transaction(async (tx) => {
-    await insertReviewLog(
-      {
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'human',
-        verdict: outcome.type,
-        rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
-        editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
-      },
-      tx,
-    );
-
-    await completeStage(stage.id, { outcome: outcome.type, sanctionedScriptText }, tx);
-
-    return await updatePipelineRun(
-      runId,
-      {
-        status: 'running',
-        currentStage: nextStageAfter('gate1'),
-      },
-      tx,
-    );
-  });
 }
 
 // Runs (or re-runs, on resume/regen) the video_generation stage — Week 3 Task
@@ -1160,7 +1174,78 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     restarted: isRestartReopen,
   });
 
-  if (outcome.type === 'reject') {
+  const recordGate2Outcome = async (): Promise<PipelineRun> => {
+    if (outcome.type === 'reject') {
+      return await prisma.$transaction(async (tx) => {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'human',
+            verdict: 'reject',
+            rationale: outcome.reason,
+          },
+          tx,
+        );
+        await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
+        return await updatePipelineRun(
+          runId,
+          {
+            status: 'failed',
+            lastError: `Rejected at Gate 2: ${outcome.reason}`,
+          },
+          tx,
+        );
+      });
+    }
+
+    if (outcome.type === 'approve') {
+      // Week 5 Task 5 (D2) — the privacy status the founder actually chose,
+      // resolved by parseGate2Reply itself (defaults to DEFAULT_PRIVACY_STATUS
+      // on a bare "approve"). Recorded into both the stage output (so
+      // runPublishingStage can read it) and, when it's anything other than the
+      // default, the ReviewLog's editedOutput — same "audit trail shows not
+      // just approve/reject but what was approved" pattern as Gate 1's
+      // edited-script logging.
+      const privacyStatus = outcome.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
+      return await prisma.$transaction(async (tx) => {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'human',
+            verdict: 'approve',
+            rationale: 'Approved as-is',
+            editedOutput: privacyStatus !== DEFAULT_PRIVACY_STATUS ? { privacyStatus } : undefined,
+          },
+          tx,
+        );
+        await completeStage(stage.id, { outcome: 'approve', privacyStatus }, tx);
+        return await updatePipelineRun(
+          runId,
+          {
+            status: 'running',
+            currentStage: nextStageAfter('gate2'),
+          },
+          tx,
+        );
+      });
+    }
+
+    // Revise — a founder-requested regen respects the same attempt cap as
+    // Task 3's automatic regen loop; it doesn't bypass it.
+    const revisePatch: Parameters<typeof updatePipelineRun>[1] =
+      videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
+        ? { status: 'running', currentStage: 'video_generation' }
+        : {
+            status: 'needs_attention',
+            lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
+          };
+
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(
         {
@@ -1169,84 +1254,27 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           pipelineRunId: runId,
           stageId: stage.id,
           agent: 'human',
-          verdict: 'reject',
-          rationale: outcome.reason,
+          verdict: 'revise',
+          rationale: outcome.notes,
         },
         tx,
       );
-      await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
-      return await updatePipelineRun(
-        runId,
-        {
-          status: 'failed',
-          lastError: `Rejected at Gate 2: ${outcome.reason}`,
-        },
-        tx,
-      );
+      await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes }, tx);
+      return await updatePipelineRun(runId, revisePatch, tx);
     });
+  };
+
+  // Bugs Task 9 (R2) — the pending reply is consumed the moment it arrives, so if
+  // recording it failed (seen live: Prisma P2028, transaction expired) the run sat
+  // at paused_gate2 with no live gate — Approve/Reject did nothing until a
+  // restart. Re-open the same attempt instead (the running stage row is reused),
+  // so the founder can simply answer again.
+  try {
+    return await recordGate2Outcome();
+  } catch (error) {
+    console.error(`[gate2] run ${runId}: recording the Gate 2 decision failed — re-opening the gate:`, error);
+    return runGate2Stage(runId);
   }
-
-  if (outcome.type === 'approve') {
-    // Week 5 Task 5 (D2) — the privacy status the founder actually chose,
-    // resolved by parseGate2Reply itself (defaults to DEFAULT_PRIVACY_STATUS
-    // on a bare "approve"). Recorded into both the stage output (so
-    // runPublishingStage can read it) and, when it's anything other than the
-    // default, the ReviewLog's editedOutput — same "audit trail shows not
-    // just approve/reject but what was approved" pattern as Gate 1's
-    // edited-script logging.
-    const privacyStatus = outcome.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
-    return await prisma.$transaction(async (tx) => {
-      await insertReviewLog(
-        {
-          tenantId: run.tenantId,
-          channelId: run.channelId,
-          pipelineRunId: runId,
-          stageId: stage.id,
-          agent: 'human',
-          verdict: 'approve',
-          rationale: 'Approved as-is',
-          editedOutput: privacyStatus !== DEFAULT_PRIVACY_STATUS ? { privacyStatus } : undefined,
-        },
-        tx,
-      );
-      await completeStage(stage.id, { outcome: 'approve', privacyStatus }, tx);
-      return await updatePipelineRun(
-        runId,
-        {
-          status: 'running',
-          currentStage: nextStageAfter('gate2'),
-        },
-        tx,
-      );
-    });
-  }
-
-  // Revise — a founder-requested regen respects the same attempt cap as
-  // Task 3's automatic regen loop; it doesn't bypass it.
-  const revisePatch: Parameters<typeof updatePipelineRun>[1] =
-    videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
-      ? { status: 'running', currentStage: 'video_generation' }
-      : {
-          status: 'needs_attention',
-          lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
-        };
-
-  return await prisma.$transaction(async (tx) => {
-    await insertReviewLog(
-      {
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'human',
-        verdict: 'revise',
-        rationale: outcome.notes,
-      },
-      tx,
-    );
-    await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes }, tx);
-    return await updatePipelineRun(runId, revisePatch, tx);
-  });
 }
 
 // Runs (or re-runs, on resume) the publishing stage — Week 4 Task 2. By the

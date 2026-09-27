@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TextInput, Pressable, Linking } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
@@ -54,6 +54,11 @@ export default function RunDetailScreen() {
   const [barHeight, setBarHeight] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
 
+  // Bugs Task 9 (R3) — the gate attempt a decision was just sent for. Its
+  // buttons stay hidden (and the screen keeps polling) until the run moves on,
+  // so a second tap can no longer hit "Gate N is not currently pending".
+  const [decisionSentFor, setDecisionSentFor] = useState<string | null>(null);
+
   // Bugs Task 7 (R4) — poll while the pipeline is working, so the screen moves
   // to the gate / needs-attention state on its own instead of looking frozen.
   const { data, isLoading, error } = useQuery(
@@ -62,7 +67,7 @@ export default function RunDetailScreen() {
       {
         refetchInterval: (query) => {
           const status = query.state.data?.run.status;
-          return status === 'running' || status === 'pending' ? 5_000 : false;
+          return status === 'running' || status === 'pending' || decisionSentFor ? 5_000 : false;
         },
       },
     ),
@@ -75,8 +80,13 @@ export default function RunDetailScreen() {
       queryClient.invalidateQueries({ queryKey: trpc.notifications.list.queryKey() }),
     ]);
 
-  const gate1Mutation = useMutation(trpc.runs.gate1.mutationOptions({ onSuccess: () => invalidate() }));
-  const gate2Mutation = useMutation(trpc.runs.gate2.mutationOptions({ onSuccess: () => invalidate() }));
+  const markDecisionSent = () => {
+    const gateStage = data && latestStage(data.stages, data.run.status === 'paused_gate1' ? 'gate1' : 'gate2');
+    setDecisionSentFor(gateStage?.id ?? null);
+    return invalidate();
+  };
+  const gate1Mutation = useMutation(trpc.runs.gate1.mutationOptions({ onSuccess: markDecisionSent }));
+  const gate2Mutation = useMutation(trpc.runs.gate2.mutationOptions({ onSuccess: markDecisionSent }));
   // Bugs Task 7 (R3) — the way out of needs_attention.
   const [confirmCancel, setConfirmCancel] = useState(false);
   const retryMutation = useMutation(trpc.runs.retry.mutationOptions({ onSuccess: () => invalidate() }));
@@ -117,6 +127,10 @@ export default function RunDetailScreen() {
   const scriptGenStage = latestStage(stages, 'script_generation');
   const scriptReviewStage = latestStage(stages, 'script_review');
   const videoReviewStage = latestStage(stages, 'video_review');
+  // Bugs Task 9 (R3) — post-publish data (c13da242: "can't see any uploads").
+  const publishOutput = latestStage(stages, 'publishing')?.output as
+    | { youtubeVideoId?: string; privacyStatus?: string; metadata?: { title?: string } }
+    | undefined;
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
   const wordCount = scriptText.trim() ? scriptText.trim().split(/\s+/).length : 0;
@@ -137,8 +151,11 @@ export default function RunDetailScreen() {
 
   const defaultPrivacy = (channel as { defaultPrivacyStatus?: Privacy } | undefined)?.defaultPrivacyStatus;
 
+  const openGateStage = isGate1 ? latestStage(stages, 'gate1') : isGate2 ? latestStage(stages, 'gate2') : undefined;
+  const decisionSent = decisionSentFor !== null && decisionSentFor === openGateStage?.id;
+
   const footer =
-    isGate1 || isGate2 ? (
+    (isGate1 || isGate2) && !decisionSent ? (
       <BottomActionBar onHeight={setBarHeight}>
         <GateActionBar
           key={run.id + run.status}
@@ -263,6 +280,30 @@ export default function RunDetailScreen() {
             <Text style={styles.body}>{scriptText}</Text>
           </Card>
         </>
+      ) : null}
+
+      {decisionSent ? (
+        <Card>
+          <Text style={styles.cardTitle}>Decision sent</Text>
+          <Text style={styles.body}>The pipeline is picking it up — this screen updates on its own.</Text>
+          <Pressable onPress={() => setDecisionSentFor(null)} accessibilityRole="button">
+            <Text style={styles.meta}>Still stuck here? Answer again</Text>
+          </Pressable>
+        </Card>
+      ) : null}
+
+      {publishOutput?.youtubeVideoId ? (
+        <Card>
+          <Text style={styles.cardTitle}>Published to YouTube</Text>
+          {publishOutput.metadata?.title ? <Text style={styles.body}>{publishOutput.metadata.title}</Text> : null}
+          <Text style={styles.meta}>Visibility: {publishOutput.privacyStatus ?? 'unknown'}</Text>
+          <Pressable
+            onPress={() => void Linking.openURL(`https://youtu.be/${publishOutput.youtubeVideoId}`)}
+            accessibilityRole="link"
+          >
+            <Text style={styles.link}>Open on YouTube →</Text>
+          </Pressable>
+        </Card>
       ) : null}
 
       {isGate2 ? (
@@ -391,6 +432,7 @@ const styles = StyleSheet.create({
   cardTitle: { ...type.sectionTitle, color: color.ink },
   body: { ...type.body, color: color.ink },
   meta: { ...type.meta },
+  link: { ...type.bodyStrong, color: color.accentText },
   scoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   score: { ...type.stat, color: color.ink },
   scoreOf: { ...type.body, color: color.muted },

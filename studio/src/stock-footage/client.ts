@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import type { SearchClipParams, StockClip } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // The only file allowed to touch the Pexels API — see
 // docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md's boundary
@@ -14,7 +15,7 @@ import type { SearchClipParams, StockClip } from './types';
 // existing TransientStageError/NonTransientStageError taxonomy before it
 // leaves this file.
 
-const STOCK_FOOTAGE_TMP_DIR = path.resolve(process.cwd(), 'data', 'stock-footage-tmp');
+const STOCK_FOOTAGE_TMP_DIR = path.resolve(DATA_DIR, 'stock-footage-tmp');
 const PEXELS_SEARCH_URL = 'https://api.pexels.com/videos/search';
 
 async function ensureTmpDir(): Promise<void> {

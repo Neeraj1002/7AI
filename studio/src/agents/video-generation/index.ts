@@ -13,6 +13,7 @@ import { env } from '../../config/env';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
+import { DATA_DIR } from '../../config/paths';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
 // burned captions + a real visual source, assembled with FFmpeg scripted
@@ -380,7 +381,7 @@ export async function generateVideo(params: {
   const tts = await synthesizeSpeech(params.scriptText, { voice: params.voice });
   const asr = await transcribe(tts.audioPath);
 
-  const outputDir = path.resolve(process.cwd(), 'data', 'videos', params.pipelineRunId);
+  const outputDir = path.resolve(DATA_DIR, 'videos', params.pipelineRunId);
   await fs.mkdir(outputDir, { recursive: true });
 
   const srtFilename = `${params.attemptNumber}.srt`;

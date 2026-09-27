@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { env } from '../config/env';
 import type { GenerateStillsParams, GeneratedStillsResult } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // Testing-only stand-in for the real OpenAI-backed image generation, used
 // only when AI_VISUALS_STUB=1. Same reasoning as stock-footage/stub.ts: a
@@ -14,7 +15,7 @@ import type { GenerateStillsParams, GeneratedStillsResult } from './types';
 // between, not indistinguishable frames.
 
 const execFileAsync = promisify(execFile);
-const AI_VISUALS_TMP_DIR = path.resolve(process.cwd(), 'data', 'ai-visuals-tmp');
+const AI_VISUALS_TMP_DIR = path.resolve(DATA_DIR, 'ai-visuals-tmp');
 
 async function ensureTmpDir(): Promise<void> {
   await fs.mkdir(AI_VISUALS_TMP_DIR, { recursive: true });

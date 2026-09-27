@@ -6,6 +6,7 @@ import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import { resolveImagePricing } from './registry';
 import type { GenerateStillsParams, GeneratedStillsResult } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // The only file allowed to touch OpenAI's image-generation endpoint — same
 // boundary pattern as llm/media/stock-footage/publishing's client.ts files.
@@ -20,7 +21,7 @@ function getClient(): OpenAI {
   return client;
 }
 
-const AI_VISUALS_TMP_DIR = path.resolve(process.cwd(), 'data', 'ai-visuals-tmp');
+const AI_VISUALS_TMP_DIR = path.resolve(DATA_DIR, 'ai-visuals-tmp');
 
 async function ensureTmpDir(): Promise<void> {
   await fs.mkdir(AI_VISUALS_TMP_DIR, { recursive: true });

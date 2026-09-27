@@ -1,8 +1,9 @@
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { STUDIO_ROOT } from './paths';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+dotenv.config({ path: path.join(STUDIO_ROOT, '.env.local') });
 
 const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),

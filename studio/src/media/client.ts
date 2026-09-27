@@ -7,6 +7,7 @@ import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE } from './registry';
 import type { SynthesizeSpeechResult, TranscribeResult, VoiceConfig } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // The only file allowed to import the `openai` SDK — see
 // docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md's boundary
@@ -26,7 +27,7 @@ function getClient(): OpenAI {
 // Scratch directory the media layer manages itself — callers get back a path,
 // not a binary; per SCHEMA.md's "plain, human-readable, no opaque binary"
 // convention, the file itself lives on disk, not in Postgres.
-const MEDIA_TMP_DIR = path.resolve(process.cwd(), 'data', 'media-tmp');
+const MEDIA_TMP_DIR = path.resolve(DATA_DIR, 'media-tmp');
 
 async function ensureTmpDir(): Promise<void> {
   await fsPromises.mkdir(MEDIA_TMP_DIR, { recursive: true });

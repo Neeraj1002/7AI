@@ -273,7 +273,16 @@ export const runsRouter = router({
     }
     // Flip to 'running' first — the runner loop exits immediately on
     // needs_attention.
-    const updated = await updatePipelineRun(run.id, { status: 'running', lastError: null });
+    // Bugs Task 9 (R4) — a regen-cap escalation parks at currentStage
+    // 'video_review'; re-reviewing the same video just hits the cap again
+    // (18a5e2f5). Retry means "make one more video": step back to
+    // video_generation, which feeds the latest review's fix notes forward.
+    const regenCapped = run.currentStage === 'video_review' && (run.lastError ?? '').includes('regen cap');
+    const updated = await updatePipelineRun(run.id, {
+      status: 'running',
+      lastError: null,
+      ...(regenCapped && { currentStage: 'video_generation' as const }),
+    });
     continuePipelineInBackground(run.id);
     return updated;
   }),
