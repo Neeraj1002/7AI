@@ -39,6 +39,8 @@ export default function NewBriefScreen() {
   const [musicOpen, setMusicOpen] = useState(false);
 
   const selected = channelById(selectedChannelId);
+  // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
+  const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
   const channelVoice = (selected as { defaultVoice?: string | null } | undefined)?.defaultVoice;
   const channelVoiceLabel = VOICES.find((v) => v.value === channelVoice)?.label ?? 'Alloy';
   const voiceLabel = voice ? VOICES.find((v) => v.value === voice)!.label : `Channel default (${channelVoiceLabel})`;
@@ -58,6 +60,10 @@ export default function NewBriefScreen() {
     setError(null);
     if (!selectedChannelId) {
       setError('Pick a channel first.');
+      return;
+    }
+    if (needsYoutube) {
+      setError(`Connect ${selected?.name ?? 'this channel'} to YouTube before starting a run.`);
       return;
     }
     if (!briefText.trim()) {
@@ -99,6 +105,11 @@ export default function NewBriefScreen() {
           <Feather name="chevron-down" size={20} color={color.muted} />
         </Pressable>
       )}
+      {needsYoutube ? (
+        <Pressable onPress={() => router.push(`/channel/${selectedChannelId}`)} accessibilityRole="link">
+          <Text style={styles.error}>This channel isn&apos;t connected to YouTube yet. Connect it →</Text>
+        </Pressable>
+      ) : null}
 
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
@@ -153,7 +164,12 @@ export default function NewBriefScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <PrimaryButton label="Create run" onPress={handleSubmit} loading={createRun.isPending} />
+      <PrimaryButton
+        label="Create run"
+        onPress={handleSubmit}
+        loading={createRun.isPending}
+        disabled={needsYoutube}
+      />
 
       <OptionSheet
         visible={voiceOpen}
