@@ -79,9 +79,7 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 </View>
               ) : null}
             </View>
-            <Text style={[styles.label, isFocused && styles.labelActive]} numberOfLines={1}>
-              {TAB_LABEL[route.name]}
-            </Text>
+            <Text style={[styles.label, isFocused && styles.labelActive]}>{TAB_LABEL[route.name]}</Text>
           </Pressable>
         );
       })}
