@@ -1,4 +1,4 @@
-name: Deploy 7AI Preview
+name: Deploy 7AI Preview Test
 
 on:
   push:
