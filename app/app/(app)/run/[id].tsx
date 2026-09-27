@@ -54,7 +54,19 @@ export default function RunDetailScreen() {
   const [barHeight, setBarHeight] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
 
-  const { data, isLoading, error } = useQuery(trpc.runs.get.queryOptions({ id: id! }));
+  // Bugs Task 7 (R4) — poll while the pipeline is working, so the screen moves
+  // to the gate / needs-attention state on its own instead of looking frozen.
+  const { data, isLoading, error } = useQuery(
+    trpc.runs.get.queryOptions(
+      { id: id! },
+      {
+        refetchInterval: (query) => {
+          const status = query.state.data?.run.status;
+          return status === 'running' || status === 'pending' ? 5_000 : false;
+        },
+      },
+    ),
+  );
 
   const invalidate = () =>
     Promise.all([
