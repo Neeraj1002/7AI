@@ -21,12 +21,20 @@ export type BugReportType = (typeof BUG_REPORT_TYPES)[number];
 export const BUG_REPORT_PRIORITIES = ['blocker', 'annoying', 'minor'] as const;
 export type BugReportPriority = (typeof BUG_REPORT_PRIORITIES)[number];
 
+// Bugs Task 7 (R3) — never tester-facing; the migration landed alongside
+// R2's (one file for both, per that item's own instruction), but this is
+// the commit that actually exposes it through the domain layer. `null`
+// means "not yet triaged" — set only via bugsRouter.updateTriage (R1).
+export const BUG_REPORT_AREAS = ['BE', 'FE', 'APP'] as const;
+export type BugReportArea = (typeof BUG_REPORT_AREAS)[number];
+
 export interface BugReport {
   id: string;
   description: string;
   status: BugReportStatus;
   reportType: BugReportType;
   priority: BugReportPriority | null;
+  area: BugReportArea | null;
   runId: string | null;
   screenContext: string | null;
   userAgent: string | null;
@@ -39,6 +47,7 @@ function toDomainBugReport(row: {
   status: string;
   reportType: string;
   priority: string | null;
+  area: string | null;
   runId: string | null;
   screenContext: string | null;
   userAgent: string | null;
@@ -50,6 +59,7 @@ function toDomainBugReport(row: {
     status: row.status as BugReportStatus,
     reportType: row.reportType as BugReportType,
     priority: row.priority as BugReportPriority | null,
+    area: row.area as BugReportArea | null,
     runId: row.runId,
     screenContext: row.screenContext,
     userAgent: row.userAgent,
