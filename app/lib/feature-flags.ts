@@ -6,7 +6,7 @@
 // When flipping a flag whose call goes through a loosely typed client, replace
 // it with the real AppRouter types in the same commit.
 export const flags = {
-  gate2Visibility: false, // B1 — runs.gate2 accepting privacyStatus
+  gate2Visibility: true, // B1 — runs.gate2 accepting privacyStatus
   channelEdit: false, // B2 — channels.update
   channelDelete: false, // B3 — channels.archive
   channelSettings: false, // B5 — extended channels.update (style guide, voice, captions, spend limit)
