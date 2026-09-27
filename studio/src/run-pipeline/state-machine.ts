@@ -204,6 +204,9 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     topic: run.intakeParsed.topic,
     constraints: run.intakeParsed.constraints,
     styleGuide: channel.styleGuide,
+    // Sprint 3 Task 9 (R4) — additive per-run creation option; unset for a
+    // run that never set it, same as before this field existed.
+    targetDurationSec: run.creationOptions?.targetDurationSec,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -242,6 +245,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
+        targetDurationSec: stageInput.targetDurationSec,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
