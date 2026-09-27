@@ -18,6 +18,7 @@ import { StatusChip } from '../../../components/StatusChip';
 import { Stepper } from '../../../components/Stepper';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { GateActionBar, type Privacy } from '../../../components/GateActionBar';
+import { ClampedText } from '../../../components/ClampedText';
 import { PrimaryButton, SecondaryButton } from '../../../components/Buttons';
 import { ConfirmSheet } from '../../../components/ConfirmSheet';
 import type { AppRouter } from '../../../../studio/src/api/router';
@@ -231,10 +232,11 @@ export default function RunDetailScreen() {
       {isNeedsAttention ? (
         <Card>
           <Text style={styles.cardTitle}>What went wrong</Text>
-          <Text style={styles.body}>
-            {humanizeRunError(run.lastError) || 'This run stopped and needs a decision.'}
-            {run.currentStage ? ` (at ${run.currentStage.replace(/_/g, ' ')})` : ''}
-          </Text>
+          <ClampedText
+            lines={3}
+            style={styles.body}
+            text={`${humanizeRunError(run.lastError) || 'This run stopped and needs a decision.'}${run.currentStage ? ` (at ${run.currentStage.replace(/_/g, ' ')})` : ''}`}
+          />
           {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
           <Text style={styles.meta}>
             Retry runs this step again from scratch. Cancel stops the run for good.
@@ -277,12 +279,32 @@ export default function RunDetailScreen() {
                 </View>
               </>
             ) : null}
-            {reviewNotes ? <Text style={styles.body}>{reviewNotes}</Text> : null}
+            {reviewNotes ? (
+              <ClampedText
+                lines={3}
+                style={styles.body}
+                text={reviewNotes}
+                moreLabel="Read full review"
+                lessLabel="Show less"
+              />
+            ) : null}
           </Card>
           <Card>
-            <Text style={styles.cardTitle}>Script</Text>
-            {approxSec !== undefined ? <Text style={styles.meta}>~{approxSec} sec (approx.)</Text> : null}
-            <Text style={styles.body}>{scriptText}</Text>
+            <View style={styles.scriptHeader}>
+              <Text style={styles.cardTitle}>Script</Text>
+              {approxSec !== undefined ? (
+                <Text style={styles.meta}>
+                  ~{approxSec} sec · {wordCount} words
+                </Text>
+              ) : null}
+            </View>
+            <ClampedText
+              lines={6}
+              style={styles.body}
+              text={scriptText}
+              moreLabel="Show full script"
+              lessLabel="Show less"
+            />
           </Card>
         </>
       ) : null}
@@ -326,7 +348,7 @@ export default function RunDetailScreen() {
               {videoPassed !== undefined ? (
                 <StatusChip kind={videoPassed ? 'ok' : 'failed'} label={videoPassed ? 'Passed' : 'Failed'} />
               ) : null}
-              {videoRationale ? <Text style={styles.meta}>{videoRationale}</Text> : null}
+              {videoRationale ? <ClampedText lines={3} style={styles.meta} text={videoRationale} /> : null}
               {regensUsed !== undefined ? (
                 <Text style={styles.meta}>Regenerations used: {regensUsed} of 2</Text>
               ) : null}
@@ -439,6 +461,7 @@ const styles = StyleSheet.create({
   briefLabel: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   briefText: { fontFamily: font.semibold, fontSize: 17, lineHeight: 24, color: color.ink },
   cardTitle: { ...type.sectionTitle, color: color.ink },
+  scriptHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm },
   body: { ...type.body, color: color.ink },
   meta: { ...type.meta },
   link: { ...type.bodyStrong, color: color.accentText },
