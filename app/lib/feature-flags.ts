@@ -11,6 +11,6 @@ export const flags = {
   channelDelete: true, // B3 — channels.archive
   channelSettings: true, // B5 — extended channels.update (style guide, voice, captions, spend limit)
   watermarkUpload: false, // B6 — watermark upload
-  gateToggles: false, // B7 — per-channel Gate 1 / Gate 2 switches
+  gateToggles: true, // B7 — per-channel Gate 1 / Gate 2 switches
   briefLength: false, // B10 — runs.create target length
 };
