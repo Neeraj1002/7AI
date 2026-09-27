@@ -8,7 +8,7 @@ import {
   runGate2Stage,
 } from './state-machine';
 import { findChannelById } from '../models/repositories/channel.repository';
-import { updatePipelineRun } from '../models/repositories/pipeline-run.repository';
+import { findPipelineRunById, updatePipelineRun } from '../models/repositories/pipeline-run.repository';
 import type { PipelineRun } from '../types';
 
 // Sprint 3 Task 8 (R3) — defense in depth for archiving a channel: before each
@@ -45,7 +45,25 @@ async function failRunIfChannelArchived(run: PipelineRun): Promise<PipelineRun |
 // stage). Bounded by the same MAX_VIDEO_REGEN_ATTEMPTS circuit breaker the
 // individual stages already enforce — this adds no new loop of its own.
 export async function runPipelineToNextGate(runId: string): Promise<PipelineRun> {
-  let run = await runIntakeStage(runId);
+  return driveFromCurrentStage(await runIntakeStage(runId));
+}
+
+// Bugs Task 7 (R2) — the same loop, entered at whatever stage the run is
+// already at instead of re-running intake. Used by resume-on-startup.ts (a
+// re-opened gate, or a resumed mid-flight stage, used to stop dead after that
+// one step — nothing drove the run onward until the next restart) and by
+// runs.retry for a needs_attention run.
+export async function runPipelineFromCurrentStage(runId: string): Promise<PipelineRun> {
+  const run = await findPipelineRunById(runId);
+  if (!run) {
+    throw new Error(`PipelineRun ${runId} not found`);
+  }
+  return driveFromCurrentStage(run);
+}
+
+async function driveFromCurrentStage(initial: PipelineRun): Promise<PipelineRun> {
+  const runId = initial.id;
+  let run = initial;
 
   while (run.status !== 'needs_attention' && run.status !== 'failed') {
     const archivedRun = await failRunIfChannelArchived(run);
@@ -100,5 +118,13 @@ export async function runPipelineToNextGate(runId: string): Promise<PipelineRun>
 export function startPipelineInBackground(runId: string): void {
   void runPipelineToNextGate(runId).catch((error) => {
     console.error(`[pipeline-runner] run ${runId} — unhandled error driving the pipeline:`, error);
+  });
+}
+
+// Bugs Task 7 (R2) — fire-and-forget counterpart of runPipelineFromCurrentStage,
+// same error-logging posture as startPipelineInBackground.
+export function continuePipelineInBackground(runId: string): void {
+  void runPipelineFromCurrentStage(runId).catch((error) => {
+    console.error(`[pipeline-runner] run ${runId} — unhandled error continuing the pipeline:`, error);
   });
 }

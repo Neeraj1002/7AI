@@ -12,6 +12,7 @@ import {
   runAnalyticsStage,
 } from './state-machine';
 import { env } from '../config/env';
+import { continuePipelineInBackground } from './pipeline-runner';
 import type { PipelineRun, PipelineStage, StageName } from '../types';
 
 // Idempotent resume — BUSINESS_LOGIC.md Section 1. On process start, for every
@@ -58,6 +59,18 @@ function latestStageTimestamp(stage: PipelineStage): Date {
 
 function staleAgeMs(stage: PipelineStage): number {
   return Date.now() - latestStageTimestamp(stage).getTime();
+}
+
+// Bugs Task 7 (R2) — a resumed stage used to be the only thing that ran: the
+// run then sat at its next stage (e.g. 'running' at video_generation after a
+// re-opened Gate 1 was approved) until yet another restart. Keep driving it
+// in the background — except when it just parked at a gate: reopenPausedGates
+// below picks those up, and driving them here too would open the same gate
+// twice (both waiters share one pending approval, so both would advance).
+function continueAfterResume(run: PipelineRun): void {
+  if (run.status === 'running') {
+    continuePipelineInBackground(run.id);
+  }
 }
 
 export async function resumeOnStartup(): Promise<void> {
@@ -109,7 +122,7 @@ async function resumeRunningRuns(): Promise<void> {
       );
       const resumer = STAGE_RESUMERS[latestStage.stageName];
       if (resumer) {
-        await resumer(run.id);
+        continueAfterResume(await resumer(run.id));
       } else {
         console.log(
           `[resume] run ${run.id}: no processor wired up for stage '${latestStage.stageName}' yet — leaving as-is`,
@@ -124,7 +137,7 @@ async function resumeRunningRuns(): Promise<void> {
         console.log(
           `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — resuming at '${run.currentStage}'`,
         );
-        await nextResumer(run.id);
+        continueAfterResume(await nextResumer(run.id));
       } else {
         console.log(
           `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — currentStage='${run.currentStage}' has no processor wired up yet`,
@@ -161,9 +174,9 @@ async function reopenPausedGates(): Promise<void> {
     console.log(
       `[resume] run ${run.id}: was paused at Gate 1 when the process stopped — re-opening it in the background`,
     );
-    void runGate1Stage(run.id).catch((error) => {
-      console.error(`[resume] run ${run.id}: error re-opening Gate 1:`, error);
-    });
+    // Bugs Task 7 (R2) — drive onward after the gate resolves, not just
+    // re-open it (runPipelineFromCurrentStage enters at currentStage='gate1').
+    continuePipelineInBackground(run.id);
   }
 
   const pausedGate2Runs = await listRunsByStatus('paused_gate2');
@@ -171,9 +184,7 @@ async function reopenPausedGates(): Promise<void> {
     console.log(
       `[resume] run ${run.id}: was paused at Gate 2 when the process stopped — re-opening it in the background`,
     );
-    void runGate2Stage(run.id).catch((error) => {
-      console.error(`[resume] run ${run.id}: error re-opening Gate 2:`, error);
-    });
+    continuePipelineInBackground(run.id);
   }
 
   if (pausedGate1Runs.length === 0 && pausedGate2Runs.length === 0) {
