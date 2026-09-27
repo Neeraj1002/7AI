@@ -15,6 +15,15 @@ import { PrimaryButton } from '../components/Buttons';
 const TELEGRAM_CHAT_ID_KEY = 'sevenai.telegramChatId';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BOT_NAME = process.env.EXPO_PUBLIC_TELEGRAM_BOT_NAME || 'the 7AI Telegram bot';
+// Sprint 3 Task 10 (R2) — two named presets above the existing free-text
+// field, which still covers "Custom" (a Tailscale Funnel URL, Bugs Task 5,
+// or anything else). LOCAL_API_URL is overridable per-founder via a build-time
+// env var (same EXPO_PUBLIC_* pattern as BOT_NAME above) once a real LAN IP
+// is known — it can't be a hardcoded universal constant the way PREVIEW_API_URL
+// is, since a LAN IP is machine/network-specific. PREVIEW_API_URL is the real,
+// fixed deployed server (docs/server/deployment/preview/detail.md).
+const LOCAL_API_URL = process.env.EXPO_PUBLIC_LOCAL_API_URL || 'http://localhost:4000';
+const PREVIEW_API_URL = 'https://7aistudio.tech';
 
 // Waits for AuthProvider's SecureStore read so LoginForm's local apiUrl state
 // can initialize lazily from the real stored value.
@@ -121,12 +130,50 @@ function LoginForm() {
           <Text style={styles.serverValue} numberOfLines={1}>
             {apiUrl || 'Not set'}
           </Text>
-          <Pressable onPress={() => setEditingServer((v) => !v)} accessibilityRole="button">
+          <Pressable
+            onPress={() => {
+              // Sprint 3 Task 10 (R2) — persist on "Done" immediately, not
+              // only inside handleRequestLink/handleVerify on form submit —
+              // that was the one real save-timing gap (confirmed by direct
+              // read: setApiUrl was previously only called from those two
+              // handlers). setApiUrl itself now also re-checks reachability
+              // (lib/auth.tsx), so this alone surfaces server-down promptly
+              // if the new value is bad.
+              if (editingServer) {
+                const trimmed = apiUrl.trim();
+                if (trimmed) void setApiUrl(trimmed);
+              }
+              setEditingServer((v) => !v);
+            }}
+            accessibilityRole="button"
+          >
             <Text style={styles.link}>{editingServer ? 'Done' : 'Change'}</Text>
           </Pressable>
         </View>
         {editingServer ? (
           <>
+            <View style={styles.presetRow}>
+              <Pressable
+                style={styles.presetChip}
+                onPress={() => {
+                  setApiUrlField(LOCAL_API_URL);
+                  void setApiUrl(LOCAL_API_URL);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.presetChipText}>Local</Text>
+              </Pressable>
+              <Pressable
+                style={styles.presetChip}
+                onPress={() => {
+                  setApiUrlField(PREVIEW_API_URL);
+                  void setApiUrl(PREVIEW_API_URL);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.presetChipText}>Preview</Text>
+              </Pressable>
+            </View>
             <TextInput
               style={styles.input}
               value={apiUrl}
@@ -137,8 +184,9 @@ function LoginForm() {
               autoCorrect={false}
             />
             <Text style={styles.hint}>
-              Use your computer&apos;s LAN IP (e.g. 192.168.1.23:4000) — this device can&apos;t reach your
-              computer&apos;s own localhost.
+              Tap a preset, or type a custom URL — your computer&apos;s LAN IP (e.g. 192.168.1.23:4000)
+              for local dev, since this device can&apos;t reach your computer&apos;s own localhost, or a
+              Tailscale Funnel URL.
             </Text>
           </>
         ) : null}
@@ -228,6 +276,15 @@ const styles = StyleSheet.create({
   subtitle: { ...type.body, color: color.muted, marginBottom: space.sm },
   serverBox: { borderWidth: 1.5, borderColor: color.ink, borderRadius: radius.lg, padding: space.md, gap: space.sm },
   serverRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  presetRow: { flexDirection: 'row', gap: space.sm },
+  presetChip: {
+    borderWidth: 1.5,
+    borderColor: color.inputBorder,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: 8,
+  },
+  presetChipText: { fontFamily: font.semibold, fontSize: 13, color: color.ink },
   serverLabel: { fontFamily: font.bold, fontSize: 13, color: color.ink },
   serverValue: { ...type.meta, flex: 1 },
   link: { fontFamily: font.bold, fontSize: 14, color: color.accentText },

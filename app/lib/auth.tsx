@@ -111,6 +111,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setApiUrl: async (newApiUrl: string) => {
         await setSecureItem(API_URL_KEY, newApiUrl);
         setApiUrlState(newApiUrl);
+        // Sprint 3 Task 10 (R2) — re-checks reachability against newApiUrl
+        // directly, not via checkServer() above: that's a useCallback keyed
+        // on the *old* apiUrl closure, which wouldn't be recreated with the
+        // new value until after this render commits — calling it here would
+        // check the server we're switching away from, not the one we're
+        // switching to. Fire-and-forget so setApiUrl itself doesn't gain
+        // this call's latency (handleRequestLink/handleVerify already await
+        // setApiUrl before their own network calls).
+        void isServerReachable(newApiUrl).then((reachable) => {
+          setServerStatus(reachable ? 'up' : 'down');
+        });
       },
       completeSignIn: async ({ sessionToken, session }, signInApiUrl) => {
         await Promise.all([
