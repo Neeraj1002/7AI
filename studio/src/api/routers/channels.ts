@@ -6,6 +6,7 @@ import {
   findChannelById,
   updateChannel,
   updateChannelBrandAssets,
+  updateChannelApprovalGateConfig,
   archiveChannel,
 } from '../../models/repositories/channel.repository';
 import { listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
@@ -171,10 +172,32 @@ export const channelsRouter = router({
         defaultVoice: z.enum(TTS_VOICE_KEYS).nullable().optional(),
         captionsEnabled: z.boolean().optional(),
         budgetOverrideUsd: z.number().positive().multipleOf(0.01).nullable().optional(),
+        // Sprint 3 Task 9 (R2) — Gate 1/Gate 2 toggles. Gate 1 has no
+        // constraint (a founder can always choose to skip Gate 1 review);
+        // Gate 2 does — see the invariant check below.
+        gate1Enabled: z.boolean().optional(),
+        gate2Enabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const channel = await loadManageableChannel(input.channelId, ctx);
+      // Sprint 3 Task 9 (R2) — the invariant "gate2Enabled:false requires
+      // defaultPrivacyStatus 'private'" must hold at rest, not just at the
+      // instant gate2Enabled is set: computed against whichever value(s) this
+      // call actually changes, falling back to the channel's current value
+      // for whichever one it doesn't — so this also catches a call that
+      // changes defaultPrivacyStatus away from 'private' while gate2Enabled
+      // is already false from an earlier call, not just a call that sets
+      // gate2Enabled:false directly.
+      const effectiveGate2Enabled = input.gate2Enabled ?? channel.approvalGateConfig.gate2Enabled;
+      const effectivePrivacyStatus = input.defaultPrivacyStatus ?? channel.defaultPrivacyStatus;
+      if ((input.gate2Enabled !== undefined || input.defaultPrivacyStatus !== undefined) &&
+        !effectiveGate2Enabled && effectivePrivacyStatus !== 'private') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: "gate2Enabled can only be false when defaultPrivacyStatus is 'private'",
+        });
+      }
       let updated = await updateChannel(channel.id, {
         name: input.name,
         nicheDescription: input.nicheDescription,
@@ -188,6 +211,12 @@ export const channelsRouter = router({
       // so this can never clobber whatever the other feature stored there.
       if (input.captionsEnabled !== undefined) {
         updated = await updateChannelBrandAssets(channel.id, { captionsEnabled: input.captionsEnabled });
+      }
+      if (input.gate1Enabled !== undefined || input.gate2Enabled !== undefined) {
+        const gatePatch: Partial<Channel['approvalGateConfig']> = {};
+        if (input.gate1Enabled !== undefined) gatePatch.gate1Enabled = input.gate1Enabled;
+        if (input.gate2Enabled !== undefined) gatePatch.gate2Enabled = input.gate2Enabled;
+        updated = await updateChannelApprovalGateConfig(channel.id, gatePatch);
       }
       return withHasYoutubeCredential(updated);
     }),

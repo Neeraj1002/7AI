@@ -436,9 +436,32 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     const autoRejectAndRetry = belowThreshold && attemptNumber <= MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS;
     const autoRetryCapReached = belowThreshold && !autoRejectAndRetry;
 
+    // Sprint 3 Task 9 (R2) — only the passing-score outcome is affected by
+    // the toggle; the below-threshold retry loop and the cap-reached-to-Gate-1
+    // fallback (autoRetryCapReached, above) are deliberately untouched — a
+    // channel that disabled Gate 1 still gets a human look at a script that
+    // never managed to clear the review bar.
+    const gate1AutoApprove = !belowThreshold && channel.approvalGateConfig.gate1Enabled === false;
+    // Created here (not inside the completing transaction below), mirroring
+    // every other stage's own createStageAttempt-then-complete split — only
+    // the completion + ReviewLog + run-advance need to commit atomically.
+    // Shaped exactly like runGate1Stage's own approve-outcome gate1 row, so
+    // runVideoReviewStage/runPublishingStage's later reads of it can't tell
+    // an auto-approve apart from a human one.
+    const gate1AutoApproveStage = gate1AutoApprove
+      ? await createStageAttempt({
+          pipelineRunId: runId,
+          stageName: 'gate1',
+          attemptNumber: ((await findLatestAttempt(runId, 'gate1'))?.attemptNumber ?? 0) + 1,
+          input: { scriptText: scriptOutput.scriptText, reviewScore: String(output.score) },
+        })
+      : null;
+
     const runPatch: Parameters<typeof updatePipelineRun>[1] = autoRejectAndRetry
       ? { status: 'running', currentStage: 'script_generation' }
-      : { status: 'paused_gate1', currentStage: nextStageAfter('script_review') };
+      : gate1AutoApproveStage
+        ? { status: 'running', currentStage: nextStageAfter('gate1') }
+        : { status: 'paused_gate1', currentStage: nextStageAfter('script_review') };
 
     // The stage always completes once a well-formed review comes back,
     // regardless of score — a low score is a review outcome, not a stage
@@ -497,6 +520,33 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
             agent: 'script-review',
             verdict: 'auto-reject',
             rationale: output.notes,
+          },
+          tx,
+        );
+      }
+
+      // Sprint 3 Task 9 (R2) — completes the synthetic gate1 row created
+      // above with the exact same output shape runGate1Stage's own approve
+      // path writes, and a separate agent:'system' ReviewLog row (distinct
+      // from the script-review score row above, same "what was the review"
+      // vs "what did the system do about it" split R3 already established)
+      // so the run's history plainly shows Gate 1 was skipped, not silently
+      // absent.
+      if (gate1AutoApproveStage) {
+        await completeStage(
+          gate1AutoApproveStage.id,
+          { outcome: 'approve', sanctionedScriptText: scriptOutput.scriptText },
+          tx,
+        );
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: gate1AutoApproveStage.id,
+            agent: 'system',
+            verdict: 'auto-approve',
+            rationale: `Gate 1 disabled for this channel — auto-approved a passing script-review score of ${output.score}.`,
           },
           tx,
         );
@@ -883,6 +933,13 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     throw new Error(`PipelineRun ${runId} has no intakeParsed output`);
   }
 
+  // Sprint 3 Task 9 (R2) — needed for the gate2Enabled toggle and, when
+  // disabled, the channel's own defaultPrivacyStatus to auto-approve at.
+  const channel = await findChannelById(run.channelId);
+  if (!channel) {
+    throw new Error(`Channel ${run.channelId} not found`);
+  }
+
   const videoGenStage = await findLatestAttempt(runId, 'video_generation');
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run video_review`);
@@ -943,12 +1000,35 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       });
     }
 
+    // Sprint 3 Task 9 (R2) — only the passing verdict is affected; the regen
+    // loop and the regen-cap-to-needs_attention fallback below are
+    // unaffected by the toggle.
+    const gate2AutoApprove = outcome.verdict === 'pass' && channel.approvalGateConfig.gate2Enabled === false;
+    // Same create-before-the-completing-transaction split as every other
+    // stage's own createStageAttempt call, and the same reasoning as R2's
+    // gate1 auto-approve above: shaped exactly like runGate2Stage's own
+    // approve-outcome gate2 row (output.outcome/privacyStatus) so
+    // runPublishingStage's later read of it can't tell an auto-approve apart
+    // from a human one. channels.update's own invariant check (BAD_REQUEST
+    // unless defaultPrivacyStatus is 'private') is what guarantees this is
+    // never a privacy regression.
+    const gate2AutoApproveStage = gate2AutoApprove
+      ? await createStageAttempt({
+          pipelineRunId: runId,
+          stageName: 'gate2',
+          attemptNumber: ((await findLatestAttempt(runId, 'gate2'))?.attemptNumber ?? 0) + 1,
+          input: { videoPath: videoOutput.videoPath, verdict: outcome.verdict, rationale: outcome.rationale },
+        })
+      : null;
+
     // Regen-cap decision computed once, up front, so every branch inside the
     // transaction below applies the exact same patch it would have applied
     // outside one — the transaction only changes atomicity, not the logic.
     const runPatch: Parameters<typeof updatePipelineRun>[1] =
       outcome.verdict === 'pass'
-        ? { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
+        ? gate2AutoApproveStage
+          ? { status: 'running', currentStage: nextStageAfter('gate2') }
+          : { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
         : videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
           ? { status: 'running', currentStage: 'video_generation' }
           : {
@@ -971,6 +1051,28 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       );
 
       await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale }, tx);
+
+      // Sprint 3 Task 9 (R2) — completes the synthetic gate2 row created
+      // above with the exact same output shape runGate2Stage's own approve
+      // path writes (outcome/privacyStatus), plus a separate agent:'system'
+      // ReviewLog row so the run's history plainly shows Gate 2 was skipped,
+      // not silently absent.
+      if (gate2AutoApproveStage) {
+        const privacyStatus = channel.defaultPrivacyStatus;
+        await completeStage(gate2AutoApproveStage.id, { outcome: 'approve', privacyStatus }, tx);
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: gate2AutoApproveStage.id,
+            agent: 'system',
+            verdict: 'auto-approve',
+            rationale: `Gate 2 disabled for this channel — auto-approved a passing video review at the channel's default privacy (${privacyStatus}).`,
+          },
+          tx,
+        );
+      }
 
       return await updatePipelineRun(runId, runPatch, tx);
     });

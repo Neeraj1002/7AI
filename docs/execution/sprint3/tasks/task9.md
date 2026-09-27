@@ -20,7 +20,7 @@ goes through it.
 - Verify: round-trip via update+get; a real script_generation stage's recorded input reflects a styleGuide edit;
   setting `captionsEnabled:false` on a channel with a real watermarkUrl must not clear the watermark.
 
-## R2 — Gate toggles (DEFERRED until BUGS_TASK6 merges)
+## R2 — Gate toggles (DONE — was deferred until BUGS_TASK6 merged; confirmed merged 2026-09-27, `main` merged into this branch before starting)
 - `gate1Enabled:false`: once script review reaches/retries to score >=7, auto-approve (ReviewLog
   `agent:'system', verdict:'auto-approve'`) straight into video_generation instead of pausing at Gate 1. The
   below-threshold retry loop and the cap-reached-to-Gate-1 fallback are unaffected by the toggle.

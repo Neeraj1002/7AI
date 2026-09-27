@@ -121,6 +121,32 @@ export async function updateChannelBrandAssets(
   return toDomainChannel(row);
 }
 
+// Sprint 3 Task 9 (R2) — same read-merge-write shape as updateChannelBrandAssets,
+// for the same reason: approvalGateConfig holds two independent booleans and a
+// caller setting only one (e.g. gate1Enabled) must never clobber the other.
+// Unlike brandAssets, neither key is ever *removed* (both always resolve to a
+// real boolean via the column's own default), but an undefined-valued key is
+// still stripped before writing — belt-and-suspenders against a caller passing
+// `{ gate1Enabled: undefined }` explicitly and clobbering the current value.
+export async function updateChannelApprovalGateConfig(
+  id: string,
+  patch: Partial<Channel['approvalGateConfig']>,
+): Promise<Channel> {
+  const current = await prisma.channel.findUniqueOrThrow({ where: { id }, select: { approvalGateConfig: true } });
+  const merged: Record<string, unknown> = {
+    ...((current.approvalGateConfig ?? {}) as Channel['approvalGateConfig']),
+    ...patch,
+  };
+  for (const key of Object.keys(merged)) {
+    if (merged[key] === undefined) delete merged[key];
+  }
+  const row = await prisma.channel.update({
+    where: { id },
+    data: { approvalGateConfig: merged as Prisma.InputJsonValue },
+  });
+  return toDomainChannel(row);
+}
+
 export async function updateChannel(id: string, patch: ChannelPatch): Promise<Channel> {
   const data: ChannelPatch = {};
   if (patch.name !== undefined) data.name = patch.name;
