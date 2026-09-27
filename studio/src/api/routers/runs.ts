@@ -7,6 +7,7 @@ import { createRun } from '../../run-pipeline/state-machine';
 import { listStagesForRun } from '../../models/repositories/pipeline-stage.repository';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
+import { findByChannel } from '../../models/repositories/agent-credential.repository';
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { resolvePendingApproval } from '../../notifications';
@@ -119,6 +120,15 @@ export const runsRouter = router({
       // Sprint 3 Task 8 (R3) — an archived channel is retired for good.
       if (!channel.isActive) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} is archived` });
+      }
+      // Bugs Task 8 (R1) — publishing only ever uses the channel's own
+      // credential, so an unlinked channel would spend the whole pipeline's
+      // LLM/TTS/footage budget and then fail at the very last stage.
+      if (!(await findByChannel(channel.id))) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Channel "${channel.name}" isn't connected to YouTube yet — connect it before starting a run`,
+        });
       }
       const creationOptions =
         input.voice || input.visualSource || input.audioLayer || input.targetDurationSec
