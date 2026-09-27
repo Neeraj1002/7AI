@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { env } from '../config/env';
 import type { SearchClipParams, StockClip } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // Testing-only stand-in for the real Pexels-backed search+download, used
 // only when STOCK_FOOTAGE_STUB=1 — no PEXELS_API_KEY has been available in
@@ -15,7 +16,7 @@ import type { SearchClipParams, StockClip } from './types';
 // from the pre-Task-1 solid-color background.
 
 const execFileAsync = promisify(execFile);
-const STOCK_FOOTAGE_TMP_DIR = path.resolve(process.cwd(), 'data', 'stock-footage-tmp');
+const STOCK_FOOTAGE_TMP_DIR = path.resolve(DATA_DIR, 'stock-footage-tmp');
 const STUB_CLIP_DURATION_SECONDS = 8;
 
 async function ensureTmpDir(): Promise<void> {

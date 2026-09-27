@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { findLatestAttempt } from '../models/repositories/pipeline-stage.repository';
+import { DATA_DIR } from '../config/paths';
 
 // GET /runs/:id/video (BUSINESS_LOGIC.md Section 4, added 2026-09-09) — a
 // plain REST route, not a tRPC procedure: tRPC's JSON-RPC shape isn't a fit
@@ -17,7 +18,7 @@ import { findLatestAttempt } from '../models/repositories/pipeline-stage.reposit
 // path and answers 404 for a run with no generated video yet.
 export async function registerVideoRoute(fastify: FastifyInstance): Promise<void> {
   await fastify.register(fastifyStatic, {
-    root: path.resolve(process.cwd(), 'data', 'videos'),
+    root: path.resolve(DATA_DIR, 'videos'),
     serve: false,
   });
 

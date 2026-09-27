@@ -8,6 +8,7 @@ import { canResolveGate } from '../run-pipeline/gate-ownership';
 import { resolveRequestIdentity } from '../auth';
 import { MVP_TENANT_ID } from '../types';
 import type { Context } from './trpc';
+import { DATA_DIR } from '../config/paths';
 
 // Sprint 3 Task 9 (R3) — same "binary content doesn't fit tRPC's JSON-RPC
 // shape" reasoning video-route.ts already established, applied to upload as
@@ -26,7 +27,7 @@ function resolveContext(authorization: string | undefined): Context {
   return { tenantId: MVP_TENANT_ID, userId: null, role: 'owner' };
 }
 
-const WATERMARK_DIR = path.resolve(process.cwd(), 'data', 'watermarks');
+const WATERMARK_DIR = path.resolve(DATA_DIR, 'watermarks');
 const MAX_WATERMARK_BYTES = 1024 * 1024;
 const ALLOWED_MIME_TO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg' };
 

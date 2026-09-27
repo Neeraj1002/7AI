@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { AudioBedTrack } from './types';
+import { DATA_DIR } from '../config/paths';
 
 // F1 — a curated local library, deliberately not a paid API: a handful of
 // royalty-free tracks checked into the repo under data/audio-beds/ (see
@@ -16,7 +17,7 @@ import type { AudioBedTrack } from './types';
 // directly in audio-bed's own unit tests against a synthetic fixture
 // manifest, not against a deliberately-broken real entry here.
 
-const AUDIO_BEDS_DIR = path.resolve(process.cwd(), 'data', 'audio-beds');
+const AUDIO_BEDS_DIR = path.resolve(DATA_DIR, 'audio-beds');
 
 export const AUDIO_BED_MANIFEST: AudioBedTrack[] = [
   { moodTag: 'upbeat', filePath: path.join(AUDIO_BEDS_DIR, 'upbeat.mp3'), label: 'Upbeat', license: 'CC0' },
