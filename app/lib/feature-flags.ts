@@ -8,7 +8,7 @@
 export const flags = {
   gate2Visibility: true, // B1 — runs.gate2 accepting privacyStatus
   channelEdit: true, // B2 — channels.update
-  channelDelete: false, // B3 — channels.archive
+  channelDelete: true, // B3 — channels.archive
   channelSettings: false, // B5 — extended channels.update (style guide, voice, captions, spend limit)
   watermarkUpload: false, // B6 — watermark upload
   gateToggles: false, // B7 — per-channel Gate 1 / Gate 2 switches
