@@ -89,8 +89,27 @@ export type ChannelPatch = {
   nicheDescription?: string;
   styleGuide?: string | null;
   defaultPrivacyStatus?: Channel['defaultPrivacyStatus'];
+  defaultVoice?: string | null;
+  budgetOverrideUsd?: string | null;
   isActive?: boolean;
 };
+
+// Sprint 3 Task 9 (R1 shared design note) — Channel.brandAssets is one JSON
+// column two different features write to (captionsEnabled here, watermarkUrl
+// in R3's upload route). Every writer goes through this: read the current
+// value, merge in only the keys actually being set, write the whole object
+// back. A naive `{ brandAssets: { captionsEnabled } }` write would silently
+// erase whatever the other feature had stored — this is the one place that
+// can't happen.
+export async function updateChannelBrandAssets(
+  id: string,
+  patch: Partial<Channel['brandAssets']>,
+): Promise<Channel> {
+  const current = await prisma.channel.findUniqueOrThrow({ where: { id }, select: { brandAssets: true } });
+  const merged = { ...((current.brandAssets ?? {}) as Channel['brandAssets']), ...patch };
+  const row = await prisma.channel.update({ where: { id }, data: { brandAssets: merged } });
+  return toDomainChannel(row);
+}
 
 export async function updateChannel(id: string, patch: ChannelPatch): Promise<Channel> {
   const data: ChannelPatch = {};
@@ -98,6 +117,8 @@ export async function updateChannel(id: string, patch: ChannelPatch): Promise<Ch
   if (patch.nicheDescription !== undefined) data.nicheDescription = patch.nicheDescription;
   if (patch.styleGuide !== undefined) data.styleGuide = patch.styleGuide;
   if (patch.defaultPrivacyStatus !== undefined) data.defaultPrivacyStatus = patch.defaultPrivacyStatus;
+  if (patch.defaultVoice !== undefined) data.defaultVoice = patch.defaultVoice;
+  if (patch.budgetOverrideUsd !== undefined) data.budgetOverrideUsd = patch.budgetOverrideUsd;
   if (patch.isActive !== undefined) data.isActive = patch.isActive;
   const row = await prisma.channel.update({ where: { id }, data });
   return toDomainChannel(row);

@@ -1,11 +1,18 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
-import { listActiveChannelsByTenant, findChannelById, updateChannel, archiveChannel } from '../../models/repositories/channel.repository';
+import {
+  listActiveChannelsByTenant,
+  findChannelById,
+  updateChannel,
+  updateChannelBrandAssets,
+  archiveChannel,
+} from '../../models/repositories/channel.repository';
 import { listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
 import { hasPendingApproval, resolvePendingApproval } from '../../notifications';
 import type { Context } from '../trpc';
 import { PrivacyStatusSchema } from '../../agents/publishing';
+import { TTS_VOICE_KEYS } from '../../media';
 import { deleteForChannel, findByChannel } from '../../models/repositories/agent-credential.repository';
 import { buildYoutubeConnectUrl } from '../../manage-channels/youtube-oauth-connect';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
@@ -156,15 +163,32 @@ export const channelsRouter = router({
         name: z.string().min(1).optional(),
         nicheDescription: z.string().min(1).optional(),
         defaultPrivacyStatus: PrivacyStatusSchema.optional(),
+        // Sprint 3 Task 9 (R1) — null clears the override (falls back to the
+        // channel's/pipeline's own existing default), omitted leaves it
+        // unchanged; same optional-vs-null distinction Task 8/R2 already
+        // established for this mutation.
+        styleGuide: z.string().nullable().optional(),
+        defaultVoice: z.enum(TTS_VOICE_KEYS).nullable().optional(),
+        captionsEnabled: z.boolean().optional(),
+        budgetOverrideUsd: z.number().positive().multipleOf(0.01).nullable().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const channel = await loadManageableChannel(input.channelId, ctx);
-      const updated = await updateChannel(channel.id, {
+      let updated = await updateChannel(channel.id, {
         name: input.name,
         nicheDescription: input.nicheDescription,
         defaultPrivacyStatus: input.defaultPrivacyStatus,
+        styleGuide: input.styleGuide,
+        defaultVoice: input.defaultVoice,
+        budgetOverrideUsd: input.budgetOverrideUsd !== undefined ? input.budgetOverrideUsd?.toString() ?? null : undefined,
       });
+      // brandAssets is a shared JSON column (R3 also writes watermarkUrl into
+      // it) — routed through the merge helper, never a direct column write,
+      // so this can never clobber whatever the other feature stored there.
+      if (input.captionsEnabled !== undefined) {
+        updated = await updateChannelBrandAssets(channel.id, { captionsEnabled: input.captionsEnabled });
+      }
       return withHasYoutubeCredential(updated);
     }),
   // POST /channels.archive — Sprint 3 Task 8 (R3). One-way soft delete: no
