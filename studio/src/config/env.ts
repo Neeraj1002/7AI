@@ -3,7 +3,16 @@ import dotenv from 'dotenv';
 import { z } from 'zod';
 import { STUDIO_ROOT } from './paths';
 
-dotenv.config({ path: path.join(STUDIO_ROOT, '.env.local') });
+// Sprint 3 Task 10 (R1) — this was unconditional before, always loading
+// `.env.local` regardless of NODE_ENV, with no `.env` loading path
+// anywhere in studio/ (confirmed by reading this file and index.ts in
+// full). That meant the deployed preview server (Hostinger VPS,
+// NODE_ENV=production) had no way to pick up its own server-side config
+// — only whatever happened to be in a `.env.local` there, or nothing.
+// `.env` is real config for wherever this actually runs as a server
+// (the preview VPS today); `.env.local` stays exactly as it already was
+// for local dev — this branch changes nothing about that path.
+dotenv.config({ path: path.join(STUDIO_ROOT, process.env.NODE_ENV === 'production' ? '.env' : '.env.local') });
 
 const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
