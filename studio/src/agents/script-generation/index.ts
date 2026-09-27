@@ -40,6 +40,7 @@ function buildUserMessage(params: {
   constraints: string[];
   styleGuide?: string | null;
   targetDurationSec?: 30 | 45 | 60;
+  fixNotes?: string;
 }): string {
   const lines = [`Topic: ${params.topic}`];
   if (params.constraints.length > 0) {
@@ -66,6 +67,15 @@ function buildUserMessage(params: {
       `Target length: write this script to run approximately ${params.targetDurationSec} seconds when narrated aloud — aim for around ${approxWords} words of narration (natural speaking pace, ~150 words/minute).`,
     );
   }
+  // Bugs Task 6 (R1) — mirrors video-generation/plan.ts's own fixNotes
+  // injection: a retry that doesn't tell the model what was actually wrong
+  // is a blind re-roll, not a targeted fix. Absent on a genuine first
+  // attempt (no prior review exists yet).
+  if (params.fixNotes) {
+    lines.push(
+      `A prior attempt scored below the required bar for these reasons: ${params.fixNotes}\nAddress these specific issues directly in this attempt — do not simply regenerate a similar script and hope for a different result.`,
+    );
+  }
   return lines.join('\n');
 }
 
@@ -74,6 +84,7 @@ export async function generateScript(params: {
   constraints: string[];
   styleGuide?: string | null;
   targetDurationSec?: 30 | 45 | 60;
+  fixNotes?: string;
 }): Promise<ScriptGenerationResult> {
   const llm = await callLLM({
     purpose: 'script-generation',

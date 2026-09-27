@@ -41,3 +41,18 @@ export async function listReviewLogsForRun(pipelineRunId: string): Promise<Revie
   });
   return rows.map(toDomainReviewLog);
 }
+
+// Bugs Task 6 (R2) — a budget refusal mid-retry doesn't run a fresh review
+// (nothing to insert a new ReviewLog row for), so the "why this reached
+// Gate 1 despite a low score" note gets appended onto the existing most
+// recent review's own rationale in place, mirroring the cap-reached case's
+// note (which is baked into a freshly-inserted row instead, since that case
+// does have a fresh review to attach it to).
+export async function updateReviewLogRationale(
+  id: string,
+  rationale: string,
+  client: DbClient = prisma,
+): Promise<ReviewLog> {
+  const row = await client.reviewLog.update({ where: { id }, data: { rationale } });
+  return toDomainReviewLog(row);
+}
