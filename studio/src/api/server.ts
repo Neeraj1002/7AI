@@ -9,7 +9,13 @@ import { registerVideoRoute } from './video-route';
 import { registerWatermarkRoute } from './watermark-route';
 import { requestMagicLink, verifyMagicLink, resolveRequestIdentity, isAuthConfigured } from '../auth';
 import { exchangeYoutubeAuthCode } from '../manage-channels/youtube-oauth-connect';
-import { insertBugReport } from '../models/repositories/bug-report.repository';
+import {
+  insertBugReport,
+  BUG_REPORT_TYPES,
+  BUG_REPORT_PRIORITIES,
+  type BugReportType,
+  type BugReportPriority,
+} from '../models/repositories/bug-report.repository';
 import { BUG_REPORT_PAGE_HTML } from './bug-report-page';
 
 // Frontend track Task 1 — studio/src/api/. The orchestrator process's HTTP
@@ -173,25 +179,38 @@ export async function startApiServer(): Promise<void> {
   // trivially obvious when triaging" decision).
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  fastify.post<{ Body: { description?: string; runId?: string; screenContext?: string } }>(
-    '/bugs',
-    async (request, reply) => {
-      const description = request.body?.description?.trim();
-      if (!description) {
-        return reply.code(400).send({ error: 'description is required' });
-      }
-      const runId = request.body?.runId;
-      await insertBugReport({
-        description,
-        runId: runId && UUID_RE.test(runId) ? runId : null,
-        screenContext: request.body?.screenContext?.trim() || null,
-        // Captured server-side, never from the client body — more reliable
-        // and free (no tester involvement at all).
-        userAgent: request.headers['user-agent'] ?? null,
-      });
-      return reply.send({ ok: true });
-    },
-  );
+  fastify.post<{
+    Body: { description?: string; reportType?: string; priority?: string; runId?: string; screenContext?: string };
+  }>('/bugs', async (request, reply) => {
+    const description = request.body?.description?.trim();
+    if (!description) {
+      return reply.code(400).send({ error: 'description is required' });
+    }
+    // Bugs Task 7 (R2) — reportType defaults to 'bug' (matches the
+    // migration's own column default, so an old/manual caller that never
+    // sends it behaves exactly as every pre-this-task row already does).
+    // Server-side validated against the real enum, never trusted as a
+    // free-form string — same edge-validation posture as every other
+    // client-supplied enum-shaped field in this codebase.
+    const reportType = BUG_REPORT_TYPES.includes(request.body?.reportType as BugReportType) ? (request.body!.reportType as BugReportType) : 'bug';
+    const priorityRaw = request.body?.priority;
+    const priority = BUG_REPORT_PRIORITIES.includes(priorityRaw as BugReportPriority) ? (priorityRaw as BugReportPriority) : null;
+    if (reportType === 'bug' && !priority) {
+      return reply.code(400).send({ error: 'priority is required when reportType is "bug"' });
+    }
+    const runId = request.body?.runId;
+    await insertBugReport({
+      description,
+      reportType,
+      priority,
+      runId: runId && UUID_RE.test(runId) ? runId : null,
+      screenContext: request.body?.screenContext?.trim() || null,
+      // Captured server-side, never from the client body — more reliable
+      // and free (no tester involvement at all).
+      userAgent: request.headers['user-agent'] ?? null,
+    });
+    return reply.send({ ok: true });
+  });
 
   await fastify.register(fastifyTRPCPlugin, {
     prefix: '/trpc',
