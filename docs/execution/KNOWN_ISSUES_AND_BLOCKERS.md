@@ -292,6 +292,15 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 ## 3. Known implementation gaps / tech debt (code-level, no founder action needed)
 
+- **`script_review` has no budget check of its own** — only `script_generation`'s retry entry point
+  (`state-machine.ts`, its `isBudgetAvailable` call) and `video_generation`'s regen entry point call
+  `isBudgetAvailable`; a review call itself is ungated on both loops. Confirmed real: a run could in
+  principle overshoot its ceiling by exactly one review call's worth of spend (a Haiku-class call,
+  ~$0.0025 per existing usage-row evidence) before the next check catches it. Not fixed: the maximum
+  possible overshoot across Bugs Task 3/R3's own bounded retry loop (at most ~4 review calls per run) is
+  on the order of a cent — not worth a third `isBudgetAvailable` call site at current scale. Revisit if
+  review-call volume or cost per call ever changes materially. — *`bugs/reports/task6.md`*
+
 - **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Correctly applied on the first attempt in Week 5 Task 1's real re-run of this same test. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`, `week5/reports/task1.md`*
 
 - **Closed by Sprint 3 Task 7 (O2)** — `dry-run.ts`'s live gate commands (`gate1-live`/`gate2-live`) used to be unable to coexist with a persistent `npm run dev` instance on the same Telegram bot token (both started a long-poll loop, and Telegram allowed only one active `getUpdates` poller per token). Moot now that Telegram is retired entirely — no bot, no poller, no possible conflict. See `sprint3/reports/task7.md`.
