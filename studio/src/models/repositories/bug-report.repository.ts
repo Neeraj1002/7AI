@@ -111,8 +111,27 @@ export async function listBugReports(status?: BugReportStatus): Promise<BugRepor
 }
 
 // Kept as-is (Bugs Tasks 8/9's hot-fixer sessions already call this
-// directly to mark reports 'fixed') — updateBugReportTriage (Bugs Task 7
-// R1) extends it with area/priority rather than replacing it.
+// directly to mark reports 'fixed') — updateBugReportTriage below extends
+// it with area/priority rather than replacing it.
 export async function updateBugReportStatus(id: string, status: BugReportStatus): Promise<void> {
   await prisma.bugReport.update({ where: { id }, data: { status } });
+}
+
+// Bugs Task 7 (R1) — the triage-update path: any of status/area/priority
+// may be set independently (all optional). `null` explicitly clears a
+// field (e.g. un-setting a priority); `undefined`/omitted leaves it
+// unchanged — Prisma's own update semantics, not a bespoke convention.
+export async function updateBugReportTriage(
+  id: string,
+  patch: { status?: BugReportStatus; area?: BugReportArea | null; priority?: BugReportPriority | null },
+): Promise<BugReport> {
+  const row = await prisma.bugReport.update({
+    where: { id },
+    data: {
+      ...(patch.status !== undefined && { status: patch.status }),
+      ...(patch.area !== undefined && { area: patch.area }),
+      ...(patch.priority !== undefined && { priority: patch.priority }),
+    },
+  });
+  return toDomainBugReport(row);
 }
