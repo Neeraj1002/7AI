@@ -157,7 +157,10 @@ export default function ChannelSettingsScreen() {
     }
   };
 
-  const runs = operational.data?.stageFunnel.find((r) => r.stage === 'intake')?.count;
+  // R7 — stageFunnel buckets EVERY run (terminal or not) by its current
+  // stage, so 'intake' alone only ever counts a run in the instant before it
+  // advances; summing every bucket is the real total run count.
+  const runs = operational.data?.stageFunnel.reduce((sum, row) => sum + row.count, 0);
   const published = cost.data?.costPerPublishedVideo.publishedCount;
   const spend = cost.data?.totalSpendUsd;
   const metaParts = [
@@ -211,7 +214,13 @@ export default function ChannelSettingsScreen() {
         <Text style={styles.cardTitle}>Identity</Text>
         <Text style={styles.label}>Name</Text>
         {flags.channelEdit ? (
-          <TextInput style={styles.input} value={name} onChangeText={(v) => set({ name: v })} />
+          <TextInput
+            selectionColor={color.accent}
+            cursorColor={color.accent}
+            style={styles.input}
+            value={name}
+            onChangeText={(v) => set({ name: v })}
+          />
         ) : (
           <Text style={styles.body}>{channel.name}</Text>
         )}
@@ -219,6 +228,8 @@ export default function ChannelSettingsScreen() {
         {flags.channelEdit ? (
           <>
             <TextInput
+              selectionColor={color.accent}
+              cursorColor={color.accent}
               style={[styles.input, styles.multiline]}
               value={niche}
               onChangeText={(v) => set({ nicheDescription: v })}
@@ -234,6 +245,8 @@ export default function ChannelSettingsScreen() {
           <>
             <Text style={styles.label}>Style guide</Text>
             <TextInput
+              selectionColor={color.accent}
+              cursorColor={color.accent}
               style={[styles.input, styles.multiline, styles.styleGuide]}
               value={styleGuide}
               onChangeText={(v) => set({ styleGuide: v })}
@@ -341,6 +354,8 @@ export default function ChannelSettingsScreen() {
           <View style={[styles.input, styles.moneyRow, spendInvalid && styles.inputInvalid]}>
             <Text style={styles.rowValue}>$</Text>
             <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
               style={styles.moneyInput}
               value={spendText ?? (saved.budgetOverrideUsd != null ? String(saved.budgetOverrideUsd) : '')}
               onChangeText={setSpendText}

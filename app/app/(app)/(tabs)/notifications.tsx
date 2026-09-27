@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../../../lib/trpc';
 import { flags } from '../../../lib/feature-flags';
 import { relativeTime } from '../../../lib/run-labels';
-import { color, space, type } from '../../../lib/theme';
+import { color, font, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
 import { Card } from '../../../components/Card';
 import { StatusChip } from '../../../components/StatusChip';
@@ -47,9 +48,16 @@ function NotificationCard({ notification }: { notification: NotificationRow }) {
         />
         <Text style={styles.time}>{relativeTime(notification.createdAt)}</Text>
       </View>
-      <Text style={styles.message}>{notification.message}</Text>
+      <Text style={styles.message} numberOfLines={3}>
+        {notification.message}
+      </Text>
       {notification.resolvedAt ? (
         <Text style={styles.resolved}>Resolved {relativeTime(notification.resolvedAt)}</Text>
+      ) : null}
+      {notification.threadKey ? (
+        <Pressable onPress={() => router.push(`/run/${notification.threadKey}`)} accessibilityRole="button">
+          <Text style={styles.openRun}>Open run →</Text>
+        </Pressable>
       ) : null}
       {isPendingApproval && notification.threadKey ? <PendingGateActions runId={notification.threadKey} /> : null}
     </Card>
@@ -125,6 +133,7 @@ const styles = StyleSheet.create({
   time: { ...type.meta, fontSize: 12 },
   message: { ...type.body, color: color.ink },
   resolved: { ...type.meta, color: color.okText },
+  openRun: { fontFamily: font.bold, fontSize: 13, color: color.accentText },
   alreadyResolved: { ...type.meta, fontStyle: 'italic' },
   actions: { marginTop: space.xs, gap: space.sm },
   errorText: { ...type.meta, color: color.danger },

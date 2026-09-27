@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   pill: {
     width: 60,
     height: 32,
-    borderRadius: radius.pill,
+    borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },

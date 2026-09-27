@@ -397,6 +397,8 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
         ))}
       </View>
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={styles.input}
         value={tag}
         onChangeText={setTag}
@@ -405,6 +407,8 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
         autoCapitalize="none"
       />
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={styles.input}
         value={notes}
         onChangeText={setNotes}

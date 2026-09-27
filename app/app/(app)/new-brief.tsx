@@ -113,6 +113,8 @@ export default function NewBriefScreen() {
 
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={[styles.input, focused && styles.inputFocused]}
         value={briefText}
         onChangeText={setBriefText}

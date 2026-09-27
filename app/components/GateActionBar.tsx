@@ -153,6 +153,8 @@ function TextEntryBody({ title, initialText, placeholder, submitLabel, onClose, 
     <>
       <Text style={styles.sheetTitle}>{title}</Text>
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={styles.sheetInput}
         value={text}
         onChangeText={setText}

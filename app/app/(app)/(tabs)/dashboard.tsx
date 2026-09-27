@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart, LineChart } from 'react-native-gifted-charts';
+import { LineChart } from 'react-native-gifted-charts';
 import { Feather } from '@expo/vector-icons';
 import { useTRPC } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
@@ -20,6 +20,27 @@ function money(x: number): string {
 
 function pct(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
+}
+
+const SCORE_BUCKETS = ['≤5', '6', '7', '8', '9', '10'] as const;
+const BAR_MAX_HEIGHT = 104;
+
+function LegendItem({ color: swatch, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendSwatch, { backgroundColor: swatch }]} />
+      <Text style={styles.sub}>{label}</Text>
+    </View>
+  );
+}
+
+function bucketScores(rows: { score: number; count: number }[]): number[] {
+  const buckets = [0, 0, 0, 0, 0, 0];
+  for (const row of rows) {
+    const idx = row.score <= 5 ? 0 : Math.min(row.score - 5, 5);
+    buckets[idx] += row.count;
+  }
+  return buckets;
 }
 
 export default function DashboardScreen() {
@@ -59,7 +80,10 @@ export default function DashboardScreen() {
     </Pressable>
   );
 
-  const totalRuns = operational.data?.stageFunnel.find((r) => r.stage === 'intake')?.count ?? 0;
+  // stageFunnel buckets every run (terminal or not) by its current stage, so
+  // summing every bucket is the real total run count — filtering for a single
+  // stage like 'intake' undercounts almost to zero (R7's same fix on Channel detail).
+  const totalRuns = operational.data?.stageFunnel.reduce((sum, row) => sum + row.count, 0) ?? 0;
   const noRunsOnChannel = filterId !== null && operational.data && totalRuns === 0;
 
   let body: React.ReactNode;
@@ -96,7 +120,11 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>Success rate</Text>
             <Text style={styles.stat}>{succTotal > 0 ? pct(succ!.rate) : '—'}</Text>
             <Text style={styles.sub}>
-              {succTotal > 0 ? `${succ!.completed} of ${succTotal} runs finished` : 'No runs yet'}
+              {succTotal > 0
+                ? `${succ!.completed} of ${succTotal} runs finished`
+                : totalRuns > 0
+                  ? 'No finished runs yet'
+                  : 'No runs yet'}
             </Text>
           </Card>
           <Card style={styles.half}>
@@ -105,7 +133,9 @@ export default function DashboardScreen() {
             <Text style={styles.sub}>
               {regen && regen.runsReachedVideoGen > 0
                 ? `${regen.runsWithRegen} of ${regen.runsReachedVideoGen} needed a redo`
-                : 'No runs yet'}
+                : totalRuns > 0
+                  ? 'No finished runs yet'
+                  : 'No runs yet'}
             </Text>
           </Card>
         </View>
@@ -130,19 +160,32 @@ export default function DashboardScreen() {
           <Card>
             <Text style={styles.cardTitle}>Script review scores</Text>
             {quality.data.scriptReviewScoreDistribution.length > 0 ? (
-              <BarChart
-                data={quality.data.scriptReviewScoreDistribution.map((row) => ({
-                  value: row.count,
-                  label: String(row.score),
-                  frontColor: row.score >= 7 ? color.accent : color.chartLow,
-                }))}
-                height={140}
-                barWidth={20}
-                spacing={14}
-                noOfSections={4}
-                yAxisTextStyle={styles.axis}
-                xAxisLabelTextStyle={styles.axis}
-              />
+              (() => {
+                const counts = bucketScores(quality.data.scriptReviewScoreDistribution);
+                const maxCount = Math.max(...counts);
+                const scale = maxCount * 24 > BAR_MAX_HEIGHT ? BAR_MAX_HEIGHT / (maxCount * 24) : 1;
+                return (
+                  <View style={styles.scoreRow}>
+                    {SCORE_BUCKETS.map((label, i) => {
+                      const count = counts[i];
+                      const height = count === 0 ? 3 : Math.round(count * 24 * scale);
+                      const passing = i >= 2; // buckets: ≤5, 6, 7, 8, 9, 10 — 7+ is index 2+
+                      return (
+                        <View key={label} style={styles.scoreCol}>
+                          <Text style={styles.scoreCount}>{count}</Text>
+                          <View
+                            style={[
+                              styles.scoreBar,
+                              { height, backgroundColor: passing ? color.accent : color.chartLow },
+                            ]}
+                          />
+                          <Text style={styles.scoreLabel}>{label}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })()
             ) : (
               <Text style={styles.sub}>No Script Review scores yet.</Text>
             )}
@@ -151,17 +194,24 @@ export default function DashboardScreen() {
 
         {g1 ? (
           <Card>
-            <Text style={styles.cardTitle}>Gate 1 decisions</Text>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>Gate 1 decisions</Text>
+              {g1Total > 0 ? <Text style={styles.sub}>{g1Total} total</Text> : null}
+            </View>
             {g1Total > 0 ? (
               <>
                 <View style={styles.stack}>
                   <View style={{ flex: g1.approve, backgroundColor: color.accent }} />
+                  <View style={styles.stackGap} />
                   <View style={{ flex: g1.edit, backgroundColor: color.chartEdit }} />
+                  <View style={styles.stackGap} />
                   <View style={{ flex: g1.reject, backgroundColor: color.ink }} />
                 </View>
-                <Text style={styles.sub}>
-                  Approved {g1.approve} · Edited {g1.edit} · Rejected {g1.reject}
-                </Text>
+                <View style={styles.legendRow}>
+                  <LegendItem color={color.accent} label={`Approved ${g1.approve}`} />
+                  <LegendItem color={color.chartEdit} label={`Edited ${g1.edit}`} />
+                  <LegendItem color={color.ink} label={`Rejected ${g1.reject}`} />
+                </View>
               </>
             ) : (
               <Text style={styles.sub}>No decisions yet.</Text>
@@ -245,5 +295,15 @@ const styles = StyleSheet.create({
   track: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
   stack: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: color.surface2 },
+  stackGap: { width: 2, backgroundColor: color.bg },
   axis: { fontFamily: font.regular, fontSize: 11, color: color.muted },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  scoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: space.sm },
+  scoreCol: { alignItems: 'center', gap: 4, flex: 1 },
+  scoreCount: { fontFamily: font.regular, fontSize: 11, color: color.muted },
+  scoreBar: { width: 28, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
+  scoreLabel: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  legendRow: { flexDirection: 'row', gap: space.md, flexWrap: 'wrap' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendSwatch: { width: 10, height: 10, borderRadius: 3 },
 });

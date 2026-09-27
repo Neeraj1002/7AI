@@ -83,7 +83,7 @@ function Body({
               mode === 'select'
                 ? c.hasYoutubeCredential
                   ? { text: 'YouTube connected', ok: true }
-                  : { text: "Not connected — can't publish yet", ok: false }
+                  : { text: 'Not connected — connect to run', ok: false }
                 : undefined
             }
           />
