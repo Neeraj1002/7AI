@@ -39,6 +39,7 @@ function buildUserMessage(params: {
   topic: string;
   constraints: string[];
   styleGuide?: string | null;
+  targetDurationSec?: 30 | 45 | 60;
   fixNotes?: string;
 }): string {
   const lines = [`Topic: ${params.topic}`];
@@ -47,6 +48,24 @@ function buildUserMessage(params: {
   }
   if (params.styleGuide) {
     lines.push(`Style guide: ${params.styleGuide}`);
+  }
+  // Sprint 3 Task 9 (R4) — additive: stated alongside the system prompt's
+  // existing "30-60 seconds" Shorts-format framing, not a replacement for
+  // it. Omitted entirely (not just absent from the message) when unset, so
+  // an unset run's behavior is provably identical to before this field
+  // existed.
+  //
+  // A live check found a bare "approximately N seconds" instruction doesn't
+  // reliably move the model (three real 45s-targeted runs landed at 55-80s
+  // narrated-estimate, no closer to 45 than an unset control) — LLMs follow
+  // a concrete word count far more reliably than an abstract duration, so
+  // this also states the equivalent word count, at the same ~150 words/
+  // minute rate media/stub.ts's own duration estimate already assumes.
+  if (params.targetDurationSec) {
+    const approxWords = Math.round((params.targetDurationSec / 60) * 150);
+    lines.push(
+      `Target length: write this script to run approximately ${params.targetDurationSec} seconds when narrated aloud — aim for around ${approxWords} words of narration (natural speaking pace, ~150 words/minute).`,
+    );
   }
   // Bugs Task 6 (R1) — mirrors video-generation/plan.ts's own fixNotes
   // injection: a retry that doesn't tell the model what was actually wrong
@@ -64,6 +83,7 @@ export async function generateScript(params: {
   topic: string;
   constraints: string[];
   styleGuide?: string | null;
+  targetDurationSec?: 30 | 45 | 60;
   fixNotes?: string;
 }): Promise<ScriptGenerationResult> {
   const llm = await callLLM({

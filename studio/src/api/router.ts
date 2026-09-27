@@ -4,6 +4,7 @@ import { channelsRouter } from './routers/channels';
 import { dashboardRouter } from './routers/dashboard';
 import { notificationsRouter } from './routers/notifications';
 import { authRouter } from './routers/auth';
+import { optionsRouter } from './routers/options';
 
 export const appRouter = router({
   runs: runsRouter,
@@ -11,6 +12,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   notifications: notificationsRouter,
   auth: authRouter,
+  options: optionsRouter,
 });
 
 // Task 2's app imports this type directly (tRPC's whole point: no

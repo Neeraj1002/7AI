@@ -1,5 +1,5 @@
 import { prisma } from '../prisma-client';
-import type { Channel as PrismaChannel } from '@prisma/client';
+import type { Channel as PrismaChannel, Prisma } from '@prisma/client';
 import type { Channel, ChannelPlatform, CreateChannelInput, PriorsScope } from '../../types';
 
 function toDomainChannel(row: PrismaChannel): Channel {
@@ -89,8 +89,63 @@ export type ChannelPatch = {
   nicheDescription?: string;
   styleGuide?: string | null;
   defaultPrivacyStatus?: Channel['defaultPrivacyStatus'];
+  defaultVoice?: string | null;
+  budgetOverrideUsd?: string | null;
   isActive?: boolean;
 };
+
+// Sprint 3 Task 9 (R1 shared design note) — Channel.brandAssets is one JSON
+// column two different features write to (captionsEnabled here, watermarkUrl
+// in R3's upload route). Every writer goes through this: read the current
+// value, merge in only the keys actually being set, write the whole object
+// back. A naive `{ brandAssets: { captionsEnabled } }` write would silently
+// erase whatever the other feature had stored — this is the one place that
+// can't happen.
+export async function updateChannelBrandAssets(
+  id: string,
+  patch: Partial<Channel['brandAssets']>,
+): Promise<Channel> {
+  const current = await prisma.channel.findUniqueOrThrow({ where: { id }, select: { brandAssets: true } });
+  const merged: Record<string, unknown> = { ...((current.brandAssets ?? {}) as Channel['brandAssets']), ...patch };
+  // A patch value of `undefined` means "remove this key" (R3's watermark
+  // DELETE), not "store the literal value undefined" — stripped explicitly
+  // rather than relying on the DB driver's own JSON-serialization behavior
+  // for an undefined-valued key to do the right thing.
+  for (const key of Object.keys(merged)) {
+    if (merged[key] === undefined) delete merged[key];
+  }
+  const row = await prisma.channel.update({
+    where: { id },
+    data: { brandAssets: merged as Prisma.InputJsonValue },
+  });
+  return toDomainChannel(row);
+}
+
+// Sprint 3 Task 9 (R2) — same read-merge-write shape as updateChannelBrandAssets,
+// for the same reason: approvalGateConfig holds two independent booleans and a
+// caller setting only one (e.g. gate1Enabled) must never clobber the other.
+// Unlike brandAssets, neither key is ever *removed* (both always resolve to a
+// real boolean via the column's own default), but an undefined-valued key is
+// still stripped before writing — belt-and-suspenders against a caller passing
+// `{ gate1Enabled: undefined }` explicitly and clobbering the current value.
+export async function updateChannelApprovalGateConfig(
+  id: string,
+  patch: Partial<Channel['approvalGateConfig']>,
+): Promise<Channel> {
+  const current = await prisma.channel.findUniqueOrThrow({ where: { id }, select: { approvalGateConfig: true } });
+  const merged: Record<string, unknown> = {
+    ...((current.approvalGateConfig ?? {}) as Channel['approvalGateConfig']),
+    ...patch,
+  };
+  for (const key of Object.keys(merged)) {
+    if (merged[key] === undefined) delete merged[key];
+  }
+  const row = await prisma.channel.update({
+    where: { id },
+    data: { approvalGateConfig: merged as Prisma.InputJsonValue },
+  });
+  return toDomainChannel(row);
+}
 
 export async function updateChannel(id: string, patch: ChannelPatch): Promise<Channel> {
   const data: ChannelPatch = {};
@@ -98,6 +153,8 @@ export async function updateChannel(id: string, patch: ChannelPatch): Promise<Ch
   if (patch.nicheDescription !== undefined) data.nicheDescription = patch.nicheDescription;
   if (patch.styleGuide !== undefined) data.styleGuide = patch.styleGuide;
   if (patch.defaultPrivacyStatus !== undefined) data.defaultPrivacyStatus = patch.defaultPrivacyStatus;
+  if (patch.defaultVoice !== undefined) data.defaultVoice = patch.defaultVoice;
+  if (patch.budgetOverrideUsd !== undefined) data.budgetOverrideUsd = patch.budgetOverrideUsd;
   if (patch.isActive !== undefined) data.isActive = patch.isActive;
   const row = await prisma.channel.update({ where: { id }, data });
   return toDomainChannel(row);

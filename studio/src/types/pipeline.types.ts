@@ -41,6 +41,10 @@ export const CreationOptionsSchema = z.object({
   voice: z.string().optional(),
   visualSource: z.string().optional(),
   audioLayer: z.string().optional(),
+  // Sprint 3 Task 9 (R4) — a target narration length in seconds; additive,
+  // never a behavior change for a run that doesn't set it (script-generation
+  // falls back to its existing "30-60 seconds" framing when unset).
+  targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
 });
 export type CreationOptions = z.infer<typeof CreationOptionsSchema>;
 

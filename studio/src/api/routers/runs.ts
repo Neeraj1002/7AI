@@ -92,6 +92,9 @@ export const runsRouter = router({
         // voice/visualSource: rejected here if it doesn't match a real mood
         // tag (or "none"), never passed through as free text.
         audioLayer: z.enum(AUDIO_LAYERS).optional(),
+        // Sprint 3 Task 9 (R4) — same edge-validation posture as
+        // voice/visualSource/audioLayer above.
+        targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -118,11 +121,12 @@ export const runsRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} is archived` });
       }
       const creationOptions =
-        input.voice || input.visualSource || input.audioLayer
+        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec
           ? {
               ...(input.voice && { voice: input.voice }),
               ...(input.visualSource && { visualSource: input.visualSource }),
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
+              ...(input.targetDurationSec && { targetDurationSec: input.targetDurationSec }),
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never

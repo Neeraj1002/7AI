@@ -1,10 +1,12 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { fastifyTRPCPlugin } from '@trpc/server/adapters/fastify';
 import { env } from '../config/env';
 import { appRouter } from './router';
 import { createContext } from './trpc';
 import { registerVideoRoute } from './video-route';
+import { registerWatermarkRoute } from './watermark-route';
 import { requestMagicLink, verifyMagicLink, resolveRequestIdentity, isAuthConfigured } from '../auth';
 import { exchangeYoutubeAuthCode } from '../manage-channels/youtube-oauth-connect';
 import { insertBugReport } from '../models/repositories/bug-report.repository';
@@ -37,9 +39,16 @@ export async function startApiServer(): Promise<void> {
   // exists, tracked in KNOWN_ISSUES_AND_BLOCKERS.md, not blocking here.
   await fastify.register(cors, {
     origin: true,
-    methods: ['GET', 'POST', 'OPTIONS'],
+    // Sprint 3 Task 9 (R3) — DELETE added for the watermark-remove route;
+    // no prior route in this project needed it.
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  // Sprint 3 Task 9 (R3) — the only route that needs multipart today
+  // (watermark-route.ts's upload); registered globally rather than
+  // per-route, which is the plugin's normal usage.
+  await fastify.register(multipart);
 
   // Sprint 3 Task 1 (J2) — a request without a valid real session OR the
   // API_AUTH_TOKEN ops fallback gets a clean 401 JSON body, not a stack
@@ -143,6 +152,7 @@ export async function startApiServer(): Promise<void> {
   );
 
   await registerVideoRoute(fastify);
+  await registerWatermarkRoute(fastify);
 
   // Testing-phase utility — a lightweight, unauthenticated bug inbox for
   // manual app testing. GET serves the form (reading runId/screen from its
