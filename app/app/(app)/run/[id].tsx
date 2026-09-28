@@ -96,7 +96,7 @@ export default function RunDetailScreen() {
 
   // Bugs Task 7 (R4) — poll while the pipeline is working, so the screen moves
   // to the gate / needs-attention state on its own instead of looking frozen.
-  const { data, isLoading, error } = useQuery(
+  const { data, isLoading, error, refetch } = useQuery(
     trpc.runs.get.queryOptions(
       { id: id! },
       {
@@ -107,6 +107,17 @@ export default function RunDetailScreen() {
       },
     ),
   );
+
+  // Fix 2 — never leave an endless spinner: if the run hasn't loaded within
+  // 10s, fall back to the same "couldn't load" screen an outright error
+  // shows. Reset happens in the Retry button's own handler, not here, so
+  // this effect only ever sets state from inside the timer callback.
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isLoading) return;
+    const t = setTimeout(() => setLoadTimedOut(true), 10_000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
 
   const invalidate = () =>
     Promise.all([
@@ -167,15 +178,32 @@ export default function RunDetailScreen() {
     p.loop = false;
   });
 
-  if (isLoading || error || !data) {
+  if (!data && (error || loadTimedOut)) {
     return (
       <FormScreen variant="stack" title="Run">
         <View style={styles.center}>
-          {isLoading ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.errorText}>{error?.message ?? 'Run not found'}</Text>
-          )}
+          <Text style={styles.errorText}>Couldn&apos;t load this run</Text>
+          <View style={styles.loadErrorActions}>
+            <PrimaryButton
+              label="Retry"
+              icon="rotate-cw"
+              onPress={() => {
+                setLoadTimedOut(false);
+                void refetch();
+              }}
+            />
+            <SecondaryButton label="Back" onPress={() => router.back()} />
+          </View>
+        </View>
+      </FormScreen>
+    );
+  }
+
+  if (isLoading || !data) {
+    return (
+      <FormScreen variant="stack" title="Run">
+        <View style={styles.center}>
+          <ActivityIndicator color={color.accent} />
         </View>
       </FormScreen>
     );
@@ -225,7 +253,9 @@ export default function RunDetailScreen() {
     lastGateDecision?.gate === 2 &&
     lastGateDecision.outcome === 'revise';
   // E5 — cancellable from Run detail only, for any run still in flight.
-  const isRunningOrPending = run.status === 'running' || run.status === 'pending';
+  // Fix 3: not while actually uploading — a cancel landing mid-upload could
+  // leave a video live on YouTube while the app says "Cancelled".
+  const isRunningOrPending = (run.status === 'running' || run.status === 'pending') && !isPublishing;
   const isPublished = run.status === 'completed' && !!publishOutput?.youtubeVideoId;
 
   const cancelling = cancelMutation.isPending || cancelState === 'pending';
@@ -681,7 +711,8 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
 
 const styles = StyleSheet.create({
   content: { padding: space.lg, gap: space.md },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },
+  loadErrorActions: { width: '100%', gap: space.sm },
   errorText: { ...type.body, color: color.danger },
   brief: { gap: 2 },
   briefLabel: { fontFamily: font.regular, fontSize: 12, color: color.muted },
