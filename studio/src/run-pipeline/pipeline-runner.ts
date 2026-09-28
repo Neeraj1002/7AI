@@ -6,10 +6,58 @@ import {
   runVideoGenerationStage,
   runVideoReviewStage,
   runGate2Stage,
+  runPublishingStage,
+  runAnalyticsStage,
 } from './state-machine';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { findPipelineRunById, updatePipelineRun } from '../models/repositories/pipeline-run.repository';
 import type { PipelineRun } from '../types';
+
+// Sprint 3 Task 11 (B14) — the founder's own stall guard: runPublishingStage
+// makes a real, non-repeatable external call (a YouTube upload) that could in
+// principle hang far longer than any of this loop's other stages. Without
+// this, a genuinely stuck upload would leave the HTTP-triggered background
+// driver (startPipelineInBackground/continuePipelineInBackground, both
+// fire-and-forget) running forever with nothing surfacing it to the founder.
+// 10 minutes, per the task's own instruction.
+const PUBLISHING_STALL_TIMEOUT_MS = 10 * 60 * 1000;
+
+// Races the real call against a timer — the simplest mechanism that needs no
+// new cancellation plumbing (there is no AbortController threaded through
+// uploadVideo/generatePublishingMetadata today, and building one is out of
+// this item's scope). This does NOT cancel the real call if the timer wins:
+// runPublishingStage keeps running in the background and will still commit
+// its own result whenever it actually finishes. That's deliberately safe,
+// not just tolerated — runPublishingStage already checks for an existing
+// checkpointed `youtubeVideoId` before ever re-uploading (its own comment,
+// "Resume-safety"), so nothing here risks a duplicate upload; the only
+// residual is a benign race on which write lands last (documented in
+// reports/task11.md): if the stalled call succeeds *after* this function has
+// already moved the run to `needs_attention`, its own completion only
+// touches `currentStage` (→ 'analytics'), never `status` — so the run is
+// left at `needs_attention`/`analytics`, which `runs.retry` (already exists,
+// generic for any needs_attention run) drives forward correctly. Nothing is
+// lost, nothing double-uploads.
+async function runPublishingStageWithStallGuard(runId: string): Promise<PipelineRun> {
+  let settled = false;
+  const stall = new Promise<'stalled'>((resolve) => {
+    setTimeout(() => {
+      if (!settled) resolve('stalled');
+    }, PUBLISHING_STALL_TIMEOUT_MS);
+  });
+
+  const result = await Promise.race([runPublishingStage(runId).finally(() => { settled = true; }), stall]);
+  if (result === 'stalled') {
+    console.error(
+      `[pipeline-runner] run ${runId}: publishing did not resolve within ${PUBLISHING_STALL_TIMEOUT_MS / 60000} minutes — moving to needs_attention rather than leaving the request hanging indefinitely`,
+    );
+    return await updatePipelineRun(runId, {
+      status: 'needs_attention',
+      lastError: `Publishing stalled — did not complete within ${PUBLISHING_STALL_TIMEOUT_MS / 60000} minutes. Safe to retry (no duplicate upload risk).`,
+    });
+  }
+  return result;
+}
 
 // Sprint 3 Task 8 (R3) — defense in depth for archiving a channel: before each
 // stage, stop burning LLM/TTS/video-gen spend on a channel that was archived
@@ -87,9 +135,23 @@ async function driveFromCurrentStage(initial: PipelineRun): Promise<PipelineRun>
       case 'gate2':
         run = await runGate2Stage(runId);
         continue;
+      // Sprint 3 Task 11 (B14) — the fix: this loop previously stopped dead
+      // here, so a live Gate 2 approval never actually published until the
+      // next process restart picked it up via resume-on-startup.ts's
+      // STAGE_RESUMERS map. Same shape as every case above; publishing alone
+      // gets the stall guard (see runPublishingStageWithStallGuard's own
+      // comment) since it's the one stage with a real, non-repeatable
+      // external side effect this loop now reaches live. This also closes
+      // Task 9/R2's Gate-2-off auto-approve path for the same reason — it
+      // drives through this identical loop, no separate fix needed.
+      case 'publishing':
+        run = await runPublishingStageWithStallGuard(runId);
+        continue;
+      case 'analytics':
+        run = await runAnalyticsStage(runId);
+        continue;
       default:
-        // 'intake' (shouldn't recur), 'publishing'/'analytics' (no processor
-        // on this branch yet), or null (nothing left to drive) — stop
+        // 'intake' (shouldn't recur) or null (nothing left to drive) — stop
         // advancing and leave the run exactly where it is.
         return run;
     }
