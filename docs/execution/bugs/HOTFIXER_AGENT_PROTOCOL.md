@@ -6,6 +6,31 @@ template still governs the shape of the work itself (branch/commit steps, report
 upsert). This file is the missing piece that makes it safe to run a hot-fixer chat concurrently with
 whatever other chat (planning, sprint work) is also touching this repo.
 
+## Environment — verify against preview, not local dev (added 2026-09-28)
+
+**Founder decision, 2026-09-28**: testing has moved to the preview deployment
+(`https://7aistudio.tech`, database `sevenai_preview` on the VPS) — this is now the environment a
+hot-fixer's live-verification step targets, replacing local dev (`sevenai_dev`) as the default. This
+changes **where a fix is verified**, not **how it's built or shipped**:
+
+- Code edits, commits, and the `BUGS_TASK<N>` branch/PR still happen exactly as this protocol already
+  describes, from the local checkout (`D:\Study Material\7AI-bugs`). Nothing about the git workflow
+  changes.
+- "Real, live verification" (see **Definition of done** below) now means reproducing the bug and
+  confirming the fix against the live preview app/API (`https://7aistudio.tech`), not a locally-run dev
+  server — unless a specific task doc says otherwise (e.g. a fix that's genuinely local-dev-only, like
+  something in `.env.local`'s own handling).
+- **Never connect directly to `sevenai_preview` from a local checkout** — there is no tooling set up for
+  that, and the deployment doc's own rules (`docs/server/deployment/preview/detail.md`) treat the
+  preview DB as reachable only from the VPS itself (`psql` over SSH, per `docs/server/usefulcmds.md`).
+  Verification against preview means exercising the live app/API from outside (real HTTP calls, the real
+  UI), the same way a founder would use it — never a direct DB read/write from a hot-fixer's own machine.
+- A fix still merges to `main` the same way; `main`'s existing auto-deploy is what actually ships it to
+  preview. This protocol's existing hard rule against pushing to `main` directly is unchanged.
+- The pre-existing "real dev server vs. ad-hoc server" warning below (from Bugs Task 9) is about local
+  dev specifically and still applies if any work genuinely stays on local dev — it isn't retired, just
+  superseded as the *default* verification target.
+
 ## Why this exists
 A second chat, attached to the same "7AI" Project and linked to the same computer as any other active
 chat, can genuinely work independently — it has its own copy of every tool, reads/writes the same
@@ -53,14 +78,16 @@ already states.
   release is verified and the PR is marked ready. See **Release & Branch Model** below — this replaced
   the old per-role branch split specifically because it was producing multiple concurrent, conflicting
   PRs for what should have been one reviewable unit.
+- **Any direct connection to `sevenai_preview` from a local checkout** — see the Environment note above.
+  Preview is now where real, public-facing content is posted (a real channel, real audience) — treat it
+  with the same care the existing "touching the production DB directly" guardrail already describes, now
+  that preview genuinely is that production DB.
 
 ## Release & Branch Model *(replaced 2026-09-26 — see below for why)*
 
 **One branch per release, one commit per item, one PR for the whole release.** A "release" is one
 numbered Bugs Task (`task1.md`, `task2.md`, `task3.md`, ...) — the unit that already gets one report and
-one `STATUS.md` row. Starting with **Task 4 onward** (this section was drafted concurrently with Task 3's
-own implementation — see the note below on why Task 3 itself still predates it, not Task 3 onward as
-originally intended):
+one `STATUS.md` row. Starting with **Task 3 onward**:
 
 - **Branch**: `BUGS_TASK<N>` — one branch for the entire release, covering every `R#` item in that
   task doc regardless of role (`BE`, `FE`, or `APP` — see Role Tags below). Branch fresh from a
@@ -93,15 +120,9 @@ this — that's exactly the problem being removed. Flag it to the founder and le
 fast-track that one item as its own small release (a new, separate `BUGS_TASK<N+1>` for just that item)
 rather than improvising a branch split mid-release.
 
-**Task 1, Task 2, and Task 3 predate this change and are not retroactively renamed or restructured** —
-their existing branches (`BUGS_TASK1_REPORT`, `BUGS_APP_b2`, and Task 3's `BUGS_BE`/`BUGS_FE_TASK3`/
-`BUGS_TASK3_REPORT`) and PRs stay exactly as they are, same "historical units aren't renamed" principle
-`TASK_TEMPLATE.md` already applies to `week[N]` vs `sprint[N]`. **Task 3 is the concrete reason this
-note had to be widened past Task 1/2**: this section was originally drafted assuming Task 3 hadn't
-started yet (intending it to be the first release under the new model), but Task 3 was, in fact, already
-fully implemented across three sibling branches by the time that assumption was written down — a real
-concurrent-edit gap between this doc and the actual work in flight, not a hypothetical one. The new
-one-branch-per-release model takes effect starting with **Task 4**.
+**Task 1 and Task 2 predate this change and are not retroactively renamed** — their existing branches
+(`BUGS_TASK1_REPORT`, `BUGS_APP_b2`) and PRs stay exactly as they are, same "historical units aren't
+renamed" principle `TASK_TEMPLATE.md` already applies to `week[N]` vs `sprint[N]`.
 
 ## Role Tags — BE / FE / APP *(informational only — no longer determine branch choice)*
 
@@ -111,7 +132,8 @@ an item's commit lands on (see Release & Branch Model above; every role's commit
 `BUGS_TASK<N>` branch).
 
 - **`BE`** — backend/API code (`studio/`). No native build concept applies — it's deployed by running
-  the server, not installed as a package. Verification bar: a real API call / log line, same as always.
+  the server, not installed as a package. Verification bar: a real API call / log line — **against
+  preview by default now**, see the Environment note above.
 - **`FE`** — JS/React-Native **logic-only** changes inside `app/` that touch no native config: no new
   native dependency, no new permission, no `app.json` plugin, nothing in the `android`/`ios` blocks.
   This is the set of changes that ship via `eas update --branch preview` once merged — **no new APK, no
@@ -169,17 +191,20 @@ rebuild. Tag every `R#` item with its role regardless of the (now unified) branc
 
 ## Per-task workflow
 For each `R#` item in the release: read it in full, implement, test (`npm run build`/`lint`/`typecheck`
-plus that item's own real-verification bar), commit immediately (`BUGS_TASK<N>_R<X>: ...`), push. Once
-every item in the release is done: write the report at `docs/execution/bugs/reports/task[N].md`, upsert
-the `STATUS.md` row, commit that (`BUGS_TASK<N>_REPORT: ...`), push, and mark the PR ready for review —
-never merge, never push to `main`.
+plus that item's own real-verification bar — **against preview by default now**, see the Environment
+note above), commit immediately (`BUGS_TASK<N>_R<X>: ...`), push. Once every item in the release is
+done: write the report at `docs/execution/bugs/reports/task[N].md`, upsert the `STATUS.md` row, commit
+that (`BUGS_TASK<N>_REPORT: ...`), push, and mark the PR ready for review — never merge, never push to
+`main`.
 
 ## Definition of done / verification bar
 Matches this repo's existing standard, not a lower one because it's "just a bug fix": every task doc in
 this folder requires **real, live verification** (a real device, a real API call, a real log line —
-never "should work" or a simulated check standing in for it). A hot-fixer chat does not mark a task's
-`STATUS.md` row `Done` until it has actually reproduced the fix working, the same bar `hardening-
-tenant-check.md` and every sprint task doc already hold themselves to.
+never "should work" or a simulated check standing in for it). **As of 2026-09-28, "live" means the
+preview deployment (`https://7aistudio.tech`) by default** — see the Environment note at the top of this
+file — not a locally-run dev server, unless a task doc explicitly says otherwise. A hot-fixer chat does
+not mark a task's `STATUS.md` row `Done` until it has actually reproduced the fix working there, the same
+bar `hardening-tenant-check.md` and every sprint task doc already hold themselves to.
 
 ## Guardrails — when to stop and ask the founder
 - The fix, once started, turns out to need a schema change, a new dependency with licensing/cost
@@ -188,7 +213,8 @@ tenant-check.md` and every sprint task doc already hold themselves to.
 - Two task rows in `STATUS.md` look contradictory (e.g. both `In Progress` with different owners on
   what reads like the same underlying issue) — resolve by asking, not by picking one silently.
 - Anything that would require deleting user data, rotating a live credential, or touching the
-  production DB directly rather than through the app's own code paths.
+  production DB (`sevenai_preview`, and the `sevenai_dev` DB it superseded) directly rather than through
+  the app's own code paths.
 - Anything that would require pushing to `main` directly, or opening a second PR for the same release —
   see Scope above. Always stop and ask first.
 
@@ -205,17 +231,22 @@ real files), and open with something like:
 
 > You are the hot-fixer for the 7AI project's `docs/execution/bugs/` track. Read
 > `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` in full and follow it exactly — especially the
-> **Release & Branch Model** (one `BUGS_TASK<N>` branch and one PR for the whole release, one commit per
-> `R#` item — never a branch or PR per item, never a second PR for the same release) and Coordination,
-> since other chats may be working on this repo at the same time. Read `docs/execution/bugs/STATUS.md`,
-> claim the next task per the protocol, and work it end to end: implement each item, verify it live,
-> commit it immediately on the release's one branch, and once every item is done write the report,
-> update `STATUS.md`, and mark the PR ready. Stop and ask me before merging anything, before touching
-> sprint-track files, before pushing to `main` under any circumstance, before opening a second PR for the
-> same release, or if you hit any of the Guardrails in the protocol doc.
+> **Environment** note (verify against preview, `https://7aistudio.tech`, by default now — not local
+> dev), the **Release & Branch Model** (one `BUGS_TASK<N>` branch and one PR for the whole release, one
+> commit per `R#` item — never a branch or PR per item, never a second PR for the same release) and
+> Coordination, since other chats may be working on this repo at the same time. Read
+> `docs/execution/bugs/STATUS.md`, claim the next task per the protocol, and work it end to end:
+> implement each item, verify it live against preview, commit it immediately on the release's one
+> branch, and once every item is done write the report, update `STATUS.md`, and mark the PR ready. Stop
+> and ask me before merging anything, before touching sprint-track files, before pushing to `main` under
+> any circumstance, before opening a second PR for the same release, or if you hit any of the Guardrails
+> in the protocol doc.
 
 ## Links & References
 - [TASK_TEMPLATE.md](../templates/TASK_TEMPLATE.md)
 - [STATUS.md](STATUS.md)
 - [hardening-tenant-check.md](../sprint3/tasks/hardening-tenant-check.md) — precedent for a real,
   live-verification bar on a non-sprint-numbered fix
+- `docs/server/deployment/preview/detail.md`, `docs/server/usefulcmds.md` — the preview VPS itself:
+  what it is, how to reach it, and its own "never run" list (never touch `sevenai_preview` directly
+  except through the app's own code paths, per the Guardrails above)

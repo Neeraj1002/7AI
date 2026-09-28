@@ -26,10 +26,17 @@ session finds otherwise. **Reopened a fourth time for Task 10** — server/local
 runtime server-URL switcher for the app, and two Telegram token-delivery fixes, prompted by a real
 preview deployment now existing (`docs/server/deployment/preview/detail.md`, Hostinger VPS,
 `https://7aistudio.tech`) and a recurring real error the founder is seeing. Same posture as Tasks 8/9:
-unrelated to Sprint 4's scope, own branch (`SERVERCONFIG_BE`). **Task 10 is now code-complete** — all
-four R-items done, live-verified where this environment allows; PR [#40](https://github.com/Neeraj1002/7AI/pull/40)
-is out of draft, ready for review. See Task 10's row below and `reports/task10.md` (which also discloses
-one real mistake made and caught during R2's own verification).
+unrelated to Sprint 4's scope, own branch (`SERVERCONFIG_BE`), filed here rather than there. **Task 10
+is now code-complete** — R1-R4 done, live-verified, PR [#40](https://github.com/Neeraj1002/7AI/pull/40)
+ready for review — see its own row below. **Reopened a fifth time for Task 11** — UI Enhancement 3's own
+backend work (Run detail's lifecycle: publish-on-approval without a restart, gate-decision/end-reason
+fields, cancel a running run, run again), the direct backend counterpart to UI/UX `tasks/task6.md`, same
+posture as Tasks 8/9 (own branch `UIENHANCEMENT3_BE`, filed here not Sprint 4). **Task 11 is now
+code-complete** — all five R-items done, live-verified, PR [#42](https://github.com/Neeraj1002/7AI/pull/42)
+ready for review — see its own row below. **Note on PR merge status**: PR #40/#42's "ready for review"
+status is as recorded by the branch's own work; this chat has no live git/gh access and cannot
+independently confirm either has actually landed on `main` — correct on sight if a future session
+finds otherwise, same caveat already standing for PR #27/#32 above.
 Telegram was only ever built (Week 1) to make Gate 1/Gate 2 testable before any real UI existed; once
 Task 3 (K2) gave every user a real in-app notification inbox, a clear product decision was made to
 retire Telegram entirely rather than keep it as a second, permanent channel — no fallback, no feature
@@ -91,20 +98,22 @@ live-verified against an isolated sandbox DB, and pushed** — `channels.update`
 invariant enforced both directions), and `runScriptReviewStage`/`runVideoReviewStage` each gained a
 symmetric auto-approve branch on a passing outcome only — the retry loop and cap-reached-to-Gate-1
 fallback are untouched. **All five of Task 9's R-items (R1, R2, R3, R4, R5) are now complete.** See
-Task 9's own row and `tasks/task9.md`/`reports/task9.md`. **Task 10 is now fully complete** — all four
-R-items done, live-verified where this environment allows, PR #40 ready for review — see its own row and
-`tasks/task10.md`/`reports/task10.md`.
-**Reopened a fifth time for Task 11** — run-lifecycle backend work (a Gate 2 approval actually publishes
-without a restart, gate-decision/end-reason fields on `runs.get`, cancel a running run, `runs.rerun`),
-driven by the UI/UX track's Task 6 ("Run lifecycle — Retry/Cancel, Decision sent, after-Gate-2 outcomes,
-Run again"). Same posture as Tasks 8/9/10: unrelated to Sprint 4's scope, own branch (`UIENHANCEMENT3_BE`).
-**Task 11 is now fully complete** — all four required R-items (R1–R4) plus the optional R5 done and
-live-verified against isolated sandbox databases; PR [#42](https://github.com/Neeraj1002/7AI/pull/42) is
-out of draft, ready for review. One real finding along the way: `runs.get`'s response already included
-`creationOptions` before this task started (a direct field on the `PipelineRun` type) — R4's own premise
-that it needed adding was already satisfied, confirmed by reading the repository mapping rather than
-assumed.
-**Last updated**: 2026-09-28 (Task 11 — all R-items complete, PR #42 ready for review).
+Task 9's own row and `tasks/task9.md`/`reports/task9.md`. Task 10 (filed 2026-09-27) addresses
+server/local environment config, a runtime server-URL switcher for the app, and two Telegram
+token-delivery fixes — now code-complete, see its own row and `tasks/task10.md`. Task 11 (filed
+2026-09-28) addresses the UI/UX track's "UI Enhancement 3" run-lifecycle backend needs
+(publish-on-approval without a restart, gate-decision/end-reason fields, cancel a running run, run
+again) — now code-complete, see its own row and `tasks/task11.md`. **Reopened a sixth time for Task
+12** — real infra work now that testing has moved to the preview environment: the founder has real
+Cloudflare R2 credentials configured (one shared bucket, `7ai-preview`) and wants generated video output
+uploaded there so it can be shared with another Claude session (one without device/SSH access to the
+VPS) for review/fine-tuning. Same posture as Tasks 8-11: own branch (`MEDIASTORAGE_BE`), filed here
+rather than Sprint 4. **Not yet started** — see its own row and `tasks/task12.md`.
+**Last updated**: 2026-09-28 (Task 10 and Task 11 both confirmed code-complete via direct code
+re-verification — PR #40 and PR #42 respectively, both marked ready for review; this Project copy's
+STATUS rows reconciled with the richer detail already recorded in the working checkout's own copy;
+report docs for both tasks not yet written to the Project. Task 12 filed — Cloudflare R2 integration for
+generated media storage.).
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -119,11 +128,15 @@ assumed.
 | 9 | UI Enhancement 2 — Backend Requirements (Channel Settings, Watermark Upload, Gate Toggles, Brief Length) | **Code complete — all 5 R-items done, PR #32 ready for review** | **Founder** (review + merge) | `UIENHANCEMENT2_BE` — PR [#32](https://github.com/Neeraj1002/7AI/pull/32) | R1: `channels.update` extended with `styleGuide`/`defaultVoice`/`captionsEnabled`/`budgetOverrideUsd`; `captionsEnabled` routes through a new shared `updateChannelBrandAssets` read-merge-write helper so it can never clobber R3's `watermarkUrl` in the same JSON column. Live-verified: round-trip via update+get, a real `script_generation` stage's recorded input reflecting a `styleGuide` edit, and `captionsEnabled:false` on a channel with a real watermark leaving it untouched. R2 (Gate 1/Gate 2 toggles): deferred until `BUGS_TASK6` (PR #31) merged, per the doc's own instruction — confirmed merged, `main` merged into this branch (2 small additive conflicts resolved cleanly) before starting. `Channel.approvalGateConfig` gets a real write path (`gate1Enabled`/`gate2Enabled`, via a new `updateChannelApprovalGateConfig` merge helper); the `gate2Enabled:false` invariant (`defaultPrivacyStatus === 'private'`) is enforced in both directions — disabling Gate 2 on a non-private channel, and changing privacy away from `'private'` while Gate 2 is already disabled. `runScriptReviewStage` gains a `gate1AutoApprove` case on the existing ≥7 score-branch (passing-score outcome only — the below-threshold retry loop and the cap-reached-to-Gate-1 fallback are untouched); `runVideoReviewStage` gets the exact symmetric treatment for Gate 2. Both write a synthetic gate-stage row with the same shape a human approval would (so nothing downstream can tell them apart) plus a separate `system`/`auto-approve` `ReviewLog` row. Live-verified against an isolated sandbox DB (created, migrated with all 16 real migrations, dropped after use) with `reviewScript`/`reviewVideo` mocked via `vitest`'s `vi.mock` — a first attempt at mocking via a plain `tsx` script was silently inert (this project's esbuild/tsx toolchain copies a required module's exports onto a fresh object, invisible to the real code's own module reference); switching to a real `vitest` test file fixed it. All required behaviors (Gate 1 pass-through, Gate 1 retry-cap unaffected, Gate 2 pass-through, both `BAD_REQUEST` invariant checks) confirmed in one clean passing run. R3: watermark upload/serve/remove via a new REST route (`@fastify/multipart`, same binary-content precedent as `video-route.ts`, not tRPC) — live-verified genuinely end to end: a real PNG uploaded, served back byte-for-byte, rendered into a real `video_generation` run, and confirmed **actually visible** via raw-pixel inspection (not just "the route didn't error"), then removed with a second render confirming the overlay was gone. R4: `targetDurationSec` (30/45/60) on `runs.create` — found during live verification that a bare "approximately N seconds" prompt hint didn't reliably move the model (three 45s-targeted runs landed at 55-80s); fixed by also stating the equivalent word count in the prompt, re-verified across three more runs landing within ~1s of target. R5 (optional): a read-only `options.list` query, live-verified returning all 13 real voices/2 visual sources/mood tags including `'none'`. Build/lint/typecheck clean, `npm test` 108/108 passing throughout — no new unit tests added, this task's own bar is real live verification against a sandbox/dev DB. **Known residual gaps, stated plainly in the report**: inherits (doesn't fix) `pipeline-runner.ts`'s pre-existing "a live run reaching `currentStage:'publishing'` needs a process restart to actually upload" gap for the auto-approved Gate 2 path too; watermark storage is local filesystem, no object-storage migration in scope; `gate2Enabled:false` has no equivalent quality floor to Gate 1's retry-to-7 mechanism (a genuine on/off switch, not a defect this task needed to fix). Full detail at `tasks/task9.md`, report at `reports/task9.md`. |
 | 10 | Server/Local Environment Config + Runtime Server Switcher + Telegram Token-Delivery Fixes | **Code complete — PR #40 ready for review** | **Founder** (review + merge; on-device R2 verification) | `SERVERCONFIG_BE` — PR [#40](https://github.com/Neeraj1002/7AI/pull/40) | R1: `studio/src/config/env.ts`'s `dotenv.config()` now branches on `NODE_ENV === 'production'` to load `.env` (server) vs. `.env.local` (local dev, unchanged) — confirmed root cause, live-verified both branches load distinct values correctly. R2: the runtime server switch already existed (SecureStore, not AsyncStorage — corrected premise); added named "Local"/"Preview" presets on the login screen, fixed the one real save-timing gap (now persists immediately on preset tap or "Done"), and wired `setApiUrl` to re-check `/health` against the new URL immediately, surfacing Bugs Task 8/R2's existing server-down screen without duplicating it. R3: Telegram login-token message is now just the raw token. R4: `runTelegramStartPollCheck`'s `getUpdates` call gets exponential retry/backoff (3s base, capped at 60s) with log-once-per-failure-streak — live-verified via a simulated 3-failure-then-recover sequence: one error logged, backed-off ticks skip silently, a real `/start` update still handled correctly on recovery. **One real mistake made and disclosed in the report**: an early R2-verification attempt booted a throwaway `studio` server against the shared dev DB, which woke real resume-on-startup logic and re-opened 8 genuinely-pending gate1 runs (likely re-sending some real notifications) before being caught and killed ~15-20s later; redone safely afterward with a bare `/health`-only stub server, no app/DB involved. **What's honestly not provable without a physical device**: R2's on-device verification (tap "Preview" on a real phone, confirm the request hits `7aistudio.tech` in the VPS's own Nginx log) — tracked as a founder-action item, not a code gap. Build/lint/typecheck clean across `studio/` and `app/`; `npm test` 108/108. Full detail at `tasks/task10.md`, report at `reports/task10.md`. |
 | 11 | UI Enhancement 3 — Backend Requirements (Run Lifecycle: Publish-on-Approval, Gate Decision Fields, Cancel Running, Run Again) | **Code complete — all R-items done, PR #42 ready for review** | **Founder** (review + merge) | `UIENHANCEMENT3_BE` — PR [#42](https://github.com/Neeraj1002/7AI/pull/42) | R1/B14: `pipeline-runner.ts`'s `driveFromCurrentStage` loop gains `case 'publishing'`/`case 'analytics'` (previously stopped dead at `'publishing'` — a live Gate 2 approval never actually uploaded until the next process restart picked it up via `resume-on-startup.ts`); publishing gets a 10-minute stall guard (races the real call against a timer, doesn't cancel it — `runPublishingStage` already checkpoints `youtubeVideoId` before any re-upload, so a stalled-then-late-succeeding call is provably safe, documented as a benign self-healing race in the report). Also closes Task 9/R2's Gate-2-off auto-approve path (same loop). Live-verified: a real run driven purely through `runPipelineToNextGate` (real script-generation/video-generation, `reviewScript`/`reviewVideo` mocked to a passing outcome) reached `completed` with a real stub `youtubeVideoId`, entirely from the live request path, no restart anywhere in the test. R2/B13: `runs.get` gains `lastGateDecision` (normalizes gate1/gate2's three different raw output field names — `reason`/`privacyStatus`/`notes` — into one consistent shape) and `endReason` (string-matched off `run.lastError`'s exact strings, a real disclosed fragility). R3/B11: a new in-memory `cancellation-registry.ts` (same precedent as `pending-approvals.ts`) lets `runs.cancel` accept a genuinely `'running'` run — recorded and returned immediately, checked once per `pipeline-runner.ts` loop iteration; an in-flight stage is allowed to finish, only the next stage is refused. R4/B12: `runs.rerun` reuses a new shared `assertChannelCanRun` (same archived/not-connected checks `create` already had) against the source run's channel; found `creationOptions` was already present on `runs.get`'s response before this task (a direct `PipelineRun` field), so nothing further was needed there. R5 (optional): `runs.progress` → `{ stage, attemptNo }`, no fabricated `pct`. All five live-verified against isolated sandbox DBs with `reviewScript`/`reviewVideo`/`generateScript` mocked for determinism/speed — real stages (`video_generation`, `publishing`, `analytics`) stayed real, stub media/upload only. One real, live-found nuance in R3's own verification: `currentStage` can legitimately still read `'video_review'` after a mid-flight cancel (the in-flight stage's own normal completion write isn't discarded, per the task's own instruction) — the real proof the loop stopped is that `video_review`'s own function was never called, not that field's text; an initial, stricter test assertion was wrong and corrected once the real result showed why. Full detail at `tasks/task11.md`, report at `reports/task11.md`. |
+| 12 | Generated Media Storage — Cloudflare R2 Integration | **Not started** | — | `MEDIASTORAGE_BE` (not yet created) | Filed 2026-09-28. The founder has real R2 credentials already configured in both `studio/.env.local` (local) and `studio/.env` (preview VPS) — one shared bucket, `7ai-preview` — but nothing in code reads them yet: confirmed by direct read of `package.json` (no S3/R2 SDK dependency exists) and `env.ts` (no `R2_*` fields in its schema, so the real values in the env files are currently invisible to the app). R1: new `studio/src/storage/r2-client.ts` (same provider-boundary pattern as `youtube-client.ts`), `@aws-sdk/client-s3`/`@aws-sdk/s3-request-presigner` as new dependencies, `R2_*` env wiring (optional, graceful-degradation posture matching `TELEGRAM_BOT_TOKEN`). R2: best-effort upload of each completed `video_generation` attempt to R2, hooked in *after* `state-machine.ts`'s existing stage-completion transaction (confirmed exact line: `completeStage(...)` at line 946) so an R2 outage can never block or slow the actual pipeline — same isolation shape `runPublishingStage`'s own cover-frame/thumbnail-set step already established. Object keys namespaced by `NODE_ENV` (`videos/<env>/<tenantId>/<runId>/<attempt>.mp4`) specifically so local test runs never collide with real preview uploads in the one shared bucket — a deliberate decision, not an oversight. R3: `runs.getVideoUrl({ runId, attemptNumber? })` mints a fresh 24h presigned R2 URL on demand — this is the actual mechanism for sharing a generated video with another Claude session that has no device/SSH access to the VPS. R4 (optional): a cheap `hasR2Video` flag on `runs.get`. Watermark storage and the YouTube-publish path are explicitly untouched (out of scope, per Task 9's own prior "local filesystem only" note and this task's own boundary). Full detail at `tasks/task12.md`. |
 
 ## Full detail
 Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `reports/task4.md`,
 `reports/task5.md`, `reports/task6.md`, `reports/task7.md`, `reports/task8.md`, `reports/task9.md`.
-Task 10's report will follow once built: `reports/task10.md`.
+Task 10's report (`reports/task10.md`) and Task 11's report (`reports/task11.md`) are referenced by
+name in the local checkout's own STATUS.md as already written, but neither has been synced to this
+Project yet — flagged, not fabricated; ask the hot-fixer session or founder for the actual report
+content before this Project's copy claims either exists.
 
 ## Open items closed by Task 1
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "No `User` model exists at all" item — **closed**.
@@ -186,6 +199,23 @@ Task 10's report will follow once built: `reports/task10.md`.
   **closed** by R2, built directly on top of Bugs Task 3/6's already-real auto-retry mechanism once
   Bugs Task 6 (PR #31) merged.
 
+## Open items Task 10 closed
+- The `.env`/`.env.local` env-loading gap blocking the preview VPS from ever picking up its own
+  server-side environment — **closed** by R1 (`studio/src/config/env.ts` now branches on
+  `NODE_ENV === 'production'`).
+- The Telegram login-token message's extra wording (not copy-paste friendly) — **closed** by R3.
+- The recurring unhandled `getUpdates threw` / `SocketError` error in `runTelegramStartPollCheck` —
+  **closed** by R4 (exponential retry/backoff).
+- Named server presets + save-on-change for the app's already-existing runtime server switcher —
+  **closed** by R2, pending the founder's own on-device confirmation (see below).
+
+## Open items Task 11 closed
+- The UI/UX track's "UI Enhancement 3" run-lifecycle backend needs (see
+  `docs/execution/ui-ux/tasks/task6.md`, B11-B14) — all four required items plus the optional R5 are
+  code-complete.
+- **`pipeline-runner.ts` not driving `publishing`/`analytics` stages in the live request path** (open
+  since Task 8/R3's investigation, inherited by Task 9/R2) — **closed** by R1/B14.
+
 ## Open items carried forward
 - **Run/channel creation-time tenant ownership isn't checked** — `runs.create` validates the target
   `channelId` exists but not that it belongs to the caller's own tenant; a signed-in user's session
@@ -215,8 +245,8 @@ Task 10's report will follow once built: `reports/task10.md`.
 - **`.env.example` is stale** — missing several env vars added across Sprint 2 (`AI_VISUALS_STUB`,
   `YOUTUBE_ANALYTICS_STUB`, `FOUNDER_DIGEST_*`, etc.), predating this task. Task 7/O2 removes the
   Telegram vars specifically; a full reconciliation of the rest is still a separate, out-of-scope
-  cleanup. **Task 10/R1 should fold this in if it touches `.env.example` anyway** — worth a quick
-  pass while that file is already open, though not this item's original scope.
+  cleanup. Not confirmed whether Task 10/R1 folded this in while `.env.example`/`.env`/`.env.local`
+  were already open — worth checking once Task 10's report is available.
 - **L2 verification item — confirm the real Cloud Console quota numbers match the assumed defaults**
   — a real, quick check only the founder can do (their own Google login). See
   `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
@@ -244,10 +274,6 @@ Task 10's report will follow once built: `reports/task10.md`.
   `runPublishingStage`'s own `isActive` check and its actual upload call is not fully closed by this
   task (see `tasks/task8.md`'s Failure Modes section); accepted as a rare, low-severity gap rather than
   built around with a DB-level lock.
-- **`pipeline-runner.ts` not driving `publishing`/`analytics` stages in the live request path** — found
-  while researching Task 8/R3, inherited (not fixed) by Task 9/R2's Gate-2-off auto-publish; a run only
-  ever actually reaches `runPublishingStage` via `resume-on-startup.ts`'s next-restart resume path
-  today, never live. Pre-existing, worth its own investigation later.
 - **Task 8's PR #27 appears merged** — the local worktree's own Task 8 row now reads "Done," and Task
   9/R1's real live verification ran successfully against the actual merged `channels.update` shape,
   which only makes sense if PR #27 landed. Not independently re-confirmed from this chat (no live git
@@ -257,8 +283,19 @@ Task 10's report will follow once built: `reports/task10.md`.
   (doesn't fix) `pipeline-runner.ts`'s live-loop-doesn't-drive-`publishing` gap for the new auto-approved
   Gate 2 path; watermark storage is local filesystem only; `gate2Enabled:false` has no equivalent quality
   floor to Gate 1's retry-to-7 mechanism. See the Task 9 row above and `tasks/task9.md`/`reports/task9.md`.
-- **Task 10 (server/local env config, runtime server switcher, Telegram fixes) is filed and not yet
-  started** — see the Task 10 row above and `tasks/task10.md`.
+- **Task 10's PR #40 is open, ready for review, awaiting founder review + on-device R2 verification**
+  — R1-R4 code-complete and live-verified where verifiable without a physical device; R2's actual
+  on-device confirmation (tapping "Preview" on a real phone, confirming the request hits
+  `7aistudio.tech`) is a founder-action item, not a code gap. See the Task 10 row above and
+  `tasks/task10.md`.
+- **Task 11's PR #42 is open, ready for review, awaiting founder review/merge** — all five R-items
+  (R1-R5) code-complete and live-verified against isolated sandbox DBs. See the Task 11 row above and
+  `tasks/task11.md`.
+- **Neither Task 10's nor Task 11's report doc (`reports/task10.md`, `reports/task11.md`) has been
+  synced to this Project yet**, even though the local checkout's own STATUS.md references them as
+  already written — flagged for the founder/hot-fixer session to share, not fabricated here.
+- **Task 12 (Cloudflare R2 integration for generated media storage) is filed and not yet started** —
+  see the Task 12 row above and `tasks/task12.md`.
 
 ## Frontend tasks (`SPRINT3_FE`, `app/` — separate repo, `D:\Study Material\7AI-frontend`)
 
