@@ -155,6 +155,7 @@ export default function QueueScreen() {
                   <View style={[styles.dot, { backgroundColor: dot }]} />
                   <Text style={styles.meta} numberOfLines={1}>
                     {channel?.name ?? 'Deleted channel'}
+                    {isWaiting ? '' : ' · tap to retry or cancel'}
                   </Text>
                   <Feather name="chevron-right" size={18} color={color.muted} style={styles.chevron} />
                 </View>
