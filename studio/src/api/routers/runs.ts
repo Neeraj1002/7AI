@@ -4,11 +4,12 @@ import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
 import { findPipelineRunById, listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
-import { listStagesForRun } from '../../models/repositories/pipeline-stage.repository';
+import { listStagesForRun, findLatestAttempt } from '../../models/repositories/pipeline-stage.repository';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { findByChannel } from '../../models/repositories/agent-credential.repository';
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
+import { requestCancellation } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { resolvePendingApproval } from '../../notifications';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
@@ -16,7 +17,68 @@ import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
-import type { Channel } from '../../types';
+import type { Channel, PipelineRun, PipelineStage } from '../../types';
+
+// Sprint 3 Task 11 (R2/B13) — the one place that normalizes gate1/gate2's
+// three different raw stage-output field names (`reason`/`privacyStatus`/
+// `notes`, confirmed by direct read of state-machine.ts) into one consistent
+// shape, rather than the app having to know which outcome carries which raw
+// field. `gate` distinguishes gate1 vs gate2 since both can produce the same
+// `outcome` values (e.g. 'reject'/'approve'). Deliberately reads from
+// `stages` (already fetched by `getRunDetail` below) instead of a second DB
+// round-trip.
+type LastGateDecision = {
+  gate: 1 | 2;
+  outcome: 'approve' | 'edit' | 'reject' | 'revise';
+  privacyStatus?: string;
+  reason?: string;
+  notes?: string;
+  decidedAt: Date;
+};
+
+function deriveLastGateDecision(stages: PipelineStage[]): LastGateDecision | null {
+  // `stages` is ordered oldest-first (listStagesForRun's own orderBy) — the
+  // latest completed gate1/gate2 row, whichever gate it belongs to, is
+  // whichever one of these matches comes last in that order (gate2 always
+  // sorts after the gate1 that necessarily preceded it on the same run).
+  const gateStages = stages.filter(
+    (s): s is PipelineStage & { stageName: 'gate1' | 'gate2' } =>
+      (s.stageName === 'gate1' || s.stageName === 'gate2') && s.status === 'completed' && s.output !== null,
+  );
+  const latest = gateStages[gateStages.length - 1];
+  if (!latest) return null;
+
+  const output = latest.output as { outcome?: string; reason?: string; privacyStatus?: string; notes?: string };
+  if (!output.outcome) return null;
+
+  return {
+    gate: latest.stageName === 'gate1' ? 1 : 2,
+    outcome: output.outcome as LastGateDecision['outcome'],
+    ...(output.privacyStatus !== undefined && { privacyStatus: output.privacyStatus }),
+    ...(output.reason !== undefined && { reason: output.reason }),
+    ...(output.notes !== undefined && { notes: output.notes }),
+    decidedAt: latest.completedAt ?? latest.updatedAt,
+  };
+}
+
+// Sprint 3 Task 11 (R2/B13) — string-matching on `lastError`, not a
+// structured column: a real, known fragility (a future change to any of
+// these exact strings silently breaks this), stated plainly per the task's
+// own instruction rather than hidden. The exact strings matched are each
+// written by exactly one place: `state-machine.ts`'s gate1/gate2 reject
+// paths ("Rejected at Gate 1"/"Rejected at Gate 2: <reason>"),
+// `pipeline-runner.ts`'s `failRunIfChannelArchived` ("Channel deleted"), and
+// `runs.cancel` (R3/B11 below) — both cancel's own gate-paused and `'running'`
+// paths use this identical string, confirmed by direct read/coordinated in
+// this same PR.
+function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' | 'channel_deleted' | null {
+  if (run.status !== 'failed') return null;
+  const err = run.lastError ?? '';
+  if (err.startsWith('Rejected at Gate 1') || err.startsWith('Rejected at Gate 2')) return 'rejected';
+  if (err === 'Cancelled by user') return 'cancelled';
+  if (err === 'Channel deleted') return 'channel_deleted';
+  return 'failed';
+}
 
 // Bugs Task 3 (R1) — this run's own tenant check, same FORBIDDEN shape as
 // `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
@@ -38,7 +100,16 @@ async function getRunDetail(id: string, ctx: Context) {
     listStagesForRun(id),
     listReviewLogsForRun(id),
   ]);
-  return { run, channel, stages, reviewLogs };
+  // Sprint 3 Task 11 (R2/B13) — computed at read time, not stored (no schema
+  // change): both derive purely from data `getRunDetail` already fetched.
+  return {
+    run,
+    channel,
+    stages,
+    reviewLogs,
+    lastGateDecision: deriveLastGateDecision(stages),
+    endReason: deriveEndReason(run),
+  };
 }
 
 // Sprint 3 Task 2 (K1) — the gate-ownership check gate1/gate2 both run
@@ -64,6 +135,24 @@ async function assertGateOwnership(runId: string, ctx: Context): Promise<Channel
     });
   }
   return channel;
+}
+
+// Bugs Task 8 (R1) + Sprint 3 Task 8 (R3) — the two checks every real path to
+// starting a run must apply: an archived channel is retired for good, and an
+// unlinked channel would spend the whole pipeline's LLM/TTS/footage budget
+// only to fail at the very last stage. Extracted so Sprint 3 Task 11
+// (R4/B12)'s `rerun` applies the exact same checks `create` already does,
+// against the same channel, rather than a second copy that could drift.
+async function assertChannelCanRun(channel: Channel): Promise<void> {
+  if (!channel.isActive) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${channel.id} is archived` });
+  }
+  if (!(await findByChannel(channel.id))) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `Channel "${channel.name}" isn't connected to YouTube yet — connect it before starting a run`,
+    });
+  }
 }
 
 export const runsRouter = router({
@@ -117,19 +206,7 @@ export const runsRouter = router({
           message: `You are not allowed to create a run against channel ${input.channelId}`,
         });
       }
-      // Sprint 3 Task 8 (R3) — an archived channel is retired for good.
-      if (!channel.isActive) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${input.channelId} is archived` });
-      }
-      // Bugs Task 8 (R1) — publishing only ever uses the channel's own
-      // credential, so an unlinked channel would spend the whole pipeline's
-      // LLM/TTS/footage budget and then fail at the very last stage.
-      if (!(await findByChannel(channel.id))) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: `Channel "${channel.name}" isn't connected to YouTube yet — connect it before starting a run`,
-        });
-      }
+      await assertChannelCanRun(channel);
       const creationOptions =
         input.voice || input.visualSource || input.audioLayer || input.targetDurationSec
           ? {
@@ -172,6 +249,27 @@ export const runsRouter = router({
   // review logs (script, video, gate decisions all live here).
   get: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input, ctx }) => {
     return getRunDetail(input.id, ctx);
+  }),
+
+  // Sprint 3 Task 11 (R5, optional) — a lighter poll target than refetching
+  // all of `runs.get` (full stage history + review logs) every few seconds
+  // while a run is actively progressing. `attemptNo` reflects the current
+  // stage's own latest attempt specifically (not just "the most recently
+  // touched stage row overall", which could be a different, already-finished
+  // stage if the current one hasn't started its first attempt yet). No
+  // `pct` — this pipeline has no meaningful notion of percent-through-a-stage
+  // today (a stage is either not started, running, or done), so it's left
+  // genuinely absent rather than a fabricated number.
+  progress: publicProcedure.input(z.object({ runId: z.string().uuid() })).query(async ({ input, ctx }) => {
+    const run = await findPipelineRunById(input.runId);
+    if (!run) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    }
+    if (run.tenantId !== ctx.tenantId) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+    }
+    const currentStageAttempt = run.currentStage ? await findLatestAttempt(input.runId, run.currentStage) : null;
+    return { stage: run.currentStage, attemptNo: currentStageAttempt?.attemptNumber ?? null };
   }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same
@@ -287,11 +385,41 @@ export const runsRouter = router({
     return updated;
   }),
 
+  // Sprint 3 Task 11 (R4/B12) — a dead-end run (rejected/cancelled/failed —
+  // any ended run, not status-restricted the way `retry` is) can be re-run:
+  // a brand new PipelineRun with the exact same channel/briefText/
+  // creationOptions as the source, driven through the exact same
+  // create-then-drive path `create`'s own mutation uses. Same ownership
+  // check as retry/cancel; the source run's own channel gets the identical
+  // `assertChannelCanRun` checks `create` applies to a client-supplied one —
+  // reused, not re-implemented, so an archived/disconnected channel is
+  // rejected with the exact same messages either mutation would give.
+  rerun: publicProcedure.input(z.object({ runId: z.string().uuid() })).mutation(async ({ input, ctx }) => {
+    const channel = await assertGateOwnership(input.runId, ctx);
+    const sourceRun = await findPipelineRunById(input.runId);
+    if (!sourceRun) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    }
+    await assertChannelCanRun(channel);
+    const run = await createRun({
+      tenantId: ctx.tenantId,
+      channelId: sourceRun.channelId,
+      briefText: sourceRun.briefText,
+      creationOptions: sourceRun.creationOptions ?? undefined,
+    });
+    startPipelineInBackground(run.id);
+    return run;
+  }),
+
   // Cancel = the existing terminal 'failed' status with an explicit reason
   // (no new status value → no schema/enum change). A run paused at a gate is
   // cancelled through that gate's own reject path so the blocked
-  // runGate1Stage/runGate2Stage call records it and returns; anything
-  // mid-stage ('running') is refused rather than racing the stage's own write.
+  // runGate1Stage/runGate2Stage call records it and returns.
+  // Sprint 3 Task 11 (R3/B11) — a genuinely 'running' run is now cancellable
+  // too, via the cancellation-registry: recorded and returned immediately,
+  // not blocked on pipeline-runner.ts's loop actually noticing (it checks
+  // once per iteration — see cancellation-registry.ts's own comment on why
+  // an in-memory, restart-losable registry is an accepted tradeoff here).
   cancel: publicProcedure.input(z.object({ runId: z.string().uuid() })).mutation(async ({ input, ctx }) => {
     await assertGateOwnership(input.runId, ctx);
     const run = await findPipelineRunById(input.runId);
@@ -304,6 +432,9 @@ export const runsRouter = router({
       }
       // Gate not registered in this process (e.g. mid-restart) — fall through
       // to the direct write; the stale gate attempt is harmless once failed.
+    } else if (run.status === 'running') {
+      requestCancellation(run.id);
+      return { cancelled: true };
     } else if (run.status !== 'needs_attention' && run.status !== 'pending') {
       throw new TRPCError({
         code: 'CONFLICT',
