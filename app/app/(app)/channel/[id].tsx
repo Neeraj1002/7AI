@@ -8,7 +8,7 @@ import type { inferRouterInputs } from '@trpc/server';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useChannels } from '../../../lib/channel-context';
 import { flags } from '../../../lib/feature-flags';
-import { VOICES } from '../../../lib/pipeline-options';
+import { useOptionLists } from '../../../lib/pipeline-options';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -56,6 +56,8 @@ export default function ChannelSettingsScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // Task 4/E7 — live from options.list (B9), falling back to pipeline-options.ts.
+  const { voices: liveVoices } = useOptionLists();
 
   const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
   const set = (patch: Draft) => setDraft((d) => ({ ...d, ...patch }));
@@ -279,7 +281,7 @@ export default function ChannelSettingsScreen() {
             <Feather name="mic" size={20} color={color.muted} />
             <View style={styles.rowText}>
               <Text style={styles.rowCaption}>Default voice</Text>
-              <Text style={styles.rowValue}>{VOICES.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
+              <Text style={styles.rowValue}>{liveVoices.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
             </View>
             <Feather name="chevron-right" size={20} color={color.muted} />
           </Pressable>
@@ -416,9 +418,11 @@ export default function ChannelSettingsScreen() {
         visible={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         title="Default voice"
-        options={VOICES}
-        selected={(voice as (typeof VOICES)[number]['value'] | null) ?? 'alloy'}
-        onSelect={(v) => v && set({ defaultVoice: v })}
+        options={liveVoices}
+        selected={voice ?? 'alloy'}
+        // Cast: options.list (E7) returns arbitrary strings; the server's own
+        // zod enum is still the real validation for whatever's actually sent.
+        onSelect={(v) => v && set({ defaultVoice: v as never })}
       />
       <ConfirmSheet
         visible={discardOpen}

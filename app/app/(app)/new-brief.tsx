@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { useTRPC } from '../../lib/trpc';
+import { useTRPC, useTRPCClient } from '../../lib/trpc';
 import { useChannels } from '../../lib/channel-context';
 import { color, font, radius, space, type } from '../../lib/theme';
 import { FormScreen } from '../../components/FormScreen';
@@ -13,7 +14,7 @@ import { PrimaryButton } from '../../components/Buttons';
 import { OptionSheet } from '../../components/OptionSheet';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
-import { LENGTHS, MUSIC_MOODS, VISUAL_SOURCES, VOICES } from '../../lib/pipeline-options';
+import { LENGTHS, useOptionLists } from '../../lib/pipeline-options';
 
 // Task 6/E4 "Edit brief & run again" pre-fills these from an ended run's own
 // briefText/channelId/creationOptions — read once on mount, matched against
@@ -30,7 +31,10 @@ type PrefillParams = {
 
 export default function NewBriefScreen() {
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const params = useLocalSearchParams<PrefillParams>();
   const {
     channels,
@@ -49,17 +53,14 @@ export default function NewBriefScreen() {
     const n = Number(params.targetDurationSec);
     return LENGTHS.includes(n as (typeof LENGTHS)[number]) ? (n as (typeof LENGTHS)[number]) : 'auto';
   });
-  const [visual, setVisual] = useState<(typeof VISUAL_SOURCES)[number]['value'] | 'auto'>(
-    () => VISUAL_SOURCES.find((v) => v.value === params.visualSource)?.value ?? 'auto',
-  );
-  const [voice, setVoice] = useState<(typeof VOICES)[number]['value'] | null>(
-    () => VOICES.find((v) => v.value === params.voice)?.value ?? null,
-  );
-  const [music, setMusic] = useState<(typeof MUSIC_MOODS)[number]['value'] | null>(
-    () => MUSIC_MOODS.find((m) => m.value === params.audioLayer)?.value ?? null,
-  );
+  const [visual, setVisual] = useState<string | 'auto'>(params.visualSource ?? 'auto');
+  const [voice, setVoice] = useState<string | null>(params.voice ?? null);
+  const [music, setMusic] = useState<string | null>(params.audioLayer ?? null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  // Task 4/E7 — live from options.list (B9), falling back to the static
+  // lists in pipeline-options.ts while it loads or on error.
+  const { voices: VOICES, visualSources: VISUAL_SOURCES, moodTags: MUSIC_MOODS } = useOptionLists();
 
   useEffect(() => {
     if (params.channelId) setSelectedChannelId(params.channelId);
@@ -85,6 +86,25 @@ export default function NewBriefScreen() {
     }),
   );
 
+  const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
+
+  // Task 4/E5 — same connect flow as Channel detail, run inline so the user
+  // stays on New brief instead of bouncing to Channel detail and back.
+  const handleConnect = async () => {
+    if (!selectedChannelId) return;
+    setConnectError(null);
+    setConnecting(true);
+    try {
+      const { authUrl } = await trpcClient.channels.getYoutubeConnectUrl.query({ channelId: selectedChannelId });
+      await WebBrowser.openAuthSessionAsync(authUrl);
+      await invalidateChannels();
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : 'Failed to start the connect flow.');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   const handleSubmit = () => {
     setError(null);
     if (!selectedChannelId) {
@@ -99,13 +119,18 @@ export default function NewBriefScreen() {
       setError('Brief text is required.');
       return;
     }
-    // Only non-default picks are sent, so channel defaults and the planner keep working.
+    // Only non-default picks are sent, so channel defaults and the planner
+    // keep working. Cast: voice/visual/music now come from options.list
+    // (E7, arbitrary strings) rather than a literal union — the server's own
+    // zod enums are still the real validation, this just satisfies the
+    // client's stricter input type for a value that only ever actually
+    // originates from that same server list or its static fallback.
     createRun.mutate({
       channelId: selectedChannelId,
       briefText: briefText.trim(),
-      ...(voice ? { voice } : {}),
-      ...(visual !== 'auto' ? { visualSource: visual } : {}),
-      ...(music ? { audioLayer: music } : {}),
+      ...(voice ? { voice: voice as never } : {}),
+      ...(visual !== 'auto' ? { visualSource: visual as never } : {}),
+      ...(music ? { audioLayer: music as never } : {}),
       ...(flags.briefLength && length !== 'auto' ? ({ targetDurationSec: length } as object) : {}),
     });
   };
@@ -123,22 +148,37 @@ export default function NewBriefScreen() {
           </Pressable>
         </View>
       ) : (
-        <Pressable style={styles.channelField} onPress={() => setPickerOpen(true)} accessibilityRole="button">
-          <ChannelAvatar index={channelIndex(selectedChannelId)} size={40} />
-          <View style={styles.channelText}>
-            <Text style={styles.channelName} numberOfLines={1}>
-              {selected?.name ?? 'Select channel'}
-            </Text>
-            {isLastUsed ? <Text style={styles.channelMeta}>Last used · tap to change</Text> : null}
-          </View>
-          <Feather name="chevron-down" size={20} color={color.muted} />
-        </Pressable>
+        <View>
+          <Pressable
+            style={[styles.channelField, needsYoutube && styles.channelFieldWarned]}
+            onPress={() => setPickerOpen(true)}
+            accessibilityRole="button"
+          >
+            <ChannelAvatar index={channelIndex(selectedChannelId)} size={40} />
+            <View style={styles.channelText}>
+              <Text style={styles.channelName} numberOfLines={1}>
+                {selected?.name ?? 'Select channel'}
+              </Text>
+              {isLastUsed ? <Text style={styles.channelMeta}>Last used · tap to change</Text> : null}
+            </View>
+            <Feather name="chevron-down" size={20} color={color.muted} />
+          </Pressable>
+          {needsYoutube ? (
+            <View style={styles.warnStrip}>
+              <Feather name="link" size={16} color={color.warnText} />
+              <Text style={styles.warnStripText}>Not connected to YouTube. Runs need a connected channel.</Text>
+              <Pressable style={styles.connectButton} onPress={handleConnect} disabled={connecting} accessibilityRole="button">
+                {connecting ? (
+                  <ActivityIndicator size="small" color={color.onAccent} />
+                ) : (
+                  <Text style={styles.connectButtonText}>Connect</Text>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
+          {connectError ? <Text style={styles.error}>{connectError}</Text> : null}
+        </View>
       )}
-      {needsYoutube ? (
-        <Pressable onPress={() => router.push(`/channel/${selectedChannelId}`)} accessibilityRole="link">
-          <Text style={styles.error}>This channel isn&apos;t connected to YouTube yet. Connect it →</Text>
-        </Pressable>
-      ) : null}
 
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
@@ -158,40 +198,42 @@ export default function NewBriefScreen() {
 
       <View style={styles.optionsHeader}>
         <Text style={styles.optionsTitle}>Options</Text>
-        <Text style={styles.tip}>Channel defaults unless changed</Text>
+        <Text style={styles.tip}>{needsYoutube ? 'Available once connected' : 'Channel defaults unless changed'}</Text>
       </View>
-      {flags.briefLength ? (
-        <>
-          <Text style={styles.label}>Length</Text>
-          <SegmentedControl
-            options={[...LENGTHS.map((l) => ({ value: l, label: `${l}s` })), { value: 'auto' as const, label: 'Auto' }]}
-            value={length}
-            onChange={setLength}
-          />
-        </>
-      ) : null}
-      <Text style={styles.label}>Visuals</Text>
-      <SegmentedControl
-        options={[{ value: 'auto' as const, label: 'Auto' }, ...VISUAL_SOURCES]}
-        value={visual}
-        onChange={setVisual}
-      />
-      <Pressable style={styles.optionRow} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
-        <Feather name="mic" size={20} color={color.muted} />
-        <View style={styles.channelText}>
-          <Text style={styles.channelMeta}>Voice</Text>
-          <Text style={styles.channelName} numberOfLines={1}>{voiceLabel}</Text>
-        </View>
-        <Feather name="chevron-right" size={20} color={color.muted} />
-      </Pressable>
-      <Pressable style={styles.optionRow} onPress={() => setMusicOpen(true)} accessibilityRole="button">
-        <Feather name="music" size={20} color={color.muted} />
-        <View style={styles.channelText}>
-          <Text style={styles.channelMeta}>Background music</Text>
-          <Text style={styles.channelName} numberOfLines={1}>{musicLabel}</Text>
-        </View>
-        <Feather name="chevron-right" size={20} color={color.muted} />
-      </Pressable>
+      <View style={needsYoutube ? styles.optionsDimmed : undefined} pointerEvents={needsYoutube ? 'none' : 'auto'}>
+        {flags.briefLength ? (
+          <>
+            <Text style={styles.label}>Length</Text>
+            <SegmentedControl
+              options={[...LENGTHS.map((l) => ({ value: l, label: `${l}s` })), { value: 'auto' as const, label: 'Auto' }]}
+              value={length}
+              onChange={setLength}
+            />
+          </>
+        ) : null}
+        <Text style={styles.label}>Visuals</Text>
+        <SegmentedControl
+          options={[{ value: 'auto' as const, label: 'Auto' }, ...VISUAL_SOURCES]}
+          value={visual}
+          onChange={setVisual}
+        />
+        <Pressable style={styles.optionRow} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
+          <Feather name="mic" size={20} color={color.muted} />
+          <View style={styles.channelText}>
+            <Text style={styles.channelMeta}>Voice</Text>
+            <Text style={styles.channelName} numberOfLines={1}>{voiceLabel}</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={color.muted} />
+        </Pressable>
+        <Pressable style={styles.optionRow} onPress={() => setMusicOpen(true)} accessibilityRole="button">
+          <Feather name="music" size={20} color={color.muted} />
+          <View style={styles.channelText}>
+            <Text style={styles.channelMeta}>Background music</Text>
+            <Text style={styles.channelName} numberOfLines={1}>{musicLabel}</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={color.muted} />
+        </Pressable>
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -200,7 +242,11 @@ export default function NewBriefScreen() {
         onPress={handleSubmit}
         loading={createRun.isPending}
         disabled={needsYoutube}
+        style={needsYoutube ? styles.createRunDisabled : undefined}
       />
+      {needsYoutube ? (
+        <Text style={styles.tip}>Connect YouTube or pick another channel to continue.</Text>
+      ) : null}
 
       <OptionSheet
         visible={voiceOpen}
@@ -248,6 +294,32 @@ const styles = StyleSheet.create({
     borderColor: color.ink,
     borderRadius: radius.lg,
   },
+  channelFieldWarned: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomWidth: 0 },
+  warnStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    backgroundColor: color.warnBg,
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+    borderColor: color.ink,
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  warnStripText: { ...type.meta, color: color.warnText, flex: 1 },
+  connectButton: {
+    height: 32,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: color.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  connectButtonText: { fontFamily: font.bold, fontSize: 13, color: color.onAccent },
+  optionsDimmed: { opacity: 0.4 },
+  createRunDisabled: { backgroundColor: color.surface2 },
   channelText: { flex: 1 },
   channelName: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
   channelMeta: { ...type.meta, fontSize: 12 },
