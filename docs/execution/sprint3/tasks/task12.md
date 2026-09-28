@@ -151,7 +151,7 @@ the same convention `videoPath`/`watermarkUrl` already use.
 
 ---
 
-### R1 (Role: `BE`) — R2 client module + env wiring
+### R1 (Role: `BE`) — R2 client module + env wiring — DONE
 
 **Fix**:
 1. Add `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` as new dependencies — R2 is
@@ -185,7 +185,7 @@ the same convention `videoPath`/`watermarkUrl` already use.
 
 ---
 
-### R2 (Role: `BE`) — `drafts/`: best-effort upload of every `video_generation` attempt
+### R2 (Role: `BE`) — `drafts/`: best-effort upload of every `video_generation` attempt — DONE
 
 **Fix**:
 1. In `runVideoGenerationStage`, after the existing `prisma.$transaction(...)` block (line 941–948) has
@@ -206,7 +206,7 @@ completes `video_generation` and advances to `video_review` exactly as it does o
 
 ---
 
-### R3 (Role: `BE`) — `final/`: best-effort upload of the video that actually published
+### R3 (Role: `BE`) — `final/`: best-effort upload of the video that actually published — DONE
 
 **Fix**:
 1. In `runPublishingStage`, immediately after `uploadResult` is obtained (the real upload succeeded —
@@ -233,7 +233,7 @@ that a real `uploadResult` was actually obtained for.
 
 ---
 
-### R4 (Role: `BE`) — Watermark storage: mirror to R2 alongside the existing local read/write
+### R4 (Role: `BE`) — Watermark storage: mirror to R2 alongside the existing local read/write — DONE
 
 **Fix**:
 1. In `watermark-route.ts`'s `POST /channels/:id/watermark` handler, after the existing local
@@ -257,7 +257,7 @@ via raw-pixel inspection) still passes unchanged with R2 either configured or no
 
 ---
 
-### R5 (Role: `BE`) — On-demand presigned URL for another session to fetch
+### R5 (Role: `BE`) — On-demand presigned URL for another session to fetch — DONE
 
 **Fix**:
 1. Add `runs.getVideoUrl({ runId, attemptNumber?, variant? })` to `runs.ts` — `variant` is
@@ -283,7 +283,7 @@ returns `{ available: false }` cleanly.
 
 ---
 
-### R6 (Role: `BE`, optional) — Cheap availability flags on `runs.get`
+### R6 (Role: `BE`, optional) — Cheap availability flags on `runs.get` — DONE (built)
 
 Add `hasR2Draft`/`hasR2Final: boolean` to `runs.get`'s existing response — plain existence checks, not
 a presigned-URL mint (that stays R5's own explicit call). Build only if time remains after R1–R5; note
