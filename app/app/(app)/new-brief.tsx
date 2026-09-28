@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { useTRPC } from '../../lib/trpc';
@@ -15,9 +15,23 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
 import { LENGTHS, MUSIC_MOODS, VISUAL_SOURCES, VOICES } from '../../lib/pipeline-options';
 
+// Task 6/E4 "Edit brief & run again" pre-fills these from an ended run's own
+// briefText/channelId/creationOptions — read once on mount, matched against
+// the known option lists so a value the server sends that this app doesn't
+// recognize is silently ignored rather than crashing the picker sheets.
+type PrefillParams = {
+  channelId?: string;
+  briefText?: string;
+  voice?: string;
+  visualSource?: string;
+  audioLayer?: string;
+  targetDurationSec?: string;
+};
+
 export default function NewBriefScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<PrefillParams>();
   const {
     channels,
     isLoading: channelsLoading,
@@ -27,16 +41,31 @@ export default function NewBriefScreen() {
     channelIndex,
     channelById,
   } = useChannels();
-  const [briefText, setBriefText] = useState('');
+  const [briefText, setBriefText] = useState(params.briefText ?? '');
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [length, setLength] = useState<(typeof LENGTHS)[number] | 'auto'>('auto');
-  const [visual, setVisual] = useState<(typeof VISUAL_SOURCES)[number]['value'] | 'auto'>('auto');
-  const [voice, setVoice] = useState<(typeof VOICES)[number]['value'] | null>(null);
-  const [music, setMusic] = useState<(typeof MUSIC_MOODS)[number]['value'] | null>(null);
+  const [length, setLength] = useState<(typeof LENGTHS)[number] | 'auto'>(() => {
+    const n = Number(params.targetDurationSec);
+    return LENGTHS.includes(n as (typeof LENGTHS)[number]) ? (n as (typeof LENGTHS)[number]) : 'auto';
+  });
+  const [visual, setVisual] = useState<(typeof VISUAL_SOURCES)[number]['value'] | 'auto'>(
+    () => VISUAL_SOURCES.find((v) => v.value === params.visualSource)?.value ?? 'auto',
+  );
+  const [voice, setVoice] = useState<(typeof VOICES)[number]['value'] | null>(
+    () => VOICES.find((v) => v.value === params.voice)?.value ?? null,
+  );
+  const [music, setMusic] = useState<(typeof MUSIC_MOODS)[number]['value'] | null>(
+    () => MUSIC_MOODS.find((m) => m.value === params.audioLayer)?.value ?? null,
+  );
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+
+  useEffect(() => {
+    if (params.channelId) setSelectedChannelId(params.channelId);
+    // Only ever applies the deep-link's channel once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selected = channelById(selectedChannelId);
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
