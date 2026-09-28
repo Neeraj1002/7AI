@@ -11,6 +11,7 @@ import {
 } from './state-machine';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { findPipelineRunById, updatePipelineRun } from '../models/repositories/pipeline-run.repository';
+import { isCancellationRequested, clearCancellation } from './cancellation-registry';
 import type { PipelineRun } from '../types';
 
 // Sprint 3 Task 11 (B14) — the founder's own stall guard: runPublishingStage
@@ -114,6 +115,19 @@ async function driveFromCurrentStage(initial: PipelineRun): Promise<PipelineRun>
   let run = initial;
 
   while (run.status !== 'needs_attention' && run.status !== 'failed') {
+    // Sprint 3 Task 11 (R3/B11) — checked at the same point
+    // failRunIfChannelArchived already checks (top of the loop, before the
+    // switch): a stage already mid-flight when the cancel request lands is
+    // allowed to finish and its result still persists to the stage-row
+    // history via the switch case's own await below (that write isn't
+    // discarded) — this check only stops the *next* iteration from acting on
+    // that result to advance the run further, exactly per the task's own
+    // instruction. No mid-call abort is built (no AbortController threaded
+    // through any stage's real LLM/TTS/video call today).
+    if (isCancellationRequested(runId)) {
+      clearCancellation(runId);
+      return await updatePipelineRun(runId, { status: 'failed', lastError: 'Cancelled by user' });
+    }
     const archivedRun = await failRunIfChannelArchived(run);
     if (archivedRun) return archivedRun;
     switch (run.currentStage) {

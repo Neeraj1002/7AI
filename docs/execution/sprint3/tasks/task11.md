@@ -13,7 +13,7 @@ reliably tell what happened at a gate and why a run ended, (3) a running run can
 Owning Component: `studio/src/api/routers/runs.ts`, `studio/src/run-pipeline/pipeline-runner.ts`. `state-machine.ts`
 is read-only reference (gate1/gate2 output shapes read, not changed).
 
-## R1 (B14) — make a Gate 2 approval actually publish, no restart needed
+## R1 (B14) — make a Gate 2 approval actually publish, no restart needed — DONE
 - `pipeline-runner.ts`'s `driveFromCurrentStage` switch gains `case 'publishing'`/`case 'analytics'` — the loop
   previously stopped dead at `'publishing'` (confirmed: only `resume-on-startup.ts`'s `STAGE_RESUMERS` map ever
   called `runPublishingStage`/`runAnalyticsStage`, only once, at the next process boot). Also closes Task 9/R2's
@@ -24,7 +24,7 @@ is read-only reference (gate1/gate2 output shapes read, not changed).
 - Verify: live, no restart — approve Gate 2 for a real run, confirm it reaches `publishing` → `analytics`/`completed`
   with a real `youtubeVideoId`. Re-confirm the existing resume-on-restart path is unchanged.
 
-## R2 (B13) — `lastGateDecision` + `endReason` on `runs.get`
+## R2 (B13) — `lastGateDecision` + `endReason` on `runs.get` — DONE
 - `lastGateDecision: { gate, outcome, privacyStatus?, reason?, notes?, decidedAt } | null` — normalizes gate1/gate2's
   three different raw field names (`reason`/`privacyStatus`/`notes`) into one consistent shape, from the latest
   completed gate1/gate2 stage row.
@@ -35,7 +35,7 @@ is read-only reference (gate1/gate2 output shapes read, not changed).
 - Verify: rejected at Gate 1, rejected at Gate 2, cancelled, archived mid-run, genuine regen-cap `needs_attention` —
   confirm `runs.get`'s two new fields for each, cross-checked against Postgres.
 
-## R3 (B11) — cancel a run that's currently running
+## R3 (B11) — cancel a run that's currently running — DONE
 - `runs.cancel` also accepts `'running'`.
 - A cancellation-request registry — none exists today. In-memory (same "in-process state" precedent
   `notifications/pending-approvals.ts` already uses), a cancel request lost on restart is acceptable (the run just
@@ -50,18 +50,21 @@ is read-only reference (gate1/gate2 output shapes read, not changed).
 - Verify: cancel a run genuinely mid-`video_generation`; confirm it lands on `failed`/`'Cancelled by user'` without
   ever reaching `video_review`, no further spend after the cancel is recorded.
 
-## R4 (B12) — `runs.rerun`
+## R4 (B12) — `runs.rerun` — DONE
 - `runs.rerun({ runId })`: same ownership check as `retry`/`cancel`. Looks up the source run's
   `channelId`/`briefText`/`creationOptions`, calls the exact same `createRun` + `startPipelineInBackground` path
   `create` uses. Reuses `create`'s own channel checks (archived, not connected to YouTube) rather than
   re-implementing them.
-- `creationOptions` added to `runs.get`'s response (same `getRunDetail` function R2/B13 also touches — coordinate).
+- `creationOptions` on `runs.get`'s response: **already present before this task** — it's a direct field on the
+  `PipelineRun` type, confirmed by reading `pipeline-run.repository.ts`'s own mapping. Nothing further built for
+  this half of R4.
 - Verify: rerun a completed/rejected/cancelled run; confirm the new run's `briefText`/`creationOptions` match the
   source exactly (Postgres cross-check). Confirm rerunning against an archived/disconnected channel is rejected
   with the same messages `runs.create` already gives.
 
-## R5 (optional) — light `runs.progress`
-`runs.progress({ runId })` → `{ stage, attemptNo, pct? }`. Build only if time remains; note in the report either way.
+## R5 (optional) — light `runs.progress` — DONE
+`runs.progress({ runId })` → `{ stage, attemptNo }` (no `pct` — this pipeline has no meaningful percent-through-a-
+stage notion, genuinely omitted rather than fabricated).
 
 ## Schema Impact
 None expected — `lastGateDecision`/`endReason`/`creationOptions` computed at read time; the cancellation registry
