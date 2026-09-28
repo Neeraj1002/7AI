@@ -198,6 +198,8 @@ function CreateChannelSheet({ visible, onClose }: { visible: boolean; onClose: (
       <Text style={styles.sheetTitle}>Add channel</Text>
       <Text style={styles.label}>Name</Text>
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={styles.input}
         value={name}
         onChangeText={setName}
@@ -206,6 +208,8 @@ function CreateChannelSheet({ visible, onClose }: { visible: boolean; onClose: (
       />
       <Text style={styles.label}>Niche description</Text>
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={[styles.input, styles.multiline]}
         value={nicheDescription}
         onChangeText={setNicheDescription}

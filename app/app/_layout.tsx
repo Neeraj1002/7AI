@@ -92,13 +92,19 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  // Not blocking: until Archivo resolves, text renders in the system font.
-  useFonts({
+  // R1 (device review, 2026-09-28): rendering before Archivo resolves measured
+  // labels in the system font and then drew them in wider Archivo, clipping
+  // single-line text ("Serve", "Chang", "Inb…") on some cold starts. Block on
+  // fontsLoaded (or fontError, so a real font-load failure doesn't hang the
+  // app forever) instead.
+  const [fontsLoaded, fontError] = useFonts({
     Archivo_400Regular,
     Archivo_600SemiBold,
     Archivo_700Bold,
     Archivo_800ExtraBold,
   });
+
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <AuthProvider>

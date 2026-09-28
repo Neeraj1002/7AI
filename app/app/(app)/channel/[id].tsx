@@ -23,23 +23,17 @@ import type { AppRouter } from '../../../../studio/src/api/router';
 
 type UpdateInput = inferRouterInputs<AppRouter>['channels']['update'];
 type Privacy = NonNullable<UpdateInput['defaultPrivacyStatus']>;
-
-// Fields added by backend items B5 (settings) and B7 (gate switches) don't
-// exist in the real channels.update input yet. Field names below are the
-// app's working names — align them with the merged backend task, and delete
-// this type, in the same commit that flips flags.channelSettings /
-// flags.gateToggles.
-type PendingFields = {
-  styleGuide?: string;
-  defaultVoice?: string;
-  captionsEnabled?: boolean;
-  budgetOverrideUsd?: number | null;
-  gate1Enabled?: boolean;
-  gate2Enabled?: boolean;
-};
-type Draft = Partial<Pick<UpdateInput, 'name' | 'nicheDescription' | 'defaultPrivacyStatus'>> & PendingFields;
+// Every field channels.update accepts, minus channelId — the draft only ever
+// holds real API fields now (task 5/R1: the previous PendingFields type and
+// its casts read fields the backend never returned).
+type Draft = Partial<Omit<UpdateInput, 'channelId'>>;
 
 const SPEND_PATTERN = /^\d+(\.\d{1,2})?$/;
+const VISIBILITY_OPTIONS = [
+  { value: 'private' as const, label: 'Private' },
+  { value: 'unlisted' as const, label: 'Unlisted' },
+  { value: 'public' as const, label: 'Public' },
+];
 
 export default function ChannelSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,8 +43,6 @@ export default function ChannelSettingsScreen() {
   const { channelById, channelIndex } = useChannels();
   const channel = channelById(id);
   const index = channelIndex(id);
-  // Server-side values for fields the inferred channel type doesn't list yet.
-  const saved = (channel ?? {}) as PendingFields & { defaultPrivacyStatus?: Privacy };
 
   const operational = useQuery(trpc.dashboard.operational.queryOptions({ channelId: id }));
   const cost = useQuery(trpc.dashboard.cost.queryOptions({ channelId: id }));
@@ -68,17 +60,34 @@ export default function ChannelSettingsScreen() {
   const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
   const set = (patch: Draft) => setDraft((d) => ({ ...d, ...patch }));
 
-  const spendInvalid = spendText !== null && spendText.trim() !== '' && (!SPEND_PATTERN.test(spendText.trim()) || Number(spendText) <= 0);
+  // Backend: budgetOverrideUsd is a NUMERIC column returned as a string (or
+  // null); the update input takes a real number. Parse before comparing so
+  // "changed fields only" compares like with like.
+  const savedBudget = channel?.budgetOverrideUsd != null ? Number(channel.budgetOverrideUsd) : null;
+  const spendInvalid =
+    spendText !== null && spendText.trim() !== '' && (!SPEND_PATTERN.test(spendText.trim()) || Number(spendText) <= 0);
+
   const changes: Draft = { ...draft };
   if (spendText !== null && !spendInvalid) {
     const next = spendText.trim() === '' ? null : Number(spendText);
-    if (next !== (saved.budgetOverrideUsd ?? null)) changes.budgetOverrideUsd = next;
+    if (next !== savedBudget) changes.budgetOverrideUsd = next;
   }
-  // Drop entries equal to what's already saved so only real changes are sent.
-  const persisted: Record<string, unknown> = { ...saved, name: channel?.name, nicheDescription: channel?.nicheDescription };
-  for (const key of Object.keys(changes) as (keyof Draft)[]) {
-    if (changes[key] === persisted[key]) delete changes[key];
+  if (draft.styleGuide !== undefined) {
+    // Backend stores '' as null — send null to clear, not an empty string.
+    const nextStyleGuide = !draft.styleGuide || draft.styleGuide.trim() === '' ? null : draft.styleGuide;
+    if (nextStyleGuide !== (channel?.styleGuide ?? null)) changes.styleGuide = nextStyleGuide;
+    else delete changes.styleGuide;
   }
+  if (channel) {
+    if (changes.name === channel.name) delete changes.name;
+    if (changes.nicheDescription === channel.nicheDescription) delete changes.nicheDescription;
+    if (changes.defaultVoice === (channel.defaultVoice ?? undefined)) delete changes.defaultVoice;
+    if (changes.captionsEnabled === (channel.brandAssets.captionsEnabled ?? true)) delete changes.captionsEnabled;
+    if (changes.defaultPrivacyStatus === channel.defaultPrivacyStatus) delete changes.defaultPrivacyStatus;
+    if (changes.gate1Enabled === channel.approvalGateConfig.gate1Enabled) delete changes.gate1Enabled;
+    if (changes.gate2Enabled === channel.approvalGateConfig.gate2Enabled) delete changes.gate2Enabled;
+  }
+
   const dirty = Object.keys(changes).length > 0 || spendInvalid;
   const emptyName = draft.name !== undefined && !draft.name.trim();
   const emptyNiche = draft.nicheDescription !== undefined && !draft.nicheDescription.trim();
@@ -104,11 +113,7 @@ export default function ChannelSettingsScreen() {
   );
 
   const save = useMutation({
-    mutationFn: () => {
-      // Real typed call; B5/B7 extras ride along in the same single request.
-      const payload = { channelId: id!, ...changes } as UpdateInput;
-      return trpcClient.channels.update.mutate(payload);
-    },
+    mutationFn: () => trpcClient.channels.update.mutate({ channelId: id!, ...changes }),
     onSuccess: async () => {
       setError(null);
       setDraft({});
@@ -120,6 +125,8 @@ export default function ChannelSettingsScreen() {
       setSavedNote(true);
       setTimeout(() => setSavedNote(false), 2000);
     },
+    // Keeps the edits in place (per spec) so a BAD_REQUEST from the server's
+    // gate2/visibility invariant doesn't lose what was typed.
     onError: (err) => setError(err instanceof Error ? err.message : 'Failed to save.'),
   });
 
@@ -157,7 +164,9 @@ export default function ChannelSettingsScreen() {
     }
   };
 
-  const runs = operational.data?.stageFunnel.find((r) => r.stage === 'intake')?.count;
+  // stageFunnel buckets EVERY run (terminal or not) by its current stage, so
+  // summing every bucket is the real total run count (R7).
+  const runs = operational.data?.stageFunnel.reduce((sum, row) => sum + row.count, 0);
   const published = cost.data?.costPerPublishedVideo.publishedCount;
   const spend = cost.data?.totalSpendUsd;
   const metaParts = [
@@ -168,14 +177,21 @@ export default function ChannelSettingsScreen() {
 
   const name = draft.name ?? channel.name;
   const niche = draft.nicheDescription ?? channel.nicheDescription;
-  const styleGuide = draft.styleGuide ?? saved.styleGuide ?? '';
-  const voice = draft.defaultVoice ?? saved.defaultVoice ?? null;
-  const captions = draft.captionsEnabled ?? saved.captionsEnabled ?? true;
-  const visibility: Privacy = draft.defaultPrivacyStatus ?? saved.defaultPrivacyStatus ?? 'private';
-  const gate1 = draft.gate1Enabled ?? saved.gate1Enabled ?? true;
-  const gate2 = draft.gate2Enabled ?? saved.gate2Enabled ?? true;
-  const limit = spendText !== null ? Number(spendText) : (saved.budgetOverrideUsd ?? null);
+  const styleGuideText = draft.styleGuide ?? channel.styleGuide ?? '';
+  const voice = draft.defaultVoice ?? channel.defaultVoice ?? null;
+  const captions = draft.captionsEnabled ?? channel.brandAssets.captionsEnabled ?? true;
+  const visibility: Privacy = draft.defaultPrivacyStatus ?? channel.defaultPrivacyStatus;
+  const gate1 = draft.gate1Enabled ?? channel.approvalGateConfig.gate1Enabled;
+  const gate2 = draft.gate2Enabled ?? channel.approvalGateConfig.gate2Enabled;
+  const limit = spendText !== null ? (spendText.trim() === '' ? null : Number(spendText)) : savedBudget;
   const limitValid = limit !== null && !Number.isNaN(limit) && limit > 0;
+
+  // B7 as built: the server rejects gate2Enabled:false unless
+  // defaultPrivacyStatus is 'private', and rejects leaving 'private' while
+  // Gate 2 is off. Mirror both directions in the UI so a doomed request is
+  // never even sent.
+  const gate2SwitchDisabled = visibility !== 'private';
+  const visibilityRestrictedToPrivate = !gate2;
 
   const canEdit = flags.channelEdit || flags.channelSettings || flags.gateToggles;
   const showVoiceLook = flags.channelSettings;
@@ -211,7 +227,13 @@ export default function ChannelSettingsScreen() {
         <Text style={styles.cardTitle}>Identity</Text>
         <Text style={styles.label}>Name</Text>
         {flags.channelEdit ? (
-          <TextInput style={styles.input} value={name} onChangeText={(v) => set({ name: v })} />
+          <TextInput
+            selectionColor={color.accent}
+            cursorColor={color.accent}
+            style={styles.input}
+            value={name}
+            onChangeText={(v) => set({ name: v })}
+          />
         ) : (
           <Text style={styles.body}>{channel.name}</Text>
         )}
@@ -219,6 +241,8 @@ export default function ChannelSettingsScreen() {
         {flags.channelEdit ? (
           <>
             <TextInput
+              selectionColor={color.accent}
+              cursorColor={color.accent}
               style={[styles.input, styles.multiline]}
               value={niche}
               onChangeText={(v) => set({ nicheDescription: v })}
@@ -234,8 +258,10 @@ export default function ChannelSettingsScreen() {
           <>
             <Text style={styles.label}>Style guide</Text>
             <TextInput
+              selectionColor={color.accent}
+              cursorColor={color.accent}
               style={[styles.input, styles.multiline, styles.styleGuide]}
-              value={styleGuide}
+              value={styleGuideText}
               onChangeText={(v) => set({ styleGuide: v })}
               placeholder="Tone, words to avoid, how hooks should sound, audience…"
               placeholderTextColor={color.muted}
@@ -276,14 +302,14 @@ export default function ChannelSettingsScreen() {
           <>
             <Text style={styles.label}>Default visibility</Text>
             <SegmentedControl
-              options={[
-                { value: 'private' as const, label: 'Private' },
-                { value: 'unlisted' as const, label: 'Unlisted' },
-                { value: 'public' as const, label: 'Public' },
-              ]}
+              options={VISIBILITY_OPTIONS}
               value={visibility}
               onChange={(v) => set({ defaultPrivacyStatus: v })}
+              disabledValues={visibilityRestrictedToPrivate ? (['unlisted', 'public'] as const) : undefined}
             />
+            {visibilityRestrictedToPrivate ? (
+              <Text style={styles.meta}>Turn Gate 2 back on to change this.</Text>
+            ) : null}
           </>
         ) : null}
         <Text style={styles.label}>YouTube</Text>
@@ -310,7 +336,10 @@ export default function ChannelSettingsScreen() {
           <View style={styles.switchRow}>
             <View style={styles.rowText}>
               <Text style={styles.rowValue}>Gate 1 · approve scripts</Text>
-              <Text style={styles.meta}>Pause for your review before video is made.</Text>
+              <Text style={styles.meta}>
+                Off: scripts that pass review (7+/10) go straight to video. A script that still fails after
+                3 retries waits for you.
+              </Text>
             </View>
             <Switch
               value={gate1}
@@ -322,11 +351,16 @@ export default function ChannelSettingsScreen() {
           <View style={styles.switchRow}>
             <View style={styles.rowText}>
               <Text style={styles.rowValue}>Gate 2 · approve videos</Text>
-              <Text style={styles.meta}>Pause for your review before upload.</Text>
+              <Text style={styles.meta}>
+                {gate2SwitchDisabled
+                  ? 'Set default visibility to Private to turn this off.'
+                  : 'Off: videos that pass review publish automatically as Private.'}
+              </Text>
             </View>
             <Switch
               value={gate2}
               onValueChange={(v) => set({ gate2Enabled: v })}
+              disabled={gate2SwitchDisabled}
               trackColor={{ true: color.accent, false: color.future }}
               thumbColor={color.bg}
             />
@@ -341,8 +375,10 @@ export default function ChannelSettingsScreen() {
           <View style={[styles.input, styles.moneyRow, spendInvalid && styles.inputInvalid]}>
             <Text style={styles.rowValue}>$</Text>
             <TextInput
+              selectionColor={color.accent}
+              cursorColor={color.accent}
               style={styles.moneyInput}
-              value={spendText ?? (saved.budgetOverrideUsd != null ? String(saved.budgetOverrideUsd) : '')}
+              value={spendText ?? (savedBudget != null ? String(savedBudget) : '')}
               onChangeText={setSpendText}
               placeholder="auto"
               placeholderTextColor={color.muted}

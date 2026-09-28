@@ -79,9 +79,7 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 </View>
               ) : null}
             </View>
-            <Text style={[styles.label, isFocused && styles.labelActive]} numberOfLines={1}>
-              {TAB_LABEL[route.name]}
-            </Text>
+            <Text style={[styles.label, isFocused && styles.labelActive]}>{TAB_LABEL[route.name]}</Text>
           </Pressable>
         );
       })}
@@ -116,7 +114,7 @@ const styles = StyleSheet.create({
   pill: {
     width: 60,
     height: 32,
-    borderRadius: radius.pill,
+    borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },

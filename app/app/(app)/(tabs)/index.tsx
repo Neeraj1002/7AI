@@ -15,6 +15,13 @@ import { channelColors, color, font, radius, space, type } from '../../../lib/th
 const QUEUE_STATUSES = ['paused_gate1', 'paused_gate2', 'needs_attention'] as const;
 const FAB_HEIGHT = 52;
 
+function waitingLabel(n: number): string {
+  return `${n} ${n === 1 ? 'is' : 'are'} waiting on you`;
+}
+function attentionLabel(n: number): string {
+  return `${n} need${n === 1 ? 's' : ''} attention`;
+}
+
 // Deliberately not channel-scoped: lists runs needing a decision across all
 // channels so nothing is missed because a picker points elsewhere.
 export default function QueueScreen() {
@@ -43,7 +50,7 @@ export default function QueueScreen() {
     <Screen
       variant="tabRoot"
       title="Queue"
-      subtitle={`${waiting.length} waiting on you · ${attention.length} need attention`}
+      subtitle={`${waitingLabel(waiting.length)} · ${attentionLabel(attention.length)}`}
     >
       <SectionList
         sections={sections}

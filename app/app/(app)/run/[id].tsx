@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TextInput, Pressable, Linking } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { inferRouterOutputs } from '@trpc/server';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { Feather } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTRPC } from '../../../lib/trpc';
@@ -18,11 +18,13 @@ import { StatusChip } from '../../../components/StatusChip';
 import { Stepper } from '../../../components/Stepper';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { GateActionBar, type Privacy } from '../../../components/GateActionBar';
+import { ClampedText } from '../../../components/ClampedText';
 import { PrimaryButton, SecondaryButton } from '../../../components/Buttons';
 import { ConfirmSheet } from '../../../components/ConfirmSheet';
 import type { AppRouter } from '../../../../studio/src/api/router';
 
 type ReviewLogRow = inferRouterOutputs<AppRouter>['runs']['get']['reviewLogs'][number];
+type Gate2Input = inferRouterInputs<AppRouter>['runs']['gate2'];
 
 // No fixed tag vocabulary is enforced server-side (Backend Task 7/O4); these
 // are quick-pick suggestions only, free text is always accepted.
@@ -149,7 +151,7 @@ export default function RunDetailScreen() {
   const currentStage = isGate1 ? 'gate1' : isGate2 ? 'gate2' : run.currentStage;
   const stepIndex = run.status === 'completed' ? 7 : stepperIndexForStage(currentStage);
 
-  const defaultPrivacy = (channel as { defaultPrivacyStatus?: Privacy } | undefined)?.defaultPrivacyStatus;
+  const defaultPrivacy: Privacy | undefined = channel?.defaultPrivacyStatus;
 
   const openGateStage = isGate1 ? latestStage(stages, 'gate1') : isGate2 ? latestStage(stages, 'gate2') : undefined;
   const decisionSent = decisionSentFor !== null && decisionSentFor === openGateStage?.id;
@@ -166,8 +168,12 @@ export default function RunDetailScreen() {
           onApprove={(privacy) => {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'approve' });
             else {
-              const input = { runId: run.id, action: 'approve' as const };
-              gate2Mutation.mutate(flags.gate2Visibility && privacy ? ({ ...input, privacyStatus: privacy } as typeof input) : input);
+              const payload: Gate2Input = {
+                runId: run.id,
+                action: 'approve',
+                ...(flags.gate2Visibility && privacy ? { privacyStatus: privacy } : {}),
+              };
+              gate2Mutation.mutate(payload);
             }
           }}
           onReject={(reason) => {
@@ -226,10 +232,11 @@ export default function RunDetailScreen() {
       {isNeedsAttention ? (
         <Card>
           <Text style={styles.cardTitle}>What went wrong</Text>
-          <Text style={styles.body}>
-            {humanizeRunError(run.lastError) || 'This run stopped and needs a decision.'}
-            {run.currentStage ? ` (at ${run.currentStage.replace(/_/g, ' ')})` : ''}
-          </Text>
+          <ClampedText
+            lines={3}
+            style={styles.body}
+            text={`${humanizeRunError(run.lastError) || 'This run stopped and needs a decision.'}${run.currentStage ? ` (at ${run.currentStage.replace(/_/g, ' ')})` : ''}`}
+          />
           {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
           <Text style={styles.meta}>
             Retry runs this step again from scratch. Cancel stops the run for good.
@@ -272,12 +279,32 @@ export default function RunDetailScreen() {
                 </View>
               </>
             ) : null}
-            {reviewNotes ? <Text style={styles.body}>{reviewNotes}</Text> : null}
+            {reviewNotes ? (
+              <ClampedText
+                lines={3}
+                style={styles.body}
+                text={reviewNotes}
+                moreLabel="Read full review"
+                lessLabel="Show less"
+              />
+            ) : null}
           </Card>
           <Card>
-            <Text style={styles.cardTitle}>Script</Text>
-            {approxSec !== undefined ? <Text style={styles.meta}>~{approxSec} sec (approx.)</Text> : null}
-            <Text style={styles.body}>{scriptText}</Text>
+            <View style={styles.scriptHeader}>
+              <Text style={styles.cardTitle}>Script</Text>
+              {approxSec !== undefined ? (
+                <Text style={styles.meta}>
+                  ~{approxSec} sec · {wordCount} words
+                </Text>
+              ) : null}
+            </View>
+            <ClampedText
+              lines={6}
+              style={styles.body}
+              text={scriptText}
+              moreLabel="Show full script"
+              lessLabel="Show less"
+            />
           </Card>
         </>
       ) : null}
@@ -321,7 +348,7 @@ export default function RunDetailScreen() {
               {videoPassed !== undefined ? (
                 <StatusChip kind={videoPassed ? 'ok' : 'failed'} label={videoPassed ? 'Passed' : 'Failed'} />
               ) : null}
-              {videoRationale ? <Text style={styles.meta}>{videoRationale}</Text> : null}
+              {videoRationale ? <ClampedText lines={3} style={styles.meta} text={videoRationale} /> : null}
               {regensUsed !== undefined ? (
                 <Text style={styles.meta}>Regenerations used: {regensUsed} of 2</Text>
               ) : null}
@@ -397,6 +424,8 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
         ))}
       </View>
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={styles.input}
         value={tag}
         onChangeText={setTag}
@@ -405,6 +434,8 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
         autoCapitalize="none"
       />
       <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
         style={styles.input}
         value={notes}
         onChangeText={setNotes}
@@ -430,6 +461,7 @@ const styles = StyleSheet.create({
   briefLabel: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   briefText: { fontFamily: font.semibold, fontSize: 17, lineHeight: 24, color: color.ink },
   cardTitle: { ...type.sectionTitle, color: color.ink },
+  scriptHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm },
   body: { ...type.body, color: color.ink },
   meta: { ...type.meta },
   link: { ...type.bodyStrong, color: color.accentText },

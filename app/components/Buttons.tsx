@@ -29,9 +29,7 @@ export function PrimaryButton({ label, onPress, icon, disabled, loading, style }
       ) : (
         <>
           {icon ? <Feather name={icon} size={18} color={color.onAccent} /> : null}
-          <Text style={styles.primaryLabel} numberOfLines={1}>
-            {label}
-          </Text>
+          <Text style={styles.primaryLabel}>{label}</Text>
         </>
       )}
     </Pressable>
@@ -50,9 +48,7 @@ export function SecondaryButton({ label, onPress, icon, disabled, loading, style
       ) : (
         <>
           {icon ? <Feather name={icon} size={16} color={color.ink} /> : null}
-          <Text style={styles.secondaryLabel} numberOfLines={1}>
-            {label}
-          </Text>
+          <Text style={styles.secondaryLabel}>{label}</Text>
         </>
       )}
     </Pressable>
@@ -63,9 +59,7 @@ export function DangerTextButton({ label, onPress, icon, disabled, style }: Omit
   return (
     <Pressable onPress={onPress} disabled={disabled} style={[styles.dangerText, disabled && styles.disabled, style]}>
       {icon ? <Feather name={icon} size={16} color={color.danger} /> : null}
-      <Text style={styles.dangerLabel} numberOfLines={1}>
-        {label}
-      </Text>
+      <Text style={styles.dangerLabel}>{label}</Text>
     </Pressable>
   );
 }

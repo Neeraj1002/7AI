@@ -175,6 +175,8 @@ function LoginForm() {
               </Pressable>
             </View>
             <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
               style={styles.input}
               value={apiUrl}
               onChangeText={setApiUrlField}
@@ -212,6 +214,8 @@ function LoginForm() {
         <View style={styles.form}>
           <Text style={styles.label}>Email</Text>
           <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
             style={styles.input}
             value={email}
             onChangeText={setEmail}
@@ -223,6 +227,8 @@ function LoginForm() {
           />
           <Text style={styles.label}>Telegram chat ID (optional)</Text>
           <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
             style={styles.input}
             value={telegramChatId}
             onChangeText={setTelegramChatIdField}
@@ -244,6 +250,8 @@ function LoginForm() {
         <View style={styles.form}>
           <Text style={styles.label}>Sign-in link or token</Text>
           <TextInput
+        selectionColor={color.accent}
+        cursorColor={color.accent}
             style={styles.input}
             value={pasted}
             onChangeText={setPasted}
