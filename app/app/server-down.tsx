@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
-import { color, space, type } from '../lib/theme';
+import { color, font, radius, space, type } from '../lib/theme';
 
 // Bugs Task 8 (R2) — where the signed-in app lands when the API can't be
 // reached (app/(app)/_layout.tsx redirects here on serverStatus === 'down'),
@@ -29,14 +29,22 @@ export default function ServerDownScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.iconTile}>
-        <Feather name="cloud-off" size={28} color={color.accent} />
+        <Feather name="cloud-off" size={30} color={color.accent} />
       </View>
       <Text style={styles.title}>Can&apos;t reach the server</Text>
       <Text style={styles.body}>
         The 7AI server isn&apos;t responding right now — it may be down or restarting. Your runs are safe; nothing
         is lost while it&apos;s offline.
       </Text>
-      {apiUrl ? <Text style={styles.meta}>{apiUrl}</Text> : null}
+      {apiUrl ? (
+        <View style={styles.serverRow}>
+          <Feather name="server" size={16} color={color.muted} />
+          <Text style={styles.serverLabel}>Server</Text>
+          <Text style={styles.serverValue} numberOfLines={1} ellipsizeMode="tail">
+            {apiUrl}
+          </Text>
+        </View>
+      ) : null}
       {stillDown ? <Text style={styles.error}>Still unreachable. Try again in a minute.</Text> : null}
       <View style={styles.actions}>
         <PrimaryButton label="Try again" icon="refresh-cw" loading={checking} onPress={() => void retry()} />
@@ -62,16 +70,27 @@ const styles = StyleSheet.create({
     backgroundColor: color.bg,
   },
   iconTile: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 64,
+    height: 64,
+    borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: color.accentSoft,
   },
-  title: { ...type.screenTitle, color: color.ink },
+  title: { fontFamily: font.black, fontSize: 28, color: color.ink },
   body: { ...type.body, color: color.ink },
-  meta: { ...type.meta },
+  serverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    borderWidth: 1.5,
+    borderColor: color.ink,
+    borderRadius: radius.lg,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  serverLabel: { fontFamily: font.bold, fontSize: 13, color: color.ink },
+  serverValue: { ...type.meta, flex: 1 },
   error: { ...type.body, color: color.danger },
   actions: { gap: space.sm, marginTop: space.md },
 });

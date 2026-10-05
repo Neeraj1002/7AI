@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Switch, BackHandler } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Switch, BackHandler, Image, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterInputs } from '@trpc/server';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
+import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { flags } from '../../../lib/feature-flags';
-import { VOICES } from '../../../lib/pipeline-options';
+import { useOptionLists } from '../../../lib/pipeline-options';
+import { useAuthedImageSource } from '../../../lib/use-authed-image-source';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -40,6 +43,7 @@ export default function ChannelSettingsScreen() {
   const trpc = useTRPC();
   const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
+  const { apiUrl, token } = useAuth();
   const { channelById, channelIndex } = useChannels();
   const channel = channelById(id);
   const index = channelIndex(id);
@@ -51,11 +55,15 @@ export default function ChannelSettingsScreen() {
   const [draft, setDraft] = useState<Draft>({});
   const [spendText, setSpendText] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [watermarkBusy, setWatermarkBusy] = useState(false);
+  const [watermarkError, setWatermarkError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // Task 4/E7 — live from options.list (B9), falling back to pipeline-options.ts.
+  const { voices: liveVoices } = useOptionLists();
 
   const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
   const set = (patch: Draft) => setDraft((d) => ({ ...d, ...patch }));
@@ -142,6 +150,14 @@ export default function ChannelSettingsScreen() {
     },
   });
 
+  // Rules of hooks — must run before the not-found return below, regardless
+  // of whether a watermark is actually set.
+  const watermarkPath = channel?.brandAssets.watermarkUrl;
+  const watermarkImage = useAuthedImageSource(
+    watermarkPath ? `${apiUrl}/channels/${channel!.id}/watermark` : null,
+    token ?? '',
+  );
+
   if (!channel) {
     return (
       <FormScreen variant="stack" title="Channel">
@@ -161,6 +177,68 @@ export default function ChannelSettingsScreen() {
       setError(err instanceof Error ? err.message : 'Failed to start the connect flow.');
     } finally {
       setConnecting(false);
+    }
+  };
+
+  // Fix 5 (task 4/E8) — a plain REST round trip, same reasoning
+  // watermark-route.ts's own comment gives: binary content doesn't fit
+  // tRPC's JSON-RPC shape. PNG only, per the locked board.
+  const handlePickWatermark = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (asset.mimeType && asset.mimeType !== 'image/png') {
+      setWatermarkError('Only PNG images are accepted.');
+      return;
+    }
+    setWatermarkBusy(true);
+    setWatermarkError(null);
+    try {
+      const form = new FormData();
+      // asset.file (web only) is a real File the browser's fetch/FormData
+      // already knows how to send; native RN's FormData instead wants the
+      // {uri,name,type} object shape.
+      if (asset.file) {
+        form.append('file', asset.file);
+      } else {
+        form.append('file', {
+          uri: asset.uri,
+          name: asset.fileName ?? 'watermark.png',
+          type: asset.mimeType ?? 'image/png',
+        } as unknown as Blob);
+      }
+      const res = await fetch(`${apiUrl}/channels/${channel.id}/watermark`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? 'Failed to upload watermark.');
+      await invalidateChannels();
+    } catch (err) {
+      setWatermarkError(err instanceof Error ? err.message : 'Failed to upload watermark.');
+    } finally {
+      setWatermarkBusy(false);
+    }
+  };
+
+  const handleRemoveWatermark = async () => {
+    setWatermarkBusy(true);
+    setWatermarkError(null);
+    try {
+      const res = await fetch(`${apiUrl}/channels/${channel.id}/watermark`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? 'Failed to remove watermark.');
+      }
+      await invalidateChannels();
+    } catch (err) {
+      setWatermarkError(err instanceof Error ? err.message : 'Failed to remove watermark.');
+    } finally {
+      setWatermarkBusy(false);
     }
   };
 
@@ -279,7 +357,7 @@ export default function ChannelSettingsScreen() {
             <Feather name="mic" size={20} color={color.muted} />
             <View style={styles.rowText}>
               <Text style={styles.rowCaption}>Default voice</Text>
-              <Text style={styles.rowValue}>{VOICES.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
+              <Text style={styles.rowValue}>{liveVoices.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
             </View>
             <Feather name="chevron-right" size={20} color={color.muted} />
           </Pressable>
@@ -292,7 +370,55 @@ export default function ChannelSettingsScreen() {
               thumbColor={color.bg}
             />
           </View>
-          {/* Watermark upload (flags.watermarkUpload / B6) is not built: expo-image-picker isn't installed and adding it would change the native fingerprint. */}
+          {flags.watermarkUpload ? (
+            <View style={styles.watermarkSection}>
+              <Text style={styles.label}>Watermark</Text>
+              {watermarkPath ? (
+                <View style={styles.watermarkRow}>
+                  {watermarkImage ? (
+                    <Image source={watermarkImage} style={styles.watermarkThumb} resizeMode="contain" />
+                  ) : (
+                    <View style={[styles.watermarkThumb, styles.watermarkThumbLoading]}>
+                      <ActivityIndicator size="small" color={color.muted} />
+                    </View>
+                  )}
+                  <View style={styles.watermarkActions}>
+                    <SecondaryButton
+                      label="Replace"
+                      icon="upload"
+                      onPress={handlePickWatermark}
+                      loading={watermarkBusy}
+                      disabled={watermarkBusy}
+                    />
+                    <SecondaryButton
+                      label="Remove"
+                      icon="trash-2"
+                      onPress={handleRemoveWatermark}
+                      loading={watermarkBusy}
+                      disabled={watermarkBusy}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.watermarkUpload}
+                  onPress={handlePickWatermark}
+                  disabled={watermarkBusy}
+                  accessibilityRole="button"
+                >
+                  {watermarkBusy ? (
+                    <ActivityIndicator size="small" color={color.ink} />
+                  ) : (
+                    <>
+                      <Feather name="upload" size={18} color={color.ink} />
+                      <Text style={styles.watermarkUploadText}>Upload logo</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+              {watermarkError ? <Text style={styles.error}>{watermarkError}</Text> : null}
+            </View>
+          ) : null}
         </Card>
       ) : null}
 
@@ -416,9 +542,11 @@ export default function ChannelSettingsScreen() {
         visible={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         title="Default voice"
-        options={VOICES}
-        selected={(voice as (typeof VOICES)[number]['value'] | null) ?? 'alloy'}
-        onSelect={(v) => v && set({ defaultVoice: v })}
+        options={liveVoices}
+        selected={voice ?? 'alloy'}
+        // Cast: options.list (E7) returns arbitrary strings; the server's own
+        // zod enum is still the real validation for whatever's actually sent.
+        onSelect={(v) => v && set({ defaultVoice: v as never })}
       />
       <ConfirmSheet
         visible={discardOpen}
@@ -490,6 +618,23 @@ const styles = StyleSheet.create({
   fill: { height: 8, borderRadius: 4, backgroundColor: color.accent },
   youtubeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   error: { ...type.meta, color: color.danger },
+  watermarkSection: { gap: space.sm },
+  watermarkUpload: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.sm,
+    height: 50,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: color.ink,
+  },
+  watermarkUploadText: { fontFamily: font.bold, fontSize: 14, color: color.ink },
+  watermarkRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  watermarkThumb: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color.surface2 },
+  watermarkThumbLoading: { alignItems: 'center', justifyContent: 'center' },
+  watermarkActions: { flexDirection: 'row', gap: space.sm, flex: 1 },
   saved: { ...type.meta, color: color.okText },
   delete: {
     flexDirection: 'row',

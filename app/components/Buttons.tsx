@@ -64,6 +64,28 @@ export function DangerTextButton({ label, onPress, icon, disabled, style }: Omit
   );
 }
 
+// Bordered, not filled — for a destructive action that sits alongside a
+// primary button (Retry / Cancel, Run again / Cancel while running) rather
+// than replacing it.
+export function DangerOutlineButton({ label, onPress, icon, disabled, loading, style }: ButtonProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      style={[styles.dangerOutline, (disabled || loading) && styles.disabled, style]}
+    >
+      {loading ? (
+        <ActivityIndicator color={color.danger} />
+      ) : (
+        <>
+          {icon ? <Feather name={icon} size={16} color={color.danger} /> : null}
+          <Text style={styles.dangerLabel}>{label}</Text>
+        </>
+      )}
+    </Pressable>
+  );
+}
+
 const rowBase = {
   flexDirection: 'row' as const,
   alignItems: 'center' as const,
@@ -83,6 +105,13 @@ const styles = StyleSheet.create({
   },
   secondaryLabel: { ...type.bodyStrong, color: color.ink, flexShrink: 1 },
   dangerText: { ...rowBase, height: 46, paddingHorizontal: space.md },
+  dangerOutline: {
+    ...rowBase,
+    height: 46,
+    paddingHorizontal: space.lg,
+    borderWidth: 1.5,
+    borderColor: color.dangerBorder,
+  },
   dangerLabel: { ...type.bodyStrong, color: color.danger, flexShrink: 1 },
   disabled: { opacity: 0.5 },
 });
