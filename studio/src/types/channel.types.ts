@@ -19,6 +19,11 @@ export type BrandAssets = {
   introUrl?: string;
   outroUrl?: string;
   watermarkUrl?: string;
+  // Sprint 3 Task 12 (R4) — the R2 object key mirroring watermarkUrl's local
+  // file, best-effort (absent when R2 wasn't configured or the mirror
+  // upload/delete failed — a valid, already-handled state, same posture
+  // `r2DraftKey`/`r2FinalKey` establish on pipeline_stages.output).
+  watermarkR2Key?: string;
   voiceProfileId?: string;
   // B5 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2/§3) — default true, preserving
   // existing behavior: Video Generation burns captions unless a channel

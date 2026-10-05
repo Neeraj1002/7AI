@@ -9,6 +9,8 @@ import { resolveRequestIdentity } from '../auth';
 import { MVP_TENANT_ID } from '../types';
 import type { Context } from './trpc';
 import { DATA_DIR } from '../config/paths';
+import { env } from '../config/env';
+import { isR2Configured, uploadToR2, deleteFromR2 } from '../storage/r2-client';
 
 // Sprint 3 Task 9 (R3) — same "binary content doesn't fit tRPC's JSON-RPC
 // shape" reasoning video-route.ts already established, applied to upload as
@@ -35,6 +37,15 @@ async function deleteExistingWatermarkFile(channelId: string): Promise<void> {
   for (const ext of Object.values(ALLOWED_MIME_TO_EXT)) {
     await fs.rm(path.join(WATERMARK_DIR, `${channelId}.${ext}`), { force: true });
   }
+}
+
+// Sprint 3 Task 12 (R4) — mirror the local watermark to R2 alongside the
+// existing local read/write, best-effort, never failing the request or
+// changing its response shape. Local storage stays the source of truth
+// (video-generation's own FFmpeg overlay keeps reading the local path,
+// unchanged) — this is a durability/external-visibility copy only.
+function watermarkR2Key(tenantId: string, channelId: string, ext: string): string {
+  return `watermarks/${env.NODE_ENV}/${tenantId}/${channelId}.${ext}`;
 }
 
 export async function registerWatermarkRoute(fastify: FastifyInstance): Promise<void> {
@@ -78,6 +89,24 @@ export async function registerWatermarkRoute(fastify: FastifyInstance): Promise<
     // already consumes unmodified; the HTTP path returned to the app is a
     // separate, derived value, not what's persisted.
     await updateChannelBrandAssets(channel.id, { watermarkUrl: filePath });
+
+    // Sprint 3 Task 12 (R4) — best-effort R2 mirror, after the local write/
+    // DB update above have already succeeded. Never fails the request or
+    // changes its response shape.
+    if (isR2Configured()) {
+      const r2Key = watermarkR2Key(channel.tenantId, channel.id, ext);
+      try {
+        await uploadToR2({ key: r2Key, filePath, contentType: file.mimetype });
+        await updateChannelBrandAssets(channel.id, { watermarkR2Key: r2Key });
+      } catch (error) {
+        console.error(
+          `[watermark-route] channel ${channel.id}: R2 mirror upload failed (non-blocking, local watermark already saved) — ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
     return reply.send({ watermarkUrl: `/channels/${channel.id}/watermark` });
   });
 
@@ -104,7 +133,27 @@ export async function registerWatermarkRoute(fastify: FastifyInstance): Promise<
       return reply.code(403).send({ error: `You are not allowed to manage channel ${request.params.id}` });
     }
     await deleteExistingWatermarkFile(channel.id);
-    await updateChannelBrandAssets(channel.id, { watermarkUrl: undefined });
+    await updateChannelBrandAssets(channel.id, { watermarkUrl: undefined, watermarkR2Key: undefined });
+
+    // Sprint 3 Task 12 (R4) — best-effort R2 mirror delete, after the local
+    // delete/DB update above have already succeeded. The extension may have
+    // changed between uploads (e.g. png -> jpg) — same defensive
+    // both-extensions pattern deleteExistingWatermarkFile already uses
+    // locally, since this route doesn't otherwise know which one is live.
+    if (isR2Configured()) {
+      for (const ext of Object.values(ALLOWED_MIME_TO_EXT)) {
+        try {
+          await deleteFromR2({ key: watermarkR2Key(channel.tenantId, channel.id, ext) });
+        } catch (error) {
+          console.error(
+            `[watermark-route] channel ${channel.id}: R2 mirror delete (.${ext}) failed (non-blocking, local watermark already removed) — ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+
     return reply.send({ success: true });
   });
 }

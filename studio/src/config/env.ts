@@ -157,6 +157,24 @@ const EnvSchema = z.object({
   // handshake feeling instant without a webhook (which would need a public
   // HTTPS endpoint this LAN-testing setup doesn't have).
   TELEGRAM_START_POLL_INTERVAL_MS: z.coerce.number().optional().default(3 * 1000),
+  // Sprint 3 Task 12 (R1) — Cloudflare R2 (S3-compatible), same
+  // graceful-degradation posture as TELEGRAM_BOT_TOKEN above: a checkout
+  // without these configured just skips R2 upload entirely (storage/
+  // r2-client.ts's isR2Configured() returns false), it doesn't fail to
+  // start. The founder's real values live in .env.local (local) / .env
+  // (preview VPS), one shared bucket (`7ai-preview`) for both — object keys
+  // are namespaced by NODE_ENV (see the R2/R3/R4 upload call sites) so a
+  // local test run can never land in the same key space as a real preview
+  // upload. R2_TOKEN_VALUE also exists in the founder's env files but is
+  // confirmed NOT needed here — it's a credential for R2's separate native
+  // API, not the S3-compatible API this task's SDK (@aws-sdk/client-s3)
+  // uses, so it's deliberately not wired in here.
+  R2_ACCOUNT_ID: z.string().optional().default(''),
+  R2_ACCESS_KEY_ID: z.string().optional().default(''),
+  R2_SECRET_ACCESS_KEY: z.string().optional().default(''),
+  R2_BUCKET: z.string().optional().default(''),
+  R2_ENDPOINT: z.string().optional().default(''),
+  R2_REGION: z.string().optional().default(''),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

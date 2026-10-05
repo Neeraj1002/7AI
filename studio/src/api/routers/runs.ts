@@ -4,7 +4,12 @@ import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
 import { findPipelineRunById, listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
-import { listStagesForRun, findLatestAttempt } from '../../models/repositories/pipeline-stage.repository';
+import {
+  listStagesForRun,
+  findLatestAttempt,
+  findLatestCompletedAttempt,
+} from '../../models/repositories/pipeline-stage.repository';
+import { isR2Configured, getPresignedDownloadUrl } from '../../storage/r2-client';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { findByChannel } from '../../models/repositories/agent-credential.repository';
@@ -102,6 +107,9 @@ async function getRunDetail(id: string, ctx: Context) {
   ]);
   // Sprint 3 Task 11 (R2/B13) — computed at read time, not stored (no schema
   // change): both derive purely from data `getRunDetail` already fetched.
+  // Sprint 3 Task 12 (R6, optional) — plain existence checks, not a
+  // presigned-URL mint (that stays `runs.getVideoUrl`'s own explicit call,
+  // since minting one on every `runs.get` poll would be wasteful).
   return {
     run,
     channel,
@@ -109,6 +117,12 @@ async function getRunDetail(id: string, ctx: Context) {
     reviewLogs,
     lastGateDecision: deriveLastGateDecision(stages),
     endReason: deriveEndReason(run),
+    hasR2Draft: stages.some(
+      (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
+    ),
+    hasR2Final: stages.some(
+      (s) => s.stageName === 'publishing' && Boolean((s.output as { r2FinalKey?: string } | null)?.r2FinalKey),
+    ),
   };
 }
 
@@ -271,6 +285,73 @@ export const runsRouter = router({
     const currentStageAttempt = run.currentStage ? await findLatestAttempt(input.runId, run.currentStage) : null;
     return { stage: run.currentStage, attemptNo: currentStageAttempt?.attemptNumber ?? null };
   }),
+
+  // Sprint 3 Task 12 (R5) — mints a fresh 24h presigned R2 URL on demand, so
+  // another Claude session with no device/SSH access to the VPS can fetch a
+  // generated video directly (a curl/fetch, no app, no session needed — see
+  // reports/task12.md for the exact invocation shape). Same tenant-scoping
+  // pattern `get`/`progress` already use, not `assertGateOwnership` (this is
+  // a plain read, not a gate resolution). Never persists the minted URL —
+  // fresh every call, so a stale, leaked link simply expires.
+  getVideoUrl: publicProcedure
+    .input(
+      z.object({
+        runId: z.string().uuid(),
+        // Only meaningful for variant:'draft' — a specific attempt's own
+        // upload, not "the latest." Ignored for variant:'final' (there's
+        // only ever one).
+        attemptNumber: z.number().int().positive().optional(),
+        variant: z.enum(['draft', 'final']).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const run = await findPipelineRunById(input.runId);
+      if (!run) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+      }
+      if (run.tenantId !== ctx.tenantId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+      }
+      if (!isR2Configured()) {
+        return { available: false as const };
+      }
+
+      let variant = input.variant;
+      let key: string | undefined;
+
+      if (variant === 'final' || !variant) {
+        const publishingStage = await findLatestCompletedAttempt(input.runId, 'publishing');
+        const r2FinalKey = (publishingStage?.output as { r2FinalKey?: string } | undefined)?.r2FinalKey;
+        if (r2FinalKey) {
+          variant = 'final';
+          key = r2FinalKey;
+        } else if (variant === 'final') {
+          // Explicitly asked for 'final' and there isn't one — don't
+          // silently fall back to a draft the caller didn't ask for.
+          return { available: false as const };
+        }
+      }
+
+      if (!key) {
+        // Either variant:'draft' was explicit, or omitted-variant found no
+        // final and is falling back to the latest (or a specific) draft.
+        variant = 'draft';
+        const stages = await listStagesForRun(input.runId);
+        const draftStage = input.attemptNumber
+          ? stages.find((s) => s.stageName === 'video_generation' && s.attemptNumber === input.attemptNumber)
+          : [...stages].reverse().find((s) => s.stageName === 'video_generation' && s.status === 'completed');
+        key = (draftStage?.output as { r2DraftKey?: string } | undefined)?.r2DraftKey;
+      }
+
+      if (!key) {
+        return { available: false as const };
+      }
+
+      const expiresInSeconds = 24 * 60 * 60;
+      const url = await getPresignedDownloadUrl({ key, expiresInSeconds });
+      const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+      return { available: true as const, variant, url, expiresAt };
+    }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same
   // resolution primitive every NotificationChannel shares

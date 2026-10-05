@@ -111,6 +111,30 @@ export async function recordStageProgress(
   return toDomainStage(row);
 }
 
+// Sprint 3 Task 12 (R2) — merges new fields into a stage's `output` JSON
+// after it's already `completed` (confirmed by reading this whole file
+// first: nothing existing does this — `recordStageProgress` above
+// overwrites `output` wholesale, and only while the stage is still
+// `running`). Read-merge-write, same reasoning as
+// `channel.repository.ts`'s `updateChannelBrandAssets`/
+// `updateChannelApprovalGateConfig` — a naive replace would silently erase
+// whatever the stage's own real output already held (e.g. `videoPath`,
+// `plan`). Used by the drafts/final R2-upload best-effort steps to attach
+// `r2DraftKey`/`r2FinalKey` etc. without touching anything else already
+// there.
+export async function patchStageOutput(
+  id: string,
+  partial: Record<string, unknown>,
+): Promise<PipelineStage> {
+  const current = await prisma.pipelineStage.findUniqueOrThrow({ where: { id }, select: { output: true } });
+  const merged = { ...((current.output ?? {}) as Record<string, unknown>), ...partial };
+  const row = await prisma.pipelineStage.update({
+    where: { id },
+    data: { output: merged as Prisma.InputJsonValue },
+  });
+  return toDomainStage(row);
+}
+
 export async function failStage(
   id: string,
   error: string,

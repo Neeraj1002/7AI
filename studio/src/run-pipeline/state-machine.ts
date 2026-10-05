@@ -11,9 +11,11 @@ import {
   failStage,
   findLatestAttempt,
   findLatestCompletedAttempt,
+  patchStageOutput,
   recordStageProgress,
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
+import { isR2Configured, uploadToR2 } from '../storage/r2-client';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
@@ -942,10 +944,34 @@ export async function runVideoGenerationStage(
     const plan = await withRetryAndCircuitBreaker(attemptPlanOnce);
     const output = await withRetryAndCircuitBreaker(() => attemptVideoOnce(plan));
 
-    return await prisma.$transaction(async (tx) => {
+    const completedRun = await prisma.$transaction(async (tx) => {
       await completeStage(stage.id, { ...output, plan }, tx);
       return await updatePipelineRun(runId, { currentStage: 'video_review' }, tx);
     });
+
+    // Sprint 3 Task 12 (R2) — best-effort, after the transaction above has
+    // already committed: the stage is genuinely completed and the run has
+    // already advanced to video_review, exactly the isolation shape
+    // runPublishingStage's own cover-frame/thumbnail-set step establishes
+    // (never inside the transaction that actually matters for pipeline
+    // progress — a real network call here must never slow or block it).
+    // `drafts/` — every completed attempt, not just the one that eventually
+    // gets approved, per the founder's own two-tier design (see task12.md).
+    if (isR2Configured()) {
+      const r2Key = `videos/${env.NODE_ENV}/drafts/${run.tenantId}/${runId}/${attemptNumber}.mp4`;
+      try {
+        await uploadToR2({ key: r2Key, filePath: output.videoPath, contentType: 'video/mp4' });
+        await patchStageOutput(stage.id, { r2DraftKey: r2Key, r2DraftUploadedAt: new Date().toISOString() });
+      } catch (error) {
+        console.error(
+          `[video_generation] run ${runId} attempt ${attemptNumber}: R2 draft upload failed (non-blocking, video_generation itself already succeeded) — ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    return completedRun;
   } catch (error) {
     return await failStageAndEscalate(stage.id, runId, error);
   }
@@ -1431,6 +1457,33 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
+    // Sprint 3 Task 12 (R3) — best-effort, same isolation posture as the
+    // cover-frame step directly below: the real YouTube upload has already
+    // succeeded, so a failure here must never fail the stage or imply the
+    // upload itself failed. `final/` — the one video that actually shipped,
+    // per the founder's own two-tier design — is deliberately anchored to
+    // *this* real upload succeeding, not to the Gate 2 approval decision
+    // that led here (an approval can still be followed by a real publish
+    // failure). One object per run, no attempt number: if `publishing`
+    // itself retries across multiple stage attempts, a later attempt
+    // re-uploads identical bytes to the same key — harmless and idempotent.
+    let r2FinalKey: string | undefined;
+    let r2FinalUploadedAt: string | undefined;
+    if (isR2Configured()) {
+      const key = `videos/${env.NODE_ENV}/final/${run.tenantId}/${runId}.mp4`;
+      try {
+        await uploadToR2({ key, filePath: videoPath, contentType: 'video/mp4' });
+        r2FinalKey = key;
+        r2FinalUploadedAt = new Date().toISOString();
+      } catch (error) {
+        console.error(
+          `[publishing] run ${runId}: R2 final upload failed (non-blocking, video already uploaded to YouTube successfully) — ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
     // Sprint 2 Task 5 (H1) — best-effort, isolated follow-up: the video is
     // already live by this point, so a failure here (bad frame extraction, a
     // real thumbnails.set error) must never fail the publishing stage or
@@ -1471,6 +1524,14 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
       coverFrameSet,
       metadata,
+      // Sprint 3 Task 12 (R3) — included directly in this same fullOutput
+      // object (not a separate post-hoc patchStageOutput call the way R2's
+      // drafts upload needs one) since this checkpoint write hasn't
+      // happened yet at the point the R2 upload above runs — there's
+      // nothing to patch onto yet. Absent entirely when R2 wasn't
+      // configured or the upload failed, same "no field is a valid,
+      // already-handled state" posture R2 established.
+      ...(r2FinalKey && r2FinalUploadedAt && { r2FinalKey, r2FinalUploadedAt }),
     };
     await recordStageProgress(stage.id, fullOutput);
 
