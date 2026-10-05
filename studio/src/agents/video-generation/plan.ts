@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { MOOD_TAGS } from '../../audio-bed';
+import { QUALITY_SPEC } from './quality-spec';
 
 // Video Generation's production-planning step — Week 4 Task 1, implementing
 // docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md Section 2. This
@@ -39,6 +40,15 @@ export const ProductionPlanSchema = z
     // change based on which branch it picked, simpler than a discriminated
     // union for a field that's simply ignored on the other branch.
     stockFootageQuery: z.string().min(1),
+    // Sprint 4 Task 8 (R5) — a shot list: one query per story beat (3-8), so the
+    // stock path shows several distinct clips instead of one looped clip.
+    // Optional so old stage outputs and the regen path stay valid; when absent,
+    // the single stockFootageQuery above is the fallback.
+    stockFootageQueries: z
+      .array(z.string().min(1))
+      .min(QUALITY_SPEC.stock.minBeats)
+      .max(QUALITY_SPEC.stock.maxBeats)
+      .optional(),
     // Used only when visualSource === 'ai-stills' — one image-generation
     // scene prompt per still, in on-screen order. Required by the
     // refinement below exactly when visualSource is 'ai-stills'.
@@ -54,6 +64,32 @@ export const ProductionPlanSchema = z
   );
 export type ProductionPlan = z.infer<typeof ProductionPlanSchema>;
 
+// Sprint 4 Task 8 (R6) — platform-default still count, estimated from the
+// sanctioned script's word count (TTS hasn't run yet at planning time):
+// ~2.7 words/s narration, one still per ~2.5s, clamped to 6-20. Replaces the
+// old fixed "3-6" (one still every ~5-6s, slow for Shorts). A channel profile's
+// own secondsPerStill (Sprint 4 Task 3, R10) overrides this default.
+export function estimateStillCount(scriptText: string): number {
+  const words = scriptText.split(/\s+/).filter((w) => w.length > 0).length;
+  const seconds = words / QUALITY_SPEC.pacing.wordsPerSecond;
+  const raw = Math.ceil(seconds / QUALITY_SPEC.pacing.secondsPerStill);
+  return Math.min(QUALITY_SPEC.pacing.maxStills, Math.max(QUALITY_SPEC.pacing.minStills, raw));
+}
+
+// The shot list is best-effort planning data, not worth failing the whole stage
+// over: too long is truncated to the cap; too short (or empty/not an array) is
+// dropped so the single stockFootageQuery fallback is used instead.
+export function normalizeShotList(parsed: unknown): unknown {
+  if (typeof parsed !== 'object' || parsed === null || !('stockFootageQueries' in parsed)) return parsed;
+  const { stockFootageQueries, ...rest } = parsed as Record<string, unknown>;
+  const list = Array.isArray(stockFootageQueries)
+    ? stockFootageQueries.filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+    : [];
+  return list.length >= QUALITY_SPEC.stock.minBeats
+    ? { ...rest, stockFootageQueries: list.slice(0, QUALITY_SPEC.stock.maxBeats) }
+    : rest;
+}
+
 // Per the decision doc's Section 5 ("Exact caption style Path A should
 // default to — something other than one-word-flash, to stop tripping review
 // on presentation artifacts — left for implementation"): the prompt actively
@@ -61,12 +97,19 @@ export type ProductionPlan = z.infer<typeof ProductionPlanSchema>;
 // it as a deliberate choice. word-flash's known failure mode (a
 // midpoint-sampled review frame landing mid-word) is named explicitly so a
 // regen attempt that got fixNotes about exactly this can connect the dots.
-function buildSystemPrompt(visualSourceOverride?: VisualSource, audioLayerOverride?: AudioLayer): string {
+function buildSystemPrompt(
+  visualSourceOverride: VisualSource | undefined,
+  audioLayerOverride: AudioLayer | undefined,
+  stillCount: number,
+): string {
   const visualSourceInstruction =
     visualSourceOverride === undefined
       ? `"visualSource" — the founder/user did NOT request a specific visual style for this run. Default to
-"stock-footage" — it's the proven path. Only choose "ai-stills" yourself if there's a specific, strong
-reason stock footage genuinely can't work for this topic; this should be rare, not a coin flip.`
+"ai-stills". A script centred on a specific named person, a historical event, or a story beat that needs a
+specific scene MUST use "ai-stills" — stock footage cannot depict specific people or events (it shows an
+anonymous lookalike that contradicts the narration). Choose "stock-footage" only for generic,
+non-specific subjects (nature, places, animals, abstract concepts, everyday activities) where ANY
+matching clip genuinely fits the narration.`
       : `"visualSource" is FIXED to "${visualSourceOverride}" for this run — the founder/user explicitly
 chose this. You MUST set "visualSource" to exactly "${visualSourceOverride}" in your output; this is not
 your decision to make on this run.`;
@@ -87,11 +130,11 @@ use, what stock footage to search for (or what still-image scenes to generate), 
 to burn in, whether a music/sound bed plays under the narration, and pacing notes for the assembler.
 
 Visual sources available:
-- "stock-footage": real, licensed Pexels stock footage searched by a text query. Today's proven,
-  default path.
-- "ai-stills": a handful of AI-generated still images, each animated with a slow Ken Burns-style
-  zoom/pan, shown in sequence. A real content-generation path, not a fallback — used deliberately,
-  not because stock footage search came up empty.
+- "stock-footage": real, licensed Pexels stock footage — a short list of clips, one per story beat,
+  each found by its own text query. Only for generic subjects where any matching clip fits.
+- "ai-stills": AI-generated still images, each animated with a slow Ken Burns-style zoom/pan, shown in
+  sequence at a quick pace. The default, and the right path for specific people, events and scenes.
+  A real content-generation path, not a fallback.
 
 ${visualSourceInstruction}
 
@@ -115,12 +158,21 @@ whatever the feedback implicates. Do not repeat the same caption style or search
 stated cause of the failure.
 
 Respond with ONLY a JSON object:
-{"visualSource": "stock-footage" | "ai-stills", "stockFootageQuery": string, "stillScenePrompts": string[], "captionStyle": "word-flash" | "phrase-grouped" | "sentence-grouped", "audioLayer": string, "pacingNotes": string, "rationale": string}
-"stockFootageQuery" is a short (2-6 word) stock-footage search phrase matching the script's topic/mood —
-always include this, even when visualSource is "ai-stills" (it's simply unused in that case).
-"stillScenePrompts" is a list of 3-6 image-generation prompts, one per still, in the order they should
-appear on screen, each describing one concrete visual scene matching a portion of the script — REQUIRED
-(non-empty) when visualSource is "ai-stills"; omit or leave empty when visualSource is "stock-footage".
+{"visualSource": "stock-footage" | "ai-stills", "stockFootageQuery": string, "stockFootageQueries": string[], "stillScenePrompts": string[], "captionStyle": "word-flash" | "phrase-grouped" | "sentence-grouped", "audioLayer": string, "pacingNotes": string, "rationale": string}
+"stockFootageQuery" is a short (2-6 word) stock-footage search phrase matching the script's overall
+topic/mood — always include this, even when visualSource is "ai-stills" (it's the fallback there).
+"stockFootageQueries" is a shot list of ${QUALITY_SPEC.stock.minBeats}-${QUALITY_SPEC.stock.maxBeats} short (2-6 word) stock-footage search phrases, one per story beat in
+narration order, each visually DIFFERENT from the others (different subject or setting, so the cuts
+are real cuts) — REQUIRED when visualSource is "stock-footage"; omit when it is "ai-stills".
+"stillScenePrompts" is a list of EXACTLY ${stillCount} image-generation prompts (pacing: one new image roughly
+every ${QUALITY_SPEC.pacing.secondsPerStill} seconds of narration), one per still, in the order they should appear on screen, each
+describing one concrete, visually distinct scene matching the portion of the script being narrated at
+that moment — REQUIRED (non-empty) when visualSource is "ai-stills"; omit or leave empty when
+visualSource is "stock-footage".
+For scene prompts about real, named people: depict scenes, objects, places, settings and silhouettes
+that evoke them (e.g. a boxing ring and gloves, a stadium track at dusk, a dress on a mannequin) rather
+than a close-up photoreal likeness of their face. Never ask for text, captions, logos or watermarks
+inside an image.
 "audioLayer" is exactly one of the mood tags listed above, or "none".
 "pacingNotes" is a brief instruction for the assembler (e.g. caption timing/readability adjustments).
 "rationale" briefly explains your choices, and — on a regen attempt — how they address the feedback.
@@ -147,9 +199,10 @@ export async function planVideoProduction(params: {
 
   const llm = await callLLM({
     purpose: 'video-production-planning',
-    system: buildSystemPrompt(params.visualSourceOverride, params.audioLayerOverride),
+    system: buildSystemPrompt(params.visualSourceOverride, params.audioLayerOverride, estimateStillCount(params.scriptText)),
     messages: [{ role: 'user', content: `Topic: ${params.topic}\nScript: ${params.scriptText}\n\n${attemptContext}` }],
-    maxTokens: 768,
+    // Up to 20 scene prompts or 8 stock queries, plus the rest of the plan.
+    maxTokens: 2048,
   });
 
   let parsedJson: unknown;
@@ -162,7 +215,7 @@ export async function planVideoProduction(params: {
     );
   }
 
-  const result = ProductionPlanSchema.safeParse(parsedJson);
+  const result = ProductionPlanSchema.safeParse(normalizeShotList(parsedJson));
   if (!result.success) {
     throw new NonTransientStageError(`Production plan failed schema validation: ${result.error.message}`);
   }

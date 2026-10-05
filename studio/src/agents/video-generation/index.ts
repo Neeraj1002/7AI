@@ -367,8 +367,12 @@ export async function generateVideo(params: {
       throw new NonTransientStageError("ProductionPlan.visualSource is 'ai-stills' but stillScenePrompts is empty");
     }
     const stills = await generateStills({ scenePrompts });
+    // Sprint 4 Task 8 (R6) — with the faster default pacing there can be more
+    // stills than caption cues (e.g. sentence-grouped on a short script).
+    // distributeStillWindows would silently drop the excess stills — paid-for
+    // images never shown — so fall back to word-level boundaries then.
     const windows = distributeStillWindows({
-      captionCues: captionSegments,
+      captionCues: captionSegments.length >= stills.imagePaths.length ? captionSegments : timedWords,
       stillCount: stills.imagePaths.length,
       totalDurationMs: asr.audioDurationSeconds * 1000,
     });
