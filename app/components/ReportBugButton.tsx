@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { usePathname } from 'expo-router';
 import { useAuth } from '../lib/auth';
+import { color } from '../lib/theme';
 import { IconButton } from './IconButton';
 
 // Bugs Task 3 (R2) — the deep link bug-report-page.ts's success handler
@@ -75,6 +76,8 @@ export function ReportBugButton() {
       variant="community"
       onPress={handlePress}
       accessibilityLabel="Report a bug"
+      iconColor={color.okText}
+      backgroundColor={color.okBg}
     />
   );
 }

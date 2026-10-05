@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as Application from 'expo-application';
+import * as Updates from 'expo-updates';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
@@ -140,6 +142,12 @@ export default function ChannelsScreen() {
             <Text style={styles.meta}>Server</Text>
             <Text style={styles.accountValue} numberOfLines={1}>
               {host}
+            </Text>
+          </View>
+          <View style={styles.accountRow}>
+            <Text style={styles.meta}>Version</Text>
+            <Text style={styles.accountValue} numberOfLines={1}>
+              {Application.nativeApplicationVersion ?? '—'} · {Updates.updateId?.slice(0, 8) ?? 'built-in'}
             </Text>
           </View>
           <Pressable style={styles.signOut} onPress={() => setSignOutOpen(true)} accessibilityRole="button">
