@@ -17,6 +17,7 @@ const good: QualityMetrics = {
   width: 1080,
   height: 1920,
   fps: 30,
+  avgFps: 29.93,
   videoCodec: 'h264',
   videoProfile: 'High',
   pixFmt: 'yuv420p',
@@ -49,7 +50,12 @@ describe('hardFailureReason (R7: block only on hard failures)', () => {
   it('blocks wrong resolution, wrong fps and missing audio', () => {
     expect(hardFailureReason({ ...good, width: 720, height: 1280 })).toMatch(/resolution/);
     expect(hardFailureReason({ ...good, fps: 25 })).toMatch(/frame rate/);
+    expect(hardFailureReason({ ...good, fps: 30, avgFps: 24 })).toMatch(/Variable frame rate/);
     expect(hardFailureReason({ ...good, hasAudio: false })).toMatch(/no audio/i);
+  });
+
+  it('tolerates the ~0.2% concat rounding that leaves avg fps at 29.93', () => {
+    expect(hardFailureReason({ ...good, fps: 30, avgFps: 29.929742 })).toBeNull();
   });
 
   it('never blocks on soft metrics (shot length, captions, codec profile)', () => {

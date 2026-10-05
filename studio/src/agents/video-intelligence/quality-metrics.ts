@@ -62,6 +62,11 @@ export function hardFailureReason(m: QualityMetrics): string | null {
   if (m.fps === null || Math.abs(m.fps - fps) > 0.1) {
     return `Wrong frame rate ${m.fps === null ? 'unknown' : m.fps.toFixed(2)} fps (expected ${fps} fps constant)`;
   }
+  // Declared 30 but averaging far from it = variable frame rate. The loose bound
+  // tolerates the ~0.1-0.2% duration rounding concat leaves behind.
+  if (m.avgFps !== null && Math.abs(m.avgFps - fps) > 1) {
+    return `Variable frame rate (declared ${fps} fps, averaging ${m.avgFps.toFixed(2)} fps)`;
+  }
   const { targetLufs, hardToleranceLufs } = QUALITY_SPEC.loudness;
   if (m.integratedLufs === null || Math.abs(m.integratedLufs - targetLufs) > hardToleranceLufs) {
     return `Loudness ${m.integratedLufs === null ? 'unmeasurable' : `${m.integratedLufs.toFixed(1)} LUFS`} is outside the ${targetLufs} ±${hardToleranceLufs} LUFS band`;
@@ -224,7 +229,8 @@ export async function measureQualityMetrics(params: {
     truePeakDb: loudness.truePeakDb,
     width: v?.width ?? 0,
     height: v?.height ?? 0,
-    fps: parseFrameRate(v?.avg_frame_rate ?? v?.r_frame_rate),
+    fps: parseFrameRate(v?.r_frame_rate ?? v?.avg_frame_rate),
+    avgFps: parseFrameRate(v?.avg_frame_rate),
     videoCodec: v?.codec_name ?? null,
     videoProfile: v?.profile ?? null,
     pixFmt: v?.pix_fmt ?? null,

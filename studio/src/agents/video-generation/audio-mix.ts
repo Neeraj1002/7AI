@@ -1,4 +1,10 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { env } from '../../config/env';
 import { QUALITY_SPEC } from './quality-spec';
+import { parseEbur128Summary } from '../video-intelligence/quality-metrics';
+
+const execFileAsync = promisify(execFile);
 
 // Sprint 4 Task 8 (R1) — audio mastering graph, built as a pure function so
 // the exact filter string is unit-testable. Always produces a chain (even with
@@ -30,9 +36,15 @@ function loudnormFilter(measured?: MeasuredLoudness): string {
   );
 }
 
+// TTS is mono; output is always stereo (the bed's stereo image is kept, and
+// stereo AAC at 192k actually reaches the >=160 kbps spec where mono VBR doesn't).
+const STEREO = 'aformat=channel_layouts=stereo';
+
 export function buildAudioFilterGraph(params: {
   voiceInputIndex: number;
   bedInputIndex?: number;
+  // Gain applied to the bed before ducking (see computeBedGainDb).
+  bedGainDb?: number;
   measured?: MeasuredLoudness;
   // Pass 1 stops before the final loudnorm so the measurement sees the mix.
   measureOnly?: boolean;
@@ -45,11 +57,11 @@ export function buildAudioFilterGraph(params: {
     : `${loudnormFilter(params.measured)},aresample=${QUALITY_SPEC.audio.sampleRate}`;
 
   if (params.bedInputIndex === undefined) {
-    return `[${params.voiceInputIndex}:a]${finalStage}[${out}]`;
+    return `[${params.voiceInputIndex}:a]${STEREO},${finalStage}[${out}]`;
   }
   return [
-    `[${params.voiceInputIndex}:a]asplit=2[voice][key]`,
-    `[${params.bedInputIndex}:a]volume=${bed.preGainDb}dB[bedq]`,
+    `[${params.voiceInputIndex}:a]${STEREO},asplit=2[voice][key]`,
+    `[${params.bedInputIndex}:a]${STEREO},volume=${(params.bedGainDb ?? 0).toFixed(1)}dB[bedq]`,
     `[bedq][key]sidechaincompress=threshold=${bed.sidechainThreshold}:ratio=${bed.sidechainRatio}:attack=${bed.sidechainAttackMs}:release=${bed.sidechainReleaseMs}[ducked]`,
     `[voice][ducked]amix=inputs=2:duration=first:normalize=0[mix]`,
     `[mix]${finalStage}[${out}]`,
@@ -78,4 +90,38 @@ export function parseLoudnormJson(stderr: string): MeasuredLoudness | undefined 
   } catch {
     return undefined;
   }
+}
+
+// Gain that puts the bed targetBelowVoiceDb under the voice, from each one's
+// measured integrated loudness. Null measurements (unmeasurable audio) fall
+// back to no change rather than guessing.
+export function computeBedGainDb(voiceLufs: number | null, bedLufs: number | null): number {
+  if (voiceLufs === null || bedLufs === null) return 0;
+  const { targetBelowVoiceDb, minGainDb, maxGainDb } = QUALITY_SPEC.bed;
+  const gain = voiceLufs - targetBelowVoiceDb - bedLufs;
+  return Math.min(maxGainDb, Math.max(minGainDb, Number(gain.toFixed(1))));
+}
+
+const bedLufsCache = new Map<string, number | null>();
+
+// Integrated loudness (ebur128) of an audio file's first 60 s; bed results are
+// cached per path (a handful of small local files, measured once per process).
+async function runLoudnessScan(filePath: string): Promise<number | null> {
+  try {
+    const { stderr } = await execFileAsync(
+      env.FFMPEG_PATH,
+      ['-hide_banner', '-nostats', '-t', '60', '-i', filePath, '-af', 'ebur128', '-f', 'null', '-'],
+      { maxBuffer: 64 * 1024 * 1024 },
+    );
+    return parseEbur128Summary(stderr).integratedLufs;
+  } catch {
+    return null;
+  }
+}
+
+export async function measureIntegratedLufs(filePath: string, options: { cache?: boolean } = {}): Promise<number | null> {
+  if (options.cache && bedLufsCache.has(filePath)) return bedLufsCache.get(filePath) ?? null;
+  const lufs = await runLoudnessScan(filePath);
+  if (options.cache) bedLufsCache.set(filePath, lufs);
+  return lufs;
 }

@@ -16,7 +16,13 @@ import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type Producti
 import { DATA_DIR } from '../../config/paths';
 import { QUALITY_SPEC } from './quality-spec';
 import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
-import { buildAudioFilterGraph, parseLoudnormJson, type MeasuredLoudness } from './audio-mix';
+import {
+  buildAudioFilterGraph,
+  computeBedGainDb,
+  measureIntegratedLufs,
+  parseLoudnormJson,
+  type MeasuredLoudness,
+} from './audio-mix';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
 // burned captions + a real visual source, assembled with FFmpeg scripted
@@ -71,6 +77,8 @@ export type VideoGenerationUsage = {
     aiVisualsProvider?: string;
     aiVisualsModel?: string;
     aiVisualsStillCount?: number;
+    // Sprint 4 Task 8 (R6) — scene prompts the provider's safety system refused.
+    aiVisualsSkippedStills?: number;
     aiVisualsCostUsd?: string;
     // Sprint 2 Task 3 (F1) — always present ('none' is a real, valid value,
     // not an absent field). No real cost: the audio-bed library is local
@@ -154,10 +162,15 @@ export function distributeStillWindows(params: {
 // Sprint 4 Task 8 (R1) — loudnorm pass 1: runs the same ducking/mix graph on
 // audio alone (no video decode, a second or two) and returns the measured
 // integrated loudness/true peak/LRA for pass 2's linear normalisation.
-async function measureMixLoudness(params: { voicePath: string; bedPath?: string }): Promise<MeasuredLoudness | undefined> {
+async function measureMixLoudness(params: {
+  voicePath: string;
+  bedPath?: string;
+  bedGainDb?: number;
+}): Promise<MeasuredLoudness | undefined> {
   const graph = buildAudioFilterGraph({
     voiceInputIndex: 0,
     bedInputIndex: params.bedPath ? 1 : undefined,
+    bedGainDb: params.bedGainDb,
     measureOnly: true,
   });
   try {
@@ -361,7 +374,7 @@ export async function generateVideo(params: {
   let stockFootageMeta:
     | { provider: string; query: string; sourceId: string; costUsd: string; queries: string[]; sourceIds: string[] }
     | undefined;
-  let aiVisualsMeta: { provider: string; model: string; stillCount: number; costUsd: string } | undefined;
+  let aiVisualsMeta: { provider: string; model: string; stillCount: number; costUsd: string; skipped: number } | undefined;
 
   if (params.plan.visualSource === 'ai-stills') {
     const scenePrompts = params.plan.stillScenePrompts ?? [];
@@ -383,6 +396,10 @@ export async function generateVideo(params: {
       totalDurationMs: asr.audioDurationSeconds * 1000,
     });
     const stillsVideoPath = path.join(outputDir, `${params.attemptNumber}-stills.mp4`);
+    // Sprint 4 Task 8 (R6) — the still count fed into buildKenBurnsVideo now
+    // scales with script length; log wall time and intermediate size so a
+    // superlinear blow-up (Sprint 2 Task 2's zoompan bug) is visible at a glance.
+    const kenBurnsStartedAt = Date.now();
     await buildKenBurnsVideo({
       stills: stills.imagePaths.map((imagePath, i) => ({
         imagePath,
@@ -390,8 +407,12 @@ export async function generateVideo(params: {
       })),
       outputPath: stillsVideoPath,
     });
+    const stillsVideoBytes = (await fs.stat(stillsVideoPath)).size;
+    console.log(
+      `[video_generation] run ${params.pipelineRunId} attempt ${params.attemptNumber}: ken-burns ${stills.imagePaths.length} stills in ${((Date.now() - kenBurnsStartedAt) / 1000).toFixed(1)}s, intermediate ${(stillsVideoBytes / 1e6).toFixed(1)}MB`,
+    );
     visualPath = stillsVideoPath;
-    aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd };
+    aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd, skipped: stills.skippedPromptCount ?? 0 };
   } else {
     // Sprint 4 Task 8 (R5) — a shot list, one clip per story beat. Old stage
     // outputs / the regen path without stockFootageQueries fall back to the
@@ -456,10 +477,19 @@ export async function generateVideo(params: {
   // (when there is one) + loudnorm to -14 LUFS on every render. Two-pass: a
   // fast audio-only measuring run first, then loudnorm applies the measured
   // values linearly (linear mode hits the target without dynamic gain riding). Falls back to single-pass if the measurement can't be parsed.
-  const measured = await measureMixLoudness({ voicePath: tts.audioPath, bedPath: audioBedTrack?.filePath });
+  // The bed is levelled against the measured voice (not a fixed constant), so it
+  // sits the same distance under narration whatever track is picked.
+  const bedGainDb = audioBedTrack
+    ? computeBedGainDb(
+        await measureIntegratedLufs(tts.audioPath),
+        await measureIntegratedLufs(audioBedTrack.filePath, { cache: true }),
+      )
+    : undefined;
+  const measured = await measureMixLoudness({ voicePath: tts.audioPath, bedPath: audioBedTrack?.filePath, bedGainDb });
   const audioFilterChain = `;${buildAudioFilterGraph({
     voiceInputIndex: 1,
     bedInputIndex: audioBedTrack ? audioBedInputIndex : undefined,
+    bedGainDb,
     measured,
   })}`;
   const filterComplex = `${videoFilterChain}${audioFilterChain}`;
@@ -543,6 +573,7 @@ export async function generateVideo(params: {
           aiVisualsProvider: aiVisualsMeta.provider,
           aiVisualsModel: aiVisualsMeta.model,
           aiVisualsStillCount: aiVisualsMeta.stillCount,
+          ...(aiVisualsMeta.skipped > 0 && { aiVisualsSkippedStills: aiVisualsMeta.skipped }),
           aiVisualsCostUsd: aiVisualsMeta.costUsd,
         }),
         audioLayer: params.plan.audioLayer,

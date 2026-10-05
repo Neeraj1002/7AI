@@ -35,7 +35,13 @@ export const QUALITY_SPEC = {
     normalizeLra: 11,
   },
   bed: {
-    preGainDb: -18,
+    // Bed is levelled to sit this far under the measured voice BEFORE ducking, so
+    // the balance holds for any bed track (the synthetic beds are very quiet;
+    // real licensed tracks are not). Sidechain ducking then removes more.
+    targetBelowVoiceDb: 15,
+    // Clamp on the computed gain so a bad measurement can't blow the bed up.
+    minGainDb: -40,
+    maxGainDb: 12,
     sidechainThreshold: 0.02,
     sidechainRatio: 8,
     sidechainAttackMs: 20,
@@ -73,7 +79,11 @@ export type QualityMetrics = {
   truePeakDb: number | null;
   width: number;
   height: number;
+  // Declared constant rate (ffprobe r_frame_rate) — what the hard gate checks.
   fps: number | null;
+  // Average rate (frames / duration): differs slightly from fps after concat
+  // rounding; only a large gap indicates variable frame rate.
+  avgFps: number | null;
   videoCodec: string | null;
   videoProfile: string | null;
   pixFmt: string | null;

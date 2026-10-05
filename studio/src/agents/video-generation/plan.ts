@@ -172,7 +172,9 @@ visualSource is "stock-footage".
 For scene prompts about real, named people: depict scenes, objects, places, settings and silhouettes
 that evoke them (e.g. a boxing ring and gloves, a stadium track at dusk, a dress on a mannequin) rather
 than a close-up photoreal likeness of their face. Never ask for text, captions, logos or watermarks
-inside an image.
+inside an image. The image provider's safety system rejects some scenes outright, so avoid depicting
+children or minors (use adult figures, silhouettes, objects or places instead), and avoid medical
+exams, hospital-gown/bodily-injury imagery, violence or anything graphic.
 "audioLayer" is exactly one of the mood tags listed above, or "none".
 "pacingNotes" is a brief instruction for the assembler (e.g. caption timing/readability adjustments).
 "rationale" briefly explains your choices, and — on a regen attempt — how they address the feedback.
