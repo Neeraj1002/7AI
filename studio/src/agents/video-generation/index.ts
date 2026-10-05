@@ -170,6 +170,15 @@ export function distributeStillWindows(params: {
     windows.push({ startMs: cues[startIdx].startMs, endMs: cues[lastCueIdxOfWindow[i]].endMs });
   }
 
+  // Contiguous windows: each still stays up until the next one's first cue
+  // begins. Spanning only [first cue start, last cue end] dropped every pause
+  // between windows from the timeline, leaving the stills video shorter than
+  // the audio (measured: 36.2s vs 39.9s with word-flash) — and the final mux
+  // then looped the video back to its first still for the remaining seconds.
+  for (let i = 0; i < windows.length - 1; i += 1) {
+    windows[i].endMs = windows[i + 1].startMs;
+  }
+
   // The first/last window always spans the full real audio duration,
   // regardless of ASR's first/last word timestamps — so the assembled
   // stills video always covers exactly [0, totalDurationMs], never leaving

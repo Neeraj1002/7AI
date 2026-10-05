@@ -86,3 +86,19 @@ describe('distributeStillWindows — time-aware boundaries (Sprint 4 Task 8, R6)
     });
   });
 });
+
+describe('distributeStillWindows — contiguous coverage (Sprint 4 Task 8)', () => {
+  it('windows tile [0, total] with no gaps, so pauses between cues never shorten the stills video', () => {
+    // Word-flash-like cues with a 150ms pause after each word.
+    const cues = Array.from({ length: 20 }, (_, i) => cue(i * 650, i * 650 + 500));
+    const total = 20 * 650;
+    const windows = distributeStillWindows({ captionCues: cues, stillCount: 6, totalDurationMs: total });
+    expect(windows[0].startMs).toBe(0);
+    expect(windows[windows.length - 1].endMs).toBe(total);
+    windows.forEach((w, i) => {
+      if (i > 0) expect(w.startMs).toBe(windows[i - 1].endMs);
+    });
+    const sum = windows.reduce((acc, w) => acc + (w.endMs - w.startMs), 0);
+    expect(sum).toBe(total);
+  });
+});
