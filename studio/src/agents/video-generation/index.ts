@@ -15,6 +15,7 @@ import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
 import { QUALITY_SPEC } from './quality-spec';
+import { buildAudioFilterGraph, parseLoudnormJson, type MeasuredLoudness } from './audio-mix';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
 // burned captions + a real visual source, assembled with FFmpeg scripted
@@ -90,10 +91,6 @@ export type VideoGenerationResult = {
 const VIDEO_WIDTH = QUALITY_SPEC.video.width;
 const VIDEO_HEIGHT = QUALITY_SPEC.video.height;
 const VIDEO_FPS = QUALITY_SPEC.video.fps;
-// Sprint 2 Task 3 (F1) — deliberately low relative to the voiceover's
-// implicit weight of 1, so the bed stays a background layer, never
-// competing with narration intelligibility.
-const AUDIO_BED_MIX_WEIGHT = 0.18;
 
 function formatSrtTimestamp(ms: number): string {
   const clamped = Math.max(0, ms);
@@ -235,6 +232,36 @@ function captionFontSize(style: CaptionStyle): number {
       const exhaustive: never = style;
       throw new Error(`Unknown caption style '${exhaustive as string}'`);
     }
+  }
+}
+
+// Sprint 4 Task 8 (R1) — loudnorm pass 1: runs the same ducking/mix graph on
+// audio alone (no video decode, a second or two) and returns the measured
+// integrated loudness/true peak/LRA for pass 2's linear normalisation.
+async function measureMixLoudness(params: { voicePath: string; bedPath?: string }): Promise<MeasuredLoudness | undefined> {
+  const graph = buildAudioFilterGraph({
+    voiceInputIndex: 0,
+    bedInputIndex: params.bedPath ? 1 : undefined,
+    measureOnly: true,
+  });
+  try {
+    const { stderr } = await execFileAsync(env.FFMPEG_PATH, [
+      '-hide_banner',
+      '-i',
+      params.voicePath,
+      ...(params.bedPath ? ['-stream_loop', '-1', '-i', params.bedPath] : []),
+      '-filter_complex',
+      graph,
+      '-map',
+      '[outa]',
+      '-f',
+      'null',
+      '-',
+    ]);
+    return parseLoudnormJson(stderr);
+  } catch (error) {
+    console.error(`[video_generation] loudnorm measuring pass failed, falling back to single-pass: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
   }
 }
 
@@ -472,13 +499,16 @@ export async function generateVideo(params: {
   // The bed input's index depends on whether the (also optional) watermark
   // input came before it — visual=0, tts=1, [watermark=2], bed=next.
   const audioBedInputIndex = hasLocalWatermark ? 3 : 2;
-  // An explicit low weight on the bed (not equal-weighted) so narration
-  // stays intelligible — `duration=first` caps the mix at the TTS track's
-  // real length (listed first) regardless of how long the (looped) bed
-  // input runs.
-  const audioFilterChain = audioBedTrack
-    ? `;[1:a][${audioBedInputIndex}:a]amix=inputs=2:duration=first:weights='1 ${AUDIO_BED_MIX_WEIGHT}'[outa]`
-    : '';
+  // Sprint 4 Task 8 (R1) — always an audio chain now: sidechain-ducked bed
+  // (when there is one) + loudnorm to -14 LUFS on every render. Two-pass: a
+  // fast audio-only measuring run first, then loudnorm applies the measured
+  // values linearly (linear mode hits the target without dynamic gain riding). Falls back to single-pass if the measurement can't be parsed.
+  const measured = await measureMixLoudness({ voicePath: tts.audioPath, bedPath: audioBedTrack?.filePath });
+  const audioFilterChain = `;${buildAudioFilterGraph({
+    voiceInputIndex: 1,
+    bedInputIndex: audioBedTrack ? audioBedInputIndex : undefined,
+    measured,
+  })}`;
   const filterComplex = `${videoFilterChain}${audioFilterChain}`;
 
   const ffmpegArgs = [
@@ -496,7 +526,7 @@ export async function generateVideo(params: {
     '-map',
     '[outv]',
     '-map',
-    audioBedTrack ? '[outa]' : '1:a',
+    '[outa]',
     '-c:v',
     'libx264',
     '-preset',
@@ -510,7 +540,11 @@ export async function generateVideo(params: {
     '-movflags',
     '+faststart',
     '-c:a',
-    'aac',
+    QUALITY_SPEC.audio.codec,
+    '-b:a',
+    `${QUALITY_SPEC.audio.bitrateKbps}k`,
+    '-ar',
+    String(QUALITY_SPEC.audio.sampleRate),
     '-shortest',
     videoFilename,
   ];
