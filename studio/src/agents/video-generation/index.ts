@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { synthesizeSpeech, transcribe, type TranscriptSegment } from '../../media';
 import { resolveMediaPurpose } from '../../media/registry';
-import { searchStockFootage } from '../../stock-footage';
+import { buildStockShotList } from './stock-shotlist';
 import { generateStills } from '../../ai-visuals';
 import { pickAudioBedTrack } from '../../audio-bed';
 import { env } from '../../config/env';
@@ -62,6 +62,10 @@ export type VideoGenerationUsage = {
     stockFootageProvider?: string;
     stockFootageQuery?: string;
     stockFootageSourceId?: string;
+    // Sprint 4 Task 8 (R5) — the shot list: one entry per beat, in order.
+    stockFootageQueries?: string[];
+    stockFootageSourceIds?: string[];
+    stockFootageClipCount?: number;
     stockFootageCostUsd?: string;
     // 'ai-stills' only.
     aiVisualsProvider?: string;
@@ -354,7 +358,9 @@ export async function generateVideo(params: {
   // single `visualPath`: everything from here down (scale/crop, subtitles,
   // watermark overlay, audio mux) is identical regardless of which one ran.
   let visualPath: string;
-  let stockFootageMeta: { provider: string; query: string; sourceId: string; costUsd: string } | undefined;
+  let stockFootageMeta:
+    | { provider: string; query: string; sourceId: string; costUsd: string; queries: string[]; sourceIds: string[] }
+    | undefined;
   let aiVisualsMeta: { provider: string; model: string; stillCount: number; costUsd: string } | undefined;
 
   if (params.plan.visualSource === 'ai-stills') {
@@ -387,9 +393,31 @@ export async function generateVideo(params: {
     visualPath = stillsVideoPath;
     aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd };
   } else {
-    const clip = await searchStockFootage({ query: params.plan.stockFootageQuery, orientation: 'portrait' });
-    visualPath = clip.clipPath;
-    stockFootageMeta = { provider: 'pexels', query: params.plan.stockFootageQuery, sourceId: clip.sourceId, costUsd: clip.costUsd };
+    // Sprint 4 Task 8 (R5) — a shot list, one clip per story beat. Old stage
+    // outputs / the regen path without stockFootageQueries fall back to the
+    // single query (one clip, held on its last frame if short — never looped).
+    const queries = params.plan.stockFootageQueries?.length ? params.plan.stockFootageQueries : [params.plan.stockFootageQuery];
+    const windows = distributeStillWindows({
+      captionCues: captionSegments.length >= queries.length ? captionSegments : timedWords,
+      stillCount: queries.length,
+      totalDurationMs: asr.audioDurationSeconds * 1000,
+    });
+    const stockVideoPath = path.join(outputDir, `${params.attemptNumber}-stock.mp4`);
+    const shots = await buildStockShotList({
+      queries,
+      windows,
+      totalDurationMs: asr.audioDurationSeconds * 1000,
+      outputPath: stockVideoPath,
+    });
+    visualPath = stockVideoPath;
+    stockFootageMeta = {
+      provider: 'pexels',
+      query: shots.queries.join(' | '),
+      sourceId: shots.sourceIds.join(','),
+      costUsd: '0.000000',
+      queries: shots.queries,
+      sourceIds: shots.sourceIds,
+    };
   }
 
   const watermarkPath = params.brandAssets.watermarkUrl;
@@ -438,8 +466,9 @@ export async function generateVideo(params: {
 
   const ffmpegArgs = [
     '-y',
-    '-stream_loop',
-    '-1',
+    // ai-stills keeps the (harmless, sub-frame) loop it always had; the stock
+    // shot list is built to cover the voiceover and must never loop.
+    ...(params.plan.visualSource === 'ai-stills' ? ['-stream_loop', '-1'] : []),
     '-i',
     visualPath,
     '-i',
@@ -505,6 +534,9 @@ export async function generateVideo(params: {
           stockFootageProvider: stockFootageMeta.provider,
           stockFootageQuery: stockFootageMeta.query,
           stockFootageSourceId: stockFootageMeta.sourceId,
+          stockFootageQueries: stockFootageMeta.queries,
+          stockFootageSourceIds: stockFootageMeta.sourceIds,
+          stockFootageClipCount: stockFootageMeta.sourceIds.length,
           stockFootageCostUsd: stockFootageMeta.costUsd,
         }),
         ...(aiVisualsMeta && {
