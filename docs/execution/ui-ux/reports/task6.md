@@ -88,7 +88,7 @@ One commit each, `app/` only.
 
 ## Shipping — what is and isn't done
 - **OTA (fixes 1–4, 6): NOT published.** `eas update` pushes to the live `preview` channel; I did not run it without your explicit go-ahead. **Publish it from commit `80554e5` (`FIX_6`), not from branch head:** head now includes fix 5, whose runtime version (`08da3cef…`) the currently installed APK does not match, so an update published from head would never reach it.
-- **Native build (fix 5): NOT run.** No other native change is queued in `docs/execution/bugs/STATUS.md` to bundle with. Needs `eas build -p android --profile preview`; the new runtime version to record once built is **`08da3cef711445…`-prefixed — `08da3cef743fc8bfb00a1cee68721a418b44b741`** (from `expo-updates fingerprint:generate`; EAS should print the same value).
+- **Native build (fix 5): NOT run.** No other native change is queued in `docs/execution/bugs/STATUS.md` to bundle with. Needs `eas build -p android --profile preview`; the new runtime version to record once built is **`08da3cef743fc8bfb00a1cee68721a418b44b741`** (from `expo-updates fingerprint:generate`; EAS should print the same value).
 - Fix 5 code is on the branch but untested on a device; the upload path (RN multipart `FormData` with a `{uri,name,type}` part) in particular needs a real phone against the real server.
 
 ## Status
