@@ -15,6 +15,7 @@ import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
 import { QUALITY_SPEC } from './quality-spec';
+import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
 import { buildAudioFilterGraph, parseLoudnormJson, type MeasuredLoudness } from './audio-mix';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
@@ -92,85 +93,13 @@ const VIDEO_WIDTH = QUALITY_SPEC.video.width;
 const VIDEO_HEIGHT = QUALITY_SPEC.video.height;
 const VIDEO_FPS = QUALITY_SPEC.video.fps;
 
-function formatSrtTimestamp(ms: number): string {
-  const clamped = Math.max(0, ms);
-  const h = Math.floor(clamped / 3_600_000);
-  const m = Math.floor((clamped % 3_600_000) / 60_000);
-  const s = Math.floor((clamped % 60_000) / 1000);
-  const msRemainder = Math.floor(clamped % 1000);
-  const pad = (n: number, len = 2) => n.toString().padStart(len, '0');
-  return `${pad(h)}:${pad(m)}:${pad(s)},${pad(msRemainder, 3)}`;
-}
-
-function buildSrt(segments: TranscriptSegment[]): string {
-  return segments
-    .map(
-      (seg, i) =>
-        `${i + 1}\n${formatSrtTimestamp(seg.startMs)} --> ${formatSrtTimestamp(seg.endMs)}\n${seg.text}\n`,
-    )
-    .join('\n');
-}
-
-// Groups consecutive word-level segments into N-word caption cues.
-function groupWordsByCount(segments: TranscriptSegment[], wordsPerGroup: number): TranscriptSegment[] {
-  const groups: TranscriptSegment[] = [];
-  for (let i = 0; i < segments.length; i += wordsPerGroup) {
-    const slice = segments.slice(i, i + wordsPerGroup);
-    if (slice.length === 0) continue;
-    groups.push({
-      text: slice.map((s) => s.text).join(' '),
-      startMs: slice[0].startMs,
-      endMs: slice[slice.length - 1].endMs,
-    });
-  }
-  return groups;
-}
-
-// Groups words into a cue per sentence (ending on ./!/?), falling back to
-// maxWordsPerGroup for long or unpunctuated runs so a cue never grows
-// unbounded.
-function groupWordsBySentence(segments: TranscriptSegment[], maxWordsPerGroup: number): TranscriptSegment[] {
-  const groups: TranscriptSegment[] = [];
-  let current: TranscriptSegment[] = [];
-  for (const seg of segments) {
-    current.push(seg);
-    const endsSentence = /[.!?]$/.test(seg.text.trim());
-    if (endsSentence || current.length >= maxWordsPerGroup) {
-      groups.push({
-        text: current.map((s) => s.text).join(' '),
-        startMs: current[0].startMs,
-        endMs: current[current.length - 1].endMs,
-      });
-      current = [];
-    }
-  }
-  if (current.length > 0) {
-    groups.push({
-      text: current.map((s) => s.text).join(' '),
-      startMs: current[0].startMs,
-      endMs: current[current.length - 1].endMs,
-    });
-  }
-  return groups;
-}
-
-// Caption grouping per the production plan's captionStyle (plan.ts) — this
-// is the concrete mechanism Video Generation now has for a regen attempt to
-// actually produce a different result, per
+// Caption cues per the production plan's captionStyle (plan.ts) — the concrete
+// mechanism a regen attempt has to produce a different result, per
 // docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md Section 2.
+// Grouping lives in captions-ass.ts (Sprint 4 Task 8, R2), shared by the ASS
+// writer and the still-window distribution below.
 function buildCaptionSegments(segments: TranscriptSegment[], style: CaptionStyle): TranscriptSegment[] {
-  switch (style) {
-    case 'word-flash':
-      return segments;
-    case 'phrase-grouped':
-      return groupWordsByCount(segments, 4);
-    case 'sentence-grouped':
-      return groupWordsBySentence(segments, 8);
-    default: {
-      const exhaustive: never = style;
-      throw new Error(`Unknown caption style '${exhaustive as string}'`);
-    }
-  }
+  return groupCaptionCues(segments, style).map(({ text, startMs, endMs }) => ({ text, startMs, endMs }));
 }
 
 // Sprint 2 Task 2 (E1/E2) — distributes N stills across the caption cues
@@ -216,23 +145,6 @@ export function distributeStillWindows(params: {
   windows[0].startMs = 0;
   windows[windows.length - 1].endMs = Math.max(windows[windows.length - 1].endMs, params.totalDurationMs);
   return windows;
-}
-
-// Smaller cues (word-flash) read fine at a large size; multi-word cues need a
-// smaller font to fit the 1080px-wide frame without wrapping awkwardly.
-function captionFontSize(style: CaptionStyle): number {
-  switch (style) {
-    case 'word-flash':
-      return 64;
-    case 'phrase-grouped':
-      return 48;
-    case 'sentence-grouped':
-      return 40;
-    default: {
-      const exhaustive: never = style;
-      throw new Error(`Unknown caption style '${exhaustive as string}'`);
-    }
-  }
 }
 
 // Sprint 4 Task 8 (R1) — loudnorm pass 1: runs the same ducking/mix graph on
@@ -413,23 +325,29 @@ export async function generateVideo(params: {
   const outputDir = path.resolve(DATA_DIR, 'videos', params.pipelineRunId);
   await fs.mkdir(outputDir, { recursive: true });
 
-  const srtFilename = `${params.attemptNumber}.srt`;
+  const assFilename = `${params.attemptNumber}.ass`;
   const videoFilename = `${params.attemptNumber}.mp4`;
-
-  // Computed unconditionally — 'ai-stills' needs these cue boundaries to
-  // sync still transitions to, regardless of whether captions end up
-  // burned in. Only the SRT write / subtitles filter stage below are
-  // actually gated on captionsEnabled.
-  const captionSegments = buildCaptionSegments(asr.segments, params.plan.captionStyle);
 
   // B5 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2/§3): captions are optional per
   // channel, default on (BrandAssets.captionsEnabled defaults to true if
-  // unset — see channel.types.ts). When off, no SRT is written and no
-  // `subtitles` stage is added to the filter graph at all — not just an
-  // empty/invisible caption track.
+  // unset — see channel.types.ts). When off, no caption file is written and
+  // no `ass` stage is added to the filter graph at all — not just an
+  // empty/invisible caption track — and cue boundaries come from Whisper's own
+  // words exactly as before Sprint 4 Task 8.
   const captionsEnabled = params.brandAssets.captionsEnabled !== false;
+
+  // Sprint 4 Task 8 (R2) — with captions on, the text is the sanctioned
+  // script's own words (punctuation, casing, proper nouns intact) timed by
+  // Whisper's word timestamps; Whisper's own spelling is never shown.
+  // Computed unconditionally in shape — 'ai-stills' needs these cue
+  // boundaries to sync still transitions to, regardless of whether captions
+  // end up burned in.
+  const timedWords: TimedWord[] = captionsEnabled ? alignScriptToWhisper(params.scriptText, asr.segments) : asr.segments;
+  const captionSegments = buildCaptionSegments(timedWords, params.plan.captionStyle);
   if (captionsEnabled) {
-    await fs.writeFile(path.join(outputDir, srtFilename), buildSrt(captionSegments), 'utf-8');
+    assertCaptionFontPresent();
+    const { ass } = buildAss({ words: timedWords, style: params.plan.captionStyle });
+    await fs.writeFile(path.join(outputDir, assFilename), ass, 'utf-8');
   }
 
   // Sprint 2 Task 2 (E2) — the one branch point. Both paths converge on a
@@ -486,11 +404,14 @@ export async function generateVideo(params: {
   // video (and is harmless on an ai-stills input that's already exactly the
   // right length). Run from `outputDir` as cwd so the caption file can be
   // referenced by its plain filename, avoiding FFmpeg's notoriously fiddly
-  // colon/backslash escaping for the `subtitles` filter's path argument on
+  // colon/backslash escaping for the `ass` filter's path argument on
   // Windows.
   const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}`;
+  // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
+  // escape in the filtergraph, identical on Windows and the Linux VPS.
+  const fontsDirArg = path.relative(outputDir, FONTS_DIR).split(path.sep).join('/');
   const baseFilter = captionsEnabled
-    ? `${scaleCropFilter},subtitles=${srtFilename}:force_style='Fontsize=${captionFontSize(params.plan.captionStyle)},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`
+    ? `${scaleCropFilter},ass=${assFilename}:fontsdir=${fontsDirArg}`
     : scaleCropFilter;
   const videoFilterChain = hasLocalWatermark
     ? `${baseFilter}[framed];[framed][2:v]overlay=W-w-40:40[outv]`

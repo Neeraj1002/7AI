@@ -31,6 +31,9 @@ coverage/
 # runtime-generated scratch — the one deliberate carve-out from the blanket
 # data/ ignore above.
 !**/data/audio-beds/
+# Sprint 4 Task 8 (R2) exception: data/fonts/ holds the bundled, OFL-licensed caption
+# font (+ its licence) so laptop and VPS render captions identically.
+!**/data/fonts/
 
 .vscode/*
 !.vscode/extensions.json
