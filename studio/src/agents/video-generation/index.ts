@@ -142,12 +142,32 @@ export function distributeStillWindows(params: {
     }));
   }
 
-  const effectiveCount = Math.min(stillCount, params.captionCues.length);
+  const cues = params.captionCues;
+  const effectiveCount = Math.min(stillCount, cues.length);
+
+  // Sprint 4 Task 8 (R6) — boundaries are chosen by TIME, not by an equal
+  // number of cues per still: a still ends at the cue end nearest to its ideal
+  // equal-time slice. Equal cue counts let a slow stretch of speech hold one
+  // still well past the ~2.5s pacing target (measured: 4.3s shots). Every
+  // window still contains at least one whole cue, and cuts still land on cue
+  // boundaries. With uniform cues this reduces to the old even split.
+  const lastCueIdxOfWindow: number[] = [];
+  for (let i = 0; i < effectiveCount - 1; i += 1) {
+    const target = ((i + 1) * params.totalDurationMs) / effectiveCount;
+    const lo = i === 0 ? 0 : lastCueIdxOfWindow[i - 1] + 1;
+    const hi = cues.length - (effectiveCount - i);
+    let best = lo;
+    for (let idx = lo; idx <= hi; idx += 1) {
+      if (Math.abs(cues[idx].endMs - target) < Math.abs(cues[best].endMs - target)) best = idx;
+    }
+    lastCueIdxOfWindow.push(best);
+  }
+  lastCueIdxOfWindow.push(cues.length - 1);
+
   const windows: Array<{ startMs: number; endMs: number }> = [];
   for (let i = 0; i < effectiveCount; i += 1) {
-    const startIdx = Math.floor((i * params.captionCues.length) / effectiveCount);
-    const endIdx = Math.max(startIdx, Math.floor(((i + 1) * params.captionCues.length) / effectiveCount) - 1);
-    windows.push({ startMs: params.captionCues[startIdx].startMs, endMs: params.captionCues[endIdx].endMs });
+    const startIdx = i === 0 ? 0 : lastCueIdxOfWindow[i - 1] + 1;
+    windows.push({ startMs: cues[startIdx].startMs, endMs: cues[lastCueIdxOfWindow[i]].endMs });
   }
 
   // The first/last window always spans the full real audio duration,
