@@ -14,6 +14,7 @@ import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
+import { QUALITY_SPEC } from './quality-spec';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
 // burned captions + a real visual source, assembled with FFmpeg scripted
@@ -86,8 +87,9 @@ export type VideoGenerationResult = {
   usage: VideoGenerationUsage;
 };
 
-const VIDEO_WIDTH = 1080;
-const VIDEO_HEIGHT = 1920;
+const VIDEO_WIDTH = QUALITY_SPEC.video.width;
+const VIDEO_HEIGHT = QUALITY_SPEC.video.height;
+const VIDEO_FPS = QUALITY_SPEC.video.fps;
 // Sprint 2 Task 3 (F1) — deliberately low relative to the voiceover's
 // implicit weight of 1, so the bed stays a background layer, never
 // competing with narration intelligibility.
@@ -459,7 +461,7 @@ export async function generateVideo(params: {
   // referenced by its plain filename, avoiding FFmpeg's notoriously fiddly
   // colon/backslash escaping for the `subtitles` filter's path argument on
   // Windows.
-  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT}`;
+  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}`;
   const baseFilter = captionsEnabled
     ? `${scaleCropFilter},subtitles=${srtFilename}:force_style='Fontsize=${captionFontSize(params.plan.captionStyle)},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`
     : scaleCropFilter;
@@ -497,6 +499,16 @@ export async function generateVideo(params: {
     audioBedTrack ? '[outa]' : '1:a',
     '-c:v',
     'libx264',
+    '-preset',
+    QUALITY_SPEC.video.preset,
+    '-crf',
+    String(QUALITY_SPEC.video.crf),
+    '-profile:v',
+    'high',
+    '-pix_fmt',
+    QUALITY_SPEC.video.pixFmt,
+    '-movflags',
+    '+faststart',
     '-c:a',
     'aac',
     '-shortest',
