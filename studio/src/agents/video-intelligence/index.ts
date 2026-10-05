@@ -6,6 +6,8 @@ import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { env } from '../../config/env';
 import { NonTransientStageError, withRetryAndCircuitBreaker } from '../../run-pipeline/retry-with-backoff';
 import type { VisualSource } from '../video-generation/plan';
+import type { QualityMetrics } from '../video-generation/quality-spec';
+import { hardFailureReason, measureQualityMetrics } from './quality-metrics';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
 // 4.2. Deterministic checks (ffprobe/FFmpeg, zero LLM cost) run first and
@@ -30,8 +32,8 @@ const MIN_MEAN_VOLUME_DB = -45;
 type VideoMeta = { durationSeconds: number; width: number; height: number };
 
 export type DeterministicCheckResult =
-  | { passed: true; meta: VideoMeta }
-  | { passed: false; reason: string };
+  | { passed: true; meta: VideoMeta; metrics: QualityMetrics }
+  | { passed: false; reason: string; metrics?: QualityMetrics };
 
 async function probeVideoMeta(videoPath: string): Promise<VideoMeta> {
   const { stdout } = await execFileAsync(env.FFPROBE_PATH, [
@@ -69,7 +71,10 @@ async function probeMeanVolumeDb(videoPath: string): Promise<number> {
 
 // Zero LLM cost, zero UsageEvent row for this part — the cost-gate behavior
 // this task exists to prove.
-export async function runDeterministicChecks(videoPath: string): Promise<DeterministicCheckResult> {
+export async function runDeterministicChecks(
+  videoPath: string,
+  options: { captionsEnabled?: boolean; visualSource?: VisualSource } = {},
+): Promise<DeterministicCheckResult> {
   const meta = await probeVideoMeta(videoPath);
 
   if (meta.durationSeconds > MAX_DURATION_SECONDS) {
@@ -87,12 +92,26 @@ export async function runDeterministicChecks(videoPath: string): Promise<Determi
     };
   }
 
-  const meanVolumeDb = await probeMeanVolumeDb(videoPath);
-  if (meanVolumeDb < MIN_MEAN_VOLUME_DB) {
-    return { passed: false, reason: `Audio is effectively silent (mean volume ${meanVolumeDb.toFixed(1)}dB)` };
+  // Sprint 4 Task 8 (R7) — measure the whole quality spec (LUFS/true peak,
+  // fps/resolution/codec, longest shot, caption presence). Only HARD failures
+  // block; everything else rides along in `metrics` to be recorded and shown
+  // at Gate 2.
+  const metrics = await measureQualityMetrics({
+    videoPath,
+    captionsEnabled: options.captionsEnabled ?? false,
+    visualSource: options.visualSource,
+  });
+  const hardFailure = hardFailureReason(metrics);
+  if (hardFailure) {
+    return { passed: false, reason: hardFailure, metrics };
   }
 
-  return { passed: true, meta };
+  const meanVolumeDb = await probeMeanVolumeDb(videoPath);
+  if (meanVolumeDb < MIN_MEAN_VOLUME_DB) {
+    return { passed: false, reason: `Audio is effectively silent (mean volume ${meanVolumeDb.toFixed(1)}dB)`, metrics };
+  }
+
+  return { passed: true, meta, metrics };
 }
 
 // B5 fix, part 2 (KNOWN_ISSUES_AND_BLOCKERS.md §3, the caption/frame-sampling
@@ -177,6 +196,9 @@ export type VideoIntelligenceOutcome = {
   rationale: string;
   multimodalRan: boolean;
   llm?: LLMResponse;
+  // Sprint 4 Task 8 (R7) — present whenever measurement ran (including on a
+  // deterministic fail); undefined only when the failure came before it.
+  qualityMetrics?: QualityMetrics;
 };
 
 export async function reviewVideo(params: {
@@ -189,10 +211,16 @@ export async function reviewVideo(params: {
   // defaulting here risks judging an 'ai-stills' render against the
   // stock-footage bar by accident.
   visualSource: VisualSource;
+  // Sprint 4 Task 8 (R7) — whether this channel burns captions in; drives the
+  // caption-presence measurement. Defaults to true, matching BrandAssets.
+  captionsEnabled?: boolean;
 }): Promise<VideoIntelligenceOutcome> {
-  const deterministic = await runDeterministicChecks(params.videoPath);
+  const deterministic = await runDeterministicChecks(params.videoPath, {
+    captionsEnabled: params.captionsEnabled ?? true,
+    visualSource: params.visualSource,
+  });
   if (!deterministic.passed) {
-    return { verdict: 'fail', rationale: deterministic.reason, multimodalRan: false };
+    return { verdict: 'fail', rationale: deterministic.reason, multimodalRan: false, qualityMetrics: deterministic.metrics };
   }
 
   const framesBase64 = await extractSampleFramesBase64(params.videoPath, deterministic.meta.durationSeconds);
@@ -238,5 +266,11 @@ export async function reviewVideo(params: {
     );
   }
 
-  return { verdict: result.data.verdict, rationale: result.data.notes, multimodalRan: true, llm };
+  return {
+    verdict: result.data.verdict,
+    rationale: result.data.notes,
+    multimodalRan: true,
+    llm,
+    qualityMetrics: deterministic.metrics,
+  };
 }

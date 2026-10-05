@@ -33,6 +33,7 @@ import { generateVideo, type VideoGenerationOutput } from '../agents/video-gener
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
+import type { QualityMetrics } from '../agents/video-generation/quality-spec';
 import {
   generatePublishingMetadata,
   uploadVideo,
@@ -1040,6 +1041,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       topic: run.intakeParsed.topic,
       scriptText: sanctionedScriptText,
       visualSource,
+      // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
+      captionsEnabled: channel.brandAssets.captionsEnabled !== false,
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -1109,7 +1112,17 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         tx,
       );
 
-      await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale }, tx);
+      // Sprint 4 Task 8 (R7) — qualityMetrics is optional on the stage output, so
+      // pre-existing video_review rows without it stay valid.
+      await completeStage(
+        stage.id,
+        {
+          verdict: outcome.verdict,
+          rationale: outcome.rationale,
+          ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
+        },
+        tx,
+      );
 
       // Sprint 3 Task 9 (R2) — completes the synthetic gate2 row created
       // above with the exact same output shape runGate2Stage's own approve
@@ -1169,7 +1182,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   if (!videoReviewStage || videoReviewStage.status !== 'completed' || !videoReviewStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_review output — cannot open Gate 2`);
   }
-  const reviewOutput = videoReviewStage.output as { verdict?: string; rationale?: string };
+  const reviewOutput = videoReviewStage.output as {
+    verdict?: string;
+    rationale?: string;
+    qualityMetrics?: QualityMetrics;
+  };
   if (!reviewOutput.verdict || !reviewOutput.rationale) {
     throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
   }
@@ -1202,6 +1219,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     channelName: channel.name,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
+    qualityMetrics: reviewOutput.qualityMetrics,
     restarted: isRestartReopen,
   });
 
