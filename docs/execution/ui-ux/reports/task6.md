@@ -70,3 +70,26 @@ are both meaningfully unverified without a live device against a live server.
 ## Fingerprint
 `d9452ef2…` — identical to `main` throughout both tasks. OTA-eligible for everything shipped (E8 excluded
 entirely, not shipped hidden).
+
+---
+
+# Fixes before merge (PR #43, 2026-10-06)
+
+One commit each, `app/` only.
+
+| # | Fix | Commit | Fingerprint |
+|---|---|---|---|
+| 1 | Queue: Needs attention cards read "{channel} · tap to retry or cancel" | `UIEnhancement-3_FIX_1` | `d9452ef2…` (= main) |
+| 2 | Run detail: accent spinner; if the run isn't loaded after 10 s, or the request errors, "Couldn't load this run" with Retry (refetch) and Back — no endless spinner. The 10 s timer sets state only from its own callback; the Retry handler resets it. | `FIX_2,3` | `d9452ef2…` |
+| 3 | "Cancel run" hidden while `currentStage === 'publishing'` (a cancel mid-upload could leave a video live while the app says "Cancelled") | `FIX_2,3` | `d9452ef2…` |
+| 4 | Channels → Account: "Version" row = `{nativeApplicationVersion} · {Updates.updateId (8) or built-in}`. `expo-application` was already in `node_modules`; it is now declared explicitly in `package.json` — fingerprint verified unchanged before and after. | `FIX_4` | `d9452ef2…` |
+| 6 | Report-a-bug icon: `okText` on `okBg` (`#E2F5E8`, the token the brief calls "okSoft") circle, via new optional `iconColor`/`backgroundColor` props on `IconButton`, set once in `ReportBugButton` | `FIX_6` | `d9452ef2…` |
+| 5 | Watermark upload (task 4 E8): `expo-image-picker` + `app.json` plugin with a photo-library permission string; Channel settings Watermark row (dashed "Upload logo", PNG only → multipart POST with bearer header; when set, 40×40 authed thumbnail + Replace + Remove (DELETE); server error message shown on rejection); `watermarkUpload` flag now `true` | `FIX_5` | **`08da3cef…` — changed (native)** |
+
+## Shipping — what is and isn't done
+- **OTA (fixes 1–4, 6): NOT published.** `eas update` pushes to the live `preview` channel; I did not run it without your explicit go-ahead. **Publish it from commit `80554e5` (`FIX_6`), not from branch head:** head now includes fix 5, whose runtime version (`08da3cef…`) the currently installed APK does not match, so an update published from head would never reach it.
+- **Native build (fix 5): NOT run.** No other native change is queued in `docs/execution/bugs/STATUS.md` to bundle with. Needs `eas build -p android --profile preview`; the new runtime version to record once built is **`08da3cef711445…`-prefixed — `08da3cef743fc8bfb00a1cee68721a418b44b741`** (from `expo-updates fingerprint:generate`; EAS should print the same value).
+- Fix 5 code is on the branch but untested on a device; the upload path (RN multipart `FormData` with a `{uri,name,type}` part) in particular needs a real phone against the real server.
+
+## Status
+Not "Done" per the Definition of Done — no phone screenshots. Watermark: "Built — awaiting native build".
