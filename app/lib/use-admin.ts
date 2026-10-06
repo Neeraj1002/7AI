@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { TRPCClientError } from '@trpc/client';
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
 import { useTRPC } from './trpc';
 
 // Admin Sprint 1 FE (R1) — the server decides who is an Admin (admin.whoami) and
@@ -26,3 +28,6 @@ export function isForbiddenError(error: unknown): boolean {
 export function isNotFoundError(error: unknown): boolean {
   return error instanceof TRPCClientError && (error.data as { code?: string } | undefined)?.code === 'NOT_FOUND';
 }
+
+/** Response types of the admin procedures, e.g. AdminOutputs['budget']['get']. */
+export type AdminOutputs = inferRouterOutputs<AppRouter>['admin'];
