@@ -119,7 +119,11 @@ export default function QueueScreen() {
                   <Text style={styles.progressBrief} numberOfLines={1}>
                     {item.briefText}
                   </Text>
-                  <Text style={styles.time}>{relativeTime(item.updatedAt)}</Text>
+                  {item.cancelRequested ? (
+                    <StatusChip kind="neutral" label="Cancelling…" />
+                  ) : (
+                    <Text style={styles.time}>{relativeTime(item.updatedAt)}</Text>
+                  )}
                 </View>
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: `${(stepIndex / 7) * 100}%` }]} />
