@@ -381,6 +381,8 @@ async function generateVideoInner(spend: { usd: number }, params: {
   // this function never applies its own default, it just threads through
   // whatever it's given.
   voice?: string;
+  // Bugs Closure R6 — stock clip ids used by this run's earlier attempts.
+  excludeStockSourceIds?: string[];
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -447,7 +449,11 @@ async function generateVideoInner(spend: { usd: number }, params: {
     visualPath = stillsVideoPath;
     aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd };
   } else {
-    const clip = await searchStockFootage({ query: params.plan.stockFootageQuery, orientation: 'portrait' });
+    const clip = await searchStockFootage({
+      query: params.plan.stockFootageQuery,
+      orientation: 'portrait',
+      excludeSourceIds: params.excludeStockSourceIds,
+    });
     visualPath = clip.clipPath;
     stockFootageMeta = { provider: 'pexels', query: params.plan.stockFootageQuery, sourceId: clip.sourceId, costUsd: clip.costUsd };
   }

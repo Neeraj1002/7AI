@@ -16,7 +16,7 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { isR2Configured, uploadToR2 } from '../storage/r2-client';
-import { insertUsageEvent } from '../models/repositories/usage-event.repository';
+import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
@@ -911,6 +911,7 @@ export async function runVideoGenerationStage(
         brandAssets: channel.brandAssets,
         plan,
         voice: resolvedVoice,
+        excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,

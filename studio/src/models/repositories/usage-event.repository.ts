@@ -43,6 +43,19 @@ export async function insertUsageEvent(input: CreateUsageEventInput): Promise<Us
   return toDomainUsageEvent(row);
 }
 
+// Bugs Closure R6 — the stock clip ids a run's earlier video-generation attempts used
+// (recorded in UsageEvent.metadata.stockFootageSourceId).
+export async function listStockSourceIdsUsedByRun(pipelineRunId: string): Promise<string[]> {
+  const rows = await prisma.usageEvent.findMany({
+    where: { pipelineRunId, agent: 'video-generation' },
+    select: { metadata: true },
+  });
+  const ids = rows
+    .map((r) => (r.metadata as { stockFootageSourceId?: unknown } | null)?.stockFootageSourceId)
+    .filter((id): id is string => typeof id === 'string');
+  return [...new Set(ids)];
+}
+
 // Backs the Script Generation cost gate (BUSINESS_LOGIC.md Section 2) — sums
 // spend for every channel on this (tenantId, platform), since UsageEvent
 // itself doesn't store platform directly (only channelId).

@@ -66,7 +66,7 @@ export async function searchAndDownloadClipViaProvider(params: SearchClipParams)
     const url = new URL(PEXELS_SEARCH_URL);
     url.searchParams.set('query', params.query);
     url.searchParams.set('orientation', params.orientation ?? 'portrait');
-    url.searchParams.set('per_page', '5');
+    url.searchParams.set('per_page', params.excludeSourceIds?.length ? '15' : '5');
     if (params.minDurationSeconds) {
       url.searchParams.set('min_duration', String(Math.ceil(params.minDurationSeconds)));
     }
@@ -76,7 +76,9 @@ export async function searchAndDownloadClipViaProvider(params: SearchClipParams)
       throw mapHttpError(searchResponse.status, searchResponse.statusText, context);
     }
     const data = (await searchResponse.json()) as PexelsSearchResponse;
-    const video = data.videos[0];
+    const excluded = new Set(params.excludeSourceIds ?? []);
+    // First result not already used by an earlier attempt; if every result was used, fall back to the first.
+    const video = data.videos.find((v) => !excluded.has(String(v.id))) ?? data.videos[0];
     if (!video) {
       throw new NonTransientStageError(`Pexels search returned no results for query '${params.query}'`, undefined, context);
     }
