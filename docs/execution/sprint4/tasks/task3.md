@@ -21,8 +21,8 @@ optional. Do not skip it because the diff looks small.
 **Success Criteria**: (1) A profile's `visual.stylePrompt` reliably shapes real AI-generated stills
 across several real runs on the same channel — visibly, not just "the prompt text changed." (2) A
 profile's `visual.secondsPerStill` changes the number of stills requested, computed from the channel's
-resolved `targetSeconds`; a channel with no profile still gets the original "3-6" instruction,
-unchanged. (3) With `AI_VISUALS_SAFETY_NEGATIVES_ENABLED=1`, a real AI-stills render with a prompt that
+resolved `targetSeconds`; a channel with no profile still gets Task 8's platform default (still count
+estimated from the script's word count, clamped 6–20 — `estimateStillCount` in `plan.ts`), unchanged. (3) With `AI_VISUALS_SAFETY_NEGATIVES_ENABLED=1`, a real AI-stills render with a prompt that
 would otherwise include a logo/real-person likeness is measurably steered away from it, and Video
 Intelligence's rubric flags one that slips through anyway. (4) A full real regression run — same
 channel, same brief shape used in Sprint 2 Task 2's own original verification — produces a video whose
@@ -63,13 +63,16 @@ report used for its render-comparison checks).
 
 ### R10 — Dynamic still count from resolved config
 
-**Where**: `agents/video-generation/plan.ts`'s `buildSystemPrompt` (the "3-6 image-generation prompts"
-instruction is a fixed literal today).
+**Where**: `agents/video-generation/plan.ts`'s `planVideoProduction` / `buildSystemPrompt`. **Updated
+2026-10-06 (Task 8 lands first)**: the old fixed "3-6 image-generation prompts" literal no longer exists.
+Task 8/R6 replaced it with a platform default, `estimateStillCount(scriptText)` =
+`clamp(ceil(words / 2.7 / 2.5), 6, 20)`, already passed to the prompt as "exactly N image-generation
+prompts".
 
-**Fix**: `planVideoProduction` gains an optional `desiredStillCount?: number` param. When set, the
-prompt says "exactly {desiredStillCount} image-generation prompts" in place of "3-6"; when unset
-(default), the prompt is unchanged. `state-machine.ts`'s caller computes it **only when the resolved
-config has `visual.secondsPerStill` set**:
+**Fix**: `planVideoProduction` gains an optional `desiredStillCount?: number` param. When set, it
+**overrides** Task 8's estimate (same "exactly {N}" prompt wording, just a different N); when unset
+(default), the prompt is unchanged from Task 8's own default. `state-machine.ts`'s caller computes it
+**only when the resolved config has `visual.secondsPerStill` set**:
 
 ```typescript
 const desiredStillCount = resolvedConfig.visual?.secondsPerStillSeconds // from Task 1's resolver
@@ -82,13 +85,13 @@ setting an extreme `secondsPerStill` (e.g. 0.5s) cannot force an unreasonable st
 computed from the **resolved target length**, not the real post-TTS audio duration — TTS hasn't run
 yet at planning time. This is a deliberate, honest scoping choice, not an oversight: `distributeStillWindows`
 (already existing, unchanged by this task) reconciles however many stills there are against the real
-caption-cue timing once TTS *has* run, the same way it already does today for the LLM's free-choice 3-6.
+caption-cue timing once TTS *has* run, the same way it already does today for Task 8's default count.
 
 **Verify**: a profile with `targetSeconds: 40, secondsPerStill: 4` → a real planning call requests
 exactly 10 stills (bounded correctly if you also test an extreme value, e.g. `secondsPerStill: 0.1`,
 which should clamp to 20, not literally 400). A channel with no profile (or a profile that never sets
-`secondsPerStill`) → `desiredStillCount` stays `undefined`, planner prompt is the original, unchanged
-"3-6" text — the must-not-break case for this requirement.
+`secondsPerStill`) → `desiredStillCount` stays `undefined`, and the planner still requests Task 8's
+`estimateStillCount` default — the must-not-break case for this requirement.
 
 ### R11 — Platform safety negative prompt (the one all-channels-eventually change)
 
@@ -155,9 +158,10 @@ npx vitest run video-generation video-intelligence plan
 ### How to Verify — the mandatory regression run
 1. Unit tests for `desiredStillCount`'s bounds/undefined-when-unset logic.
 2. **Real regression run, required, not optional**: on a profile-less channel, run the exact same brief
-   shape Sprint 2 Task 2's own report used for its render-comparison verification. Confirm via
-   `ffprobe` that render time and output frame count/duration are consistent with that report's own
-   figures (~17s for 3 stills / ~10.5s of video, ~60-70s for a full real stage). A render that takes
+   shape Task 8's own regression run used. Confirm via `ffprobe` that render time and output frame
+   count/duration are consistent with the numbers recorded in `sprint4/reports/task8.md` (Task 8 is the
+   baseline now, since it already changed the default still count from Sprint 2's 3–6; Sprint 2's
+   own figures were ~17s for 3 stills / ~10.5s of video, and are kept there for reference). A render that takes
    materially longer, or produces a wildly larger intermediate file, is this task's own version of the
    Sprint 2 bug — stop and investigate before proceeding, don't just note it and move on.
 3. Real run with a profile (`stylePrompt` + `secondsPerStill` set) — confirm still count and visible
@@ -167,7 +171,7 @@ npx vitest run video-generation video-intelligence plan
 
 ## Report Template
 `docs/execution/sprint4/reports/task3.md`. State the regression-run numbers explicitly (render time,
-frame count) against Sprint 2 Task 2's own baseline — this is the one task this sprint where "tests
+frame count) against Task 8's recorded baseline (`sprint4/reports/task8.md`; Sprint 2 Task 2's own numbers are the older reference) — this is the one task this sprint where "tests
 passed" alone is not sufficient evidence, per this task's own risk note above.
 
 ## Links & References

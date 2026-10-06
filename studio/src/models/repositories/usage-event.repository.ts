@@ -43,17 +43,28 @@ export async function insertUsageEvent(input: CreateUsageEventInput): Promise<Us
   return toDomainUsageEvent(row);
 }
 
-// Bugs Closure R6 — the stock clip ids a run's earlier video-generation attempts used
-// (recorded in UsageEvent.metadata.stockFootageSourceId).
+// Bugs Closure R6 — pure and tolerant: runs from before Sprint 4 Task 8 have only the single
+// stockFootageSourceId, newer ones also a stockFootageSourceIds array (a shot list joins its ids
+// with commas in the singular key). Anything unexpected yields no ids, never a throw.
+export function sourceIdsFromUsageMetadata(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== 'object') return [];
+  const m = metadata as { stockFootageSourceIds?: unknown; stockFootageSourceId?: unknown };
+  if (Array.isArray(m.stockFootageSourceIds)) {
+    return m.stockFootageSourceIds.filter((id): id is string => typeof id === 'string');
+  }
+  if (typeof m.stockFootageSourceId === 'string') {
+    return m.stockFootageSourceId.split(',').map((id) => id.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+// The stock clip ids a run's earlier video-generation attempts used.
 export async function listStockSourceIdsUsedByRun(pipelineRunId: string): Promise<string[]> {
   const rows = await prisma.usageEvent.findMany({
     where: { pipelineRunId, agent: 'video-generation' },
     select: { metadata: true },
   });
-  const ids = rows
-    .map((r) => (r.metadata as { stockFootageSourceId?: unknown } | null)?.stockFootageSourceId)
-    .filter((id): id is string => typeof id === 'string');
-  return [...new Set(ids)];
+  return [...new Set(rows.flatMap((r) => sourceIdsFromUsageMetadata(r.metadata)))];
 }
 
 // Backs the Script Generation cost gate (BUSINESS_LOGIC.md Section 2) — sums

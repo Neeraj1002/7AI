@@ -9,7 +9,7 @@ import {
   findLatestAttempt,
   findLatestCompletedAttempt,
 } from '../../models/repositories/pipeline-stage.repository';
-import { isR2Configured, getPresignedDownloadUrl } from '../../storage/r2-client';
+import { isR2Configured, getPresignedDownloadUrl, getObjectText } from '../../storage/r2-client';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { findByChannel } from '../../models/repositories/agent-credential.repository';
@@ -120,6 +120,9 @@ async function getRunDetail(id: string, ctx: Context) {
     endReason: deriveEndReason(run),
     hasR2Draft: stages.some(
       (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
+    ),
+    hasR2Bundle: stages.some(
+      (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2ManifestKey?: string } | null)?.r2ManifestKey),
     ),
     hasR2Final: stages.some(
       (s) => s.stageName === 'publishing' && Boolean((s.output as { r2FinalKey?: string } | null)?.r2FinalKey),
@@ -352,6 +355,54 @@ export const runsRouter = router({
       const url = await getPresignedDownloadUrl({ key, expiresInSeconds });
       const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
       return { available: true as const, variant, url, expiresAt };
+    }),
+
+  // Sprint 3 Task 13 (R4) — presigned URLs for every file in an attempt's
+  // debug bundle (see storage/attempt-bundle.ts). Same tenant scoping as
+  // getVideoUrl. Defaults to the latest video_generation attempt that has a
+  // manifest; "no manifest" (never uploaded, or upload interrupted) is
+  // { available: false }, not an error.
+  getAttemptBundle: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), attemptNumber: z.number().int().positive().optional() }))
+    .query(async ({ input, ctx }) => {
+      const run = await findPipelineRunById(input.runId);
+      if (!run) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+      }
+      if (run.tenantId !== ctx.tenantId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+      }
+      if (!isR2Configured()) {
+        return { available: false as const };
+      }
+
+      const stages = await listStagesForRun(input.runId);
+      type BundleOutput = { r2ManifestKey?: string; r2BundlePrefix?: string };
+      const withManifest = stages.filter(
+        (s) => s.stageName === 'video_generation' && Boolean((s.output as BundleOutput | null)?.r2ManifestKey),
+      );
+      const stage = input.attemptNumber
+        ? withManifest.find((s) => s.attemptNumber === input.attemptNumber)
+        : withManifest[withManifest.length - 1];
+      const manifestKey = (stage?.output as BundleOutput | undefined)?.r2ManifestKey;
+      if (!stage || !manifestKey) {
+        return { available: false as const };
+      }
+
+      const manifest = JSON.parse(await getObjectText(manifestKey)) as {
+        files: Array<{ name: string; key: string; contentType: string; bytes: number }>;
+      };
+      const expiresInSeconds = 24 * 60 * 60;
+      const files = await Promise.all(
+        manifest.files.map(async (f) => ({
+          name: f.name,
+          contentType: f.contentType,
+          bytes: f.bytes,
+          url: await getPresignedDownloadUrl({ key: f.key, expiresInSeconds }),
+        })),
+      );
+      const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+      return { available: true as const, attemptNumber: stage.attemptNumber, manifest, files, expiresAt };
     }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same

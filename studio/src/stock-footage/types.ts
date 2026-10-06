@@ -12,8 +12,8 @@ export type SearchClipParams = {
   query: string;
   orientation?: 'portrait' | 'landscape' | 'square';
   minDurationSeconds?: number;
-  // Bugs Closure R6 — provider ids an earlier attempt of this run already used; a revise
-  // attempt must not hand back the same clip (reports f3c7914b / 5acfa5fb).
+  // Sprint 4 Task 8 (R5) — provider video IDs already used earlier in this
+  // render; a shot list must never show the same clip twice.
   excludeSourceIds?: string[];
 };
 

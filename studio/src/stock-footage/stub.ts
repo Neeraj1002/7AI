@@ -23,6 +23,12 @@ async function ensureTmpDir(): Promise<void> {
   await fs.mkdir(STOCK_FOOTAGE_TMP_DIR, { recursive: true });
 }
 
+function uniqueStubSourceId(base: string, used: string[]): string {
+  let candidate = base;
+  for (let n = 2; used.includes(candidate); n += 1) candidate = `${base}-${n}`;
+  return candidate;
+}
+
 export async function stubSearchAndDownloadClip(params: SearchClipParams): Promise<StockClip> {
   await ensureTmpDir();
   const clipPath = path.join(STOCK_FOOTAGE_TMP_DIR, `${randomUUID()}.mp4`);
@@ -44,7 +50,9 @@ export async function stubSearchAndDownloadClip(params: SearchClipParams): Promi
   return {
     clipPath,
     durationSeconds: STUB_CLIP_DURATION_SECONDS,
-    sourceId: `stub-${params.query.replace(/\s+/g, '-')}`,
+    // Honours excludeSourceIds the way the real client does, so a shot list of
+    // repeated queries still yields distinct IDs under test.
+    sourceId: uniqueStubSourceId(`stub-${params.query.replace(/\s+/g, '-')}`, params.excludeSourceIds ?? []),
     sourceUrl: 'stub://stock-footage',
     costUsd: '0.000000',
   };

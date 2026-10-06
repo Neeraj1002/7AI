@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { synthesizeSpeech, transcribe, type TranscriptSegment } from '../../media';
 import { resolveMediaPurpose } from '../../media/registry';
-import { searchStockFootage } from '../../stock-footage';
+import { buildStockShotList } from './stock-shotlist';
 import { generateStills } from '../../ai-visuals';
 import { pickAudioBedTrack } from '../../audio-bed';
 import { env } from '../../config/env';
@@ -14,6 +14,15 @@ import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
+import { QUALITY_SPEC } from './quality-spec';
+import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
+import {
+  buildAudioFilterGraph,
+  computeBedGainDb,
+  measureIntegratedLufs,
+  parseLoudnormJson,
+  type MeasuredLoudness,
+} from './audio-mix';
 
 // Video Generation agent — AGENT_FLEET_DESIGN.md Section 4.6. TTS voiceover +
 // burned captions + a real visual source, assembled with FFmpeg scripted
@@ -59,11 +68,17 @@ export type VideoGenerationUsage = {
     stockFootageProvider?: string;
     stockFootageQuery?: string;
     stockFootageSourceId?: string;
+    // Sprint 4 Task 8 (R5) — the shot list: one entry per beat, in order.
+    stockFootageQueries?: string[];
+    stockFootageSourceIds?: string[];
+    stockFootageClipCount?: number;
     stockFootageCostUsd?: string;
     // 'ai-stills' only.
     aiVisualsProvider?: string;
     aiVisualsModel?: string;
     aiVisualsStillCount?: number;
+    // Sprint 4 Task 8 (R6) — scene prompts the provider's safety system refused.
+    aiVisualsSkippedStills?: number;
     aiVisualsCostUsd?: string;
     // Sprint 2 Task 3 (F1) — always present ('none' is a real, valid value,
     // not an absent field). No real cost: the audio-bed library is local
@@ -81,97 +96,41 @@ export type VideoGenerationUsage = {
   };
 };
 
+// Sprint 3 Task 13 (R2) — every intermediate generateVideo used to drop. Not
+// part of the persisted VideoGenerationOutputSchema; returned alongside
+// output/usage so the orchestrator can upload a per-attempt debug bundle.
+export type VideoArtifacts = {
+  ttsAudioPath: string;
+  transcriptJsonPath: string;
+  // Sprint 4 Task 8 (R2): the burned-in caption file is now .ass (was .srt).
+  captionsPath?: string;
+  planJsonPath: string;
+  // Sprint 4 Task 8 (R5): the assembled stock shot list (individual clips are tmp).
+  stockVideoPath?: string;
+  stillImagePaths?: string[];
+  stillsVideoPath?: string;
+  audioBedPath?: string;
+  ffmpegArgsJsonPath: string;
+  stubFlags: { media: boolean; stockFootage: boolean; aiVisuals: boolean };
+};
+
 export type VideoGenerationResult = {
   output: VideoGenerationOutput;
   usage: VideoGenerationUsage;
+  artifacts: VideoArtifacts;
 };
 
-const VIDEO_WIDTH = 1080;
-const VIDEO_HEIGHT = 1920;
-// Sprint 2 Task 3 (F1) — deliberately low relative to the voiceover's
-// implicit weight of 1, so the bed stays a background layer, never
-// competing with narration intelligibility.
-const AUDIO_BED_MIX_WEIGHT = 0.18;
+const VIDEO_WIDTH = QUALITY_SPEC.video.width;
+const VIDEO_HEIGHT = QUALITY_SPEC.video.height;
+const VIDEO_FPS = QUALITY_SPEC.video.fps;
 
-function formatSrtTimestamp(ms: number): string {
-  const clamped = Math.max(0, ms);
-  const h = Math.floor(clamped / 3_600_000);
-  const m = Math.floor((clamped % 3_600_000) / 60_000);
-  const s = Math.floor((clamped % 60_000) / 1000);
-  const msRemainder = Math.floor(clamped % 1000);
-  const pad = (n: number, len = 2) => n.toString().padStart(len, '0');
-  return `${pad(h)}:${pad(m)}:${pad(s)},${pad(msRemainder, 3)}`;
-}
-
-function buildSrt(segments: TranscriptSegment[]): string {
-  return segments
-    .map(
-      (seg, i) =>
-        `${i + 1}\n${formatSrtTimestamp(seg.startMs)} --> ${formatSrtTimestamp(seg.endMs)}\n${seg.text}\n`,
-    )
-    .join('\n');
-}
-
-// Groups consecutive word-level segments into N-word caption cues.
-function groupWordsByCount(segments: TranscriptSegment[], wordsPerGroup: number): TranscriptSegment[] {
-  const groups: TranscriptSegment[] = [];
-  for (let i = 0; i < segments.length; i += wordsPerGroup) {
-    const slice = segments.slice(i, i + wordsPerGroup);
-    if (slice.length === 0) continue;
-    groups.push({
-      text: slice.map((s) => s.text).join(' '),
-      startMs: slice[0].startMs,
-      endMs: slice[slice.length - 1].endMs,
-    });
-  }
-  return groups;
-}
-
-// Groups words into a cue per sentence (ending on ./!/?), falling back to
-// maxWordsPerGroup for long or unpunctuated runs so a cue never grows
-// unbounded.
-function groupWordsBySentence(segments: TranscriptSegment[], maxWordsPerGroup: number): TranscriptSegment[] {
-  const groups: TranscriptSegment[] = [];
-  let current: TranscriptSegment[] = [];
-  for (const seg of segments) {
-    current.push(seg);
-    const endsSentence = /[.!?]$/.test(seg.text.trim());
-    if (endsSentence || current.length >= maxWordsPerGroup) {
-      groups.push({
-        text: current.map((s) => s.text).join(' '),
-        startMs: current[0].startMs,
-        endMs: current[current.length - 1].endMs,
-      });
-      current = [];
-    }
-  }
-  if (current.length > 0) {
-    groups.push({
-      text: current.map((s) => s.text).join(' '),
-      startMs: current[0].startMs,
-      endMs: current[current.length - 1].endMs,
-    });
-  }
-  return groups;
-}
-
-// Caption grouping per the production plan's captionStyle (plan.ts) — this
-// is the concrete mechanism Video Generation now has for a regen attempt to
-// actually produce a different result, per
+// Caption cues per the production plan's captionStyle (plan.ts) — the concrete
+// mechanism a regen attempt has to produce a different result, per
 // docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md Section 2.
+// Grouping lives in captions-ass.ts (Sprint 4 Task 8, R2), shared by the ASS
+// writer and the still-window distribution below.
 function buildCaptionSegments(segments: TranscriptSegment[], style: CaptionStyle): TranscriptSegment[] {
-  switch (style) {
-    case 'word-flash':
-      return segments;
-    case 'phrase-grouped':
-      return groupWordsByCount(segments, 4);
-    case 'sentence-grouped':
-      return groupWordsBySentence(segments, 8);
-    default: {
-      const exhaustive: never = style;
-      throw new Error(`Unknown caption style '${exhaustive as string}'`);
-    }
-  }
+  return groupCaptionCues(segments, style).map(({ text, startMs, endMs }) => ({ text, startMs, endMs }));
 }
 
 // Sprint 2 Task 2 (E1/E2) — distributes N stills across the caption cues
@@ -202,12 +161,41 @@ export function distributeStillWindows(params: {
     }));
   }
 
-  const effectiveCount = Math.min(stillCount, params.captionCues.length);
+  const cues = params.captionCues;
+  const effectiveCount = Math.min(stillCount, cues.length);
+
+  // Sprint 4 Task 8 (R6) — boundaries are chosen by TIME, not by an equal
+  // number of cues per still: a still ends at the cue end nearest to its ideal
+  // equal-time slice. Equal cue counts let a slow stretch of speech hold one
+  // still well past the ~2.5s pacing target (measured: 4.3s shots). Every
+  // window still contains at least one whole cue, and cuts still land on cue
+  // boundaries. With uniform cues this reduces to the old even split.
+  const lastCueIdxOfWindow: number[] = [];
+  for (let i = 0; i < effectiveCount - 1; i += 1) {
+    const target = ((i + 1) * params.totalDurationMs) / effectiveCount;
+    const lo = i === 0 ? 0 : lastCueIdxOfWindow[i - 1] + 1;
+    const hi = cues.length - (effectiveCount - i);
+    let best = lo;
+    for (let idx = lo; idx <= hi; idx += 1) {
+      if (Math.abs(cues[idx].endMs - target) < Math.abs(cues[best].endMs - target)) best = idx;
+    }
+    lastCueIdxOfWindow.push(best);
+  }
+  lastCueIdxOfWindow.push(cues.length - 1);
+
   const windows: Array<{ startMs: number; endMs: number }> = [];
   for (let i = 0; i < effectiveCount; i += 1) {
-    const startIdx = Math.floor((i * params.captionCues.length) / effectiveCount);
-    const endIdx = Math.max(startIdx, Math.floor(((i + 1) * params.captionCues.length) / effectiveCount) - 1);
-    windows.push({ startMs: params.captionCues[startIdx].startMs, endMs: params.captionCues[endIdx].endMs });
+    const startIdx = i === 0 ? 0 : lastCueIdxOfWindow[i - 1] + 1;
+    windows.push({ startMs: cues[startIdx].startMs, endMs: cues[lastCueIdxOfWindow[i]].endMs });
+  }
+
+  // Contiguous windows: each still stays up until the next one's first cue
+  // begins. Spanning only [first cue start, last cue end] dropped every pause
+  // between windows from the timeline, leaving the stills video shorter than
+  // the audio (measured: 36.2s vs 39.9s with word-flash) — and the final mux
+  // then looped the video back to its first still for the remaining seconds.
+  for (let i = 0; i < windows.length - 1; i += 1) {
+    windows[i].endMs = windows[i + 1].startMs;
   }
 
   // The first/last window always spans the full real audio duration,
@@ -219,20 +207,38 @@ export function distributeStillWindows(params: {
   return windows;
 }
 
-// Smaller cues (word-flash) read fine at a large size; multi-word cues need a
-// smaller font to fit the 1080px-wide frame without wrapping awkwardly.
-function captionFontSize(style: CaptionStyle): number {
-  switch (style) {
-    case 'word-flash':
-      return 64;
-    case 'phrase-grouped':
-      return 48;
-    case 'sentence-grouped':
-      return 40;
-    default: {
-      const exhaustive: never = style;
-      throw new Error(`Unknown caption style '${exhaustive as string}'`);
-    }
+// Sprint 4 Task 8 (R1) — loudnorm pass 1: runs the same ducking/mix graph on
+// audio alone (no video decode, a second or two) and returns the measured
+// integrated loudness/true peak/LRA for pass 2's linear normalisation.
+async function measureMixLoudness(params: {
+  voicePath: string;
+  bedPath?: string;
+  bedGainDb?: number;
+}): Promise<MeasuredLoudness | undefined> {
+  const graph = buildAudioFilterGraph({
+    voiceInputIndex: 0,
+    bedInputIndex: params.bedPath ? 1 : undefined,
+    bedGainDb: params.bedGainDb,
+    measureOnly: true,
+  });
+  try {
+    const { stderr } = await execFileAsync(env.FFMPEG_PATH, [
+      '-hide_banner',
+      '-i',
+      params.voicePath,
+      ...(params.bedPath ? ['-stream_loop', '-1', '-i', params.bedPath] : []),
+      '-filter_complex',
+      graph,
+      '-map',
+      '[outa]',
+      '-f',
+      'null',
+      '-',
+    ]);
+    return parseLoudnormJson(stderr);
+  } catch (error) {
+    console.error(`[video_generation] loudnorm measuring pass failed, falling back to single-pass: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
   }
 }
 
@@ -361,16 +367,7 @@ async function buildKenBurnsVideo(params: {
   }
 }
 
-// Bugs Closure R1 (F10) — a failed attempt has already paid for TTS + transcription
-// (and any stills generated) before it throws, but the failure UsageEvent used to
-// record $0, so the budget gate under-counted every failing attempt (and every retry
-// of it). generateVideo now attaches what was spent so far to the thrown error.
-export function getSpentCostUsd(error: unknown): number {
-  const spent = (error as { spentCostUsd?: unknown } | null)?.spentCostUsd;
-  return typeof spent === 'number' && Number.isFinite(spent) ? spent : 0;
-}
-
-async function generateVideoInner(spend: { usd: number }, params: {
+export async function generateVideo(params: {
   pipelineRunId: string;
   attemptNumber: number;
   scriptText: string;
@@ -381,7 +378,7 @@ async function generateVideoInner(spend: { usd: number }, params: {
   // this function never applies its own default, it just threads through
   // whatever it's given.
   voice?: string;
-  // Bugs Closure R6 — stock clip ids used by this run's earlier attempts.
+  // Bugs Closure R6 — stock clip ids this run's earlier attempts used (see stock-shotlist.ts).
   excludeStockSourceIds?: string[];
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
@@ -391,36 +388,55 @@ async function generateVideoInner(spend: { usd: number }, params: {
   // Section 2 and Sprint 2 Task 2 (E2).
   const tts = await synthesizeSpeech(params.scriptText, { voice: params.voice });
   const asr = await transcribe(tts.audioPath);
-  spend.usd = Number(tts.costUsd) + Number(asr.costUsd);
 
   const outputDir = path.resolve(DATA_DIR, 'videos', params.pipelineRunId);
   await fs.mkdir(outputDir, { recursive: true });
 
-  const srtFilename = `${params.attemptNumber}.srt`;
+  const assFilename = `${params.attemptNumber}.ass`;
   const videoFilename = `${params.attemptNumber}.mp4`;
-
-  // Computed unconditionally — 'ai-stills' needs these cue boundaries to
-  // sync still transitions to, regardless of whether captions end up
-  // burned in. Only the SRT write / subtitles filter stage below are
-  // actually gated on captionsEnabled.
-  const captionSegments = buildCaptionSegments(asr.segments, params.plan.captionStyle);
 
   // B5 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2/§3): captions are optional per
   // channel, default on (BrandAssets.captionsEnabled defaults to true if
-  // unset — see channel.types.ts). When off, no SRT is written and no
-  // `subtitles` stage is added to the filter graph at all — not just an
-  // empty/invisible caption track.
+  // unset — see channel.types.ts). When off, no caption file is written and
+  // no `ass` stage is added to the filter graph at all — not just an
+  // empty/invisible caption track — and cue boundaries come from Whisper's own
+  // words exactly as before Sprint 4 Task 8.
   const captionsEnabled = params.brandAssets.captionsEnabled !== false;
+
+  // Sprint 4 Task 8 (R2) — with captions on, the text is the sanctioned
+  // script's own words (punctuation, casing, proper nouns intact) timed by
+  // Whisper's word timestamps; Whisper's own spelling is never shown.
+  // Computed unconditionally in shape — 'ai-stills' needs these cue
+  // boundaries to sync still transitions to, regardless of whether captions
+  // end up burned in.
+  const timedWords: TimedWord[] = captionsEnabled ? alignScriptToWhisper(params.scriptText, asr.segments) : asr.segments;
+  const captionSegments = buildCaptionSegments(timedWords, params.plan.captionStyle);
   if (captionsEnabled) {
-    await fs.writeFile(path.join(outputDir, srtFilename), buildSrt(captionSegments), 'utf-8');
+    assertCaptionFontPresent();
+    const { ass } = buildAss({ words: timedWords, style: params.plan.captionStyle });
+    await fs.writeFile(path.join(outputDir, assFilename), ass, 'utf-8');
   }
+
+  const transcriptJsonPath = path.join(outputDir, `${params.attemptNumber}.transcript.json`);
+  await fs.writeFile(
+    transcriptJsonPath,
+    JSON.stringify({ audioDurationSeconds: asr.audioDurationSeconds, segments: asr.segments }, null, 2),
+    'utf-8',
+  );
+  const planJsonPath = path.join(outputDir, `${params.attemptNumber}.plan.json`);
+  await fs.writeFile(planJsonPath, JSON.stringify(params.plan, null, 2), 'utf-8');
 
   // Sprint 2 Task 2 (E2) — the one branch point. Both paths converge on a
   // single `visualPath`: everything from here down (scale/crop, subtitles,
   // watermark overlay, audio mux) is identical regardless of which one ran.
   let visualPath: string;
-  let stockFootageMeta: { provider: string; query: string; sourceId: string; costUsd: string } | undefined;
-  let aiVisualsMeta: { provider: string; model: string; stillCount: number; costUsd: string } | undefined;
+  let stockFootageMeta:
+    | { provider: string; query: string; sourceId: string; costUsd: string; queries: string[]; sourceIds: string[] }
+    | undefined;
+  let aiVisualsMeta: { provider: string; model: string; stillCount: number; costUsd: string; skipped: number } | undefined;
+  let stockVideoPathArtifact: string | undefined;
+  let stillImagePaths: string[] | undefined;
+  let stillsVideoPathArtifact: string | undefined;
 
   if (params.plan.visualSource === 'ai-stills') {
     const scenePrompts = params.plan.stillScenePrompts ?? [];
@@ -432,13 +448,20 @@ async function generateVideoInner(spend: { usd: number }, params: {
       throw new NonTransientStageError("ProductionPlan.visualSource is 'ai-stills' but stillScenePrompts is empty");
     }
     const stills = await generateStills({ scenePrompts });
-    spend.usd += Number(stills.costUsd);
+    // Sprint 4 Task 8 (R6) — with the faster default pacing there can be more
+    // stills than caption cues (e.g. sentence-grouped on a short script).
+    // distributeStillWindows would silently drop the excess stills — paid-for
+    // images never shown — so fall back to word-level boundaries then.
     const windows = distributeStillWindows({
-      captionCues: captionSegments,
+      captionCues: captionSegments.length >= stills.imagePaths.length ? captionSegments : timedWords,
       stillCount: stills.imagePaths.length,
       totalDurationMs: asr.audioDurationSeconds * 1000,
     });
     const stillsVideoPath = path.join(outputDir, `${params.attemptNumber}-stills.mp4`);
+    // Sprint 4 Task 8 (R6) — the still count fed into buildKenBurnsVideo now
+    // scales with script length; log wall time and intermediate size so a
+    // superlinear blow-up (Sprint 2 Task 2's zoompan bug) is visible at a glance.
+    const kenBurnsStartedAt = Date.now();
     await buildKenBurnsVideo({
       stills: stills.imagePaths.map((imagePath, i) => ({
         imagePath,
@@ -446,16 +469,42 @@ async function generateVideoInner(spend: { usd: number }, params: {
       })),
       outputPath: stillsVideoPath,
     });
+    const stillsVideoBytes = (await fs.stat(stillsVideoPath)).size;
+    console.log(
+      `[video_generation] run ${params.pipelineRunId} attempt ${params.attemptNumber}: ken-burns ${stills.imagePaths.length} stills in ${((Date.now() - kenBurnsStartedAt) / 1000).toFixed(1)}s, intermediate ${(stillsVideoBytes / 1e6).toFixed(1)}MB`,
+    );
     visualPath = stillsVideoPath;
-    aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd };
+    stillsVideoPathArtifact = stillsVideoPath;
+    stillImagePaths = stills.imagePaths;
+    aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd, skipped: stills.skippedPromptCount ?? 0 };
   } else {
-    const clip = await searchStockFootage({
-      query: params.plan.stockFootageQuery,
-      orientation: 'portrait',
-      excludeSourceIds: params.excludeStockSourceIds,
+    // Sprint 4 Task 8 (R5) — a shot list, one clip per story beat. Old stage
+    // outputs / the regen path without stockFootageQueries fall back to the
+    // single query (one clip, held on its last frame if short — never looped).
+    const queries = params.plan.stockFootageQueries?.length ? params.plan.stockFootageQueries : [params.plan.stockFootageQuery];
+    const windows = distributeStillWindows({
+      captionCues: captionSegments.length >= queries.length ? captionSegments : timedWords,
+      stillCount: queries.length,
+      totalDurationMs: asr.audioDurationSeconds * 1000,
     });
-    visualPath = clip.clipPath;
-    stockFootageMeta = { provider: 'pexels', query: params.plan.stockFootageQuery, sourceId: clip.sourceId, costUsd: clip.costUsd };
+    const stockVideoPath = path.join(outputDir, `${params.attemptNumber}-stock.mp4`);
+    const shots = await buildStockShotList({
+      queries,
+      windows,
+      totalDurationMs: asr.audioDurationSeconds * 1000,
+      outputPath: stockVideoPath,
+      previouslyUsedSourceIds: params.excludeStockSourceIds,
+    });
+    visualPath = stockVideoPath;
+    stockVideoPathArtifact = stockVideoPath;
+    stockFootageMeta = {
+      provider: 'pexels',
+      query: shots.queries.join(' | '),
+      sourceId: shots.sourceIds.join(','),
+      costUsd: '0.000000',
+      queries: shots.queries,
+      sourceIds: shots.sourceIds,
+    };
   }
 
   const watermarkPath = params.brandAssets.watermarkUrl;
@@ -474,11 +523,14 @@ async function generateVideoInner(spend: { usd: number }, params: {
   // video (and is harmless on an ai-stills input that's already exactly the
   // right length). Run from `outputDir` as cwd so the caption file can be
   // referenced by its plain filename, avoiding FFmpeg's notoriously fiddly
-  // colon/backslash escaping for the `subtitles` filter's path argument on
+  // colon/backslash escaping for the `ass` filter's path argument on
   // Windows.
-  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT}`;
+  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}`;
+  // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
+  // escape in the filtergraph, identical on Windows and the Linux VPS.
+  const fontsDirArg = path.relative(outputDir, FONTS_DIR).split(path.sep).join('/');
   const baseFilter = captionsEnabled
-    ? `${scaleCropFilter},subtitles=${srtFilename}:force_style='Fontsize=${captionFontSize(params.plan.captionStyle)},PrimaryColour=&H00FFFFFF,Alignment=2,MarginV=200'`
+    ? `${scaleCropFilter},ass=${assFilename}:fontsdir=${fontsDirArg}`
     : scaleCropFilter;
   const videoFilterChain = hasLocalWatermark
     ? `${baseFilter}[framed];[framed][2:v]overlay=W-w-40:40[outv]`
@@ -487,19 +539,32 @@ async function generateVideoInner(spend: { usd: number }, params: {
   // The bed input's index depends on whether the (also optional) watermark
   // input came before it — visual=0, tts=1, [watermark=2], bed=next.
   const audioBedInputIndex = hasLocalWatermark ? 3 : 2;
-  // An explicit low weight on the bed (not equal-weighted) so narration
-  // stays intelligible — `duration=first` caps the mix at the TTS track's
-  // real length (listed first) regardless of how long the (looped) bed
-  // input runs.
-  const audioFilterChain = audioBedTrack
-    ? `;[1:a][${audioBedInputIndex}:a]amix=inputs=2:duration=first:weights='1 ${AUDIO_BED_MIX_WEIGHT}'[outa]`
-    : '';
+  // Sprint 4 Task 8 (R1) — always an audio chain now: sidechain-ducked bed
+  // (when there is one) + loudnorm to -14 LUFS on every render. Two-pass: a
+  // fast audio-only measuring run first, then loudnorm applies the measured
+  // values linearly (linear mode hits the target without dynamic gain riding). Falls back to single-pass if the measurement can't be parsed.
+  // The bed is levelled against the measured voice (not a fixed constant), so it
+  // sits the same distance under narration whatever track is picked.
+  const bedGainDb = audioBedTrack
+    ? computeBedGainDb(
+        await measureIntegratedLufs(tts.audioPath),
+        await measureIntegratedLufs(audioBedTrack.filePath, { cache: true }),
+      )
+    : undefined;
+  const measured = await measureMixLoudness({ voicePath: tts.audioPath, bedPath: audioBedTrack?.filePath, bedGainDb });
+  const audioFilterChain = `;${buildAudioFilterGraph({
+    voiceInputIndex: 1,
+    bedInputIndex: audioBedTrack ? audioBedInputIndex : undefined,
+    bedGainDb,
+    measured,
+  })}`;
   const filterComplex = `${videoFilterChain}${audioFilterChain}`;
 
   const ffmpegArgs = [
     '-y',
-    '-stream_loop',
-    '-1',
+    // ai-stills keeps the (harmless, sub-frame) loop it always had; the stock
+    // shot list is built to cover the voiceover and must never loop.
+    ...(params.plan.visualSource === 'ai-stills' ? ['-stream_loop', '-1'] : []),
     '-i',
     visualPath,
     '-i',
@@ -511,14 +576,36 @@ async function generateVideoInner(spend: { usd: number }, params: {
     '-map',
     '[outv]',
     '-map',
-    audioBedTrack ? '[outa]' : '1:a',
+    '[outa]',
     '-c:v',
     'libx264',
+    '-preset',
+    QUALITY_SPEC.video.preset,
+    '-crf',
+    String(QUALITY_SPEC.video.crf),
+    '-profile:v',
+    'high',
+    '-pix_fmt',
+    QUALITY_SPEC.video.pixFmt,
+    '-movflags',
+    '+faststart',
     '-c:a',
-    'aac',
+    QUALITY_SPEC.audio.codec,
+    '-b:a',
+    `${QUALITY_SPEC.audio.bitrateKbps}k`,
+    '-ar',
+    String(QUALITY_SPEC.audio.sampleRate),
     '-shortest',
     videoFilename,
   ];
+
+  // Written before the FFmpeg call so it exists for debugging even if FFmpeg throws.
+  const ffmpegArgsJsonPath = path.join(outputDir, `${params.attemptNumber}.ffmpeg-args.json`);
+  await fs.writeFile(
+    ffmpegArgsJsonPath,
+    JSON.stringify({ ffmpegPath: env.FFMPEG_PATH, cwd: outputDir, args: ffmpegArgs, filterComplex }, null, 2),
+    'utf-8',
+  );
 
   await execFileAsync(env.FFMPEG_PATH, ffmpegArgs, { cwd: outputDir });
 
@@ -551,16 +638,18 @@ async function generateVideoInner(spend: { usd: number }, params: {
           stockFootageProvider: stockFootageMeta.provider,
           stockFootageQuery: stockFootageMeta.query,
           stockFootageSourceId: stockFootageMeta.sourceId,
+          stockFootageQueries: stockFootageMeta.queries,
+          stockFootageSourceIds: stockFootageMeta.sourceIds,
+          stockFootageClipCount: stockFootageMeta.sourceIds.length,
           stockFootageCostUsd: stockFootageMeta.costUsd,
         }),
         ...(aiVisualsMeta && {
           aiVisualsProvider: aiVisualsMeta.provider,
           aiVisualsModel: aiVisualsMeta.model,
           aiVisualsStillCount: aiVisualsMeta.stillCount,
+          ...(aiVisualsMeta.skipped > 0 && { aiVisualsSkippedStills: aiVisualsMeta.skipped }),
           aiVisualsCostUsd: aiVisualsMeta.costUsd,
         }),
-        // Bugs Closure R1 (F10) — a stub render must never be mistaken for a real one in usage_events.
-        ...(aiVisualsMeta?.model === 'stub' && { stub: true }),
         audioLayer: params.plan.audioLayer,
         ttsProvider: ttsEntry.provider,
         ttsModel: ttsEntry.model,
@@ -573,15 +662,21 @@ async function generateVideoInner(spend: { usd: number }, params: {
         ffmpegCostUsd: 0,
       },
     },
+    artifacts: {
+      ttsAudioPath: tts.audioPath,
+      transcriptJsonPath,
+      ...(captionsEnabled && { captionsPath: path.join(outputDir, assFilename) }),
+      planJsonPath,
+      ...(stockVideoPathArtifact && { stockVideoPath: stockVideoPathArtifact }),
+      ...(stillImagePaths && { stillImagePaths }),
+      ...(stillsVideoPathArtifact && { stillsVideoPath: stillsVideoPathArtifact }),
+      ...(audioBedTrack && { audioBedPath: audioBedTrack.filePath }),
+      ffmpegArgsJsonPath,
+      stubFlags: {
+        media: env.MEDIA_STUB === '1',
+        stockFootage: env.STOCK_FOOTAGE_STUB === '1',
+        aiVisuals: env.AI_VISUALS_STUB === '1',
+      },
+    },
   };
-}
-
-export async function generateVideo(params: Parameters<typeof generateVideoInner>[1]): Promise<VideoGenerationResult> {
-  const spend = { usd: 0 };
-  try {
-    return await generateVideoInner(spend, params);
-  } catch (error) {
-    if (error instanceof Error) Object.assign(error, { spentCostUsd: spend.usd });
-    throw error;
-  }
 }

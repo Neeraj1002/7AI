@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { prisma } from '../models/prisma-client';
 import {
   createPipelineRun,
@@ -16,6 +17,7 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { isR2Configured, uploadToR2 } from '../storage/r2-client';
+import { uploadAttemptBundle } from '../storage/attempt-bundle';
 import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
@@ -29,10 +31,13 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
-import { generateVideo, getSpentCostUsd, type VideoGenerationOutput } from '../agents/video-generation';
+import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
+import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
+import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
+import type { QualityMetrics } from '../agents/video-generation/quality-spec';
 import {
   generatePublishingMetadata,
   uploadVideo,
@@ -902,9 +907,14 @@ export async function runVideoGenerationStage(
   // Same per-attempt metering pattern as Script Generation/Review — every
   // real attempt, including retries, writes its own (aggregated) UsageEvent
   // row.
+  // Task 13 (R3) — the artifacts of the attempt that actually succeeded (a
+  // retried attempt overwrites an earlier one's), for the post-transaction
+  // bundle upload below.
+  let lastArtifacts: VideoArtifacts | undefined;
+  let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
     try {
-      const { output, usage } = await generateVideo({
+      const { output, usage, artifacts } = await generateVideo({
         pipelineRunId: runId,
         attemptNumber,
         scriptText: sanctionedScriptText,
@@ -926,6 +936,8 @@ export async function runVideoGenerationStage(
         costUsd: usage.costUsd,
         metadata: usage.metadata,
       });
+      lastArtifacts = artifacts;
+      lastUsage = usage;
       return output;
     } catch (error) {
       const context = getStageErrorContext(error);
@@ -937,16 +949,8 @@ export async function runVideoGenerationStage(
         agent: 'video-generation',
         provider: (context?.provider as string | undefined) ?? 'unknown',
         model: (context?.model as string | undefined) ?? 'unknown',
-        // Bugs Closure R1 (F10) — what the attempt had already paid (TTS, transcription,
-        // any stills) before it threw, not $0; metadata says it was a failed attempt.
-        costUsd: getSpentCostUsd(error).toFixed(6),
-        metadata: { failed: true, error: (error instanceof Error ? error.message : String(error)).slice(0, 300) },
+        costUsd: '0.000000',
       });
-      if (!context?.provider || !context?.model) {
-        console.warn(
-          `[usage] run ${runId} video_generation attempt ${attemptNumber} failed with no provider/model on the error — recorded as unknown/unknown; $${getSpentCostUsd(error).toFixed(4)} already spent is attributed to it`,
-        );
-      }
       throw error;
     }
   };
@@ -979,6 +983,51 @@ export async function runVideoGenerationStage(
             error instanceof Error ? error.message : String(error)
           }`,
         );
+      }
+
+      // Sprint 3 Task 13 (R3) — additive debug bundle under a sibling prefix;
+      // the .mp4 key above is unchanged so r2DraftKey/getVideoUrl keep working.
+      if (lastArtifacts && lastUsage) {
+        try {
+          const prefix = `videos/${env.NODE_ENV}/drafts/${run.tenantId}/${runId}/${attemptNumber}/`;
+          const meta = lastUsage.metadata;
+          // Sprint 4 Task 8 — same instrument the Video Intelligence gate uses; best-effort.
+          const qualityMetrics = await measureQualityMetrics({
+            videoPath: output.videoPath,
+            captionsEnabled: meta.captionsEnabled,
+            visualSource: meta.visualSource,
+          }).catch(() => null);
+          const bundle = await uploadAttemptBundle({
+            prefix,
+            artifacts: lastArtifacts,
+            scriptText: sanctionedScriptText,
+            scratchDir: path.dirname(output.videoPath),
+            context: {
+              runId,
+              attemptNumber,
+              channelId: run.channelId,
+              ttsModel: meta.ttsModel,
+              voice: resolvedVoice ?? null,
+              transcriptionModel: meta.transcriptionModel,
+              visualSource: meta.visualSource,
+              captionStyle: meta.captionStyle,
+              audioLayer: meta.audioLayer,
+              captionFont: meta.captionsEnabled ? { family: CAPTION_FONT_FAMILY, file: CAPTION_FONT_FILE } : null,
+              qualityMetrics,
+            },
+          });
+          await patchStageOutput(stage.id, {
+            r2BundlePrefix: prefix,
+            r2ManifestKey: bundle.manifestKey,
+            r2BundleUploadedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error(
+            `[video_generation] run ${runId} attempt ${attemptNumber}: R2 bundle upload failed (non-blocking) — ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
       }
     }
 
@@ -1051,6 +1100,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       topic: run.intakeParsed.topic,
       scriptText: sanctionedScriptText,
       visualSource,
+      // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
+      captionsEnabled: channel.brandAssets.captionsEnabled !== false,
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -1120,7 +1171,17 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         tx,
       );
 
-      await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale }, tx);
+      // Sprint 4 Task 8 (R7) — qualityMetrics is optional on the stage output, so
+      // pre-existing video_review rows without it stay valid.
+      await completeStage(
+        stage.id,
+        {
+          verdict: outcome.verdict,
+          rationale: outcome.rationale,
+          ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
+        },
+        tx,
+      );
 
       // Sprint 3 Task 9 (R2) — completes the synthetic gate2 row created
       // above with the exact same output shape runGate2Stage's own approve
@@ -1180,7 +1241,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   if (!videoReviewStage || videoReviewStage.status !== 'completed' || !videoReviewStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_review output — cannot open Gate 2`);
   }
-  const reviewOutput = videoReviewStage.output as { verdict?: string; rationale?: string };
+  const reviewOutput = videoReviewStage.output as {
+    verdict?: string;
+    rationale?: string;
+    qualityMetrics?: QualityMetrics;
+  };
   if (!reviewOutput.verdict || !reviewOutput.rationale) {
     throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
   }
@@ -1213,6 +1278,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     channelName: channel.name,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
+    qualityMetrics: reviewOutput.qualityMetrics,
     restarted: isRestartReopen,
   });
 

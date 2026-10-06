@@ -42,6 +42,13 @@ type PexelsSearchResponse = {
   videos: PexelsVideo[];
 };
 
+// Sprint 4 Task 8 (R5) — Pexels' first result is not always the one we want:
+// skip any video already used earlier in this render (pure, unit-tested).
+export function pickUnusedVideo<T extends { id: number }>(videos: T[], usedSourceIds: string[] = []): T | undefined {
+  const used = new Set(usedSourceIds);
+  return videos.find((v) => !used.has(String(v.id)));
+}
+
 // Prefers a portrait (height > width) mp4 closest to 1080px wide — the
 // assembly step scales/crops to exactly 1080x1920 regardless, but starting
 // from a portrait source avoids cropping away most of a landscape frame.
@@ -66,7 +73,8 @@ export async function searchAndDownloadClipViaProvider(params: SearchClipParams)
     const url = new URL(PEXELS_SEARCH_URL);
     url.searchParams.set('query', params.query);
     url.searchParams.set('orientation', params.orientation ?? 'portrait');
-    url.searchParams.set('per_page', params.excludeSourceIds?.length ? '15' : '5');
+    // A few extra candidates so a shot list can move past clips it already used.
+    url.searchParams.set('per_page', '15');
     if (params.minDurationSeconds) {
       url.searchParams.set('min_duration', String(Math.ceil(params.minDurationSeconds)));
     }
@@ -76,11 +84,15 @@ export async function searchAndDownloadClipViaProvider(params: SearchClipParams)
       throw mapHttpError(searchResponse.status, searchResponse.statusText, context);
     }
     const data = (await searchResponse.json()) as PexelsSearchResponse;
-    const excluded = new Set(params.excludeSourceIds ?? []);
-    // First result not already used by an earlier attempt; if every result was used, fall back to the first.
-    const video = data.videos.find((v) => !excluded.has(String(v.id))) ?? data.videos[0];
+    const video = pickUnusedVideo(data.videos, params.excludeSourceIds);
     if (!video) {
-      throw new NonTransientStageError(`Pexels search returned no results for query '${params.query}'`, undefined, context);
+      throw new NonTransientStageError(
+        data.videos.length > 0
+          ? `Pexels search for query '${params.query}' returned only clips already used in this render`
+          : `Pexels search returned no results for query '${params.query}'`,
+        undefined,
+        context,
+      );
     }
     const file = pickBestFile(video.video_files);
     if (!file) {

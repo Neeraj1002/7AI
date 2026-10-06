@@ -1,40 +1,28 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { searchAndDownloadClipViaProvider } from './client';
+import { describe, it, expect } from 'vitest';
+import { pickUnusedVideo } from './client';
+import { stubSearchAndDownloadClip } from './stub';
 
-// Bugs Closure R6 — a revise attempt must not get back the clip an earlier attempt used.
-function videos(ids: number[]) {
-  return {
-    videos: ids.map((id) => ({
-      id,
-      duration: 10,
-      url: `https://pexels.test/${id}`,
-      video_files: [{ id: id * 10, quality: 'hd', file_type: 'video/mp4', width: 1080, height: 1920, link: `https://files.test/${id}.mp4` }],
-    })),
-  };
-}
+describe('pickUnusedVideo (Sprint 4 Task 8, R5)', () => {
+  const videos = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
-describe('searchAndDownloadClipViaProvider — excludeSourceIds', () => {
-  afterEach(() => vi.restoreAllMocks());
-
-  const mockFetch = (ids: number[]) =>
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes('api.pexels.com')) return new Response(JSON.stringify(videos(ids)), { status: 200 });
-      return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
-    });
-
-  it('takes the first result when nothing is excluded', async () => {
-    mockFetch([1, 2, 3]);
-    expect((await searchAndDownloadClipViaProvider({ query: 'q' })).sourceId).toBe('1');
+  it('returns the first result when nothing has been used', () => {
+    expect(pickUnusedVideo(videos)?.id).toBe(1);
   });
 
-  it('skips a clip an earlier attempt used', async () => {
-    mockFetch([1, 2, 3]);
-    expect((await searchAndDownloadClipViaProvider({ query: 'q', excludeSourceIds: ['1'] })).sourceId).toBe('2');
+  it('skips clip IDs already used in this render and moves to the next result', () => {
+    expect(pickUnusedVideo(videos, ['1'])?.id).toBe(2);
+    expect(pickUnusedVideo(videos, ['1', '2'])?.id).toBe(3);
   });
 
-  it('falls back to the first result when every result was already used', async () => {
-    mockFetch([1, 2]);
-    expect((await searchAndDownloadClipViaProvider({ query: 'q', excludeSourceIds: ['1', '2'] })).sourceId).toBe('1');
+  it('returns undefined when every candidate was already used', () => {
+    expect(pickUnusedVideo(videos, ['1', '2', '3'])).toBeUndefined();
   });
+});
+
+describe('stub honours excludeSourceIds so duplicate queries still give distinct clips', () => {
+  it('assigns a different sourceId when the first is excluded', async () => {
+    const a = await stubSearchAndDownloadClip({ query: 'ocean waves' });
+    const b = await stubSearchAndDownloadClip({ query: 'ocean waves', excludeSourceIds: [a.sourceId] });
+    expect(b.sourceId).not.toBe(a.sourceId);
+  }, 30_000);
 });
