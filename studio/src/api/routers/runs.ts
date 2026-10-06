@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
-import { findPipelineRunById, listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
+import { findPipelineRunById, listRuns, updatePipelineRun, CANCELLED_BY_USER } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import {
   listStagesForRun,
@@ -14,7 +14,7 @@ import { listReviewLogsForRun } from '../../models/repositories/review-log.repos
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { findByChannel } from '../../models/repositories/agent-credential.repository';
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
-import { requestCancellation } from '../../run-pipeline/cancellation-registry';
+import { requestCancellation, isCancellationRequested, isActivelyDriven } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
@@ -81,9 +81,28 @@ function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' 
   if (run.status !== 'failed') return null;
   const err = run.lastError ?? '';
   if (err.startsWith('Rejected at Gate 1') || err.startsWith('Rejected at Gate 2')) return 'rejected';
-  if (err === 'Cancelled by user') return 'cancelled';
+  if (err === CANCELLED_BY_USER) return 'cancelled';
   if (err === 'Channel deleted') return 'channel_deleted';
   return 'failed';
+}
+
+// Bugs Task 10 (R1) — true while a cancel request is recorded in this process
+// and the run has not ended yet (memory only; false after a restart, which is
+// correct: the request was lost and the user can cancel again).
+function deriveCancelRequested(run: PipelineRun): boolean {
+  return isCancellationRequested(run.id) && run.status !== 'completed' && run.status !== 'failed';
+}
+
+// Bugs Task 10 (R1) — newest sign of life for a run. Neither updatedAt column
+// is maintained on writes (both are @default(now()) only, never @updatedAt), so
+// progress is read from the timestamps that really are written: every stage
+// attempt's createdAt/startedAt/completedAt, plus the run's own startedAt.
+// A single long stage therefore looks quiet from its start until it finishes;
+// that is what CANCEL_STALE_AFTER_MS bounds (see cancellation-registry.ts).
+function lastProgressAt(run: PipelineRun, stages: PipelineStage[]): Date {
+  const stamps = [run.createdAt, run.startedAt, run.updatedAt];
+  for (const s of stages) stamps.push(s.createdAt, s.startedAt, s.completedAt, s.updatedAt);
+  return stamps.reduce<Date>((newest, d) => (d && d > newest ? d : newest), run.createdAt);
 }
 
 // Bugs Task 3 (R1) — this run's own tenant check, same FORBIDDEN shape as
@@ -118,6 +137,7 @@ async function getRunDetail(id: string, ctx: Context) {
     reviewLogs,
     lastGateDecision: deriveLastGateDecision(stages),
     endReason: deriveEndReason(run),
+    cancelRequested: deriveCancelRequested(run),
     hasR2Draft: stages.some(
       (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
     ),
@@ -260,7 +280,8 @@ export const runsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return listRuns({ ...input, tenantId: ctx.tenantId });
+      const runs = await listRuns({ ...input, tenantId: ctx.tenantId });
+      return runs.map((run) => ({ ...run, cancelRequested: deriveCancelRequested(run) }));
     }),
 
   // GET /runs/:id — full detail: run + channel + full stage history +
@@ -569,23 +590,36 @@ export const runsRouter = router({
     if (!run) {
       throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
     }
+    // Bugs Task 10 (R1) — already ended: idempotent, never an error. Only a run
+    // that really ended as a cancel is reported as cancelled, so the app
+    // never shows a false "Run cancelled" for a completed/otherwise failed run.
+    if (run.status === 'completed' || run.status === 'failed') {
+      return { cancelled: deriveEndReason(run) === 'cancelled', immediate: false, alreadyEnded: true };
+    }
     if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
-      if (resolvePendingApproval(run.id, 'reject Cancelled by user').resolved) {
-        return { cancelled: true };
+      if (resolvePendingApproval(run.id, `reject ${CANCELLED_BY_USER}`).resolved) {
+        return { cancelled: true, immediate: true, alreadyEnded: false };
       }
       // Gate not registered in this process (e.g. mid-restart) — fall through
       // to the direct write; the stale gate attempt is harmless once failed.
-    } else if (run.status === 'running') {
+    } else if (run.status === 'running' || run.status === 'pending') {
       requestCancellation(run.id);
-      return { cancelled: true };
-    } else if (run.status !== 'needs_attention' && run.status !== 'pending') {
+      // A loop that is genuinely driving the run reads the registry at its
+      // next step. If none is (stalled, died, hung past the stale threshold,
+      // server restarted), nobody will — end the run now. The registry entry
+      // stays so a stalled loop that wakes later stops at its next check.
+      const stages = await listStagesForRun(run.id);
+      if (isActivelyDriven(run.id, lastProgressAt(run, stages))) {
+        return { cancelled: true, immediate: false, alreadyEnded: false };
+      }
+    } else if (run.status !== 'needs_attention') {
       throw new TRPCError({
         code: 'CONFLICT',
         message: `Run ${input.runId} can't be cancelled while '${run.status}'`,
       });
     }
-    await updatePipelineRun(run.id, { status: 'failed', lastError: 'Cancelled by user' });
-    return { cancelled: true };
+    await updatePipelineRun(run.id, { status: 'failed', lastError: CANCELLED_BY_USER });
+    return { cancelled: true, immediate: true, alreadyEnded: false };
   }),
 
   // POST /runs/:id/tag-post-hoc — Sprint 3 Task 7 (O4). Replaces the old

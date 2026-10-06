@@ -20,6 +20,7 @@ import { isR2Configured, uploadToR2 } from '../storage/r2-client';
 import { uploadAttemptBundle } from '../storage/attempt-bundle';
 import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
+import { isCancellationRequested } from './cancellation-registry';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
@@ -1410,6 +1411,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // uploadVideo completes is not closed here (see reports/task8.md).
   if (!channel.isActive) {
     throw new Error(`Channel ${channel.id} is archived — refusing to publish PipelineRun ${runId}`);
+  }
+
+  // Bugs Task 10 (R1) — a cancel is final: never reach the upload for a run
+  // that was cancelled (or is no longer running) while this stage's caller
+  // was between steps. Returns the run untouched; the driver loop then ends.
+  if (run.status !== 'running' || isCancellationRequested(runId)) {
+    return run;
   }
 
   const gate2Stage = await findLatestAttempt(runId, 'gate2');

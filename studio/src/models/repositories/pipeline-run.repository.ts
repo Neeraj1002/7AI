@@ -85,7 +85,10 @@ export async function listRuns(params: {
   return rows.map(toDomainRun);
 }
 
-export type PipelineRunPatch = Partial<{
+// The exact text runs.cancel writes; runs.ts's deriveEndReason string-matches it.
+export const CANCELLED_BY_USER = 'Cancelled by user';
+
+export type PipelineRunPatch =Partial<{
   status: PipelineRunStatus;
   currentStage: StageName | null;
   intakeParsed: IntakeParsed | null;
@@ -112,6 +115,27 @@ export async function updatePipelineRun(
     ...(patch.startedAt !== undefined && { startedAt: patch.startedAt }),
     ...(patch.completedAt !== undefined && { completedAt: patch.completedAt }),
   };
-  const row = await client.pipelineRun.update({ where: { id }, data });
-  return toDomainRun(row);
+  // Bugs Task 10 (R1) — a cancelled run is final: a stage that was mid-flight
+  // when the cancel landed must not resurrect it (a status/currentStage write
+  // after its own long await). The cancel's own write passes, so re-cancelling
+  // is idempotent; every other write to a cancelled run is dropped and the
+  // stored (cancelled) row is returned instead.
+  try {
+    const row = await client.pipelineRun.update({
+      where: {
+        id,
+        ...(patch.lastError !== CANCELLED_BY_USER && {
+          NOT: { status: 'failed', lastError: CANCELLED_BY_USER },
+        }),
+      },
+      data,
+    });
+    return toDomainRun(row);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      const existing = await client.pipelineRun.findUnique({ where: { id } });
+      if (existing) return toDomainRun(existing);
+    }
+    throw error;
+  }
 }
