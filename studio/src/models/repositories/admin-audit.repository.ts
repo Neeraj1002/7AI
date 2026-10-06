@@ -15,13 +15,14 @@ const SECRET_KEY_PATTERN = /token|secret|password|authorization|key/i;
 
 // Drops any key that looks like a secret, at every depth, so a before/after
 // snapshot can never carry a credential into the log.
-export function redact(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redact);
+// `pattern` is overridable for callers with a different rule (tenant content views).
+export function redact(value: unknown, pattern: RegExp = SECRET_KEY_PATTERN): unknown {
+  if (Array.isArray(value)) return value.map((v) => redact(v, pattern));
   if (value && typeof value === 'object' && !(value instanceof Date)) {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (SECRET_KEY_PATTERN.test(k)) continue;
-      out[k] = redact(v);
+      if (pattern.test(k)) continue;
+      out[k] = redact(v, pattern);
     }
     return out;
   }
