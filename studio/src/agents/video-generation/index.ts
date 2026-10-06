@@ -361,7 +361,16 @@ async function buildKenBurnsVideo(params: {
   }
 }
 
-export async function generateVideo(params: {
+// Bugs Closure R1 (F10) — a failed attempt has already paid for TTS + transcription
+// (and any stills generated) before it throws, but the failure UsageEvent used to
+// record $0, so the budget gate under-counted every failing attempt (and every retry
+// of it). generateVideo now attaches what was spent so far to the thrown error.
+export function getSpentCostUsd(error: unknown): number {
+  const spent = (error as { spentCostUsd?: unknown } | null)?.spentCostUsd;
+  return typeof spent === 'number' && Number.isFinite(spent) ? spent : 0;
+}
+
+async function generateVideoInner(spend: { usd: number }, params: {
   pipelineRunId: string;
   attemptNumber: number;
   scriptText: string;
@@ -380,6 +389,7 @@ export async function generateVideo(params: {
   // Section 2 and Sprint 2 Task 2 (E2).
   const tts = await synthesizeSpeech(params.scriptText, { voice: params.voice });
   const asr = await transcribe(tts.audioPath);
+  spend.usd = Number(tts.costUsd) + Number(asr.costUsd);
 
   const outputDir = path.resolve(DATA_DIR, 'videos', params.pipelineRunId);
   await fs.mkdir(outputDir, { recursive: true });
@@ -420,6 +430,7 @@ export async function generateVideo(params: {
       throw new NonTransientStageError("ProductionPlan.visualSource is 'ai-stills' but stillScenePrompts is empty");
     }
     const stills = await generateStills({ scenePrompts });
+    spend.usd += Number(stills.costUsd);
     const windows = distributeStillWindows({
       captionCues: captionSegments,
       stillCount: stills.imagePaths.length,
@@ -542,6 +553,8 @@ export async function generateVideo(params: {
           aiVisualsStillCount: aiVisualsMeta.stillCount,
           aiVisualsCostUsd: aiVisualsMeta.costUsd,
         }),
+        // Bugs Closure R1 (F10) — a stub render must never be mistaken for a real one in usage_events.
+        ...(aiVisualsMeta?.model === 'stub' && { stub: true }),
         audioLayer: params.plan.audioLayer,
         ttsProvider: ttsEntry.provider,
         ttsModel: ttsEntry.model,
@@ -555,4 +568,14 @@ export async function generateVideo(params: {
       },
     },
   };
+}
+
+export async function generateVideo(params: Parameters<typeof generateVideoInner>[1]): Promise<VideoGenerationResult> {
+  const spend = { usd: 0 };
+  try {
+    return await generateVideoInner(spend, params);
+  } catch (error) {
+    if (error instanceof Error) Object.assign(error, { spentCostUsd: spend.usd });
+    throw error;
+  }
 }

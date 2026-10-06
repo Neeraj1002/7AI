@@ -20,7 +20,7 @@ import { insertUsageEvent } from '../models/repositories/usage-event.repository'
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
-import { isBudgetAvailable } from './budget-gate';
+import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -29,7 +29,7 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
-import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
+import { generateVideo, getSpentCostUsd, type VideoGenerationOutput } from '../agents/video-generation';
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
@@ -245,14 +245,15 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
   // attempt exists at all. A refused call is recorded as `skipped`, never
   // silently dropped and never a `failed` attempt (nothing actually ran).
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'script_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     // Bugs Task 6 (R2) — a budget refusal on a genuine first attempt is
     // unchanged (needs_attention: no partial progress or review history
@@ -283,7 +284,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     }
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Script Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Script Generation refused: ${budgetText}`,
     });
   }
 
@@ -810,18 +811,19 @@ export async function runVideoGenerationStage(
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
   // Script Generation, now also covering the pipeline's most expensive stage.
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'video_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Video Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Video Generation refused: ${budgetText}`,
     });
   }
 
@@ -934,8 +936,16 @@ export async function runVideoGenerationStage(
         agent: 'video-generation',
         provider: (context?.provider as string | undefined) ?? 'unknown',
         model: (context?.model as string | undefined) ?? 'unknown',
-        costUsd: '0.000000',
+        // Bugs Closure R1 (F10) — what the attempt had already paid (TTS, transcription,
+        // any stills) before it threw, not $0; metadata says it was a failed attempt.
+        costUsd: getSpentCostUsd(error).toFixed(6),
+        metadata: { failed: true, error: (error instanceof Error ? error.message : String(error)).slice(0, 300) },
       });
+      if (!context?.provider || !context?.model) {
+        console.warn(
+          `[usage] run ${runId} video_generation attempt ${attemptNumber} failed with no provider/model on the error — recorded as unknown/unknown; $${getSpentCostUsd(error).toFixed(4)} already spent is attributed to it`,
+        );
+      }
       throw error;
     }
   };

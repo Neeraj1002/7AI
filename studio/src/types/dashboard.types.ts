@@ -16,9 +16,18 @@ export type OperationalDashboard = {
 };
 
 export type CostDashboard = {
-  totalSpendUsd: number;
-  budgetCeilingUsd: number | null;
-  byChannel: { channelId: string; channelName: string; spendUsd: number }[];
+  totalSpendUsd: number; // lifetime — still the basis of costPerPublishedVideo
+  // Bugs Closure R1 (D1) — the budget is weekly; these are what the gate compares.
+  weekSpendUsd: number;
+  budgetWindow: { startsAt: string; resetsAt: string };
+  budgetCeilingUsd: number | null; // the weekly pooled ceiling
+  byChannel: {
+    channelId: string;
+    channelName: string;
+    spendUsd: number;
+    weekSpendUsd: number;
+    effectiveCeilingUsd: number | null;
+  }[];
   byStage: { stage: string; spendUsd: number }[];
   costPerPublishedVideo: { totalSpendUsd: number; publishedCount: number; costPerVideoUsd: number | null };
 };

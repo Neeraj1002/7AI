@@ -66,6 +66,11 @@ const ERROR_PATTERNS: Array<{ test: (msg: string) => boolean; label: string }> =
 
 export function humanizeRunError(lastError: string | null | undefined): string {
   if (!lastError) return '';
+  // Bugs Closure R1 — a budget refusal now carries its own exact sentence (which
+  // limit, how much used, when it resets); show it whole rather than truncated.
+  // Older rows start with 'the pooled budget ceiling' and keep the generic label.
+  const refusal = /^(?:Script|Video) Generation refused: (.+)$/s.exec(lastError);
+  if (refusal && !refusal[1].startsWith('the pooled')) return refusal[1];
   for (const pattern of ERROR_PATTERNS) {
     if (pattern.test(lastError)) return pattern.label;
   }

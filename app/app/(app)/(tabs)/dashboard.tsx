@@ -107,8 +107,12 @@ export default function DashboardScreen() {
     const succ = operational.data?.successRate;
     const succTotal = succ ? succ.completed + succ.failed : 0;
     const regen = quality.data?.videoRegenRate;
-    const spend = cost.data?.totalSpendUsd ?? 0;
-    const ceiling = cost.data?.budgetCeilingUsd ?? null;
+    // Bugs Closure R1 (D1) — the limit is weekly; compare this week's spend, and for a
+    // single channel its own effective ceiling. Falls back to the old fields against an
+    // older server that doesn't send them yet.
+    const spend = cost.data?.weekSpendUsd ?? cost.data?.totalSpendUsd ?? 0;
+    const channelCost = filterId ? cost.data?.byChannel.find((c) => c.channelId === filterId) : undefined;
+    const ceiling = channelCost?.effectiveCeilingUsd ?? cost.data?.budgetCeilingUsd ?? null;
     const perVideo = cost.data?.costPerPublishedVideo.costPerVideoUsd ?? null;
     const g1 = quality.data?.gate1Rates;
     const g1Total = g1 ? g1.approve + g1.edit + g1.reject : 0;
@@ -142,7 +146,7 @@ export default function DashboardScreen() {
 
         {cost.data ? (
           <Card>
-            <Text style={styles.statLabel}>Spend this period</Text>
+            <Text style={styles.statLabel}>Spend this week</Text>
             <View style={styles.spendRow}>
               <Text style={styles.stat}>{money(spend)}</Text>
               {ceiling !== null ? <Text style={styles.sub}>of {money(ceiling)}</Text> : null}
@@ -152,6 +156,7 @@ export default function DashboardScreen() {
                 <View style={[styles.fill, { width: `${Math.min(100, (spend / ceiling) * 100)}%`, backgroundColor: color.accent }]} />
               </View>
             ) : null}
+            {ceiling !== null ? <Text style={styles.sub}>Resets Monday</Text> : null}
             {perVideo !== null ? <Text style={styles.sub}>{money(perVideo)} per published video</Text> : null}
           </Card>
         ) : null}

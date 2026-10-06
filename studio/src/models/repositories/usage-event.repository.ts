@@ -49,9 +49,11 @@ export async function insertUsageEvent(input: CreateUsageEventInput): Promise<Us
 export async function sumUsageCostForTenantPlatform(
   tenantId: string,
   platform: ChannelPlatform,
+  // Bugs Closure R1 (D1) — the budget window start; omitted = lifetime spend.
+  since?: Date,
 ): Promise<number> {
   const result = await prisma.usageEvent.aggregate({
-    where: { tenantId, channel: { platform } },
+    where: { tenantId, channel: { platform }, ...(since && { createdAt: { gte: since } }) },
     _sum: { costUsd: true },
   });
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
@@ -63,9 +65,10 @@ export async function sumUsageCostForTenantChannelPlatform(
   tenantId: string,
   channelId: string,
   platform: ChannelPlatform,
+  since?: Date,
 ): Promise<number> {
   const result = await prisma.usageEvent.aggregate({
-    where: { tenantId, channelId, channel: { platform } },
+    where: { tenantId, channelId, channel: { platform }, ...(since && { createdAt: { gte: since } }) },
     _sum: { costUsd: true },
   });
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;

@@ -1,4 +1,5 @@
 import { prisma } from '../prisma-client';
+import { currentBudgetWindowStart, loadChannelBudgetView, NoBudgetConfiguredError, nextBudgetWindowStart } from '../../run-pipeline/budget-gate';
 import { Prisma } from '@prisma/client';
 import type {
   ContentPerformanceDashboard,
@@ -73,17 +74,30 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
 
 export async function getCostDashboard(tenantId: string, channelId?: string): Promise<CostDashboard> {
   const channelWhere = channelId ? { channelId } : {};
-  const [totalAgg, quota, byChannelRaw, byStageRaw, publishedCount] = await Promise.all([
+  // Bugs Closure R1 (D1) — the same weekly window the budget gate enforces.
+  const windowStart = currentBudgetWindowStart();
+  const [totalAgg, weekAgg, effectiveCeilings, quota, byChannelRaw, byStageRaw, publishedCount] = await Promise.all([
     prisma.usageEvent.aggregate({
       where: { tenantId, ...channelWhere },
       _sum: { costUsd: true },
     }),
+    prisma.usageEvent.aggregate({
+      where: { tenantId, ...channelWhere, createdAt: { gte: windowStart } },
+      _sum: { costUsd: true },
+    }),
+    loadChannelBudgetView(tenantId, 'youtube')
+      .then((view) => view.ceilings)
+      .catch((error) => {
+        if (error instanceof NoBudgetConfiguredError) return new Map<string, number>();
+        throw error;
+      }),
     prisma.agentQuota.findUnique({
       where: { tenantId_platform: { tenantId, platform: 'youtube' } },
     }),
-    prisma.$queryRaw<{ channelId: string; channelName: string; spendUsd: Prisma.Decimal }[]>(
+    prisma.$queryRaw<{ channelId: string; channelName: string; spendUsd: Prisma.Decimal; weekSpendUsd: Prisma.Decimal }[]>(
       Prisma.sql`
-        SELECT c.id AS "channelId", c.name AS "channelName", COALESCE(SUM(ue."costUsd"), 0) AS "spendUsd"
+        SELECT c.id AS "channelId", c.name AS "channelName", COALESCE(SUM(ue."costUsd"), 0) AS "spendUsd",
+               COALESCE(SUM(ue."costUsd") FILTER (WHERE ue."createdAt" >= ${windowStart.toISOString()}::timestamp), 0) AS "weekSpendUsd"
         FROM channels c
         LEFT JOIN usage_events ue ON ue."channelId" = c.id
         WHERE c."tenantId" = ${tenantId}::uuid ${channelFilterSql(channelId, Prisma.sql`c.id`)}
@@ -112,14 +126,20 @@ export async function getCostDashboard(tenantId: string, channelId?: string): Pr
   ]);
 
   const totalSpendUsd = totalAgg._sum.costUsd ? Number(totalAgg._sum.costUsd) : 0;
+  const weekSpendUsd = weekAgg._sum.costUsd ? Number(weekAgg._sum.costUsd) : 0;
 
   return {
     totalSpendUsd,
+    weekSpendUsd,
+    budgetWindow: { startsAt: windowStart.toISOString(), resetsAt: nextBudgetWindowStart().toISOString() },
     budgetCeilingUsd: quota ? Number(quota.budgetCeilingUsd) : null,
     byChannel: byChannelRaw.map((row) => ({
       channelId: row.channelId,
       channelName: row.channelName,
       spendUsd: Number(row.spendUsd),
+      weekSpendUsd: Number(row.weekSpendUsd),
+      // null for an inactive channel (the gate ignores those).
+      effectiveCeilingUsd: effectiveCeilings.get(row.channelId) ?? null,
     })),
     byStage: byStageRaw.map((row) => ({ stage: row.stage, spendUsd: Number(row.spendUsd) })),
     costPerPublishedVideo: {

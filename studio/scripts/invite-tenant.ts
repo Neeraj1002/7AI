@@ -23,7 +23,8 @@ import { insertAgentQuota } from '../src/models/repositories/agent-quota.reposit
 // different number, but flagged again: **this needs real founder
 // confirmation**, same "don't pick a real dollar figure silently"
 // discipline that task's own report applied.
-const DEFAULT_NEW_TENANT_BUDGET_USD = 2.0;
+// Bugs Closure R1 (D1) — a WEEKLY ceiling (resets Monday 00:00 UTC), sized for one channel.
+const DEFAULT_NEW_TENANT_BUDGET_USD = 20.0;
 
 async function main(): Promise<void> {
   const tenantName = process.argv[2];
@@ -47,7 +48,7 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    `[invite-tenant] created tenant ${tenant.id} (${tenant.name}), owner ${user.id} (${user.email}), AgentQuota $${quota.budgetCeilingUsd}/day (youtube). They can log in via POST /auth/request-link with email "${ownerEmail}".`,
+    `[invite-tenant] created tenant ${tenant.id} (${tenant.name}), owner ${user.id} (${user.email}), AgentQuota $${quota.budgetCeilingUsd}/week (youtube). They can log in via POST /auth/request-link with email "${ownerEmail}".`,
   );
 }
 
