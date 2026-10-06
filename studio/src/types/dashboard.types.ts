@@ -12,7 +12,10 @@ export type OperationalDashboard = {
     updatedAt: Date;
   }[];
   recentCompletions: { id: string; channelId: string; briefText: string; completedAt: Date | null }[];
-  successRate: { completed: number; failed: number; rate: number | null };
+  // D2: rate is over every stopped run (completed + needsAttention + failed).
+  successRate: { completed: number; needsAttention: number; failed: number; rate: number | null };
+  // D3: published videos / stopped runs.
+  publishedRate: { published: number; stopped: number; rate: number | null };
 };
 
 export type CostDashboard = {
@@ -47,3 +50,7 @@ export type QualityDashboard = {
   gate1Rates: { approve: number; edit: number; reject: number };
   gate2Rates: { approve: number; revise: number; reject: number };
 };
+
+// Bugs Closure R3 (D3). medianDecisionSeconds blends per-verdict medians weighted by count (approximate).
+export type GateOutcome = { approved: number; revised: number; rejected: number; medianDecisionSeconds: number | null };
+export type GateAnalyticsDashboard = { gate1: GateOutcome; gate2: GateOutcome };
