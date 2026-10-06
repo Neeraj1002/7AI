@@ -24,9 +24,9 @@ import { isR2Configured, uploadToR2, deleteFromR2 } from '../storage/r2-client';
 function resolveContext(authorization: string | undefined): Context {
   const identity = resolveRequestIdentity(authorization);
   if (identity.kind === 'session') {
-    return { tenantId: identity.tenantId, userId: identity.userId, role: identity.role };
+    return { tenantId: identity.tenantId, userId: identity.userId, role: identity.role, identityKind: 'session' };
   }
-  return { tenantId: MVP_TENANT_ID, userId: null, role: 'owner' };
+  return { tenantId: MVP_TENANT_ID, userId: null, role: 'owner', identityKind: 'ops-token' };
 }
 
 const WATERMARK_DIR = path.resolve(DATA_DIR, 'watermarks');
