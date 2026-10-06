@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { uploadToR2 } from './r2-client';
 import type { VideoArtifacts } from '../agents/video-generation';
+import type { QualityMetrics } from '../agents/video-generation/quality-spec';
 
 // Sprint 3 Task 13 (R3) — per-attempt debug bundle, uploaded next to Task
 // 12's draft .mp4 under `<draftKeyWithoutExt>/`. Pure orchestration over
@@ -23,6 +24,11 @@ export type BundleManifestContext = {
   visualSource: string;
   captionStyle: string;
   audioLayer: string;
+  // Sprint 4 Task 8 — bundled caption font (null when captions are off) and the
+  // deterministic render metrics measured on the finished mp4 (null if the
+  // measurement failed; the bundle never depends on it).
+  captionFont?: { family: string; file: string } | null;
+  qualityMetrics?: QualityMetrics | null;
 };
 
 type Candidate = { name: string; filePath: string; contentType: string };
@@ -46,8 +52,8 @@ export async function uploadAttemptBundle(params: {
     { name: 'ffmpeg-args.json', filePath: a.ffmpegArgsJsonPath, contentType: 'application/json' },
     { name: 'script.txt', filePath: scriptPath, contentType: 'text/plain' },
   ];
-  if (a.srtPath) candidates.push({ name: 'captions.srt', filePath: a.srtPath, contentType: 'application/x-subrip' });
-  if (a.stockClipPath) candidates.push({ name: 'stock-clip.mp4', filePath: a.stockClipPath, contentType: 'video/mp4' });
+  if (a.captionsPath) candidates.push({ name: 'captions.ass', filePath: a.captionsPath, contentType: 'text/x-ssa' });
+  if (a.stockVideoPath) candidates.push({ name: 'stock-shotlist.mp4', filePath: a.stockVideoPath, contentType: 'video/mp4' });
   if (a.stillsVideoPath) candidates.push({ name: 'stills-video.mp4', filePath: a.stillsVideoPath, contentType: 'video/mp4' });
   (a.stillImagePaths ?? []).forEach((p, i) =>
     candidates.push({ name: `still-${i}.png`, filePath: p, contentType: 'image/png' }),

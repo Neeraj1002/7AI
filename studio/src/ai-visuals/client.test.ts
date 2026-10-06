@@ -14,7 +14,7 @@ vi.mock('openai', () => {
   return { default: Object.assign(MockOpenAI, { APIError: MockAPIError }) };
 });
 
-import { generateStillsViaProvider } from './client';
+import { generateStillsViaProvider, rateLimitWaitMs } from './client';
 
 describe('generateStillsViaProvider (Sprint 2 Task 2, E1)', () => {
   beforeEach(() => {
@@ -52,5 +52,17 @@ describe('generateStillsViaProvider (Sprint 2 Task 2, E1)', () => {
     await expect(
       generateStillsViaProvider({ scenePrompts: ['a scene with no image back'], model: 'gpt-image-1.5' }),
     ).rejects.toThrow(/no usable image data/);
+  });
+});
+
+describe('rateLimitWaitMs (Sprint 4 Task 8, R6)', () => {
+  it("honours the provider's own retry hint, plus 1s of slack", () => {
+    expect(rateLimitWaitMs('Rate limit reached ... on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit ...')).toBe(13_000);
+    expect(rateLimitWaitMs('Please try again in 6.5s.')).toBe(7_500);
+    expect(rateLimitWaitMs('Please try again in 800ms.')).toBe(1_800);
+  });
+
+  it('falls back to a fixed wait when there is no hint', () => {
+    expect(rateLimitWaitMs('Rate limit reached')).toBe(15_000);
   });
 });

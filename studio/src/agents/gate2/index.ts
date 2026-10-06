@@ -1,6 +1,8 @@
 import { composeNotificationChannel, resolveNotificationRecipients } from '../../notifications';
 import { DEFAULT_PRIVACY_STATUS, type PrivacyStatus } from '../publishing';
 import type { Channel } from '../../types';
+import type { QualityMetrics } from '../video-generation/quality-spec';
+import { formatQualityMetrics } from '../video-intelligence/quality-metrics';
 
 // Approval Gate 2 — MVP_ROADMAP_OCT15.md Section 17's design, the "stays
 // manual longest" gate (Section 6). Reuses Gate 1's notification interface
@@ -58,6 +60,9 @@ export function formatGate2Message(params: {
   channelName: string;
   verdict: string;
   rationale: string;
+  // Sprint 4 Task 8 (R7) — measured render quality, shown so the approver sees
+  // the numbers. Absent on review rows that predate it.
+  qualityMetrics?: QualityMetrics;
   // Week 5 Task 3 (restart-safe gates) — see gate1's own comment.
   restarted?: boolean;
 }): string {
@@ -69,6 +74,7 @@ export function formatGate2Message(params: {
     ``,
     `Video Intelligence verdict: ${params.verdict}`,
     `Notes: ${params.rationale}`,
+    ...(params.qualityMetrics ? [formatQualityMetrics(params.qualityMetrics)] : []),
     ``,
     // Sprint 3 Task 7 (O2) — no channel left in this system attaches the
     // real video file to a gate message; the dashboard/app always reads it
@@ -84,12 +90,14 @@ export async function requestGate2Decision(params: {
   channelName: string;
   verdict: string;
   rationale: string;
+  qualityMetrics?: QualityMetrics;
   restarted?: boolean;
 }): Promise<Gate2Outcome> {
   const message = formatGate2Message({
     channelName: params.channelName,
     verdict: params.verdict,
     rationale: params.rationale,
+    qualityMetrics: params.qualityMetrics,
     restarted: params.restarted,
   });
 
