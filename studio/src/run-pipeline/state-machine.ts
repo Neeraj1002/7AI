@@ -18,11 +18,11 @@ import {
 import { findChannelById } from '../models/repositories/channel.repository';
 import { isR2Configured, uploadToR2 } from '../storage/r2-client';
 import { uploadAttemptBundle } from '../storage/attempt-bundle';
-import { insertUsageEvent } from '../models/repositories/usage-event.repository';
+import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
-import { isBudgetAvailable } from './budget-gate';
+import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -250,14 +250,15 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
   // attempt exists at all. A refused call is recorded as `skipped`, never
   // silently dropped and never a `failed` attempt (nothing actually ran).
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'script_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     // Bugs Task 6 (R2) — a budget refusal on a genuine first attempt is
     // unchanged (needs_attention: no partial progress or review history
@@ -288,7 +289,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     }
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Script Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Script Generation refused: ${budgetText}`,
     });
   }
 
@@ -815,18 +816,19 @@ export async function runVideoGenerationStage(
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
   // Script Generation, now also covering the pipeline's most expensive stage.
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'video_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Video Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Video Generation refused: ${budgetText}`,
     });
   }
 
@@ -919,6 +921,7 @@ export async function runVideoGenerationStage(
         brandAssets: channel.brandAssets,
         plan,
         voice: resolvedVoice,
+        excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,

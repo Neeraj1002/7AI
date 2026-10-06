@@ -58,6 +58,16 @@ type Stage = {
   output: Record<string, unknown> | null;
 };
 
+// Bugs Closure R5 — the raw status read "completed" next to a failed attempt in the list;
+// say plainly what each row is, and make a failed one visibly failed.
+const STAGE_STATUS_LABEL: Record<string, string> = {
+  completed: 'done',
+  failed: 'FAILED',
+  skipped: 'skipped (not run)',
+  running: 'in progress',
+  pending: 'waiting',
+};
+
 function latestStage(stages: Stage[], name: string): Stage | undefined {
   for (let i = stages.length - 1; i >= 0; i -= 1) {
     if (stages[i].stageName === name) return stages[i];
@@ -621,8 +631,8 @@ export default function RunDetailScreen() {
         <Card>
           {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
           {stages.map((s) => (
-            <Text key={s.id} style={styles.raw}>
-              {s.stageName} · attempt {s.attemptNumber} · {s.status}
+            <Text key={s.id} style={[styles.raw, s.status === 'failed' && styles.rawFailed]}>
+              {s.stageName.replace(/_/g, ' ')} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
             </Text>
           ))}
         </Card>
@@ -734,6 +744,7 @@ const styles = StyleSheet.create({
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
   detailsToggleText: { ...type.sectionTitle, color: color.muted },
   raw: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  rawFailed: { color: color.danger },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { backgroundColor: color.surface2, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
   chipText: { fontFamily: font.semibold, fontSize: 12, color: color.ink },

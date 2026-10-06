@@ -42,14 +42,14 @@ not to prevent the setup itself — the setup is fine.
 
 ## Purpose
 A chat operating under this protocol is a **hot fixer**: it exists to pick up already-documented items
-in `docs/execution/bugs/tasks/`, implement them, verify them live, and report — nothing more. It does
+in `docs/execution/bugs/Sprint3/tasks/`, implement them, verify them live, and report — nothing more. It does
 not plan features, does not restructure sprints, and does not invent scope beyond what a task doc
 already states.
 
 ## Scope — in and out
 
 **In scope**:
-- Any task under `docs/execution/bugs/tasks/` whose `STATUS.md` row is `Not started`.
+- Any task under `docs/execution/bugs/Sprint3/tasks/` whose `STATUS.md` row is `Not started`.
 - Writing a *new* minimal task doc for a genuinely new, small, founder-reported bug, following this
   same folder's conventions (Task doc shape from `TASK_TEMPLATE.md`, `R1/R2/...` requirements with
   Where/Fix/Verify) — only when the founder hands it a bug directly and no task doc for it exists yet.
@@ -193,7 +193,7 @@ rebuild. Tag every `R#` item with its role regardless of the (now unified) branc
 For each `R#` item in the release: read it in full, implement, test (`npm run build`/`lint`/`typecheck`
 plus that item's own real-verification bar — **against preview by default now**, see the Environment
 note above), commit immediately (`BUGS_TASK<N>_R<X>: ...`), push. Once every item in the release is
-done: write the report at `docs/execution/bugs/reports/task[N].md`, upsert the `STATUS.md` row, commit
+done: write the report at `docs/execution/bugs/Sprint3/reports/task[N].md`, upsert the `STATUS.md` row, commit
 that (`BUGS_TASK<N>_REPORT: ...`), push, and mark the PR ready for review — never merge, never push to
 `main`.
 

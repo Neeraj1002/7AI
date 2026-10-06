@@ -378,6 +378,8 @@ export async function generateVideo(params: {
   // this function never applies its own default, it just threads through
   // whatever it's given.
   voice?: string;
+  // Bugs Closure R6 — stock clip ids this run's earlier attempts used (see stock-shotlist.ts).
+  excludeStockSourceIds?: string[];
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -491,6 +493,7 @@ export async function generateVideo(params: {
       windows,
       totalDurationMs: asr.audioDurationSeconds * 1000,
       outputPath: stockVideoPath,
+      previouslyUsedSourceIds: params.excludeStockSourceIds,
     });
     visualPath = stockVideoPath;
     stockVideoPathArtifact = stockVideoPath;

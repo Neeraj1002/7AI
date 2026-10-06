@@ -93,6 +93,18 @@ async function main(): Promise<void> {
     );
   }
 
+  // Bugs Closure R2 — a stub flag left on in a real environment makes runs "work" with
+  // placeholder output (e.g. AI_VISUALS_STUB gives 14-byte-style placeholder stills,
+  // reported as "AI images don't work"). Never silent.
+  const activeStubs = (
+    ['INTAKE_STAGE_STUB', 'MEDIA_STUB', 'STOCK_FOOTAGE_STUB', 'AI_VISUALS_STUB', 'YOUTUBE_STUB', 'YOUTUBE_ANALYTICS_STUB'] as const
+  ).filter((flag) => env[flag] === '1');
+  if (activeStubs.length > 0) {
+    console.warn(
+      `[boot] stub flag(s) ON: ${activeStubs.join(', ')} — those capabilities return placeholder output, not real provider calls`,
+    );
+  }
+
   // Sprint 3 Task 13 (R1) — r2-client's own skip is deliberately silent for
   // local dev, but on production it is how real videos went unrecorded
   // without anyone noticing. Log only; never fail boot.

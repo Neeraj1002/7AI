@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planShotSegment } from './stock-shotlist';
+import { planShotSegment, excludedSourceIds } from './stock-shotlist';
 
 describe('planShotSegment (Sprint 4 Task 8, R5): no clip ever loops', () => {
   it('trims a long clip to its beat window', () => {
@@ -24,5 +24,15 @@ describe('planShotSegment (Sprint 4 Task 8, R5): no clip ever loops', () => {
   it('never extends a non-final clip', () => {
     const mid = planShotSegment({ positionSeconds: 0, windowEndSeconds: 10, clipSeconds: 1, isLast: false, totalSeconds: 20 });
     expect(mid.holdSeconds).toBe(0);
+  });
+});
+
+// Bugs Closure R6 — a revise attempt must not get a clip an earlier attempt of the run used.
+describe('excludedSourceIds', () => {
+  it('combines earlier attempts\' ids with this attempt\'s, without duplicates', () => {
+    expect(excludedSourceIds(['1', '2'], ['2', '3']).sort()).toEqual(['1', '2', '3']);
+  });
+  it('is just this attempt\'s ids on a first attempt (no previous ids)', () => {
+    expect(excludedSourceIds(undefined, ['7'])).toEqual(['7']);
   });
 });

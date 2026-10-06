@@ -16,6 +16,7 @@ import { findByChannel } from '../../models/repositories/agent-credential.reposi
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { requestCancellation } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
+import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import { TTS_VOICE_KEYS } from '../../media';
@@ -508,6 +509,16 @@ export const runsRouter = router({
     // (18a5e2f5). Retry means "make one more video": step back to
     // video_generation, which feeds the latest review's fix notes forward.
     const regenCapped = run.currentStage === 'video_review' && (run.lastError ?? '').includes('regen cap');
+    // Bugs Closure R1 — a Retry that would be refused by the budget gate at
+    // once only creates another skipped attempt and bounces back to Needs
+    // attention (reports "I retried 10 times"). Say why instead, with the numbers.
+    const retryStage = regenCapped ? 'video_generation' : run.currentStage;
+    if (retryStage === 'script_generation' || retryStage === 'video_generation') {
+      const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+      if (!budget.ok) {
+        throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
+      }
+    }
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,

@@ -43,15 +43,41 @@ export async function insertUsageEvent(input: CreateUsageEventInput): Promise<Us
   return toDomainUsageEvent(row);
 }
 
+// Bugs Closure R6 — pure and tolerant: runs from before Sprint 4 Task 8 have only the single
+// stockFootageSourceId, newer ones also a stockFootageSourceIds array (a shot list joins its ids
+// with commas in the singular key). Anything unexpected yields no ids, never a throw.
+export function sourceIdsFromUsageMetadata(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== 'object') return [];
+  const m = metadata as { stockFootageSourceIds?: unknown; stockFootageSourceId?: unknown };
+  if (Array.isArray(m.stockFootageSourceIds)) {
+    return m.stockFootageSourceIds.filter((id): id is string => typeof id === 'string');
+  }
+  if (typeof m.stockFootageSourceId === 'string') {
+    return m.stockFootageSourceId.split(',').map((id) => id.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+// The stock clip ids a run's earlier video-generation attempts used.
+export async function listStockSourceIdsUsedByRun(pipelineRunId: string): Promise<string[]> {
+  const rows = await prisma.usageEvent.findMany({
+    where: { pipelineRunId, agent: 'video-generation' },
+    select: { metadata: true },
+  });
+  return [...new Set(rows.flatMap((r) => sourceIdsFromUsageMetadata(r.metadata)))];
+}
+
 // Backs the Script Generation cost gate (BUSINESS_LOGIC.md Section 2) — sums
 // spend for every channel on this (tenantId, platform), since UsageEvent
 // itself doesn't store platform directly (only channelId).
 export async function sumUsageCostForTenantPlatform(
   tenantId: string,
   platform: ChannelPlatform,
+  // Bugs Closure R1 (D1) — the budget window start; omitted = lifetime spend.
+  since?: Date,
 ): Promise<number> {
   const result = await prisma.usageEvent.aggregate({
-    where: { tenantId, channel: { platform } },
+    where: { tenantId, channel: { platform }, ...(since && { createdAt: { gte: since } }) },
     _sum: { costUsd: true },
   });
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
@@ -63,9 +89,10 @@ export async function sumUsageCostForTenantChannelPlatform(
   tenantId: string,
   channelId: string,
   platform: ChannelPlatform,
+  since?: Date,
 ): Promise<number> {
   const result = await prisma.usageEvent.aggregate({
-    where: { tenantId, channelId, channel: { platform } },
+    where: { tenantId, channelId, channel: { platform }, ...(since && { createdAt: { gte: since } }) },
     _sum: { costUsd: true },
   });
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;

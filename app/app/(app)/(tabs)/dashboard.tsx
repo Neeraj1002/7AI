@@ -43,6 +43,12 @@ function bucketScores(rows: { score: number; count: number }[]): number[] {
   return buckets;
 }
 
+function formatDecisionTime(seconds: number): string {
+  if (seconds < 90) return `${seconds}s`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)} min`;
+  return `${(seconds / 3600).toFixed(1)} h`;
+}
+
 export default function DashboardScreen() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -56,6 +62,8 @@ export default function DashboardScreen() {
   const operational = useQuery(trpc.dashboard.operational.queryOptions(input));
   const cost = useQuery(trpc.dashboard.cost.queryOptions(input));
   const content = useQuery(trpc.dashboard.content.queryOptions(input));
+  // Bugs Closure R3 — deliberately not in `all` below: an older server without this route must not blank the screen.
+  const gates = useQuery(trpc.dashboard.gates.queryOptions(input));
   const all = [quality, operational, cost, content];
 
   const isRefreshing = all.some((q) => q.isFetching && !q.isLoading);
@@ -105,10 +113,15 @@ export default function DashboardScreen() {
     );
   } else {
     const succ = operational.data?.successRate;
-    const succTotal = succ ? succ.completed + succ.failed : 0;
+    // D2 — a run in needs_attention is a stopped run and counts against the rate.
+    const succTotal = succ ? succ.completed + succ.failed + (succ.needsAttention ?? 0) : 0;
     const regen = quality.data?.videoRegenRate;
-    const spend = cost.data?.totalSpendUsd ?? 0;
-    const ceiling = cost.data?.budgetCeilingUsd ?? null;
+    // Bugs Closure R1 (D1) — the limit is weekly; compare this week's spend, and for a
+    // single channel its own effective ceiling. Falls back to the old fields against an
+    // older server that doesn't send them yet.
+    const spend = cost.data?.weekSpendUsd ?? cost.data?.totalSpendUsd ?? 0;
+    const channelCost = filterId ? cost.data?.byChannel.find((c) => c.channelId === filterId) : undefined;
+    const ceiling = channelCost?.effectiveCeilingUsd ?? cost.data?.budgetCeilingUsd ?? null;
     const perVideo = cost.data?.costPerPublishedVideo.costPerVideoUsd ?? null;
     const g1 = quality.data?.gate1Rates;
     const g1Total = g1 ? g1.approve + g1.edit + g1.reject : 0;
@@ -121,11 +134,16 @@ export default function DashboardScreen() {
             <Text style={styles.stat}>{succTotal > 0 ? pct(succ!.rate) : '—'}</Text>
             <Text style={styles.sub}>
               {succTotal > 0
-                ? `${succ!.completed} of ${succTotal} runs finished`
+                ? `${succ!.completed} finished${succ!.needsAttention ? ` · ${succ!.needsAttention} needs attention` : ''}${succ!.failed ? ` · ${succ!.failed} failed` : ''}`
                 : totalRuns > 0
                   ? 'No finished runs yet'
                   : 'No runs yet'}
             </Text>
+            {operational.data?.publishedRate && operational.data.publishedRate.stopped > 0 ? (
+              <Text style={styles.sub}>
+                {operational.data.publishedRate.published} of {operational.data.publishedRate.stopped} published
+              </Text>
+            ) : null}
           </Card>
           <Card style={styles.half}>
             <Text style={styles.statLabel}>Video regen rate</Text>
@@ -142,7 +160,7 @@ export default function DashboardScreen() {
 
         {cost.data ? (
           <Card>
-            <Text style={styles.statLabel}>Spend this period</Text>
+            <Text style={styles.statLabel}>Spend this week</Text>
             <View style={styles.spendRow}>
               <Text style={styles.stat}>{money(spend)}</Text>
               {ceiling !== null ? <Text style={styles.sub}>of {money(ceiling)}</Text> : null}
@@ -152,7 +170,23 @@ export default function DashboardScreen() {
                 <View style={[styles.fill, { width: `${Math.min(100, (spend / ceiling) * 100)}%`, backgroundColor: color.accent }]} />
               </View>
             ) : null}
+            {ceiling !== null ? <Text style={styles.sub}>Resets Monday</Text> : null}
             {perVideo !== null ? <Text style={styles.sub}>{money(perVideo)} per published video</Text> : null}
+          </Card>
+        ) : null}
+
+        {gates.data ? (
+          <Card>
+            <Text style={styles.cardTitle}>Approval gates</Text>
+            {([
+              ['Gate 1 · Script', gates.data.gate1],
+              ['Gate 2 · Video', gates.data.gate2],
+            ] as const).map(([label, g]) => (
+              <Text key={label} style={styles.sub}>
+                {label}: {g.approved} approved · {g.revised} revised · {g.rejected} rejected
+                {g.medianDecisionSeconds !== null ? ` · typically decided in ${formatDecisionTime(g.medianDecisionSeconds)}` : ''}
+              </Text>
+            ))}
           </Card>
         ) : null}
 

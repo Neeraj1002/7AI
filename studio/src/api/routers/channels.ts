@@ -17,6 +17,7 @@ import { TTS_VOICE_KEYS } from '../../media';
 import { deleteForChannel, findByChannel } from '../../models/repositories/agent-credential.repository';
 import { buildYoutubeConnectUrl } from '../../manage-channels/youtube-oauth-connect';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
+import { loadChannelBudgetView, validateBudgetOverride, budgetDilutionWarning, NoBudgetConfiguredError } from '../../run-pipeline/budget-gate';
 import { createChannelWithCapCheck, ChannelCapExceededError } from '../../manage-channels/channel-cap';
 import { CreateChannelInputSchema } from '../../types';
 import type { Channel } from '../../types';
@@ -94,7 +95,12 @@ export const channelsRouter = router({
           tenantId: ctx.tenantId,
           ownerUserId: ctx.userId ?? undefined,
         });
-        return withHasYoutubeCredential(channel);
+        // Bugs Closure R1 (D4) — a new active channel dilutes the others; warn, never block.
+        const budgetWarning = await loadChannelBudgetView(ctx.tenantId, channel.platform)
+          .then(budgetDilutionWarning)
+          .catch(() => null);
+        if (budgetWarning) console.warn(`[channels.create] tenant ${ctx.tenantId}: ${budgetWarning}`);
+        return { ...withHasYoutubeCredential(channel), budgetWarning };
       } catch (error) {
         if (error instanceof ChannelCapExceededError) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: error.message, cause: error });
@@ -197,6 +203,26 @@ export const channelsRouter = router({
           code: 'BAD_REQUEST',
           message: "gate2Enabled can only be false when defaultPrivacyStatus is 'private'",
         });
+      }
+      // Bugs Closure R1 (F9) — refuse an override that would silently leave
+      // other active channels with a $0 share (or exceeds the weekly pool).
+      if (typeof input.budgetOverrideUsd === 'number') {
+        // No AgentQuota row means the gate itself will refuse; nothing to validate against.
+        const view = await loadChannelBudgetView(channel.tenantId, channel.platform).catch((error) => {
+          if (error instanceof NoBudgetConfiguredError) return null;
+          throw error;
+        });
+        const verdict = view
+          ? validateBudgetOverride({
+              poolCeilingUsd: view.poolCeilingUsd,
+              channelId: channel.id,
+              newOverrideUsd: input.budgetOverrideUsd,
+              channels: view.channels,
+            })
+          : { ok: true as const };
+        if (!verdict.ok) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: verdict.message });
+        }
       }
       let updated = await updateChannel(channel.id, {
         name: input.name,

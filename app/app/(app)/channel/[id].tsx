@@ -247,6 +247,8 @@ export default function ChannelSettingsScreen() {
   const runs = operational.data?.stageFunnel.reduce((sum, row) => sum + row.count, 0);
   const published = cost.data?.costPerPublishedVideo.publishedCount;
   const spend = cost.data?.totalSpendUsd;
+  // Bugs Closure R1 (D1) — the channel limit is weekly, so its bar uses this week's spend.
+  const weekSpend = cost.data?.weekSpendUsd ?? spend;
   const metaParts = [
     runs !== undefined ? `${runs} runs` : null,
     published !== undefined ? `${published} published` : null,
@@ -516,13 +518,13 @@ export default function ChannelSettingsScreen() {
           ) : (
             <Text style={styles.meta}>Default: equal share of the pool</Text>
           )}
-          {limitValid && spend !== undefined ? (
+          {limitValid && weekSpend !== undefined ? (
             <>
               <View style={styles.track}>
-                <View style={[styles.fill, { width: `${Math.min(100, (spend / limit!) * 100)}%` }]} />
+                <View style={[styles.fill, { width: `${Math.min(100, (weekSpend / limit!) * 100)}%` }]} />
               </View>
               <Text style={styles.meta}>
-                ${spend.toFixed(2)} used of ${limit!.toFixed(2)} this period
+                ${weekSpend.toFixed(2)} used of ${limit!.toFixed(2)} this week · resets Monday
               </Text>
             </>
           ) : null}

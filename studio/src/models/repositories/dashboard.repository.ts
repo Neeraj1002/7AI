@@ -1,8 +1,10 @@
 import { prisma } from '../prisma-client';
+import { currentBudgetWindowStart, loadChannelBudgetView, NoBudgetConfiguredError, nextBudgetWindowStart } from '../../run-pipeline/budget-gate';
 import { Prisma } from '@prisma/client';
 import type {
   ContentPerformanceDashboard,
   CostDashboard,
+  GateAnalyticsDashboard,
   OperationalDashboard,
   QualityDashboard,
 } from '../../types';
@@ -32,7 +34,7 @@ function channelFilterSql(channelId: string | undefined, column: Prisma.Sql): Pr
 
 export async function getOperationalDashboard(tenantId: string, channelId?: string): Promise<OperationalDashboard> {
   const channelWhere = channelId ? { channelId } : {};
-  const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedCount] =
+  const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedCount, needsAttentionCount, publishedCount] =
     await Promise.all([
       prisma.pipelineRun.groupBy({
         by: ['currentStage'],
@@ -52,9 +54,20 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
       }),
       prisma.pipelineRun.count({ where: { tenantId, status: 'completed', ...channelWhere } }),
       prisma.pipelineRun.count({ where: { tenantId, status: 'failed', ...channelWhere } }),
+      prisma.pipelineRun.count({ where: { tenantId, status: 'needs_attention', ...channelWhere } }),
+      // A run counts as published only when it is completed AND its publishing stage completed.
+      prisma.pipelineRun.count({
+        where: {
+          tenantId,
+          status: 'completed',
+          ...channelWhere,
+          stages: { some: { stageName: 'publishing', status: 'completed' } },
+        },
+      }),
     ]);
 
-  const terminalCount = completedCount + failedCount;
+  // Bugs Closure R3 (D2) — a run stuck in needs_attention is a stopped run, not a missing one.
+  const terminalCount = completedCount + failedCount + needsAttentionCount;
 
   return {
     stageFunnel: funnelRows.map((row) => ({
@@ -65,25 +78,45 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
     recentCompletions: recentCompletedRows,
     successRate: {
       completed: completedCount,
+      needsAttention: needsAttentionCount,
       failed: failedCount,
       rate: terminalCount > 0 ? completedCount / terminalCount : null,
+    },
+    // Bugs Closure R3 (D3) — published videos / runs that have stopped.
+    publishedRate: {
+      published: publishedCount,
+      stopped: terminalCount,
+      rate: terminalCount > 0 ? publishedCount / terminalCount : null,
     },
   };
 }
 
 export async function getCostDashboard(tenantId: string, channelId?: string): Promise<CostDashboard> {
   const channelWhere = channelId ? { channelId } : {};
-  const [totalAgg, quota, byChannelRaw, byStageRaw, publishedCount] = await Promise.all([
+  // Bugs Closure R1 (D1) — the same weekly window the budget gate enforces.
+  const windowStart = currentBudgetWindowStart();
+  const [totalAgg, weekAgg, effectiveCeilings, quota, byChannelRaw, byStageRaw, publishedCount] = await Promise.all([
     prisma.usageEvent.aggregate({
       where: { tenantId, ...channelWhere },
       _sum: { costUsd: true },
     }),
+    prisma.usageEvent.aggregate({
+      where: { tenantId, ...channelWhere, createdAt: { gte: windowStart } },
+      _sum: { costUsd: true },
+    }),
+    loadChannelBudgetView(tenantId, 'youtube')
+      .then((view) => view.ceilings)
+      .catch((error) => {
+        if (error instanceof NoBudgetConfiguredError) return new Map<string, number>();
+        throw error;
+      }),
     prisma.agentQuota.findUnique({
       where: { tenantId_platform: { tenantId, platform: 'youtube' } },
     }),
-    prisma.$queryRaw<{ channelId: string; channelName: string; spendUsd: Prisma.Decimal }[]>(
+    prisma.$queryRaw<{ channelId: string; channelName: string; spendUsd: Prisma.Decimal; weekSpendUsd: Prisma.Decimal }[]>(
       Prisma.sql`
-        SELECT c.id AS "channelId", c.name AS "channelName", COALESCE(SUM(ue."costUsd"), 0) AS "spendUsd"
+        SELECT c.id AS "channelId", c.name AS "channelName", COALESCE(SUM(ue."costUsd"), 0) AS "spendUsd",
+               COALESCE(SUM(ue."costUsd") FILTER (WHERE ue."createdAt" >= ${windowStart.toISOString()}::timestamp), 0) AS "weekSpendUsd"
         FROM channels c
         LEFT JOIN usage_events ue ON ue."channelId" = c.id
         WHERE c."tenantId" = ${tenantId}::uuid ${channelFilterSql(channelId, Prisma.sql`c.id`)}
@@ -112,14 +145,20 @@ export async function getCostDashboard(tenantId: string, channelId?: string): Pr
   ]);
 
   const totalSpendUsd = totalAgg._sum.costUsd ? Number(totalAgg._sum.costUsd) : 0;
+  const weekSpendUsd = weekAgg._sum.costUsd ? Number(weekAgg._sum.costUsd) : 0;
 
   return {
     totalSpendUsd,
+    weekSpendUsd,
+    budgetWindow: { startsAt: windowStart.toISOString(), resetsAt: nextBudgetWindowStart().toISOString() },
     budgetCeilingUsd: quota ? Number(quota.budgetCeilingUsd) : null,
     byChannel: byChannelRaw.map((row) => ({
       channelId: row.channelId,
       channelName: row.channelName,
       spendUsd: Number(row.spendUsd),
+      weekSpendUsd: Number(row.weekSpendUsd),
+      // null for an inactive channel (the gate ignores those).
+      effectiveCeilingUsd: effectiveCeilings.get(row.channelId) ?? null,
     })),
     byStage: byStageRaw.map((row) => ({ stage: row.stage, spendUsd: Number(row.spendUsd) })),
     costPerPublishedVideo: {
@@ -315,4 +354,42 @@ export async function getQualityDashboard(tenantId: string, channelId?: string):
     gate1Rates,
     gate2Rates,
   };
+}
+
+// Bugs Closure R3 (D3) — per-gate resolution analytics, kept apart from the success rate.
+// Time to decision = gate stage row created -> the human review_log written for it
+// (median, seconds; null when the gate has no decisions yet).
+export async function getGateAnalytics(tenantId: string, channelId?: string): Promise<GateAnalyticsDashboard> {
+  const rows = await prisma.$queryRaw<{ gate: string; verdict: string; count: bigint; medianSeconds: number | null }[]>(
+    Prisma.sql`
+      SELECT ps."stageName" AS "gate", rl.verdict AS "verdict", COUNT(*) AS "count",
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (rl."timestamp" - ps."createdAt"))) AS "medianSeconds"
+      FROM review_logs rl
+      JOIN pipeline_stages ps ON ps.id = rl."stageId"
+      WHERE rl."tenantId" = ${tenantId}::uuid AND rl.agent = 'human' AND ps."stageName" IN ('gate1', 'gate2')
+        ${channelFilterSql(channelId, Prisma.sql`rl."channelId"`)}
+      GROUP BY ps."stageName", rl.verdict
+    `,
+  );
+  const empty = () => ({ approved: 0, revised: 0, rejected: 0, medianDecisionSeconds: null as number | null });
+  const out: GateAnalyticsDashboard = { gate1: empty(), gate2: empty() };
+  const weights = { gate1: { n: 0, sum: 0 }, gate2: { n: 0, sum: 0 } };
+  for (const row of rows) {
+    const key = row.gate === 'gate1' ? 'gate1' : 'gate2';
+    const g = out[key];
+    const n = Number(row.count);
+    if (row.verdict === 'approve') g.approved += n;
+    else if (row.verdict === 'edit' || row.verdict === 'revise') g.revised += n;
+    else if (row.verdict === 'reject') g.rejected += n;
+    if (row.medianSeconds !== null) {
+      // Per-verdict medians are blended as a count-weighted mean: an approximation, noted on the type.
+      weights[key].n += n;
+      weights[key].sum += Number(row.medianSeconds) * n;
+    }
+  }
+  for (const key of ['gate1', 'gate2'] as const) {
+    const w = weights[key];
+    out[key].medianDecisionSeconds = w.n > 0 ? Math.round(w.sum / w.n) : null;
+  }
+  return out;
 }
