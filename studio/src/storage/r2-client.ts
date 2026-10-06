@@ -82,6 +82,13 @@ export async function deleteFromR2(params: { key: string }): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: params.key }));
 }
 
+// Sprint 3 Task 13 (R4) — small text objects only (bundle manifest.json).
+export async function getObjectText(key: string): Promise<string> {
+  const res = await getClient().send(new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`R2 object ${key} has no body`);
+  return res.Body.transformToString('utf-8');
+}
+
 export async function getPresignedDownloadUrl(params: { key: string; expiresInSeconds: number }): Promise<string> {
   const command = new GetObjectCommand({ Bucket: env.R2_BUCKET, Key: params.key });
   return getSignedUrl(getClient(), command, { expiresIn: params.expiresInSeconds });

@@ -6,6 +6,7 @@ import { startApiServer } from './api/server';
 import { runPeriodicPoll } from './agents/performance-analytics';
 import { runTelegramStartPollCheck } from './auth/telegram-token-delivery';
 import { isPrivateIpRedirectHost } from './config/redirect-uri-guard';
+import { isR2Configured } from './storage/r2-client';
 
 // Performance Analytics' periodic poll (AGENT_FLEET_DESIGN.md 8.3, "batch
 // over real-time") — a plain setInterval tick against Postgres, matching the
@@ -90,6 +91,13 @@ async function main(): Promise<void> {
     console.warn(
       '[boot] PUBLIC_API_BASE_URL not set — magic-link text will show localhost, unusable from a phone',
     );
+  }
+
+  // Sprint 3 Task 13 (R1) — r2-client's own skip is deliberately silent for
+  // local dev, but on production it is how real videos went unrecorded
+  // without anyone noticing. Log only; never fail boot.
+  if (env.NODE_ENV === 'production' && !isR2Configured()) {
+    console.warn('[boot] R2 not configured — drafts/final/bundles will NOT be uploaded');
   }
 
   await resumeOnStartup();
