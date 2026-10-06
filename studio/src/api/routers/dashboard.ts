@@ -5,6 +5,7 @@ import {
   getCostDashboard,
   getContentPerformanceDashboard,
   getQualityDashboard,
+  getChannelComparisonDashboard,
 } from '../../models/repositories/dashboard.repository';
 
 const dashboardInput = z.object({ channelId: z.string().uuid().optional() });
@@ -30,4 +31,6 @@ export const dashboardRouter = router({
   quality: publicProcedure
     .input(dashboardInput)
     .query(async ({ input, ctx }) => getQualityDashboard(ctx.tenantId, input.channelId)),
+  // Sprint 4 Task 7: every active channel side by side, broken down by formatKey.
+  comparison: publicProcedure.query(async ({ ctx }) => getChannelComparisonDashboard(ctx.tenantId)),
 });
