@@ -9,19 +9,31 @@ Build/typecheck/lint clean, `vitest` 108/108.
 |---|---|
 | R1 | Code done (production-only boot warning in `studio/src/index.ts`). **VPS checks 1-3 and 5 are founder actions, not performed**, so whether production objects now appear is **unknown** |
 | R2 | Done. `generateVideo` returns `artifacts`; transcript/plan/ffmpeg-args JSON written before the FFmpeg call. Stub run verified for both `stock-footage` and `ai-stills`: every path exists, transcript has 11 word segments |
-| R3 | Done (`storage/attempt-bundle.ts`, wired into the Task 12 block in `runVideoGenerationStage`). Live-verified at the bundle-uploader level (below) |
-| R4 | Done (`runs.getAttemptBundle`, `getObjectText`). Mint+download path live-verified; the tRPC procedure itself not exercised against a DB run |
-| R5 | Done (`hasR2Bundle` on `runs.get`) |
+| R3 | Done (`storage/attempt-bundle.ts`, wired into the Task 12 block in `runVideoGenerationStage`). Live-verified through a real stage run (below) |
+| R4 | Done (`runs.getAttemptBundle`, `getObjectText`). Live-verified as a real procedure call against a real run |
+| R5 | Done (`hasR2Bundle` on `runs.get`), verified true/false |
 
-## What was NOT verified (be explicit)
+## Pipeline-level verification (2026-10-06, stub mode, real R2 bucket, real Postgres)
 
-- **Full pipeline run through `runVideoGenerationStage`.** `dry-run full` stopped at script generation:
-  the dev DB's MVP-tenant `agent_quotas.budgetCeilingUsd` is $2 and already spent. Raising it was
-  blocked (shared dev DB) so I did not. A run with real stage rows is still needed to confirm
-  `patchStageOutput(r2BundlePrefix/r2ManifestKey/...)` and `getAttemptBundle` end to end.
-- **R2-unconfigured checkout still completes `video_generation`.** Not run, same reason. By code: the
-  bundle block sits inside Task 12's existing `if (isR2Configured())` and its own try/catch.
-- R1 checks on the VPS (deploy, `grep -o '^R2_[A-Z_]*' studio/.env`, `NODE_ENV=production`, one real run).
+Dev tenant `…0001` `agent_quotas.budgetCeilingUsd` was **$2 originally**, raised to **$10** for this
+verification (founder-approved), and **restored to $2** afterwards. Both throwaway runs used the active
+dev channel `8bbd0504…`, were driven through a scratch script (not `resumeOnStartup`), and were set to
+`failed` afterwards so they can't be resumed. R2 test objects were deleted.
+
+- **R2 configured** (run `956547d1…`): `runVideoGenerationStage` advanced to `video_review`. The stage
+  output in Postgres held `r2DraftKey`, `r2BundlePrefix`
+  (`videos/development/drafts/<tenant>/<run>/1/`), `r2ManifestKey` and `r2BundleUploadedAt`.
+  `runs.getAttemptBundle` (real procedure call via `appRouter.createCaller`) returned 8 files
+  (voiceover, transcript, plan, ffmpeg-args, script, captions.srt, stock-clip.mp4, audio-bed.mp3); every
+  URL returned 200 with bytes matching the manifest; `hasR2Bundle` was `true`.
+- **R2 unconfigured** (`R2_BUCKET` cleared, run `0552a595…`): `video_generation` completed and the run
+  advanced to `video_review` exactly as before; stage output has no R2 keys; `getAttemptBundle` returned
+  `{ available: false }`, `hasR2Bundle` `false`.
+
+## Still open (founder)
+
+R1's VPS checks: deploy ran, `grep -o '^R2_[A-Z_]*' studio/.env`, `NODE_ENV=production`, one real run.
+Whether production objects now appear is unknown until then.
 
 ## Real-bucket round trip (stub checkout, throwaway prefix `videos/development/task13-test/`, deleted afterwards)
 
