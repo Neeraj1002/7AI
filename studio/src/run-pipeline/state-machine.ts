@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { prisma } from '../models/prisma-client';
 import {
   createPipelineRun,
@@ -16,6 +17,7 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { isR2Configured, uploadToR2 } from '../storage/r2-client';
+import { uploadAttemptBundle } from '../storage/attempt-bundle';
 import { insertUsageEvent } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { parseBrief, stubParseBrief } from './parse-brief';
@@ -29,7 +31,7 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
-import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
+import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { requestGate2Decision } from '../agents/gate2';
@@ -900,9 +902,14 @@ export async function runVideoGenerationStage(
   // Same per-attempt metering pattern as Script Generation/Review — every
   // real attempt, including retries, writes its own (aggregated) UsageEvent
   // row.
+  // Task 13 (R3) — the artifacts of the attempt that actually succeeded (a
+  // retried attempt overwrites an earlier one's), for the post-transaction
+  // bundle upload below.
+  let lastArtifacts: VideoArtifacts | undefined;
+  let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
     try {
-      const { output, usage } = await generateVideo({
+      const { output, usage, artifacts } = await generateVideo({
         pipelineRunId: runId,
         attemptNumber,
         scriptText: sanctionedScriptText,
@@ -923,6 +930,8 @@ export async function runVideoGenerationStage(
         costUsd: usage.costUsd,
         metadata: usage.metadata,
       });
+      lastArtifacts = artifacts;
+      lastUsage = usage;
       return output;
     } catch (error) {
       const context = getStageErrorContext(error);
@@ -968,6 +977,43 @@ export async function runVideoGenerationStage(
             error instanceof Error ? error.message : String(error)
           }`,
         );
+      }
+
+      // Sprint 3 Task 13 (R3) — additive debug bundle under a sibling prefix;
+      // the .mp4 key above is unchanged so r2DraftKey/getVideoUrl keep working.
+      if (lastArtifacts && lastUsage) {
+        try {
+          const prefix = `videos/${env.NODE_ENV}/drafts/${run.tenantId}/${runId}/${attemptNumber}/`;
+          const meta = lastUsage.metadata;
+          const bundle = await uploadAttemptBundle({
+            prefix,
+            artifacts: lastArtifacts,
+            scriptText: sanctionedScriptText,
+            scratchDir: path.dirname(output.videoPath),
+            context: {
+              runId,
+              attemptNumber,
+              channelId: run.channelId,
+              ttsModel: meta.ttsModel,
+              voice: resolvedVoice ?? null,
+              transcriptionModel: meta.transcriptionModel,
+              visualSource: meta.visualSource,
+              captionStyle: meta.captionStyle,
+              audioLayer: meta.audioLayer,
+            },
+          });
+          await patchStageOutput(stage.id, {
+            r2BundlePrefix: prefix,
+            r2ManifestKey: bundle.manifestKey,
+            r2BundleUploadedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error(
+            `[video_generation] run ${runId} attempt ${attemptNumber}: R2 bundle upload failed (non-blocking) — ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
       }
     }
 
