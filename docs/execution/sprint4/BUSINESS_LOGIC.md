@@ -35,3 +35,14 @@ Tasks 2-6: update here as each lands.
 - Closes the pre-existing gap where `factualConcerns` reached Gate 1 only as a sentence inside the
   ReviewLog rationale. That sentence is no longer written; `runs.get` returns `scriptReview` instead.
 - No new transitions or failure modes.
+
+## Task 3: Video stage reads the resolved config
+
+- `runVideoGenerationStage` resolves voice, visual source override and audio layer through
+  `loadResolvedConfig` (run override > profile > legacy > default; identical to before for a profile-less
+  channel). A profile's `visual.secondsPerStill` gives `desiredStillCount = clamp(ceil(targetSeconds /
+  secondsPerStill), 3, 20)` to the planner, replacing Task 8's `estimateStillCount` only when set.
+- AI-still scene prompts get the profile's style/negative text, plus the platform safety clause when
+  `AI_VISUALS_SAFETY_NEGATIVES_ENABLED=1`; Video Intelligence then also checks AI stills (not stock) for
+  logos, baked-in text, photoreal real people and gore. A violation is a normal review fail and regen.
+- No new transitions or failure modes.

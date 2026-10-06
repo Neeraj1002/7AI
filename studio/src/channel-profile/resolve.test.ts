@@ -17,6 +17,7 @@ describe('resolveChannelConfig', () => {
       visualDefaultSource: null,
       visualStylePrompt: null,
       visualNegativePrompt: null,
+      visualSecondsPerStill: null,
       audioDefaultVoice: DEFAULT_TTS_VOICE,
       audioDefaultMoodTag: null,
       titleGuidance: null,

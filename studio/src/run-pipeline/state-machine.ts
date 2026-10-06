@@ -33,7 +33,7 @@ import {
 import { requestGate1Decision } from '../agents/gate1';
 import { loadResolvedConfig } from './resolved-config';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
-import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
+import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
@@ -50,7 +50,6 @@ import {
   type PrivacyStatus,
 } from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
-import { resolveVoice } from '../media';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
@@ -817,10 +816,11 @@ export async function runVideoGenerationStage(
   // Resolved to a concrete value here (never left as an unresolved override
   // or null) so generateVideo/synthesizeSpeech always receive something
   // real, regardless of which of the three cases applied.
-  const resolvedVoice = resolveVoice({
-    overrideVoice: run.creationOptions?.voice,
-    channelDefaultVoice: channel.defaultVoice,
-  });
+  // Sprint 4 Task 3: the resolved config adds the profile level between the run
+  // override and the channel default; a profile-less channel resolves exactly as
+  // resolveVoice did before.
+  const config = await loadResolvedConfig(run, channel);
+  const resolvedVoice = config.audioDefaultVoice;
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -883,16 +883,19 @@ export async function runVideoGenerationStage(
         // here), but this drives a real disclosure-policy flag downstream,
         // so an unrecognized value is treated as "no override" rather than
         // trusted blindly.
+        // Sprint 4 Task 3: run override, else the profile's visual.defaultSource.
         visualSourceOverride:
-          run.creationOptions?.visualSource === 'stock-footage' || run.creationOptions?.visualSource === 'ai-stills'
-            ? run.creationOptions.visualSource
+          config.visualDefaultSource === 'stock-footage' || config.visualDefaultSource === 'ai-stills'
+            ? config.visualDefaultSource
             : undefined,
         // Sprint 2 Task 3 (F1) — same narrowing posture as visualSource
         // above: creationOptions.audioLayer is a plain string (validated at
         // the API edge before it gets here), narrowed against the real
         // AUDIO_LAYERS list rather than cast, so an unrecognized value is
         // "no override," not trusted blindly.
-        audioLayerOverride: resolveAudioLayerOverride(run.creationOptions?.audioLayer),
+        audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
+        // Sprint 4 Task 3 (R10): only when the profile sets secondsPerStill.
+        desiredStillCount: computeDesiredStillCount(config.targetSeconds, config.visualSecondsPerStill),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -942,6 +945,11 @@ export async function runVideoGenerationStage(
         brandAssets: channel.brandAssets,
         plan,
         voice: resolvedVoice,
+        sceneStyle: {
+          stylePrompt: config.visualStylePrompt,
+          negativePrompt: config.visualNegativePrompt,
+          safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
+        },
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -1122,6 +1130,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       visualSource,
       // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
       captionsEnabled: channel.brandAssets.captionsEnabled !== false,
+      safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a

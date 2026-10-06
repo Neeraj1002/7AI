@@ -8,6 +8,7 @@ import { synthesizeSpeech, transcribe, type TranscriptSegment } from '../../medi
 import { resolveMediaPurpose } from '../../media/registry';
 import { buildStockShotList } from './stock-shotlist';
 import { generateStills } from '../../ai-visuals';
+import { buildStyledScenePrompts, type SceneStyle } from './scene-prompts';
 import { pickAudioBedTrack } from '../../audio-bed';
 import { env } from '../../config/env';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
@@ -378,6 +379,8 @@ export async function generateVideo(params: {
   // this function never applies its own default, it just threads through
   // whatever it's given.
   voice?: string;
+  // Sprint 4 Task 3: resolved visual style for ai-stills scene prompts.
+  sceneStyle?: SceneStyle;
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -445,7 +448,11 @@ export async function generateVideo(params: {
       // here too rather than trusting every caller re-validates.
       throw new NonTransientStageError("ProductionPlan.visualSource is 'ai-stills' but stillScenePrompts is empty");
     }
-    const stills = await generateStills({ scenePrompts });
+    // Sprint 4 Task 3 (R9/R11): style, negative and safety text ride on each
+    // scene prompt; ai-visuals stays provider-agnostic about style.
+    const stills = await generateStills({
+      scenePrompts: buildStyledScenePrompts(scenePrompts, params.sceneStyle ?? {}),
+    });
     // Sprint 4 Task 8 (R6) — with the faster default pacing there can be more
     // stills than caption cues (e.g. sentence-grouped on a short script).
     // distributeStillWindows would silently drop the excess stills — paid-for

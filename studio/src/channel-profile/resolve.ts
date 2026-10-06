@@ -21,6 +21,7 @@ export type ResolvedChannelConfig = {
   visualDefaultSource: 'stock-footage' | 'ai-stills' | null;
   visualStylePrompt: string | null;
   visualNegativePrompt: string | null;
+  visualSecondsPerStill: number | null; // Task 3 R10; null = Task 8 platform default
   audioDefaultVoice: string; // always concrete, like resolveVoice
   audioDefaultMoodTag: string | null;
   titleGuidance: string | null;
@@ -55,6 +56,7 @@ export function resolveChannelConfig(params: {
       null,
     visualStylePrompt: p.visual?.stylePrompt ?? null,
     visualNegativePrompt: p.visual?.negativePrompt ?? null,
+    visualSecondsPerStill: p.visual?.secondsPerStill ?? null,
     audioDefaultVoice:
       params.runOverrideVoice ?? p.audio?.defaultVoice ?? params.legacyDefaultVoice ?? DEFAULT_TTS_VOICE,
     audioDefaultMoodTag: params.runOverrideAudioLayer ?? p.audio?.defaultMoodTag ?? null,
