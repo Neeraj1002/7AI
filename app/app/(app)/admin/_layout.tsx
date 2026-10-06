@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Redirect, Stack, router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Screen } from '../../../components/Screen';
-import { PrimaryButton } from '../../../components/Buttons';
+import { ActionButton } from '../../../components/admin/ActionButton';
 import { isForbiddenError, useIsAdmin } from '../../../lib/use-admin';
 import { color, space, type } from '../../../lib/theme';
 
@@ -27,7 +27,7 @@ export default function AdminLayout() {
     const unsubQueries = queryClient.getQueryCache().subscribe((event) => {
       if (
         event.type === 'updated' &&
-        event.action.type === 'error' &&
+        (event.action.type === 'error' || event.action.type === 'failed') &&
         isAdminKey(event.query.queryKey) &&
         isForbiddenError(event.action.error)
       ) {
@@ -35,7 +35,7 @@ export default function AdminLayout() {
       }
     });
     const unsubMutations = queryClient.getMutationCache().subscribe((event) => {
-      if (event.type === 'updated' && event.action.type === 'error' && isForbiddenError(event.action.error)) {
+      if (event.type === 'updated' && (event.action.type === 'error' || event.action.type === 'failed') && isForbiddenError(event.action.error)) {
         setAccessEnded(true);
       }
     });
@@ -51,7 +51,7 @@ export default function AdminLayout() {
         <View style={styles.center}>
           <Text style={styles.title}>Admin access ended</Text>
           <Text style={styles.body}>Your Admin access was removed. Nothing here can be shown any more.</Text>
-          <PrimaryButton label="Back to the app" onPress={() => router.replace('/')} />
+          <ActionButton label="Back to the app" onPress={() => router.replace('/')} />
         </View>
       </Screen>
     );
