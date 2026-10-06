@@ -40,11 +40,12 @@ export function resolveChannelConfig(params: {
   runOverrideVoice?: string | null; // PipelineRun.creationOptions.voice
   runOverrideVisualSource?: string | null; // creationOptions.visualSource
   runOverrideAudioLayer?: string | null; // creationOptions.audioLayer
+  runOverrideTargetSeconds?: number | null; // creationOptions.targetDurationSec
 }): ResolvedChannelConfig {
   const p = params.profile ?? {};
   return {
     scriptGuide: p.script?.guide ?? params.legacyStyleGuide ?? null,
-    targetSeconds: p.script?.targetSeconds ?? 45,
+    targetSeconds: params.runOverrideTargetSeconds ?? p.script?.targetSeconds ?? 45,
     bannedOpeners: p.script?.bannedOpeners ?? [],
     bannedEndings: p.script?.bannedEndings ?? [],
     factPolicy: p.script?.factPolicy ?? 'brief-plus-common',

@@ -20,3 +20,18 @@ Incremental, not cumulative. Updated in place by each task that changes control 
 ## Task 7: none (purely additive read).
 
 Tasks 2-6: update here as each lands.
+
+## Task 2: Script stages read the resolved config
+
+- `runScriptGenerationStage` and `runScriptReviewStage` load the run's own snapshotted profile
+  (`run-pipeline/resolved-config.ts`) and pass the resolved guide, `targetSeconds`, fact policy and banned
+  lists to the agents, plus `run.briefText` always. Target precedence: run `targetDurationSec` > profile
+  `script.targetSeconds` > platform default 45 (replaces the old "30-60 seconds" literal; a profile-less
+  channel now aims at 45 s).
+- `script_review` output gains `styleGuideViolations`. Gate 1 reads `factualConcerns` and
+  `styleGuideViolations` from the latest completed `script_review` output and `sources` from
+  `creationOptions.sources`, and renders each as a labelled block before the Reply line (omitted when
+  empty, so the message is byte-identical when none exist).
+- Closes the pre-existing gap where `factualConcerns` reached Gate 1 only as a sentence inside the
+  ReviewLog rationale. That sentence is no longer written; `runs.get` returns `scriptReview` instead.
+- No new transitions or failure modes.

@@ -20,3 +20,7 @@ All additive and nullable; no backfill.
 ## Task 7: none (read-only aggregation over existing tables).
 
 Tasks 2-6: none expected yet; update here if that changes.
+
+## Task 2: none (Json-column additions only)
+
+`PipelineRun.creationOptions.sources` and `PipelineStage.output.styleGuideViolations` (script_review).

@@ -21,7 +21,7 @@ export type ScriptGenerationResult = {
   llm: LLMResponse;
 };
 
-const SYSTEM_PROMPT = `You write scripts for short-form vertical video (YouTube Shorts, 30-60 seconds).
+const SYSTEM_PROMPT = `You write scripts for short-form vertical video (YouTube Shorts).
 Given a topic, a list of constraints, and an optional style guide, respond with ONLY a JSON
 object of the shape:
 {"scriptText": string, "captions": string, "hashtags": string[]}
@@ -32,28 +32,61 @@ scene-direction brackets or stage directions mixed into the narration itself.
 not an SRT file — a captioning tool handles timing separately).
 "hashtags" is a short list (3-8) of relevant hashtags, without the '#' character.
 
+The target length is given in the user message; the narration must never exceed 60 seconds.
 Respect every listed constraint (length limits, tone, things to avoid, a specific angle).
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
-function buildUserMessage(params: {
+// Sprint 4 Task 2 (R4): the fact policy is stated in the system prompt.
+// 'brief-plus-common' (the platform default) keeps today's wording, where the
+// model may draw on general knowledge; 'brief-only' makes the brief's own
+// facts authoritative.
+const BRIEF_ONLY_RULE = `
+
+Facts and figures stated in the brief are authoritative: keep every one of them, with the numbers
+exactly as given, and do not introduce claims beyond common, verifiably-safe general knowledge.`;
+
+export type FactPolicy = 'brief-only' | 'brief-plus-common';
+
+export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common'): string {
+  return factPolicy === 'brief-only' ? SYSTEM_PROMPT + BRIEF_ONLY_RULE : SYSTEM_PROMPT;
+}
+
+export type GenerateScriptParams = {
   topic: string;
   constraints: string[];
   styleGuide?: string | null;
-  targetDurationSec?: 30 | 45 | 60;
+  // The resolved target narration length (Sprint 4 Task 2 R6): run override,
+  // else profile, else the platform default of 45.
+  targetSeconds?: number;
   fixNotes?: string;
-}): string {
+  // Sprint 4 Task 2 (R4/R7).
+  briefText?: string;
+  factPolicy?: FactPolicy;
+  bannedOpeners?: string[];
+  bannedEndings?: string[];
+};
+
+export function buildUserMessage(params: GenerateScriptParams): string {
   const lines = [`Topic: ${params.topic}`];
+  // R4: the raw brief as explicit extra context alongside topic/constraints,
+  // not a replacement for them, so facts in it survive into the script.
+  if (params.briefText) {
+    lines.push(`Original brief (authoritative source for any facts or figures it states):\n${params.briefText}`);
+  }
   if (params.constraints.length > 0) {
     lines.push(`Constraints: ${params.constraints.join('; ')}`);
   }
   if (params.styleGuide) {
     lines.push(`Style guide: ${params.styleGuide}`);
   }
-  // Sprint 3 Task 9 (R4) — additive: stated alongside the system prompt's
-  // existing "30-60 seconds" Shorts-format framing, not a replacement for
-  // it. Omitted entirely (not just absent from the message) when unset, so
-  // an unset run's behavior is provably identical to before this field
-  // existed.
+  // R7: only when non-empty, so a channel without these lists is unchanged.
+  if (params.bannedOpeners && params.bannedOpeners.length > 0) {
+    lines.push(`Do not open with any of: ${params.bannedOpeners.join('; ')}`);
+  }
+  if (params.bannedEndings && params.bannedEndings.length > 0) {
+    lines.push(`Do not end with any of: ${params.bannedEndings.join('; ')}`);
+  }
+  // Sprint 3 Task 9 (R4), now fed by the resolved target (Sprint 4 Task 2 R6).
   //
   // A live check found a bare "approximately N seconds" instruction doesn't
   // reliably move the model (three real 45s-targeted runs landed at 55-80s
@@ -61,10 +94,10 @@ function buildUserMessage(params: {
   // a concrete word count far more reliably than an abstract duration, so
   // this also states the equivalent word count, at the same ~150 words/
   // minute rate media/stub.ts's own duration estimate already assumes.
-  if (params.targetDurationSec) {
-    const approxWords = Math.round((params.targetDurationSec / 60) * 150);
+  if (params.targetSeconds) {
+    const approxWords = Math.round((params.targetSeconds / 60) * 150);
     lines.push(
-      `Target length: write this script to run approximately ${params.targetDurationSec} seconds when narrated aloud — aim for around ${approxWords} words of narration (natural speaking pace, ~150 words/minute).`,
+      `Target length: write this script to run approximately ${params.targetSeconds} seconds when narrated aloud (never more than 60) — aim for around ${approxWords} words of narration (natural speaking pace, ~150 words/minute).`,
     );
   }
   // Bugs Task 6 (R1) — mirrors video-generation/plan.ts's own fixNotes
@@ -79,16 +112,10 @@ function buildUserMessage(params: {
   return lines.join('\n');
 }
 
-export async function generateScript(params: {
-  topic: string;
-  constraints: string[];
-  styleGuide?: string | null;
-  targetDurationSec?: 30 | 45 | 60;
-  fixNotes?: string;
-}): Promise<ScriptGenerationResult> {
+export async function generateScript(params: GenerateScriptParams): Promise<ScriptGenerationResult> {
   const llm = await callLLM({
     purpose: 'script-generation',
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(params.factPolicy),
     messages: [{ role: 'user', content: buildUserMessage(params) }],
     maxTokens: 2048,
   });

@@ -91,3 +91,12 @@ describe('ChannelProfileDataSchema', () => {
     expect(ChannelProfileDataSchema.safeParse({ visual: { defaultSource: 'video' } }).success).toBe(false);
   });
 });
+
+describe('resolveChannelConfig targetSeconds', () => {
+  it('run override > profile > platform default 45', () => {
+    const profile: ChannelProfileData = { script: { targetSeconds: 30 } };
+    expect(resolveChannelConfig({ ...none, profile, runOverrideTargetSeconds: 60 }).targetSeconds).toBe(60);
+    expect(resolveChannelConfig({ ...none, profile }).targetSeconds).toBe(30);
+    expect(resolveChannelConfig(none).targetSeconds).toBe(45);
+  });
+});

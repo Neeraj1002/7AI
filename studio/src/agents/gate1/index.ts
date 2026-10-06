@@ -49,7 +49,15 @@ export function formatGateMessage(params: {
   // not a fresh gate — worth saying plainly so it doesn't read as a
   // confusing duplicate ask.
   restarted?: boolean;
+  // Sprint 4 Task 2 (R8): each renders as its own labelled block before the
+  // closing Reply line, and is omitted entirely when empty or undefined, so a
+  // run with none of them produces exactly the message this function always did.
+  factualConcerns?: string[];
+  styleGuideViolations?: string[];
+  sources?: string[];
 }): string {
+  const block = (label: string, items: string[] | undefined): string[] =>
+    items && items.length > 0 ? [``, `${label}:`, ...items.map((item) => `- ${item}`)] : [];
   return [
     `Gate 1 — ${params.channelName}`,
     ...(params.restarted
@@ -63,6 +71,9 @@ export function formatGateMessage(params: {
     ``,
     `Review score: ${params.reviewScore}/10`,
     `Review notes: ${params.reviewNotes}`,
+    ...block('Factual concerns', params.factualConcerns),
+    ...block('Style guide violations', params.styleGuideViolations),
+    ...block('Sources cited in brief', params.sources),
     ``,
     `Reply "approve", "reject <reason>", or send edited script text.`,
   ].join('\n');
@@ -77,6 +88,9 @@ export async function requestGate1Decision(params: {
   reviewScore: string;
   reviewNotes: string;
   restarted?: boolean;
+  factualConcerns?: string[];
+  styleGuideViolations?: string[];
+  sources?: string[];
 }): Promise<Gate1Outcome> {
   const message = formatGateMessage(params);
   // Sprint 3 Task 3 (K2) — real per-user routing: the channel's real owner

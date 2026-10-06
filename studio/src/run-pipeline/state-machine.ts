@@ -31,6 +31,7 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
+import { loadResolvedConfig } from './resolved-config';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
@@ -240,14 +241,20 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     fixNotes = latestAutoReject?.rationale;
   }
 
+  // Sprint 4 Task 2: guide, length, fact policy and banned lists come from the
+  // resolved config of the profile this run was created against.
+  const config = await loadResolvedConfig(run, channel);
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: run.intakeParsed.constraints,
-    styleGuide: channel.styleGuide,
-    // Sprint 3 Task 9 (R4) — additive per-run creation option; unset for a
-    // run that never set it, same as before this field existed.
-    targetDurationSec: run.creationOptions?.targetDurationSec,
+    styleGuide: config.scriptGuide,
+    // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
+    targetSeconds: config.targetSeconds,
     fixNotes: fixNotes ?? null,
+    briefText: run.briefText,
+    factPolicy: config.factPolicy,
+    bannedOpeners: config.bannedOpeners,
+    bannedEndings: config.bannedEndings,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -313,8 +320,12 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
-        targetDurationSec: stageInput.targetDurationSec,
+        targetSeconds: stageInput.targetSeconds,
         fixNotes: fixNotes ?? undefined,
+        briefText: stageInput.briefText,
+        factPolicy: stageInput.factPolicy,
+        bannedOpeners: stageInput.bannedOpeners,
+        bannedEndings: stageInput.bannedEndings,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -400,11 +411,16 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
 
   const previousAttempt = await findLatestAttempt(runId, 'script_review');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const config = await loadResolvedConfig(run, channel);
   const stageInput = {
     scriptText: scriptOutput.scriptText,
     captions: scriptOutput.captions,
     nicheDescription: channel.nicheDescription,
-    styleGuide: channel.styleGuide,
+    styleGuide: config.scriptGuide,
+    briefText: run.briefText,
+    targetSeconds: config.targetSeconds,
+    bannedOpeners: config.bannedOpeners,
+    bannedEndings: config.bannedEndings,
   };
 
   const stage = await createStageAttempt({
@@ -505,13 +521,10 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         output.videoGenFit.flags.length > 0
           ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
           : '';
-      // C3 (Week 5 Task 4): surfaced in the same ReviewLog rationale gate1
-      // reads from, so a plausibility concern actually reaches the founder
-      // at Gate 1, not just the raw stage output.
-      const factualConcernsNote =
-        output.factualConcerns.length > 0
-          ? ` Factual concerns (plausibility check, not verified): ${output.factualConcerns.join('; ')}.`
-          : '';
+      // Sprint 4 Task 2: factualConcerns and styleGuideViolations are no longer
+      // folded into this rationale. Gate 1 renders them as their own labelled
+      // blocks from the stage output, and runs.get returns them as
+      // `scriptReview`; keeping them here too would show each twice.
       // G3 (Sprint 2 Task 4): same reasoning — the hook score/notes reach
       // the founder at Gate 1 in the same rationale text, not just the raw
       // stage output only a direct DB query would surface.
@@ -530,7 +543,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}${autoRetryCapNote}`,
+          rationale: `${output.notes}${flagsNote}${hookNote}${autoRetryCapNote}`,
         },
         tx,
       );
@@ -645,6 +658,10 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // Blocks here until a reply arrives (or, per Task 6's founder-availability
   // note, a simulated one is fed in for testing) — this is the "pause" that
   // PipelineRun.status = 'paused_gate1' represents.
+  // Sprint 4 Task 2 (R8): concerns/violations from the latest completed review,
+  // sources from the run's explicit creationOptions.
+  const reviewStage = await findLatestCompletedAttempt(runId, 'script_review');
+  const reviewOut = (reviewStage?.output ?? {}) as { factualConcerns?: string[]; styleGuideViolations?: string[] };
   const outcome = await requestGate1Decision({
     runId,
     channel,
@@ -654,6 +671,9 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     reviewScore: latestReview.verdict,
     reviewNotes: latestReview.rationale,
     restarted: isRestartReopen,
+    factualConcerns: reviewOut.factualConcerns,
+    styleGuideViolations: reviewOut.styleGuideViolations,
+    sources: run.creationOptions?.sources,
   });
 
   const recordGate1Outcome = async (): Promise<PipelineRun> => {

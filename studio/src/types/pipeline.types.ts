@@ -45,6 +45,9 @@ export const CreationOptionsSchema = z.object({
   // never a behavior change for a run that doesn't set it (script-generation
   // falls back to its existing "30-60 seconds" framing when unset).
   targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+  // Sprint 4 Task 2 (R5): explicit source URLs/citations the brief relies on.
+  // Shown at Gate 1; never inferred from the free-text brief.
+  sources: z.array(z.string()).optional(),
 });
 export type CreationOptions = z.infer<typeof CreationOptionsSchema>;
 

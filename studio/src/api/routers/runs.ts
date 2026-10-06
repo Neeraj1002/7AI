@@ -89,6 +89,24 @@ function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' 
 // `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
 // below. `list`/`get` were both missed by that hardening pass — this closes
 // the second of the two.
+// Sprint 4 Task 2: the latest completed script_review attempt's concerns and
+// violations plus the run's explicit sources. null before any review exists.
+export function deriveScriptReview(
+  run: Pick<PipelineRun, 'creationOptions'>,
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+) {
+  const latest = stages
+    .filter((s) => s.stageName === 'script_review' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  if (!latest) return null;
+  const out = latest.output as { factualConcerns?: string[]; styleGuideViolations?: string[] };
+  return {
+    factualConcerns: out.factualConcerns ?? [],
+    styleGuideViolations: out.styleGuideViolations ?? [],
+    sources: run.creationOptions?.sources ?? [],
+  };
+}
+
 async function getRunDetail(id: string, ctx: Context) {
   const run = await findPipelineRunById(id);
   if (!run) {
@@ -116,6 +134,9 @@ async function getRunDetail(id: string, ctx: Context) {
     stages,
     reviewLogs,
     lastGateDecision: deriveLastGateDecision(stages),
+    // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
+    // stable place (derived from stage output and creationOptions, not stored).
+    scriptReview: deriveScriptReview(run, stages),
     endReason: deriveEndReason(run),
     hasR2Draft: stages.some(
       (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
@@ -202,6 +223,8 @@ export const runsRouter = router({
         // Sprint 3 Task 9 (R4) — same edge-validation posture as
         // voice/visualSource/audioLayer above.
         targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+        // Sprint 4 Task 2 (R5): explicit sources only, folded into creationOptions.
+        sources: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -225,12 +248,13 @@ export const runsRouter = router({
       }
       await assertChannelCanRun(channel);
       const creationOptions =
-        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec
+        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length
           ? {
               ...(input.voice && { voice: input.voice }),
               ...(input.visualSource && { visualSource: input.visualSource }),
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
               ...(input.targetDurationSec && { targetDurationSec: input.targetDurationSec }),
+              ...(input.sources?.length && { sources: input.sources }),
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
