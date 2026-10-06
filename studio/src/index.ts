@@ -7,6 +7,7 @@ import { runPeriodicPoll } from './agents/performance-analytics';
 import { runTelegramStartPollCheck } from './auth/telegram-token-delivery';
 import { isPrivateIpRedirectHost } from './config/redirect-uri-guard';
 import { isR2Configured } from './storage/r2-client';
+import { startPushReceiptChecker } from './notifications/push-channel';
 
 // Performance Analytics' periodic poll (AGENT_FLEET_DESIGN.md 8.3, "batch
 // over real-time") — a plain setInterval tick against Postgres, matching the
@@ -118,6 +119,9 @@ async function main(): Promise<void> {
   startGateReminderChecker();
   startFounderDigestChecker();
   startTelegramStartPollChecker();
+  // Bugs Task 10 (R3) — Expo push delivery receipts (clears dead tokens).
+  startPushReceiptChecker();
+  console.log('[boot] Push receipt checker started (every 5 minutes)');
 
   await startApiServer();
 

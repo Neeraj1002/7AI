@@ -2,6 +2,7 @@ import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 import type { NotificationChannel } from './channel';
 import { getOrCreatePendingApproval, resolvePendingApproval as resolvePendingApprovalShared } from './pending-approvals';
 import { env } from '../config/env';
+import { handleTicket, startReceiptChecker } from './push-receipts';
 
 // Sprint 3 Task 7 (O1) — the only file allowed to touch expo-server-sdk
 // directly, same provider-boundary pattern every external-integration
@@ -48,12 +49,10 @@ export class ExpoPushChannel implements NotificationChannel {
     // Sprint 3 frontend Task 1's existing Expo deep-link mechanism (the
     // app's own `sevenai://` scheme), not a second deep-link scheme.
     const [ticket] = await expo.sendPushNotificationsAsync([message]);
-    if (ticket.status === 'error') {
-      console.error(
-        `[push-channel] Expo push send failed for user ${this.params.userId}: ${ticket.message}`,
-        ticket.details,
-      );
-    }
+    // Bugs Task 10 (R3) — error tickets are logged (without the token) and a
+    // DeviceNotRegistered one clears the stored token; accepted tickets are
+    // kept so their delivery receipts can be read later. Never throws.
+    await handleTicket(ticket, { userId: this.params.userId, token: this.params.expoPushToken });
   }
 
   async notify(message: string, meta?: { threadKey?: string }): Promise<void> {
@@ -75,4 +74,10 @@ export class ExpoPushChannel implements NotificationChannel {
   resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
     return resolvePendingApprovalShared(threadKey, reply);
   }
+}
+
+// Bugs Task 10 (R3) — boot hook (studio/src/index.ts): reads Expo's delivery
+// receipts every few minutes. Returns the stop function.
+export function startPushReceiptChecker(): () => void {
+  return startReceiptChecker(expo);
 }
