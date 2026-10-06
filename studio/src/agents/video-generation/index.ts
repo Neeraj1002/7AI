@@ -81,9 +81,26 @@ export type VideoGenerationUsage = {
   };
 };
 
+// Sprint 3 Task 13 (R2) — every intermediate generateVideo used to drop. Not
+// part of the persisted VideoGenerationOutputSchema; returned alongside
+// output/usage so the orchestrator can upload a per-attempt debug bundle.
+export type VideoArtifacts = {
+  ttsAudioPath: string;
+  transcriptJsonPath: string;
+  srtPath?: string;
+  planJsonPath: string;
+  stockClipPath?: string;
+  stillImagePaths?: string[];
+  stillsVideoPath?: string;
+  audioBedPath?: string;
+  ffmpegArgsJsonPath: string;
+  stubFlags: { media: boolean; stockFootage: boolean; aiVisuals: boolean };
+};
+
 export type VideoGenerationResult = {
   output: VideoGenerationOutput;
   usage: VideoGenerationUsage;
+  artifacts: VideoArtifacts;
 };
 
 const VIDEO_WIDTH = 1080;
@@ -399,9 +416,19 @@ export async function generateVideo(params: {
   // `subtitles` stage is added to the filter graph at all — not just an
   // empty/invisible caption track.
   const captionsEnabled = params.brandAssets.captionsEnabled !== false;
+  const srtPath = path.join(outputDir, srtFilename);
   if (captionsEnabled) {
-    await fs.writeFile(path.join(outputDir, srtFilename), buildSrt(captionSegments), 'utf-8');
+    await fs.writeFile(srtPath, buildSrt(captionSegments), 'utf-8');
   }
+
+  const transcriptJsonPath = path.join(outputDir, `${params.attemptNumber}.transcript.json`);
+  await fs.writeFile(
+    transcriptJsonPath,
+    JSON.stringify({ audioDurationSeconds: asr.audioDurationSeconds, segments: asr.segments }, null, 2),
+    'utf-8',
+  );
+  const planJsonPath = path.join(outputDir, `${params.attemptNumber}.plan.json`);
+  await fs.writeFile(planJsonPath, JSON.stringify(params.plan, null, 2), 'utf-8');
 
   // Sprint 2 Task 2 (E2) — the one branch point. Both paths converge on a
   // single `visualPath`: everything from here down (scale/crop, subtitles,
@@ -409,6 +436,9 @@ export async function generateVideo(params: {
   let visualPath: string;
   let stockFootageMeta: { provider: string; query: string; sourceId: string; costUsd: string } | undefined;
   let aiVisualsMeta: { provider: string; model: string; stillCount: number; costUsd: string } | undefined;
+  let stockClipPath: string | undefined;
+  let stillImagePaths: string[] | undefined;
+  let stillsVideoPathArtifact: string | undefined;
 
   if (params.plan.visualSource === 'ai-stills') {
     const scenePrompts = params.plan.stillScenePrompts ?? [];
@@ -434,10 +464,13 @@ export async function generateVideo(params: {
       outputPath: stillsVideoPath,
     });
     visualPath = stillsVideoPath;
+    stillsVideoPathArtifact = stillsVideoPath;
+    stillImagePaths = stills.imagePaths;
     aiVisualsMeta = { provider: stills.provider, model: stills.model, stillCount: stills.imagePaths.length, costUsd: stills.costUsd };
   } else {
     const clip = await searchStockFootage({ query: params.plan.stockFootageQuery, orientation: 'portrait' });
     visualPath = clip.clipPath;
+    stockClipPath = clip.clipPath;
     stockFootageMeta = { provider: 'pexels', query: params.plan.stockFootageQuery, sourceId: clip.sourceId, costUsd: clip.costUsd };
   }
 
@@ -503,6 +536,14 @@ export async function generateVideo(params: {
     videoFilename,
   ];
 
+  // Written before the FFmpeg call so it exists for debugging even if FFmpeg throws.
+  const ffmpegArgsJsonPath = path.join(outputDir, `${params.attemptNumber}.ffmpeg-args.json`);
+  await fs.writeFile(
+    ffmpegArgsJsonPath,
+    JSON.stringify({ ffmpegPath: env.FFMPEG_PATH, cwd: outputDir, args: ffmpegArgs, filterComplex }, null, 2),
+    'utf-8',
+  );
+
   await execFileAsync(env.FFMPEG_PATH, ffmpegArgs, { cwd: outputDir });
 
   const videoPath = path.join(outputDir, videoFilename);
@@ -552,6 +593,22 @@ export async function generateVideo(params: {
         transcriptionAudioDurationSeconds: asr.audioDurationSeconds,
         transcriptionCostUsd: asr.costUsd,
         ffmpegCostUsd: 0,
+      },
+    },
+    artifacts: {
+      ttsAudioPath: tts.audioPath,
+      transcriptJsonPath,
+      ...(captionsEnabled && { srtPath }),
+      planJsonPath,
+      ...(stockClipPath && { stockClipPath }),
+      ...(stillImagePaths && { stillImagePaths }),
+      ...(stillsVideoPathArtifact && { stillsVideoPath: stillsVideoPathArtifact }),
+      ...(audioBedTrack && { audioBedPath: audioBedTrack.filePath }),
+      ffmpegArgsJsonPath,
+      stubFlags: {
+        media: env.MEDIA_STUB === '1',
+        stockFootage: env.STOCK_FOOTAGE_STUB === '1',
+        aiVisuals: env.AI_VISUALS_STUB === '1',
       },
     },
   };
