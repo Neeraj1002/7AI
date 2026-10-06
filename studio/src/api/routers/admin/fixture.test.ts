@@ -102,7 +102,7 @@ describe.skipIf(!SANDBOX)('admin API against the seeded fixture (sandbox databas
   it('usage gaps finds the planted $0 groups', async () => {
     const gaps = await ops().admin.usage.gaps({ sinceDays: 30 });
     expect(gaps.map((g) => `${g.provider}/${g.model}`)).toEqual(expect.arrayContaining(['openai/gpt-image-1.5', 'unknown/unknown']));
-    expect(gaps.find((g) => g.model === 'gpt-image-1.5')?.metadataKeys).toEqual(['promptCount', 'stillCount']);
+    expect(gaps.find((g) => g.model === 'gpt-image-1.5' && g.agent === 'video-generation')?.metadataKeys).toEqual(['promptCount', 'stillCount']);
   });
 
   it('no secret or tenant content appears in any admin response except the audited content call', async () => {
