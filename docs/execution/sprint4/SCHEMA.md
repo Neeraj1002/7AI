@@ -26,3 +26,5 @@ Tasks 2-6: none expected yet; update here if that changes.
 `PipelineRun.creationOptions.sources` and `PipelineStage.output.styleGuideViolations` (script_review).
 
 ## Task 3: none (prompt text and one env flag).
+
+## Task 6: none (`creationOptions.formatKey` in the existing Json column).

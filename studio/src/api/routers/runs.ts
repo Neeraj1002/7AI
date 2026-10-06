@@ -21,6 +21,7 @@ import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
+import { FORMAT_KEYS } from '../../formats/manifest';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
 
@@ -225,6 +226,8 @@ export const runsRouter = router({
         targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
         // Sprint 4 Task 2 (R5): explicit sources only, folded into creationOptions.
         sources: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
+        // Sprint 4 Task 6: validated against the format manifest at the edge.
+        formatKey: z.enum(FORMAT_KEYS).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -248,13 +251,14 @@ export const runsRouter = router({
       }
       await assertChannelCanRun(channel);
       const creationOptions =
-        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length
+        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length || input.formatKey
           ? {
               ...(input.voice && { voice: input.voice }),
               ...(input.visualSource && { visualSource: input.visualSource }),
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
               ...(input.targetDurationSec && { targetDurationSec: input.targetDurationSec }),
               ...(input.sources?.length && { sources: input.sources }),
+              ...(input.formatKey && { formatKey: input.formatKey }),
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never

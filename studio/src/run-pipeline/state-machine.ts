@@ -254,6 +254,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     factPolicy: config.factPolicy,
     bannedOpeners: config.bannedOpeners,
     bannedEndings: config.bannedEndings,
+    scriptStructure: config.formatScriptStructure,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -325,6 +326,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         factPolicy: stageInput.factPolicy,
         bannedOpeners: stageInput.bannedOpeners,
         bannedEndings: stageInput.bannedEndings,
+        scriptStructure: stageInput.scriptStructure,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,

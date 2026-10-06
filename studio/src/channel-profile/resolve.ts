@@ -1,5 +1,6 @@
 import type { ChannelProfileData } from './schema';
 import { DEFAULT_TTS_VOICE } from '../media';
+import { findFormat } from '../formats/manifest';
 
 // Sprint 4 Task 1 (R3): the one shared resolver every later Sprint 4 task
 // reads. Pure and DB-free (same posture as media/registry.ts resolveVoice):
@@ -12,6 +13,8 @@ import { DEFAULT_TTS_VOICE } from '../media';
 
 export type ResolvedChannelConfig = {
   scriptGuide: string | null;
+  // Sprint 4 Task 6: the chosen format's structural hint, null when no valid format.
+  formatScriptStructure: string | null;
   targetSeconds: number; // platform default 45
   bannedOpeners: string[];
   bannedEndings: string[];
@@ -42,11 +45,14 @@ export function resolveChannelConfig(params: {
   runOverrideVisualSource?: string | null; // creationOptions.visualSource
   runOverrideAudioLayer?: string | null; // creationOptions.audioLayer
   runOverrideTargetSeconds?: number | null; // creationOptions.targetDurationSec
+  formatKey?: string | null; // creationOptions.formatKey; unknown keys are ignored
 }): ResolvedChannelConfig {
   const p = params.profile ?? {};
+  const format = findFormat(params.formatKey);
   return {
     scriptGuide: p.script?.guide ?? params.legacyStyleGuide ?? null,
-    targetSeconds: params.runOverrideTargetSeconds ?? p.script?.targetSeconds ?? 45,
+    formatScriptStructure: format?.scriptStructure ?? null,
+    targetSeconds: params.runOverrideTargetSeconds ?? format?.targetSeconds ?? p.script?.targetSeconds ?? 45,
     bannedOpeners: p.script?.bannedOpeners ?? [],
     bannedEndings: p.script?.bannedEndings ?? [],
     factPolicy: p.script?.factPolicy ?? 'brief-plus-common',

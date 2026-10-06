@@ -48,6 +48,8 @@ export const CreationOptionsSchema = z.object({
   // Sprint 4 Task 2 (R5): explicit source URLs/citations the brief relies on.
   // Shown at Gate 1; never inferred from the free-text brief.
   sources: z.array(z.string()).optional(),
+  // Sprint 4 Task 6: a key from formats/manifest.ts. Validated at the API edge.
+  formatKey: z.string().optional(),
 });
 export type CreationOptions = z.infer<typeof CreationOptionsSchema>;
 

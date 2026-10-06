@@ -44,3 +44,10 @@ describe('script-generation prompt', () => {
     );
   });
 });
+
+describe('script-generation format structure (Sprint 4 Task 6)', () => {
+  it('adds the format structure line only when set', () => {
+    expect(buildUserMessage({ topic: 'T', constraints: [], scriptStructure: 'Exactly 3 items.' })).toContain('Format structure: Exactly 3 items.');
+    expect(buildUserMessage({ topic: 'T', constraints: [], scriptStructure: null })).toBe('Topic: T');
+  });
+});

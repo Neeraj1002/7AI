@@ -10,6 +10,7 @@ describe('resolveChannelConfig', () => {
   it('(a) no profile, no overrides, no legacy fields gives every platform default', () => {
     expect(resolveChannelConfig(none)).toEqual({
       scriptGuide: null,
+      formatScriptStructure: null,
       targetSeconds: 45,
       bannedOpeners: [],
       bannedEndings: [],
@@ -99,5 +100,30 @@ describe('resolveChannelConfig targetSeconds', () => {
     expect(resolveChannelConfig({ ...none, profile, runOverrideTargetSeconds: 60 }).targetSeconds).toBe(60);
     expect(resolveChannelConfig({ ...none, profile }).targetSeconds).toBe(30);
     expect(resolveChannelConfig(none).targetSeconds).toBe(45);
+  });
+});
+
+describe('resolveChannelConfig formatKey (Sprint 4 Task 6)', () => {
+  const profile: ChannelProfileData = { script: { targetSeconds: 20 } };
+
+  it('format beats the profile: countdown 45 s wins over a profile 20 s', () => {
+    const out = resolveChannelConfig({ ...none, profile, formatKey: 'countdown' });
+    expect(out.targetSeconds).toBe(45);
+    expect(out.formatScriptStructure).toContain('Numbered items');
+  });
+
+  it('an explicit run-level target still beats the format', () => {
+    expect(resolveChannelConfig({ ...none, profile, formatKey: 'countdown', runOverrideTargetSeconds: 30 }).targetSeconds).toBe(30);
+  });
+
+  it('no format, or an unknown one, leaves resolution exactly as before', () => {
+    expect(resolveChannelConfig({ ...none, profile }).targetSeconds).toBe(20);
+    expect(resolveChannelConfig({ ...none, profile, formatKey: 'nope' }).targetSeconds).toBe(20);
+    expect(resolveChannelConfig({ ...none, profile, formatKey: 'nope' }).formatScriptStructure).toBeNull();
+    expect(resolveChannelConfig({ ...none, formatKey: null })).toEqual(resolveChannelConfig(none));
+  });
+
+  it('a format with no profile uses the format target', () => {
+    expect(resolveChannelConfig({ ...none, formatKey: 'question-surprising-answer' }).targetSeconds).toBe(35);
   });
 });

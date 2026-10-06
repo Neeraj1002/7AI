@@ -19,5 +19,6 @@ export async function loadResolvedConfig(
     runOverrideVisualSource: run.creationOptions?.visualSource,
     runOverrideAudioLayer: run.creationOptions?.audioLayer,
     runOverrideTargetSeconds: run.creationOptions?.targetDurationSec,
+    formatKey: run.creationOptions?.formatKey,
   });
 }

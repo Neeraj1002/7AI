@@ -46,3 +46,11 @@ Tasks 2-6: update here as each lands.
   `AI_VISUALS_SAFETY_NEGATIVES_ENABLED=1`; Video Intelligence then also checks AI stills (not stock) for
   logos, baked-in text, photoreal real people and gore. A violation is a normal review fail and regen.
 - No new transitions or failure modes.
+
+## Task 6: Format precedence level
+
+- Resolution order is now run override > format > profile > legacy `Channel` field > platform default.
+  A valid `creationOptions.formatKey` (from `formats/manifest.ts`) sets `targetSeconds` from the format
+  (still beaten by an explicit run `targetDurationSec`) and passes the format's `scriptStructure` to Script
+  Generation as one extra prompt line. An unknown or absent key changes nothing.
+- No new transitions or failure modes.

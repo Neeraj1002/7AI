@@ -21,6 +21,7 @@ import { createChannelWithCapCheck, ChannelCapExceededError } from '../../manage
 import { CreateChannelInputSchema } from '../../types';
 import type { Channel } from '../../types';
 import { ChannelProfileDataSchema } from '../../channel-profile';
+import { CONTENT_FORMATS } from '../../formats/manifest';
 import {
   insertProfileVersion,
   findActiveProfileForChannel,
@@ -92,6 +93,10 @@ export const channelsRouter = router({
       }
       return withHasYoutubeCredential(channel);
     }),
+
+  // Sprint 4 Task 6: the static format list for the brief form's picker. Plain
+  // reference data, so any valid session may read it.
+  listFormats: publicProcedure.query(() => CONTENT_FORMATS),
 
   // Sprint 4 Task 1 (R2): channel profile versions. Creating one is a
   // channel-management action, so it is ownership-checked like connecting

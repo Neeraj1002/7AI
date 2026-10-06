@@ -64,6 +64,8 @@ export type GenerateScriptParams = {
   factPolicy?: FactPolicy;
   bannedOpeners?: string[];
   bannedEndings?: string[];
+  // Sprint 4 Task 6: the chosen format's structural hint.
+  scriptStructure?: string | null;
 };
 
 export function buildUserMessage(params: GenerateScriptParams): string {
@@ -85,6 +87,9 @@ export function buildUserMessage(params: GenerateScriptParams): string {
   }
   if (params.bannedEndings && params.bannedEndings.length > 0) {
     lines.push(`Do not end with any of: ${params.bannedEndings.join('; ')}`);
+  }
+  if (params.scriptStructure) {
+    lines.push(`Format structure: ${params.scriptStructure}`);
   }
   // Sprint 3 Task 9 (R4), now fed by the resolved target (Sprint 4 Task 2 R6).
   //
