@@ -32,6 +32,16 @@ Tasks/reports of Bugs Tasks 1-7 now live under `docs/execution/bugs/Sprint3/`; l
   - **Real under-count**: `generateVideo` pays for TTS + transcription (about $0.031) *before* the visuals step, and a failed attempt then recorded $0 — and the retry loop repeats this up to 3 more times. Fixed: the failure row now records the cost already spent and `metadata.failed`, with a warning log when provider/model are unknown; stub image renders carry `metadata.stub`. Not exercised end to end (needs a failing media call).
   - Image pricing already exists (`gpt-image-1.5` $0.013/image) and is counted on success.
 
+### R1 step 5b — D4 budget model (`BUGS_CLOSURE_R1B`)
+Checked first: the tenant budget was already read only from `AgentQuota.budgetCeilingUsd` and never derived from the channel count, so item (a) needed no change; (b)-(e) are new.
+- `MIN_CHANNEL_SHARE_USD = 5` (**proposed — founder to confirm**). An override is refused when it exceeds the weekly budget or leaves any other active default-share channel below the floor, naming those channels. Applied in `channels.update` and the previously unguarded `scripts/set-channel-budget-override.ts`. `set-budget-ceiling.ts` (throwaway, sets the tenant budget) left alone.
+- Activating a channel (`channels.create` is the only path; there is no un-archive) never blocks; the response gains an additive `budgetWarning` and the server logs it when the split is under the $20/channel guide or the floor. `budgetDilutionWarning()` is exported for the app/admin screens; the app does not show it yet.
+- `checkBudget` already made both checks (channel vs ceiling, tenant vs weekly budget) with `scope`; now covered by a mocked-repository gate test (channel under ceiling + tenant at budget → refused `scope: 'pool'`). A default-share channel with a $0 share is now logged with `console.error`.
+- `invite-tenant.ts` requires `--weekly-budget <usd>`; the $2.00 default is gone.
+- Tests: 132 pass (12 new): $40 split over 1/2/3 channels, override equal to budget (rejected), below-floor (rejected), exactly-floor (accepted), dilution warning, weekly-window query, no-budget-row. Unit tests with mocks only; not run against a database in this pass.
+- Founder confirmed step 6 applied on 2026-10-06 (override NULL, pool 40.00), so `d0617c67…` splits $20 per channel once this is deployed.
+- **Branch name**: the updated task doc names `BUGS_CLOSURE`; this work started on `Sprint3_CLOSURE` (PR #48) under the earlier doc and stays there rather than renaming a pushed branch with an open PR.
+
 ### R2 (partial) — `BUGS_CLOSURE_R2`
 A loud `[boot]` warning when any `*_STUB` flag is on. Per-run non-budget causes and report 6's root cause need preview data.
 
@@ -51,7 +61,7 @@ A revise attempt now skips stock clips earlier attempts used (`excludeSourceIds`
 
 ## Needs the founder (not done here)
 1. **R0**: `cd /var/www/7AI && git log -1 --oneline` on the VPS, re-test all 24 reports on the live app, then `bugs.updateTriage` each (owner session or ops token). Proposed `area` from code reading: reports 1-6 `BE`; 7-9 `BE`+`FE`; 10 `APP`; 11 `FE`/`BE`; 12-13 `BE`; 14-16 `BE`; 17-18 `APP`+`BE`; 19 `BE`; 20 `APP`; the four feedback items: set an area, leave `open`.
-2. **R1 step 6** (raise `agent_quotas` to 40 and clear the override `7d2482ee…`) — still needs the founder; note that with this branch the pool is weekly, so $40/week is generous. Re-run the diagnostic SQL after the deploy to confirm.
+2. **R1 step 6** — applied by the founder 2026-10-06 (override NULL, pool 40.00). Re-run the diagnostic SQL after the deploy to confirm, and confirm `MIN_CHANNEL_SHARE_USD = 5`.
 3. **R1 step 7 check**: run the SQL in the task on `usage_events` to confirm the `gpt-image-1.5` rows are failures, and read the failing attempt's `output`/`lastError` for the image error; check `AI_VISUALS_STUB` on the VPS (R2 / report 6).
 4. **R5 reports 12/13**, **R6 steps 1**, **R7** (ffprobe a stuttering draft; compare `/runs/:id/video` with the R2 presigned URL), **R8** (`SELECT name, "defaultVoice" FROM channels;` and set per-channel voices), **R9** (hand to UI/UX; set `area: APP`, stay `open`).
 5. Deploy order: ship the server first. The app falls back to the old fields (`weekSpendUsd ?? totalSpendUsd`) so an older server doesn't break the Dashboard, but `dashboard.gates` simply won't show until the server has it. The app changes are JS-only (`FE`): OTA via `eas update --branch preview`, no APK.
