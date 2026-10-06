@@ -446,7 +446,9 @@ model PerformanceSnapshot {
 model BugReport {
   id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   description String @db.Text
-  status      String @default("open") @db.VarChar(20)
+  // Admin Sprint 1 (R3) - widened to VARCHAR(32): the new value
+  // awaiting_verification is 21 characters. No CHECK constraint exists.
+  status      String @default("open") @db.VarChar(32)
 
   // Bugs Task 7 (R2) — 'bug' | 'feedback', tester-supplied at submission,
   // required. Defaults every existing (pre-this-migration) row to 'bug',
@@ -460,6 +462,9 @@ model BugReport {
   // Bugs Task 7 (R3) — 'BE' | 'FE' | 'APP', never tester-facing. null means
   // "not yet triaged." Set only via bugsRouter.updateTriage.
   area String? @db.VarChar(20)
+  // Admin Sprint 1 (R3) - short triage note (max 500), set through triage;
+  // replaces the previous note (history lives in admin_audit_log).
+  triageNote String? @db.VarChar(500)
 
   // Run/screen context — added so a report can be cross-checked against
   // Postgres the same way every other fix in this project has been, instead
