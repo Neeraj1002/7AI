@@ -12,7 +12,9 @@ Authorization and audit rules only. No pipeline state changes.
    **same transaction** as the change. If the audit write fails the change fails. An audit row exists iff the
    change committed. `before`/`after` pass through `redact()` (drops keys matching
    `/token|secret|password|authorization|key/i`).
-5. **DA-6: structure by default, content only on an explicit audited call.** Admin responses carry ids,
+5. **DA-6: structure by default, content only on an explicit audited call.** (`admin.runs.content` is a tRPC
+   **mutation**, not a query: it has a side effect, and a client-cached query could leave a view unaudited or audit it
+   twice. Clients must call it with `mutationOptions`.) Admin responses carry ids,
    statuses, stages, truncated errors, timestamps, costs and key **names**. Tenant content (brief, stage output,
    plan, transcript, bundle file) comes only from `admin.runs.content`, which writes its `run.content_view`
    audit row **first** and returns nothing if that write fails. Text responses are capped at 200 KB.
@@ -20,7 +22,15 @@ Authorization and audit rules only. No pipeline state changes.
    the platform-admin script.
 7. **Bug triage access.** `bugs.list` / `bugs.updateTriage` (existing) now require Admin (ops token unchanged);
    a tenant owner session is `FORBIDDEN`. The unauthenticated tester-form routes are untouched.
-8. **Budget view (read-only).** Spend figures come from the same functions the gate calls, always with
+8. **Bug triage is audited on both routes.** `admin.bugs.updateTriage` and the legacy `bugs.updateTriage`
+   (hot-fixer, ops token) share one repository function that writes the change and its `bug.triage` audit row in
+   one transaction. An unknown bug id is `NOT_FOUND` and writes nothing.
+9. **Budget warnings.** `override_reserves_whole_pool` fires when overrides EQUAL the pool (the case the gate's own
+   exceeds-pool warning never covered, matching `computeChannelBudgetCeilings`' `onPoolFullyReserved`);
+   overrides ABOVE the pool give `override_exceeds_pool` instead. `override_starves_others` fires only for a
+   positive but sub-minimum share (a $0 share is already `zero_share`). `below_guide` is informational and its
+   wording is `budgetDilutionWarning(view)`'s.
+10. **Budget view (read-only).** Spend figures come from the same functions the gate calls, always with
    `since: currentBudgetWindowStart()`; effective ceilings come from `computeChannelBudgetCeilings` via
    `loadChannelBudgetView`. Nothing is re-derived.
 

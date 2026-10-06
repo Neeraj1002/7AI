@@ -1,7 +1,7 @@
 # Admin Sprint 1 Status: The "See" Release (platform-admin identity, audit log, read-only cross-tenant views)
 
 **Sprint status**: Both tasks written, not started. **BE Task 1 is blocked until closure PR #48 (`Sprint3_CLOSURE`, branch of the Bugs Sprint 3 closure task) is merged to `main`**: it builds the weekly budget window, `checkBudget()` and, per the founder's 2026-10-06 decision (D4), the budget-model validation that BE Task 1's budget view reads. After that, BE Task 1 must complete and its PR must be merged before FE Task 1 starts.
-**Last updated**: 2026-10-06 (BE Task 1 now depends on closure PR #48; scope extended with the run inspector, System card, and the bug status `awaiting_verification` plus a note; no code yet)
+**Last updated**: 2026-10-06 (after BE Task 1)
 
 **Branches: `admin_sprint1_be` (BE Task 1) and `admin_sprint1_fe` (FE Task 1)**, each cut from a fresh
 `origin/main` by its own task, one draft PR each, marked ready by that task. The FE branch is cut **after the BE
@@ -9,7 +9,7 @@ PR is merged** (see `ADMIN_TASK_TEMPLATE.md` section 2). Do not merge; never pus
 
 | Task | Track | Name | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|---|
-| BE 1 | BE | Platform-Admin Identity, Audit Log, and the Read-Only Cross-Tenant API (incl. run inspector, system info, bug `awaiting_verification` + note; ~24h) | In Progress | Claude Code (BE agent), started 2026-10-06 | `admin_sprint1_be` (cut from `origin/main` at efb7feb, which contains #48; worktree `D:\Study Material\7AI-admin-be`) | `be/task1.md`, work from `D:\Study Material\7AI`. Report: `../report/sprint1/be/task1.md`. Founder actions after merge: set the platform-admin flag with `scripts/set-platform-admin.ts`, compare against the 2026-10-05 SQL results. |
+| BE 1 | BE | Platform-Admin Identity, Audit Log, and the Read-Only Cross-Tenant API (incl. run inspector, system info, bug `awaiting_verification` + note; ~24h) | Done — action needed | **Founder** | `admin_sprint1_be` (cut from `origin/main` at efb7feb, which contains #48; PR #50, ready for review) | Report: `../report/sprint1/be/task1.md` (R0-R10 done, 276 tests passing). Founder: review and merge PR #50, then run the Founder Actions in the report (set the platform-admin flag with `scripts/set-platform-admin.ts`, compare against the 2026-10-05 SQL results). FE must call `admin.runs.content` as a mutation. |
 | FE 1 | FE | The Admin Section in the App: Overview (with System card), Tenants, Budget View, Usage, Bugs, Run Inspector, Audit Log (~17.5h) | Not started | — | `admin_sprint1_fe` (record the moment it is created, after BE 1's PR is merged) | `fe/task1.md`, work from `D:\Study Material\7AI-frontend`. Depends on BE 1. Report: `../report/sprint1/fe/task1.md`. JS-only, ships by OTA after merge. |
 
 ## Dependencies

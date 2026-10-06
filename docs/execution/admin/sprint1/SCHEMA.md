@@ -19,10 +19,12 @@ No backfill: every existing user becomes a non-admin.
 | `triageNote` | `VARCHAR(500) NULL` | Short note set through triage. Replaces the previous note; history lives in `admin_audit_log`. |
 
 New status value `awaiting_verification` ("fixed in code, not yet verified on the deployed build").
-`bug_reports.status` has **no CHECK constraint** (verified in the migrations: the column is
-`VARCHAR(20) NOT NULL DEFAULT 'open'` and is constrained only by the TypeScript `BUG_REPORT_STATUSES`
-constant), so the new value is a constant change; the migration contains a guarded drop of a
-`bug_reports_status_check` constraint only if one exists on some database.
+`bug_reports.status` has **no CHECK constraint** (verified in the migrations: it is constrained only by the
+TypeScript `BUG_REPORT_STATUSES` constant), so the value itself is a constant change. **The column was
+`VARCHAR(20)` and `awaiting_verification` is 21 characters, so the migration widens it to `VARCHAR(32)`**
+(non-destructive, a no-op when already wide; the task doc did not anticipate this). The migration also contains a
+guarded `DROP CONSTRAINT IF EXISTS bug_reports_status_check`, which matters only on a database where someone added
+one by hand.
 
 ## Tables Created
 
