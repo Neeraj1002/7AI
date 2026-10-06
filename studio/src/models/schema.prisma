@@ -433,6 +433,29 @@ model PerformanceSnapshot {
   @@map("performance_snapshots")
 }
 
+// Admin Sprint 1 (R1) — one row per admin write (bug triage, platform-admin
+// flag change) and per tenant-content view, written in the same transaction
+// as the change it records. Deliberately no foreign keys (same convention as
+// BugReport): an audit row must survive deletion of the thing it describes.
+// actorKind: 'session' | 'ops-token' | 'script' (CHECK in the migration).
+model AdminAuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorKind   String   @db.VarChar(20)
+  actorUserId String?  @db.Uuid
+  action      String   @db.VarChar(100)
+  targetType  String   @db.VarChar(50)
+  targetId    String?  @db.VarChar(100)
+  tenantId    String?  @db.Uuid
+  before      Json?
+  after       Json?
+  reason      String?  @db.Text
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([createdAt], map: "idx_admin_audit_created")
+  @@index([tenantId, createdAt], map: "idx_admin_audit_tenant_created")
+  @@map("admin_audit_log")
+}
+
 // Testing-phase utility, not a real product model — a lightweight bug inbox
 // for manual app testing, deliberately outside the Tenant/User model
 // entirely: a tester reporting a bug may not be signed in, or the bug may
@@ -484,27 +507,4 @@ model BugReport {
   createdAt DateTime @default(now())
 
   @@map("bug_reports")
-}
-
-// Admin Sprint 1 (R1) — one row per admin write (bug triage, platform-admin
-// flag change) and per tenant-content view, written in the same transaction
-// as the change it records. Deliberately no foreign keys (same convention as
-// BugReport): an audit row must survive deletion of the thing it describes.
-// actorKind: 'session' | 'ops-token' | 'script' (CHECK in the migration).
-model AdminAuditLog {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  actorKind   String   @db.VarChar(20)
-  actorUserId String?  @db.Uuid
-  action      String   @db.VarChar(100)
-  targetType  String   @db.VarChar(50)
-  targetId    String?  @db.VarChar(100)
-  tenantId    String?  @db.Uuid
-  before      Json?
-  after       Json?
-  reason      String?  @db.Text
-  createdAt   DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([createdAt], map: "idx_admin_audit_created")
-  @@index([tenantId, createdAt], map: "idx_admin_audit_tenant_created")
-  @@map("admin_audit_log")
 }
