@@ -129,3 +129,132 @@ export async function analyzeAllTenantBudgets(platform: ChannelPlatform): Promis
   }
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Overview (R4). A fixed number of queries however many tenants exist.
+// ---------------------------------------------------------------------------
+
+export type RunStatusCounts = {
+  total: number;
+  completed: number;
+  failed: number;
+  needsAttention: number;
+  running: number;
+  pausedGate1: number;
+  pausedGate2: number;
+  pending: number;
+};
+
+function emptyRunCounts(): RunStatusCounts {
+  return { total: 0, completed: 0, failed: 0, needsAttention: 0, running: 0, pausedGate1: 0, pausedGate2: 0, pending: 0 };
+}
+
+function countRuns(rows: { status: string; _count: { _all: number } }[]): RunStatusCounts {
+  const out = emptyRunCounts();
+  for (const r of rows) {
+    const n = r._count._all;
+    out.total += n;
+    if (r.status === 'completed') out.completed += n;
+    else if (r.status === 'failed') out.failed += n;
+    else if (r.status === 'needs_attention') out.needsAttention += n;
+    else if (r.status === 'running') out.running += n;
+    else if (r.status === 'paused_gate1') out.pausedGate1 += n;
+    else if (r.status === 'paused_gate2') out.pausedGate2 += n;
+    else if (r.status === 'pending') out.pending += n;
+  }
+  return out;
+}
+
+export type OverviewData = {
+  weekStartUtc: Date;
+  totals: { tenants: number; users: number; activeChannels: number; inactiveChannels: number };
+  runsThisWeek: RunStatusCounts;
+  openNow: { pausedGate1: number; pausedGate2: number; needsAttention: number; running: number };
+  spend: { thisWeekUsd: number; allTimeUsd: number };
+  tenantNames: Map<string, string>;
+  budgets: Map<string, TenantBudgetAnalysis>;
+  credentials: { channelId: string; channelName: string; channelIsActive: boolean; tenantId: string; updatedAt: Date }[];
+  pendingRuns: { id: string; tenantId: string; channelId: string; status: string; updatedAt: Date }[];
+  untriagedBugs: { count: number; oldest: Date | null };
+  costGaps: { count: number; oldest: Date | null };
+};
+
+export async function loadOverviewData(
+  now: Date,
+  options: { freeProviders: readonly string[]; costGapWindowDays: number },
+): Promise<OverviewData> {
+  const weekStart = currentBudgetWindowStart(now);
+  const gapSince = new Date(now.getTime() - options.costGapWindowDays * 24 * 3_600_000);
+
+  const [
+    tenants,
+    userCount,
+    channelGroups,
+    runsWeekRows,
+    runsAllRows,
+    spendWeek,
+    spendAll,
+    pendingRuns,
+    credentials,
+    untriaged,
+    gaps,
+    budgets,
+  ] = await Promise.all([
+    prisma.tenant.findMany({ select: { id: true, name: true } }),
+    prisma.user.count(),
+    prisma.channel.groupBy({ by: ['isActive'], _count: { _all: true } }),
+    prisma.pipelineRun.groupBy({ by: ['status'], where: { createdAt: { gte: weekStart } }, _count: { _all: true } }),
+    prisma.pipelineRun.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.usageEvent.aggregate({ where: { createdAt: { gte: weekStart } }, _sum: { costUsd: true } }),
+    prisma.usageEvent.aggregate({ _sum: { costUsd: true } }),
+    prisma.pipelineRun.findMany({
+      where: { status: { in: ['needs_attention', 'paused_gate1', 'paused_gate2'] } },
+      select: { id: true, tenantId: true, channelId: true, status: true, updatedAt: true },
+    }),
+    // Explicit select: the refresh token column is never read.
+    prisma.agentCredential.findMany({
+      select: { channelId: true, updatedAt: true, channel: { select: { name: true, tenantId: true, isActive: true } } },
+    }),
+    prisma.bugReport.aggregate({ where: { area: null }, _count: { _all: true }, _min: { createdAt: true } }),
+    prisma.usageEvent.aggregate({
+      where: { costUsd: 0, createdAt: { gte: gapSince }, provider: { notIn: [...options.freeProviders] } },
+      _count: { _all: true },
+      _min: { createdAt: true },
+    }),
+    analyzeAllTenantBudgets('youtube'),
+  ]);
+
+  const openAll = countRuns(runsAllRows);
+  return {
+    weekStartUtc: weekStart,
+    totals: {
+      tenants: tenants.length,
+      users: userCount,
+      activeChannels: channelGroups.find((g) => g.isActive)?._count._all ?? 0,
+      inactiveChannels: channelGroups.find((g) => !g.isActive)?._count._all ?? 0,
+    },
+    runsThisWeek: countRuns(runsWeekRows),
+    openNow: {
+      pausedGate1: openAll.pausedGate1,
+      pausedGate2: openAll.pausedGate2,
+      needsAttention: openAll.needsAttention,
+      running: openAll.running,
+    },
+    spend: {
+      thisWeekUsd: spendWeek._sum.costUsd ? Number(spendWeek._sum.costUsd) : 0,
+      allTimeUsd: spendAll._sum.costUsd ? Number(spendAll._sum.costUsd) : 0,
+    },
+    tenantNames: new Map(tenants.map((t) => [t.id, t.name])),
+    budgets,
+    credentials: credentials.map((c) => ({
+      channelId: c.channelId,
+      channelName: c.channel.name,
+      channelIsActive: c.channel.isActive,
+      tenantId: c.channel.tenantId,
+      updatedAt: c.updatedAt,
+    })),
+    pendingRuns,
+    untriagedBugs: { count: untriaged._count._all, oldest: untriaged._min.createdAt },
+    costGaps: { count: gaps._count._all, oldest: gaps._min.createdAt },
+  };
+}
