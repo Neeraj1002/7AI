@@ -84,6 +84,8 @@ model User {
   loginTokens   LoginToken[]
   // Sprint 3 Task 2 (K1) — reverse side of Channel.ownerUserId.
   ownedChannels Channel[]
+  // Sprint 4 Task 1: reverse side of ChannelProfileVersion.createdByUserId.
+  createdProfileVersions ChannelProfileVersion[]
   notifications Notification[]
 
   @@index([tenantId], map: "idx_users_tenant")
@@ -172,6 +174,12 @@ model Channel {
   performanceSnapshots PerformanceSnapshot[]
   notifications        Notification[]
   agentCredential      AgentCredential?
+
+  // Sprint 4 Task 1: null (every existing channel) means "no profile": resolve
+  // from legacy fields and platform defaults. See channel-profile/resolve.ts.
+  activeProfileVersionId String?                  @db.Uuid
+  activeProfileVersion   ChannelProfileVersion?   @relation("ActiveChannelProfile", fields: [activeProfileVersionId], references: [id])
+  profileVersions        ChannelProfileVersion[]  @relation("ChannelProfileVersions")
 
   @@unique([platform, externalChannelId], map: "idx_channels_external")
   @@index([tenantId, isActive], map: "idx_channels_tenant")
@@ -269,6 +277,11 @@ model PipelineRun {
   // shape now so Sprint 2 Task 2/3 extend one object instead of adding
   // parallel columns. Nullable, no backfill — every existing run is null.
   creationOptions Json?
+
+  // Sprint 4 Task 1: snapshot of the channel's active profile version at run
+  // creation; never re-read from the channel later. null = no profile.
+  profileVersionId String?                @db.Uuid
+  profileVersion   ChannelProfileVersion? @relation(fields: [profileVersionId], references: [id])
 
   retryCount Int     @default(0)
   lastError  String? @db.Text
@@ -473,4 +486,26 @@ model BugReport {
   createdAt DateTime @default(now())
 
   @@map("bug_reports")
+}
+
+// Sprint 4 Task 1: versioned channel configuration. Immutable once written;
+// a change is a new row (version = max + 1) and the channel's
+// activeProfileVersionId moves to it. `data` is validated against
+// channel-profile/schema.ts's ChannelProfileDataSchema at write time.
+model ChannelProfileVersion {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId       String   @db.Uuid
+  version         Int
+  data            Json
+  createdByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now())
+
+  channel           Channel       @relation("ChannelProfileVersions", fields: [channelId], references: [id])
+  activeForChannels Channel[]     @relation("ActiveChannelProfile")
+  createdByUser     User?         @relation(fields: [createdByUserId], references: [id])
+  pipelineRuns      PipelineRun[]
+
+  @@unique([channelId, version])
+  @@index([channelId], map: "idx_channel_profile_versions_channel")
+  @@map("channel_profile_versions")
 }

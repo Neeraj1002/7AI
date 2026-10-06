@@ -21,6 +21,7 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
     briefText: row.briefText,
     intakeParsed: (row.intakeParsed as IntakeParsed | null) ?? null,
     creationOptions: (row.creationOptions as CreationOptions | null) ?? null,
+    profileVersionId: row.profileVersionId,
     retryCount: row.retryCount,
     lastError: row.lastError,
     startedAt: row.startedAt,
@@ -30,13 +31,17 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
   };
 }
 
-export async function createPipelineRun(input: CreatePipelineRunInput): Promise<PipelineRun> {
+export async function createPipelineRun(
+  input: CreatePipelineRunInput,
+  profileVersionId: string | null = null,
+): Promise<PipelineRun> {
   const row = await prisma.pipelineRun.create({
     data: {
       tenantId: input.tenantId,
       channelId: input.channelId,
       briefText: input.briefText,
       creationOptions: input.creationOptions as Prisma.InputJsonValue | undefined,
+      profileVersionId,
       status: 'pending',
     },
   });

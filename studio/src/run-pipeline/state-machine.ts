@@ -60,7 +60,10 @@ import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } fro
 // comes online.
 
 export async function createRun(input: CreatePipelineRunInput): Promise<PipelineRun> {
-  return createPipelineRun(input);
+  // Sprint 4 Task 1: snapshot the channel active profile version onto the run;
+  // it is never re-read from the channel later in the run life.
+  const channel = await findChannelById(input.channelId);
+  return createPipelineRun(input, channel?.activeProfileVersionId ?? null);
 }
 
 function nextStageAfter(stage: StageName): StageName | null {

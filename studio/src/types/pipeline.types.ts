@@ -60,6 +60,10 @@ export type PipelineRun = {
   intakeParsed: IntakeParsed | null;
   creationOptions: CreationOptions | null;
 
+  // Sprint 4 Task 1: snapshot of the channel active profile version at run
+  // creation. null = the channel had no profile.
+  profileVersionId: string | null;
+
   retryCount: number;
   lastError: string | null;
 
