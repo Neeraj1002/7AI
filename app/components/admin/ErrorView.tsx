@@ -1,13 +1,13 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { SecondaryButton } from '../Buttons';
+import { ActionButton } from './ActionButton';
 import { color, space, type } from '../../lib/theme';
 
 export function ErrorView({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <View style={styles.box} accessibilityRole="alert">
       <Text style={styles.text}>{message}</Text>
-      {onRetry ? <SecondaryButton label="Retry" icon="refresh-cw" onPress={onRetry} /> : null}
+      {onRetry ? <ActionButton label="Retry" icon="refresh-cw" onPress={onRetry} /> : null}
     </View>
   );
 }

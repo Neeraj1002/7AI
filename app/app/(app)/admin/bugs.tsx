@@ -6,7 +6,7 @@ import { useTRPC } from '../../../lib/trpc';
 import type { AdminOutputs } from '../../../lib/use-admin';
 import { color, font, space, type } from '../../../lib/theme';
 import { Card } from '../../../components/Card';
-import { SecondaryButton } from '../../../components/Buttons';
+import { ActionButton } from '../../../components/admin/ActionButton';
 import { AdminScreen } from '../../../components/admin/AdminScreen';
 import { Banner } from '../../../components/admin/Banner';
 import { Chip, type ChipTone } from '../../../components/admin/Chip';
@@ -166,7 +166,7 @@ function BugCard({ bug, options }: { bug: Bug; options: Options }) {
       ) : null}
 
       {bug.run ? (
-        <SecondaryButton
+        <ActionButton
           label="Open run"
           icon="external-link"
           onPress={() => router.push({ pathname: '/admin/run/[id]', params: { id: bug.run!.id } })}

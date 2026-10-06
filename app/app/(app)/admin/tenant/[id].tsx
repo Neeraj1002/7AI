@@ -6,7 +6,7 @@ import { useTRPC } from '../../../../lib/trpc';
 import { isNotFoundError, type AdminOutputs } from '../../../../lib/use-admin';
 import { color, font, space, type } from '../../../../lib/theme';
 import { Card } from '../../../../components/Card';
-import { SecondaryButton } from '../../../../components/Buttons';
+import { ActionButton } from '../../../../components/admin/ActionButton';
 import { AdminScreen } from '../../../../components/admin/AdminScreen';
 import { Banner } from '../../../../components/admin/Banner';
 import { Chip, type ChipTone } from '../../../../components/admin/Chip';
@@ -35,7 +35,7 @@ export default function AdminTenantDetail() {
     return (
       <AdminScreen title="Tenant">
         <EmptyView message="Tenant not found" />
-        <SecondaryButton label="Back" onPress={() => router.back()} />
+        <ActionButton label="Back" onPress={() => router.back()} />
       </AdminScreen>
     );
   }
