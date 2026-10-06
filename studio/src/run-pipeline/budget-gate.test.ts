@@ -6,6 +6,8 @@ import {
   describeBudgetRefusal,
   validateBudgetOverride,
   type BudgetRefusal,
+  type ChannelBudgetView,
+  budgetDilutionWarning,
 } from './budget-gate';
 
 // Week 5 Task 4 (C4) — computeChannelBudgetCeilings is deliberately pure
@@ -229,5 +231,62 @@ describe('validateBudgetOverride', () => {
   it('accepts a full-pool override when no other channel needs a share', () => {
     const only = [{ id: 'notebook', name: 'Not In Your Notebook', budgetOverrideUsd: null }];
     expect(validateBudgetOverride({ poolCeilingUsd: 2, channelId: 'notebook', newOverrideUsd: 2, channels: only }).ok).toBe(true);
+  });
+});
+
+// Bugs Closure R1 (D4) — floor, equal split of a stored weekly budget, dilution.
+describe('D4 budget model', () => {
+  const ch = (id: string, name: string, budgetOverrideUsd: number | null = null) => ({ id, name, budgetOverrideUsd });
+
+  it('splits a $40 weekly budget equally over one, two and three active channels', () => {
+    const split = (n: number) =>
+      [...computeChannelBudgetCeilings({
+        poolCeilingUsd: 40,
+        channels: Array.from({ length: n }, (_, i) => ({ channelId: `c${i}`, budgetOverrideUsd: null })),
+      }).values()];
+    expect(split(1)).toEqual([40]);
+    expect(split(2)).toEqual([20, 20]);
+    expect(split(3).every((v) => Math.abs(v - 13.3333) < 0.001)).toBe(true);
+  });
+
+  it('rejects an override that leaves another channel below the minimum share', () => {
+    const verdict = validateBudgetOverride({
+      poolCeilingUsd: 40,
+      channelId: 'a',
+      newOverrideUsd: 37,
+      channels: [ch('a', 'A'), ch('b', 'B')],
+    });
+    expect(verdict.ok).toBe(false);
+    expect(!verdict.ok && verdict.message).toContain('"B"');
+    expect(!verdict.ok && verdict.message).toContain('minimum $5.00');
+  });
+
+  it('accepts an override that leaves exactly the minimum share', () => {
+    expect(
+      validateBudgetOverride({ poolCeilingUsd: 40, channelId: 'a', newOverrideUsd: 35, channels: [ch('a', 'A'), ch('b', 'B')] }).ok,
+    ).toBe(true);
+  });
+
+  it('rejects an override equal to the weekly budget when another channel needs a share', () => {
+    expect(
+      validateBudgetOverride({ poolCeilingUsd: 40, channelId: 'a', newOverrideUsd: 40, channels: [ch('a', 'A'), ch('b', 'B')] }).ok,
+    ).toBe(false);
+  });
+
+  it('warns about dilution when the budget is below the $20-per-channel guide, and not otherwise', () => {
+    const view = (pool: number, n: number): ChannelBudgetView => {
+      const channels = Array.from({ length: n }, (_, i) => ch(`c${i}`, `C${i}`));
+      return {
+        poolCeilingUsd: pool,
+        channels,
+        ceilings: computeChannelBudgetCeilings({
+          poolCeilingUsd: pool,
+          channels: channels.map((c) => ({ channelId: c.id, budgetOverrideUsd: null })),
+        }),
+      };
+    };
+    expect(budgetDilutionWarning(view(40, 2))).toBeNull();
+    expect(budgetDilutionWarning(view(40, 3))).toContain('$13.33');
+    expect(budgetDilutionWarning(view(10, 3))).toContain('below the $5.00 minimum');
   });
 });

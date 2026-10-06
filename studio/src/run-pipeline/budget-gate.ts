@@ -160,7 +160,8 @@ export async function loadChannelBudgetView(tenantId: string, platform: ChannelP
     },
     onPoolFullyReserved: ({ reservedByOverrides, poolCeilingUsd: pool, starvedChannelIds }) => {
       const names = channels.filter((c) => starvedChannelIds.includes(c.id)).map((c) => c.name);
-      console.warn(
+      // D4 — a $0 share for a default-share channel is a configuration error, never a silent state.
+      console.error(
         `[budget-gate] tenant ${tenantId} platform ${platform}: channel budgetOverrideUsd sum ($${reservedByOverrides.toFixed(2)}) equals the pooled ceiling ($${pool.toFixed(2)}) — default-share channel(s) ${names.join(', ')} get a $0 ceiling and every run on them will be refused`,
       );
     },
@@ -224,9 +225,15 @@ export async function isBudgetAvailable(
   return (await checkBudget(tenantId, channelId, platform)).ok;
 }
 
-// Bugs Closure R1 (F9) — write-time guard for channels.update. An override
-// larger than the pool, or one that leaves nothing for the other active
-// channels, would silently refuse every run on those channels.
+// Bugs Closure R1 (D4) — the smallest weekly share a default-share channel may be left with
+// by another channel's override. PROPOSED value; the founder confirms the number.
+export const MIN_CHANNEL_SHARE_USD = 5;
+// Guidance for what to grant a tenant per active channel per week — never applied by code.
+export const WEEKLY_BUDGET_GUIDE_PER_CHANNEL_USD = 20;
+
+// Write-time guard for every writer of Channel.budgetOverrideUsd. The tenant's weekly budget is
+// a stored number (never derived from the channel count); an override is refused when it exceeds
+// that budget or leaves any other active default-share channel below MIN_CHANNEL_SHARE_USD.
 export function validateBudgetOverride(params: {
   poolCeilingUsd: number;
   channelId: string;
@@ -234,21 +241,38 @@ export function validateBudgetOverride(params: {
   channels: { id: string; name: string; budgetOverrideUsd: number | null }[];
 }): { ok: true } | { ok: false; message: string } {
   const { poolCeilingUsd, channelId, newOverrideUsd } = params;
+  const usd = (n: number) => `$${n.toFixed(2)}`;
   if (newOverrideUsd > poolCeilingUsd) {
     return {
       ok: false,
-      message: `A channel limit of $${newOverrideUsd.toFixed(2)} is more than the whole weekly account limit of $${poolCeilingUsd.toFixed(2)}.`,
+      message: `A channel limit of ${usd(newOverrideUsd)} is more than the whole weekly account limit of ${usd(poolCeilingUsd)}.`,
     };
   }
   const others = params.channels.filter((c) => c.id !== channelId);
   const reserved = newOverrideUsd + others.reduce((sum, c) => sum + (c.budgetOverrideUsd ?? 0), 0);
   const starved = others.filter((c) => c.budgetOverrideUsd === null);
-  if (starved.length > 0 && poolCeilingUsd - reserved <= 0) {
-    const names = starved.map((c) => `"${c.name}"`).join(', ');
-    return {
-      ok: false,
-      message: `A channel limit of $${newOverrideUsd.toFixed(2)} would leave $0 of the $${poolCeilingUsd.toFixed(2)} weekly account limit for ${names}, so every run on ${starved.length === 1 ? 'it' : 'them'} would be refused. Lower this limit or raise the account limit first.`,
-    };
+  if (starved.length > 0) {
+    const share = Math.max(0, poolCeilingUsd - reserved) / starved.length;
+    if (share < MIN_CHANNEL_SHARE_USD) {
+      const names = starved.map((c) => `"${c.name}"`).join(', ');
+      return {
+        ok: false,
+        message: `A channel limit of ${usd(newOverrideUsd)} would leave ${usd(share)} a week of the ${usd(poolCeilingUsd)} weekly account limit for ${names} (minimum ${usd(MIN_CHANNEL_SHARE_USD)} each), so runs on ${starved.length === 1 ? 'it' : 'them'} would be refused. Lower this limit or raise the account limit first.`,
+      };
+    }
   }
   return { ok: true };
+}
+
+// Visible dilution: adding or activating a channel lowers the others' effective ceilings. Returns
+// a human-readable warning when any default-share channel is below the $20-per-channel guide (or
+// below the floor), else null. Used on channel creation and available to the app/admin screens.
+export function budgetDilutionWarning(view: ChannelBudgetView): string | null {
+  const shared = view.channels.filter((c) => c.budgetOverrideUsd === null);
+  if (shared.length === 0) return null;
+  const lowest = Math.min(...shared.map((c) => view.ceilings.get(c.id) ?? 0));
+  if (lowest >= WEEKLY_BUDGET_GUIDE_PER_CHANNEL_USD) return null;
+  const usd = (n: number) => `$${n.toFixed(2)}`;
+  const floorNote = lowest < MIN_CHANNEL_SHARE_USD ? ` — below the ${usd(MIN_CHANNEL_SHARE_USD)} minimum, runs will be refused` : '';
+  return `The ${usd(view.poolCeilingUsd)} weekly budget is now split over ${view.channels.length} active channel(s): about ${usd(lowest)} a week each for channels without their own limit (guide: ${usd(WEEKLY_BUDGET_GUIDE_PER_CHANNEL_USD)} per channel)${floorNote}.`;
 }
