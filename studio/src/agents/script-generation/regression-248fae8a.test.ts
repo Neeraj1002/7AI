@@ -5,6 +5,7 @@ vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mock
 
 import { generateScript } from './index';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
+import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 // Bugs Task 11 — fixture modelled on run 248fae8a (the founder's own test
 // brief; creationOptions { audioLayer: 'none', visualSource: 'ai-stills',
@@ -76,5 +77,52 @@ describe('regression: run 248fae8a brief (quoted spans copied into scriptText)',
     expect(mocks.callLLM).toHaveBeenCalledTimes(2);
     expect((error as Error).message).toContain('did not return valid JSON');
     expect(failureUsageEvents(error)).toHaveLength(2);
+  });
+});
+
+// Confirmed by the founder: the same brief with straight double quotes failed
+// twice at script generation; with curly quotes it passed. Straight quotes are
+// the regression, curly quotes the control that must keep passing.
+const CURLY_TEXT = BAD_TEXT.replace(/"salt money"/, '“salt money”').replace(/"no ancient source"/, '“no ancient source”');
+const CURLY_REPLY = `{"scriptText":"${CURLY_TEXT}","captions":"c","hashtags":["rome"]}`;
+
+describe('primary path: schema-constrained output (Bugs Task 11)', () => {
+  it('REGRESSION, straight quotes: the first call asks for structured output and its escaped reply passes with one call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(GOOD_REPLY));
+    const { output, calls } = await generateScript(params);
+    expect(calls).toHaveLength(1);
+    expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
+    expect(output.scriptText).toContain('"salt money"');
+    expect(output.scriptText).toContain('"no ancient source"');
+  });
+
+  it('CONTROL, curly quotes: passes with one call', async () => {
+    expect(() => JSON.parse(CURLY_REPLY)).not.toThrow();
+    mocks.callLLM.mockResolvedValueOnce(reply(CURLY_REPLY));
+    const { output, calls } = await generateScript(params);
+    expect(calls).toHaveLength(1);
+    expect(output.scriptText).toContain('“salt money”');
+    expect(output.scriptText).not.toContain('"salt money"');
+  });
+
+  it('falls back to plain text once when the provider rejects the structured-output request, and the retry/repair path still recovers straight quotes', async () => {
+    mocks.callLLM
+      .mockRejectedValueOnce(new NonTransientStageError('LLM provider call failed: invalid output_format schema', undefined, { provider: 'anthropic', model: 'm' }))
+      .mockResolvedValueOnce(reply(BAD_REPLY))
+      .mockResolvedValueOnce(reply(GOOD_REPLY));
+    const { output, calls } = await generateScript(params);
+    expect(calls).toHaveLength(2);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(3);
+    expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
+    expect(mocks.callLLM.mock.calls[1][0].outputSchema).toBeUndefined();
+    expect(mocks.callLLM.mock.calls[2][0].outputSchema).toBeUndefined();
+    expect(output.scriptText).toContain('"salt money"');
+  });
+
+  it('does not fall back for an unrelated provider error', async () => {
+    const original = new NonTransientStageError('LLM provider call failed: invalid x-api-key', undefined, { provider: 'anthropic', model: 'm' });
+    mocks.callLLM.mockRejectedValueOnce(original);
+    await expect(generateScript(params)).rejects.toBe(original);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
   });
 });

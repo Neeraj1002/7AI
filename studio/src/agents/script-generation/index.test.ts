@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mocks.callLLM }));
 
-import { generateScript, SCRIPT_MAX_TOKENS, SCRIPT_RETRY_MAX_TOKENS_ON_LENGTH } from './index';
+import { generateScript, SCRIPT_MAX_TOKENS } from './index';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
 
@@ -36,7 +36,7 @@ describe('generateScript — first call', () => {
   });
 });
 
-describe('generateScript — Bugs Task 11 R4 tolerant parsing needs no retry', () => {
+describe('generateScript — Bugs Task 11 R5 mechanical repair needs no retry', () => {
   it('raw newlines inside scriptText are repaired on the first call', async () => {
     mocks.callLLM.mockResolvedValueOnce(
       reply('{"scriptText":"Line one.\nLine two.\tTabbed.","captions":"c","hashtags":[]}'),
@@ -53,7 +53,7 @@ describe('generateScript — Bugs Task 11 R4 tolerant parsing needs no retry', (
   });
 });
 
-describe('generateScript — Bugs Task 11 R3 retry', () => {
+describe('generateScript — Bugs Task 11 R5 fallback retry', () => {
   it('an unescaped quote fails the first call, the parse error is fed back, and the corrected reply is used', async () => {
     mocks.callLLM.mockResolvedValueOnce(reply(QUOTE_BUG)).mockResolvedValueOnce(reply(GOOD, { costUsd: '0.002000' }));
     const { output, calls, llm } = await generateScript(params);
@@ -74,16 +74,30 @@ describe('generateScript — Bugs Task 11 R3 retry', () => {
     expect(mocks.callLLM.mock.calls[1][0].messages[2].content).toContain('did not match the required shape');
   });
 
-  it('a reply cut off at the cap (stopReason length) is retried once with a larger cap and no half-script fed back', async () => {
-    mocks.callLLM
-      .mockResolvedValueOnce(reply('{"scriptText":"cut off mid', { stopReason: 'length' }))
-      .mockResolvedValueOnce(reply(GOOD));
+  it('R4: a reply cut off at the output cap fails with a clear cut-off message, not a parse error, and is not retried', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply('{"scriptText":"cut off mid', { stopReason: 'length', usage: { inputTokens: 100, outputTokens: 4096 } }));
+    const error = await generateScript(params).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NonTransientStageError);
+    const message = (error as Error).message;
+    expect(message).toContain('cut off at the output cap');
+    expect(message).toContain('stopReason=length');
+    expect(message).not.toContain('valid JSON');
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    const context = getStageErrorContext(error)!;
+    expect(context.rawReply).toBe('{"scriptText":"cut off mid');
+    expect(context.stopReason).toBe('length');
+    // the call's real spend is still booked
+    expect(failureUsageEvents(error)).toEqual([expect.objectContaining({ outputTokens: 4096 })]);
+  });
+
+  it('R4: the output cap was raised from 2048 and the prompt tells the model to use curly quotes', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(GOOD));
     await generateScript(params);
-    const retry = mocks.callLLM.mock.calls[1][0];
-    expect(retry.maxTokens).toBe(SCRIPT_RETRY_MAX_TOKENS_ON_LENGTH);
-    expect(retry.messages).toHaveLength(1);
-    expect(retry.messages[0].content).toContain('cut off');
-    expect(retry.messages[0].content).not.toContain('cut off mid');
+    const request = mocks.callLLM.mock.calls[0][0];
+    expect(SCRIPT_MAX_TOKENS).toBeGreaterThan(2048);
+    expect(request.maxTokens).toBe(SCRIPT_MAX_TOKENS);
+    expect(request.system).toContain('Never use the straight double-quote character');
+    expect(request.system).toContain('curly quotes');
   });
 
   it('fails with the non-transient error only after the second call also fails, and never makes a third', async () => {

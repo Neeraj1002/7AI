@@ -1,9 +1,9 @@
-import { generateText, APICallError } from 'ai';
+import { generateText, APICallError, NoObjectGeneratedError, Output } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import { resolvePricing } from './registry';
-import type { LLMMessage, LLMProvider, ProviderCallResult } from './types';
+import type { LLMMessage, LLMProvider, LLMRequest, ProviderCallResult } from './types';
 
 // The only file allowed to import Vercel AI SDK or a provider SDK — see
 // docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md. Everything this
@@ -70,6 +70,7 @@ export async function callProviderModel(params: {
   system: string;
   messages: LLMMessage[];
   maxTokens: number;
+  outputSchema?: LLMRequest['outputSchema'];
 }): Promise<ProviderCallResult> {
   try {
     const result = await generateText({
@@ -77,6 +78,10 @@ export async function callProviderModel(params: {
       system: params.system,
       messages: toModelMessages(params.messages),
       maxOutputTokens: params.maxTokens,
+      // Bugs Task 11 (R3) — schema-constrained decoding where the provider supports
+      // it for this model (the SDK moves constraints the provider's schema
+      // dialect lacks, e.g. minLength, into the schema description).
+      ...(params.outputSchema ? { output: Output.object({ schema: params.outputSchema }) } : {}),
     });
 
     const inputTokens = result.usage.inputTokens ?? 0;
@@ -89,6 +94,22 @@ export async function callProviderModel(params: {
       costUsd: computeCostUsd(params.model, inputTokens, outputTokens),
     };
   } catch (error) {
+    // Bugs Task 11 (R3) — with an output schema the SDK itself parses the reply and
+    // throws NoObjectGeneratedError when the text is not the object (cut off at
+    // the cap, or failing the schema). The model call still completed and was
+    // billed, so return it as an ordinary text result: the caller's own parse,
+    // retry and usage accounting then handle it like any other unusable reply,
+    // instead of the real usage being lost inside an error.
+    if (params.outputSchema && NoObjectGeneratedError.isInstance(error) && typeof error.text === 'string' && error.usage) {
+      const inputTokens = error.usage.inputTokens ?? 0;
+      const outputTokens = error.usage.outputTokens ?? 0;
+      return {
+        text: error.text,
+        usage: { inputTokens, outputTokens },
+        stopReason: error.finishReason ?? 'unknown',
+        costUsd: computeCostUsd(params.model, inputTokens, outputTokens),
+      };
+    }
     // Attach provider/model so a caller that needs to write a UsageEvent row
     // on failure (Week 2 Task 4) has it without re-resolving the registry —
     // token counts aren't available for a call that never completed.

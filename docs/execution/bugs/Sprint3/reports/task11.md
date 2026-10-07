@@ -1,102 +1,131 @@
 # Bugs Task 11: Script-Generation JSON Failure + Failure-Path Usage Accounting
 
-**Date**: 2026-10-07
+**Date**: 2026-10-08
 **Status**: Done, action needed (founder deploys, runs the usage SQL, presses Retry on the failed run)
 **Branch**: `BUGS_TASK11_SCRIPT_JSON` (PR [#55](https://github.com/Neeraj1002/7AI/pull/55))
 **Roles**: all items BE. Backend deploy only. No OTA, no app change, no schema change.
 
-## Background
+## Background and confirmed cause
 
 Run `248fae8a-93e8-4e88-a8aa-f80014a1befa` (the founder's own test brief; `creationOptions`
 `{"audioLayer":"none","visualSource":"ai-stills","targetDurationSec":45}`) failed at `script_generation`
 attempt 1. `JSON.parse` rejected the model reply in `generateScript`, which threw a
-`NonTransientStageError`, so the run went to `needs_attention` after one call. The error kept only 200
-characters of the reply, the parser's position message (on `cause`) was never logged, and the failure-path
-usage event booked tokens 0, cost $0, provider/model `unknown` for a real Sonnet call.
+`NonTransientStageError`, so the run went to `needs_attention` after one call. The error kept 200
+characters of the reply, the parser position (on `cause`) was never logged, and the failure-path usage
+event booked tokens 0, cost $0, provider/model `unknown` for a real Sonnet call.
 
-## What changed, per item
+**Cause, confirmed by the founder** (not by me: I made no live call): the same brief with straight double
+quotes failed twice at script generation; with curly quotes it passed. Straight quotes inside the model's
+JSON reply break `JSON.parse`. R0 (fetch the raw reply) was dropped.
 
-**R1: self-explanatory failure** (`agents/script-generation/index.ts`, `run-pipeline/stage-failure.ts`,
-`pipeline-stage.repository.ts` `failStage`, `state-machine.ts` `failStageAndEscalate`).
-The error message now carries the parser message (which names the position), `stopReason` and reply
-length. The first and last 300 characters of the reply are logged. The failed stage row's `output` keeps
-`rawReply` (capped at 8000, with a `rawReplyTruncated` flag), `stopReason`, `replyLength`, `parseError`,
-and, when it retried, `attempts`, `firstParseError`, `firstStopReason`, `firstRawReply`. Only failures
-that have a raw reply write `output`; every other failed row is unchanged.
+## Numbering
 
-**R2: accounting** (`stage-failure.ts` `llmUsageContext` / `failureUsageFields`, every agent that parses a
-model reply, `state-machine.ts`). A thrower now attaches the finished call's provider, model, tokens and
-cost to the error context, and the catch paths book them instead of `unknown`/0/$0.
+The founder's list is authoritative: **R1** diagnostics, **R2** accounting, **R3** structured output (the
+primary fix), **R4** output cap + `stopReason` + curly-quote prompt line, **R5** fallback (one retry with
+the error fed back, plus mechanical repair). The git history predates that list: commits
+`BUGS_TASK11_R3` (retry) and `BUGS_TASK11_R4` (repair) on the branch are **R5's** two halves, and the
+structured-output + cap work is committed as `BUGS_TASK11_R3_R4` (one commit; both touch
+`agents/script-generation/index.ts` and cannot be split without rewriting history, which I did not do).
 
-Stages that had the same pattern (a real call completed, then the reply was rejected, then the catch wrote
-`unknown`/0/$0): **intake** (`parse-brief.ts`), **script_generation**, **script_review**,
-**video-production-planning** (`plan.ts`, including its visualSource-override throw), and
-**metadata-generation** (`publishing/index.ts`). All five are fixed.
-**video_review** (`video-intelligence`) had a variant: its multimodal reply was rejected and the stage wrote
-no usage event at all (only the success path booked spend). Fixed by booking the attached usage in that
-stage's catch. **video_generation** (TTS, Whisper, image calls) has the same `unknown`/no-token catch, but
-`generateVideo` throws without per-call usage, so a real call cannot be attributed. Not changed. **Not fixed**:
-if a provider call itself fails (no reply), nothing was billed and the existing provider/model-with-zero row
-stays correct.
+## Status of each item
 
-**R3: retry once** (`generateScript`). On a parse or schema failure the same attempt makes one more call
-that includes the original request, the bad reply and the exact parse error, asking for corrected JSON
-only. If `stopReason` is `length`, the retry repeats the request with a note and a 4096 output cap and does
-not feed back the half script. Only a second failure raises the existing non-transient error. Each call is
-booked as its own usage event (the error lists every completed call), so the retry counts against the
-budget. A provider error on the retry call keeps the first call's spend on the error.
-Note: the budget gate still runs once, before the stage; it does not re-check before the retry call.
+| Item | Status |
+|---|---|
+| R1 diagnostics | **Done** |
+| R2 accounting | **Done** |
+| R3 structured output | **Done**, verified on mocks only |
+| R4 cap, stopReason, prompt | **Done** |
+| R5 fallback (retry + repair) | **Done** |
 
-**R4: tolerant parsing** (`llm/extract-json.ts` `extractJsonObjectText`, used by Script Generation only):
-strip a code fence (closed or unclosed), take the outermost `{...}`, escape raw newlines, tabs and other
-control characters inside strings. No quote-guessing: a stray quote still fails and goes to the R3 retry.
+### R1: self-explanatory failure
+`agents/script-generation/index.ts`, `run-pipeline/stage-failure.ts`, `pipeline-stage.repository.ts`
+(`failStage`), `state-machine.ts` (`failStageAndEscalate`). The error carries the parser message (which names
+the position), `stopReason` and reply length. The first and last 300 characters of the reply are logged. The
+failed stage row's `output` keeps `rawReply` (capped at 8000, with `rawReplyTruncated`), `stopReason`,
+`replyLength`, `parseError` and, if it retried, `attempts`, `firstParseError`, `firstStopReason`,
+`firstRawReply`. Only failures with a raw reply write `output`; every other failed row is unchanged.
 
-### R4 approach: repair, not structured output
+### R2: accounting
+`stage-failure.ts` (`llmUsageContext`, `failureUsageFields`, `failureUsageEvents`) and every agent that
+parses a model reply. A thrower attaches the finished call's provider, model, tokens and cost to the error;
+the catch paths book them instead of `unknown`/0/$0. Audit of the other stages' catch paths:
 
-The installed SDK (`ai` 7.0.93, `@ai-sdk/anthropic` 4.0.49) does list `claude-sonnet-5` as supporting native
-structured output, and `generateText` can use it. I did not choose it because: (1) usage accounting is not
-clean through our `llm/client.ts` wrapper. A schema failure surfaces as `NoObjectGeneratedError`, which the
-wrapper turns into an "unrecognized error" with zero usage, which is the R2 bug again unless the wrapper is
-reworked; (2) whether the provider accepts this schema (`min(1)`, string arrays) cannot be confirmed
-without a paid live call, and a wrong guess would turn every script generation into a 400; (3) it is a
-cross-cutting change to `callLLM`, much larger than the bug. Recommend it as a follow-up once a founder-run
-check exists. Repair plus the R3 retry (which does cover a stray quote) is small and testable offline.
+- Had the same pattern (a real call completed, the reply was rejected, the catch wrote `unknown`/0/$0), all
+  **fixed**: intake (`parse-brief.ts`), script_generation, script_review, video-production-planning (`plan.ts`,
+  including its visualSource-override throw), metadata-generation (`publishing/index.ts`).
+- Variant, **fixed**: video_review (`video-intelligence`). A rejected multimodal reply wrote no usage event at
+  all; its catch now books the attached usage.
+- **Not fixed**: video_generation (TTS, Whisper, image calls). Its catch has the same `unknown` shape, but
+  `generateVideo` throws without per-call usage, so a real call cannot be attributed.
+- A provider call that itself failed (no reply) bills nothing, so provider/model with zero usage stays correct.
 
-## The founder's working theory (unconfirmed)
+### R3: structured output (primary fix)
+`llm/types.ts`, `llm/index.ts`, `llm/client.ts`, `agents/script-generation/index.ts`. `callLLM` takes an
+optional `outputSchema`; the client passes it to the SDK as `Output.object({ schema })`, so the provider's
+decoder produces schema-valid JSON and escapes quotes and newlines itself. The SDK sanitizes constraints the
+provider's schema dialect lacks (e.g. `minLength`) into the schema description (`@ai-sdk/anthropic`
+`sanitizeJsonSchema`), and lists `claude-sonnet-5` as supporting structured output.
 
-Theory: the brief has quoted spans and the model copies them into `scriptText` as unescaped straight quotes.
-**I could not confirm or refute it.** There is no "R0" raw reply: the original run stored only the first
-200 characters and never logged the position, which is exactly what R1 fixes. A fresh call to reproduce is a
-paid live run, which this task forbids. What the evidence does say: the 200 kept characters
-(`You've heard Roman soldiers were paid in salt. They weren't. In Roman texts, salarium meant a money
-allowance, plain and simple. Pliny linked the word to salt, centuries after the fact.`) contain no
-double quote, so the break is after them, where the brief's quoted phrases ("salary", "salt money",
-"no ancient source", "never") would fall. That is consistent with the theory and does not prove it.
-(The brief has five quoted spans by my count: the first sentence, "salary", "salt money",
-"no ancient source" and "never".) Other explanations (truncation, a raw newline) are not excluded; R4 repairs
-the latter and R3 recovers from all of them. The next failure will carry the raw reply, `stopReason` and
-position, so Retry on the failed run plus the stage row's `output` will settle it.
+- If the SDK still cannot build the object (`NoObjectGeneratedError`: cut off, or failing the schema), the
+  client returns the text and **real usage** as an ordinary result. The caller's own parse, fallback and
+  accounting then handle it. (My first assessment rejected structured output partly because this case lost
+  usage; handling it in the client removes that objection.)
+- Only a provider 4xx that blames the structured-output request itself (message matches
+  `output_format|structured|json_schema|schema`, on the first call, nothing billed) falls back **once** to
+  plain text, logged. No fallback on any other error.
+- Usage from a structured call reaches `usage_events`: `state-machine.structured-usage.test.ts` runs the real
+  `generateScript` + client with only the SDK's `generateText` and the repositories mocked, and asserts the
+  inserted event has the call's tokens, a positive cost, provider `anthropic` and model `claude-sonnet-5`, for
+  both a good reply and a cut-off one.
 
-Regression fixture: `agents/script-generation/regression-248fae8a.test.ts` uses this brief (topic,
-constraints, 45s target) with synthetic replies that copy the quoted spans unescaped. It checks that the
-break lands at the first stray quote, that one retry with the parse error fed back recovers, and that two
-bad replies fail after exactly two booked calls.
+### R4: cap, stopReason, curly-quote instruction
+`SCRIPT_MAX_TOKENS` raised 2048 to 4096. A reply with `stopReason: length` now fails immediately with
+"Script Generation reply was cut off at the output cap (stopReason=length, maxTokens=…, outputTokens=…)…"
+and never reaches the parser or a retry; its real usage is still booked and the raw reply is kept (R1/R2).
+The system prompt now says never to use the straight double-quote character inside `scriptText`, `captions`
+or a hashtag, and to use curly quotes (or single quotes) for a quoted phrase; apostrophes are fine. This
+replaces my earlier "retry once with a larger cap on length" behaviour, per the founder's list.
+
+### R5: fallback
+`generateScript` and `llm/extract-json.ts` (`extractJsonObjectText`). When a reply is not valid JSON or fails
+the schema, and did not stop for length: mechanical repair first (strip a code fence, closed or unclosed;
+take the outermost `{...}`; escape raw newlines, tabs and control characters inside strings; no
+quote-guessing), then one more call that includes the original request, the bad reply and the exact parse
+error. A second failure raises the existing non-transient error. Every call is booked as its own usage event
+(the error lists them all), so the retry counts against the budget. The budget gate still runs once, before
+the stage; it does not re-check before the retry.
+
+## Regression fixture
+
+`agents/script-generation/regression-248fae8a.test.ts` uses the founder's brief (topic, constraints, 45 s
+target) with SYNTHETIC replies (the real one was never stored):
+- **Straight quotes (regression):** the synthetic reply copies the quoted spans unescaped and is
+  unparseable; the break lands at the first stray quote; with structured output requested, the escaped reply
+  passes in one call.
+- **Curly quotes (control):** passes in one call and keeps the curly characters.
+- Fallback paths: provider rejecting the schema falls back once and the retry/repair path recovers straight
+  quotes; an unrelated provider error does not fall back; two bad replies fail after exactly two booked calls.
 
 ## Tests
 
-`studio/`: `npm run build`, `npm run lint`, `npm run typecheck` clean; `npx vitest run` 294 passed, 49
-skipped (the skips are pre-existing). New tests: `agents/script-generation/index.test.ts` (clean reply;
-unescaped quote; raw newline; code fence; schema failure; truncation with `stopReason: length` and the
-larger cap; second failure with exactly two calls; provider error on the retry; diagnostics and logging),
-`regression-248fae8a.test.ts`, `llm/extract-json.test.ts`, `run-pipeline/stage-failure.test.ts` and
-`stage-failure.usage.test.ts`, and `run-pipeline/state-machine.script-generation.test.ts` (the failure-path
-usage event, raw reply on the failed stage row, both calls booked on success and failure).
+`studio/`: `npm run build`, `npm run lint`, `npm run typecheck` clean; `npx vitest run` 308 passed, 49
+skipped (pre-existing skips). New or changed: `agents/script-generation/index.test.ts`,
+`regression-248fae8a.test.ts`, `llm/client.test.ts`, `llm/extract-json.test.ts`,
+`run-pipeline/stage-failure.test.ts`, `stage-failure.usage.test.ts`,
+`state-machine.script-generation.test.ts`, `state-machine.structured-usage.test.ts`.
 
 ## What I could not verify
 
-- **Live behaviour.** No paid run, no connection to `sevenai_preview`. Everything is mocked at the `callLLM` boundary. Whether the real model obeys the retry feedback is unproven.
-- **The root-cause reply** (above).
-- **Flaky full-suite run.** In two of four full `vitest` runs, one test failed; the rerun passed 294/294. I did not capture which test failed on the failing runs. It was not one of the new tests in isolation. Worth a look if CI shows it.
+- **Live behaviour.** No paid run, no connection to `sevenai_preview`. Everything is mocked at `callLLM` or
+  the SDK's `generateText`. In particular, **whether Anthropic accepts this schema for `claude-sonnet-5`, and
+  whether the model's output stays within the 4096 cap, is unproven.** If the provider rejects the schema,
+  the one-time fallback to plain text (with the curly-quote prompt, repair and retry) keeps script
+  generation working, and the log line `provider rejected the structured-output request` says so.
+- **The fallback trigger is a message-text match** on the provider's error. If Anthropic words a schema
+  rejection differently, the run would fail with that error instead of falling back. The first failed run
+  after deploy will show which.
+- **Flaky full-suite run** earlier in the work: two of four full runs had one failing test that passed on
+  rerun. I did not capture which. The last full run passed.
 - **Founder SQL result** (below) has not been run.
 
 ## Founder actions
@@ -106,10 +135,10 @@ usage event, raw reply on the failed stage row, both calls booked on success and
    ```sql
    SELECT "createdAt", model, provider, "costUsd", metadata FROM usage_events WHERE provider = 'unknown' OR "costUsd" = 0 ORDER BY "createdAt" DESC LIMIT 20;
    ```
-   Expectation: closureTask F10 listed 33 `unknown/unknown` rows (video-generation and intake) and 6
-   `gpt-image-1.5` rows at $0. This task explains the **intake** `unknown/unknown` rows only where the cause was a
-   rejected reply (a real call booked as `unknown`/$0). It does **not** explain `video-generation`
-   `unknown/unknown` rows (TTS/image failures, see above) or the `gpt-image-1.5` $0 rows, which are a separate
+   closureTask F10 listed 33 `unknown/unknown` rows (video-generation and intake) and 6 `gpt-image-1.5` rows
+   at $0. This task explains only the **intake** `unknown/unknown` rows whose cause was a rejected reply. It
+   does not explain the video-generation rows (see R2) or the `gpt-image-1.5` $0 rows, which are a separate
    pricing/stub question. **Result: pending, to be recorded here once pasted.**
-3. Press Retry on run `248fae8a`. Expected: succeeds on the first or second call. If it fails, the failed
-   `script_generation` row's `output` now holds the raw reply and parse position.
+3. Press Retry on run `248fae8a` (straight-quote brief). Expected: succeeds on the first call. If it fails, the
+   failed `script_generation` row's `output` holds the raw reply and parse position.
+4. Once deployed and confirmed, remove the interim "no straight quotes" rule from the playbook.

@@ -37,6 +37,10 @@ not an SRT file — a captioning tool handles timing separately).
 "hashtags" is a short list (3-8) of relevant hashtags, without the '#' character.
 
 Respect every listed constraint (length limits, tone, things to avoid, a specific angle).
+Never use the straight double-quote character (") inside "scriptText", "captions" or a hashtag, other than as
+the JSON string delimiters. To quote a word or phrase, write it with curly quotes (“ ”) instead, or with
+single quotes. Apostrophes in words like "weren't" are fine.
+
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
 function buildUserMessage(params: {
@@ -88,10 +92,10 @@ const REPLY_ERROR_PREVIEW_CHARS = 200;
 const FEEDBACK_ERROR_CHARS = 500;
 const FEEDBACK_REPLY_CHARS = 8000;
 
-export const SCRIPT_MAX_TOKENS = 2048;
-// Bugs Task 11 (R3) — the one retry after a reply cut off at the output cap
-// (`stopReason: length`) gets double the room.
-export const SCRIPT_RETRY_MAX_TOKENS_ON_LENGTH = 4096;
+// Bugs Task 11 (R4) — raised from 2048. A 30-60s script is a few hundred tokens,
+// so this is headroom, not a target; a reply that still hits it is reported as
+// a cut-off (below), never as a JSON parse error.
+export const SCRIPT_MAX_TOKENS = 4096;
 
 type ReplyFailure = { what: string; cause: unknown; parseError: string };
 
@@ -109,7 +113,7 @@ function logReplyFailure(failure: ReplyFailure, llm: LLMResponse, label: string)
   );
 }
 
-// Bugs Task 11 (R2/R3) — the error lists every model call this generation
+// Bugs Task 11 (R2/R5) — the error lists every model call this generation
 // made, so the stage's catch path can book each one (the retry's spend
 // included) instead of guessing 'unknown'/0/$0.
 function buildReplyError(
@@ -140,6 +144,29 @@ function buildReplyError(
   );
 }
 
+// Bugs Task 11 (R4) — a reply that stopped because it hit the output cap is
+// incomplete by definition. Say so plainly instead of letting the parser fail
+// on half a JSON object; the raw reply is still kept for the failed stage row.
+function buildCutOffError(llm: LLMResponse, calls: LLMResponse[]): NonTransientStageError {
+  const parseError = `output cap reached (maxTokens ${SCRIPT_MAX_TOKENS})`;
+  console.error(
+    `[script-generation] reply cut off at the output cap: stopReason=${llm.stopReason} replyLength=${llm.text.length} outputTokens=${llm.usage.outputTokens}\n` +
+      `  head: ${llm.text.slice(0, REPLY_LOG_EDGE_CHARS)}\n  tail: ${llm.text.slice(-REPLY_LOG_EDGE_CHARS)}`,
+  );
+  return new NonTransientStageError(
+    `Script Generation reply was cut off at the output cap (stopReason=length, maxTokens=${SCRIPT_MAX_TOKENS}, outputTokens=${llm.usage.outputTokens}, replyLength=${llm.text.length}). The script is too long for one reply: shorten the brief or lower the target length.`,
+    undefined,
+    {
+      ...llmUsageContext(llm),
+      ...llmCallsContext(calls),
+      replyLength: llm.text.length,
+      parseError,
+      rawReply: llm.text,
+      attempts: calls.length,
+    },
+  );
+}
+
 // A provider error on the retry call must not lose the first call's spend:
 // re-wrap it with the calls already completed.
 function withCompletedCalls(error: unknown, calls: LLMResponse[]): unknown {
@@ -150,7 +177,10 @@ function withCompletedCalls(error: unknown, calls: LLMResponse[]): unknown {
   return error;
 }
 
-type ParsedReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
+// A provider 4xx that blames the structured-output request itself.
+export const STRUCTURED_OUTPUT_REJECTED = /output_format|structured|json_schema|schema/i;
+
+type ParsedReply ={ ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
 
 function parseScriptReply(llm: LLMResponse): ParsedReply {
   let parsedJson: unknown;
@@ -167,26 +197,13 @@ function parseScriptReply(llm: LLMResponse): ParsedReply {
   return { ok: true, output: result.data };
 }
 
-// Bugs Task 11 (R3) — the retry says what was wrong, instead of re-rolling
-// blind (same reasoning as fixNotes above). A reply cut off at the output cap
-// is not fed back (it would only spend input tokens on half a script): the
-// original request is repeated with a note and a larger cap.
+// Bugs Task 11 (R5) — the fallback retry says what was wrong, instead of
+// re-rolling blind (same reasoning as fixNotes above).
 function buildRetryRequest(
   userMessage: string,
   failure: ReplyFailure,
   llm: LLMResponse,
 ): { messages: LLMMessage[]; maxTokens: number } {
-  if (llm.stopReason === 'length') {
-    return {
-      messages: [
-        {
-          role: 'user',
-          content: `${userMessage}\n\nA previous attempt ran out of output space and was cut off before the JSON object was complete. Keep scriptText and captions tight so the whole JSON object fits.`,
-        },
-      ],
-      maxTokens: SCRIPT_RETRY_MAX_TOKENS_ON_LENGTH,
-    };
-  }
   const detail = failure.parseError.slice(0, FEEDBACK_ERROR_CHARS);
   const problem =
     failure.what === 'did not return valid JSON'
@@ -214,25 +231,46 @@ export async function generateScript(params: {
 }): Promise<ScriptGenerationResult> {
   const calls: LLMResponse[] = [];
   const userMessage = buildUserMessage(params);
+  // Bugs Task 11 (R3) — schema-constrained output is the primary path: the
+  // provider's decoder then escapes quotes and newlines, which is what broke
+  // run 248fae8a (straight quotes copied from the brief into scriptText). If
+  // the provider rejects the structured-output request itself (a 4xx on the
+  // request, which bills nothing and which no offline test can rule out), fall
+  // back once to the plain-text path below (R5: repair, then one retry) and say so
+  // in the log.
+  let structured = true;
   const call = async (messages: LLMMessage[], maxTokens: number): Promise<LLMResponse> => {
     try {
-      const llm = await callLLM({ purpose: 'script-generation', system: SYSTEM_PROMPT, messages, maxTokens });
+      const llm = await callLLM({
+        purpose: 'script-generation',
+        system: SYSTEM_PROMPT,
+        messages,
+        maxTokens,
+        ...(structured ? { outputSchema: ScriptGenerationOutputSchema } : {}),
+      });
       calls.push(llm);
       return llm;
     } catch (error) {
+      if (structured && calls.length === 0 && error instanceof NonTransientStageError && STRUCTURED_OUTPUT_REJECTED.test(error.message)) {
+        console.error(`[script-generation] provider rejected the structured-output request, falling back to plain text: ${error.message}`);
+        structured = false;
+        return call(messages, maxTokens);
+      }
       throw withCompletedCalls(error, calls);
     }
   };
 
   const first = await call([{ role: 'user', content: userMessage }], SCRIPT_MAX_TOKENS);
+  if (first.stopReason === 'length') throw buildCutOffError(first, calls);
   const firstParsed = parseScriptReply(first);
   if (firstParsed.ok) return { output: firstParsed.output, llm: first, calls };
 
-  // Bugs Task 11 (R3) — one more call inside the same attempt. A second failure
+  // Bugs Task 11 (R5) — one more call inside the same attempt. A second failure
   // is the existing non-transient error, so it never loops.
   logReplyFailure(firstParsed.failure, first, 'first call, retrying once');
   const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
   const second = await call(retryRequest.messages, retryRequest.maxTokens);
+  if (second.stopReason === 'length') throw buildCutOffError(second, calls);
   const secondParsed = parseScriptReply(second);
   if (secondParsed.ok) return { output: secondParsed.output, llm: second, calls };
 

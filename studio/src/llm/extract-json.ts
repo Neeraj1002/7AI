@@ -6,7 +6,7 @@ export function extractJsonText(raw: string): string {
   return (fenced ? fenced[1] : raw).trim();
 }
 
-// Bugs Task 11 (R4) — a tolerant variant for the one call site whose reply is
+// Bugs Task 11 (R5) — a tolerant variant for the one call site whose reply is
 // long free text inside a JSON string (Script Generation). Mechanical repairs
 // only, none of which can change what the model said:
 //   1. strip a markdown code fence (same rule as extractJsonText), including

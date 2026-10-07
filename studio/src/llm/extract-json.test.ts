@@ -3,7 +3,7 @@ import { extractJsonObjectText, extractJsonText } from './extract-json';
 
 const parse = (raw: string) => JSON.parse(extractJsonObjectText(raw));
 
-describe('extractJsonObjectText (Bugs Task 11 R4)', () => {
+describe('extractJsonObjectText (Bugs Task 11 R5)', () => {
   it('leaves valid JSON unchanged', () => {
     const raw = '{"a":"x \\"q\\" y\\nz","b":[1,2]}';
     expect(extractJsonObjectText(raw)).toBe(raw);
