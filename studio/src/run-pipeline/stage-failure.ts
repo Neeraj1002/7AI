@@ -1,4 +1,4 @@
-import { getStageErrorContext, type StageErrorContext } from './retry-with-backoff';
+import { getStageErrorContext, NonTransientStageError, type StageErrorContext } from './retry-with-backoff';
 import type { LLMResponse } from '../llm';
 
 // Bugs Task 11 (R1) — what a failed stage row keeps beyond its one-line
@@ -16,6 +16,15 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
     stopReason: context.stopReason ?? null,
     replyLength: context.replyLength ?? null,
     parseError: context.parseError ?? null,
+    // Bugs Task 11 (R3) — set only when the generation retried once.
+    ...(typeof context.firstRawReply === 'string'
+      ? {
+          attempts: context.attempts ?? null,
+          firstParseError: context.firstParseError ?? null,
+          firstStopReason: context.firstStopReason ?? null,
+          firstRawReply: context.firstRawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
+        }
+      : {}),
   };
 }
 
@@ -58,4 +67,29 @@ export function failureUsageFields(error: unknown): FailureUsageFields {
     outputTokens: typeof context?.outputTokens === 'number' ? context.outputTokens : 0,
     costUsd: typeof context?.costUsd === 'string' ? context.costUsd : '0.000000',
   };
+}
+
+// Bugs Task 11 (R3) — a stage that made several model calls in one attempt
+// (script generation's one retry) lists them all, so each is booked as its own
+// UsageEvent and the retry counts against the budget.
+export function llmCallsContext(calls: LLMResponse[]): StageErrorContext {
+  return {
+    calls: calls.map((llm) => ({
+      provider: llm.provider,
+      model: llm.model,
+      inputTokens: llm.usage.inputTokens,
+      outputTokens: llm.usage.outputTokens,
+      costUsd: llm.costUsd,
+    })),
+  };
+}
+
+// One entry per model call that completed before the failure, or the single
+// failureUsageFields entry when the error lists none.
+export function failureUsageEvents(error: unknown): FailureUsageFields[] {
+  const calls = getStageErrorContext(error)?.calls;
+  if (Array.isArray(calls) && calls.length > 0) {
+    return calls.map((call) => failureUsageFields(new NonTransientStageError('', undefined, call as StageErrorContext)));
+  }
+  return [failureUsageFields(error)];
 }

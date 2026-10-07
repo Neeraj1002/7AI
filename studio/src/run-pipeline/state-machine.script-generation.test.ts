@@ -41,7 +41,7 @@ vi.mock('../agents/script-generation', async (orig) => ({ ...(await orig<object>
 
 import { runScriptGenerationStage } from './state-machine';
 import { NonTransientStageError } from './retry-with-backoff';
-import { llmUsageContext } from './stage-failure';
+import { llmCallsContext, llmUsageContext } from './stage-failure';
 
 const RUN_ID = 'run-1';
 const llm = (overrides: Record<string, unknown> = {}) => ({
@@ -133,9 +133,40 @@ describe('runScriptGenerationStage failure path (Bugs Task 11)', () => {
   });
 
   it('success still books the call and completes the stage', async () => {
-    mocks.generateScript.mockResolvedValue({ output: OUTPUT, llm: llm() });
+    const call = llm();
+    mocks.generateScript.mockResolvedValue({ output: OUTPUT, llm: call, calls: [call] });
     await runScriptGenerationStage(RUN_ID);
+    expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(1);
     expect(mocks.insertUsageEvent).toHaveBeenCalledWith(expect.objectContaining({ costUsd: '0.008100', inputTokens: 1200 }));
     expect(mocks.completeStage).toHaveBeenCalled();
+  });
+
+  it('R3: a generation that retried books both calls, so the retry counts against the budget', async () => {
+    const first = llm({ costUsd: '0.008100' });
+    const second = llm({ costUsd: '0.009900', usage: { inputTokens: 2000, outputTokens: 400 } });
+    mocks.generateScript.mockResolvedValue({ output: OUTPUT, llm: second, calls: [first, second] });
+    await runScriptGenerationStage(RUN_ID);
+    expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(2);
+    expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].costUsd)).toEqual(['0.008100', '0.009900']);
+    expect(mocks.insertUsageEvent.mock.calls[1][0]).toMatchObject({ inputTokens: 2000, outputTokens: 400 });
+  });
+
+  it('R3: when both calls fail, both are booked and the run goes to needs_attention', async () => {
+    const first = llm({ text: 'bad one' });
+    const second = llm({ text: 'bad two', costUsd: '0.009900' });
+    mocks.generateScript.mockRejectedValue(
+      new NonTransientStageError('Script Generation did not return valid JSON: x', undefined, {
+        ...llmUsageContext(second),
+        ...llmCallsContext([first, second]),
+        rawReply: second.text,
+        replyLength: 7,
+        attempts: 2,
+        firstRawReply: first.text,
+      }),
+    );
+    await runScriptGenerationStage(RUN_ID);
+    expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(2);
+    expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].costUsd)).toEqual(['0.008100', '0.009900']);
+    expect(mocks.failStage.mock.calls[0][3]).toMatchObject({ rawReply: 'bad two', firstRawReply: 'bad one', attempts: 2 });
   });
 });

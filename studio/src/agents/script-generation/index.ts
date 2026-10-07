@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
-import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
-import { llmUsageContext } from '../../run-pipeline/stage-failure';
+import { callLLM, extractJsonText, type LLMMessage, type LLMResponse } from '../../llm';
+import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
 // agent in the critical path: turns Intake's parsed brief into a script.
@@ -19,7 +19,10 @@ export type ScriptGenerationOutput = z.infer<typeof ScriptGenerationOutputSchema
 
 export type ScriptGenerationResult = {
   output: ScriptGenerationOutput;
+  // The call that produced `output` (the retry's, when there was one).
   llm: LLMResponse;
+  // Every model call this generation made, in order — the stage books each one.
+  calls: LLMResponse[];
 };
 
 const SYSTEM_PROMPT = `You write scripts for short-form vertical video (YouTube Shorts, 30-60 seconds).
@@ -82,6 +85,15 @@ function buildUserMessage(params: {
 
 const REPLY_LOG_EDGE_CHARS = 300;
 const REPLY_ERROR_PREVIEW_CHARS = 200;
+const FEEDBACK_ERROR_CHARS = 500;
+const FEEDBACK_REPLY_CHARS = 8000;
+
+export const SCRIPT_MAX_TOKENS = 2048;
+// Bugs Task 11 (R3) — the one retry after a reply cut off at the output cap
+// (`stopReason: length`) gets double the room.
+export const SCRIPT_RETRY_MAX_TOKENS_ON_LENGTH = 4096;
+
+type ReplyFailure = { what: string; cause: unknown; parseError: string };
 
 // Bugs Task 11 (R1) — run 248fae8a failed with only the first 200 characters
 // of the reply kept and the JSON.parse position error (on `cause`) never
@@ -90,25 +102,107 @@ const REPLY_ERROR_PREVIEW_CHARS = 200;
 // (which names the position), the reply length, and the full reply for the
 // failed stage row (stage-failure.ts caps what is stored); the head and tail
 // of the reply also go to the log.
-function buildReplyError(what: string, llm: LLMResponse, cause: unknown): NonTransientStageError {
-  const parseError = cause instanceof Error ? cause.message : String(cause);
-  const replyLength = llm.text.length;
+function logReplyFailure(failure: ReplyFailure, llm: LLMResponse, label: string): void {
   console.error(
-    `[script-generation] unusable reply (${what}): stopReason=${llm.stopReason} replyLength=${replyLength} parseError=${parseError}
-` +
-      `  head: ${llm.text.slice(0, REPLY_LOG_EDGE_CHARS)}
-  tail: ${llm.text.slice(-REPLY_LOG_EDGE_CHARS)}`,
+    `[script-generation] unusable reply (${label}, ${failure.what}): stopReason=${llm.stopReason} replyLength=${llm.text.length} parseError=${failure.parseError}\n` +
+      `  head: ${llm.text.slice(0, REPLY_LOG_EDGE_CHARS)}\n  tail: ${llm.text.slice(-REPLY_LOG_EDGE_CHARS)}`,
   );
+}
+
+// Bugs Task 11 (R2/R3) — the error lists every model call this generation
+// made, so the stage's catch path can book each one (the retry's spend
+// included) instead of guessing 'unknown'/0/$0.
+function buildReplyError(
+  failure: ReplyFailure,
+  llm: LLMResponse,
+  calls: LLMResponse[],
+  firstFailure?: { failure: ReplyFailure; llm: LLMResponse },
+): NonTransientStageError {
+  const retried = firstFailure ? ` Retried once after: ${firstFailure.failure.parseError}.` : '';
   return new NonTransientStageError(
-    `Script Generation ${what}: ${parseError} (stopReason=${llm.stopReason}, replyLength=${replyLength}). Reply starts: ${llm.text.slice(0, REPLY_ERROR_PREVIEW_CHARS)}`,
-    cause,
+    `Script Generation ${failure.what}: ${failure.parseError} (stopReason=${llm.stopReason}, replyLength=${llm.text.length}).${retried} Reply starts: ${llm.text.slice(0, REPLY_ERROR_PREVIEW_CHARS)}`,
+    failure.cause,
     {
       ...llmUsageContext(llm),
-      replyLength,
-      parseError,
+      ...llmCallsContext(calls),
+      replyLength: llm.text.length,
+      parseError: failure.parseError,
       rawReply: llm.text,
+      attempts: calls.length,
+      ...(firstFailure
+        ? {
+            firstParseError: firstFailure.failure.parseError,
+            firstStopReason: firstFailure.llm.stopReason,
+            firstRawReply: firstFailure.llm.text,
+          }
+        : {}),
     },
   );
+}
+
+// A provider error on the retry call must not lose the first call's spend:
+// re-wrap it with the calls already completed.
+function withCompletedCalls(error: unknown, calls: LLMResponse[]): unknown {
+  if (calls.length === 0) return error;
+  const context = { ...(getStageErrorContext(error) ?? {}), ...llmCallsContext(calls) };
+  if (error instanceof TransientStageError) return new TransientStageError(error.message, error.cause, context);
+  if (error instanceof NonTransientStageError) return new NonTransientStageError(error.message, error.cause, context);
+  return error;
+}
+
+type ParsedReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
+
+function parseScriptReply(llm: LLMResponse): ParsedReply {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(extractJsonText(llm.text));
+  } catch (error) {
+    const parseError = error instanceof Error ? error.message : String(error);
+    return { ok: false, failure: { what: 'did not return valid JSON', cause: error, parseError } };
+  }
+  const result = ScriptGenerationOutputSchema.safeParse(parsedJson);
+  if (!result.success) {
+    return { ok: false, failure: { what: 'output failed schema validation', cause: result.error, parseError: result.error.message } };
+  }
+  return { ok: true, output: result.data };
+}
+
+// Bugs Task 11 (R3) — the retry says what was wrong, instead of re-rolling
+// blind (same reasoning as fixNotes above). A reply cut off at the output cap
+// is not fed back (it would only spend input tokens on half a script): the
+// original request is repeated with a note and a larger cap.
+function buildRetryRequest(
+  userMessage: string,
+  failure: ReplyFailure,
+  llm: LLMResponse,
+): { messages: LLMMessage[]; maxTokens: number } {
+  if (llm.stopReason === 'length') {
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: `${userMessage}\n\nA previous attempt ran out of output space and was cut off before the JSON object was complete. Keep scriptText and captions tight so the whole JSON object fits.`,
+        },
+      ],
+      maxTokens: SCRIPT_RETRY_MAX_TOKENS_ON_LENGTH,
+    };
+  }
+  const detail = failure.parseError.slice(0, FEEDBACK_ERROR_CHARS);
+  const problem =
+    failure.what === 'did not return valid JSON'
+      ? `could not be parsed as JSON (${detail})`
+      : `did not match the required shape (${detail})`;
+  return {
+    messages: [
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: llm.text.slice(0, FEEDBACK_REPLY_CHARS) },
+      {
+        role: 'user',
+        content: `Your previous reply ${problem}. Reply again with ONLY the corrected JSON object. Escape every double quote inside a string value as \\" and write line breaks inside a string as \\n. No code fences, no commentary.`,
+      },
+    ],
+    maxTokens: SCRIPT_MAX_TOKENS,
+  };
 }
 
 export async function generateScript(params: {
@@ -118,24 +212,30 @@ export async function generateScript(params: {
   targetDurationSec?: 30 | 45 | 60;
   fixNotes?: string;
 }): Promise<ScriptGenerationResult> {
-  const llm = await callLLM({
-    purpose: 'script-generation',
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: buildUserMessage(params) }],
-    maxTokens: 2048,
-  });
+  const calls: LLMResponse[] = [];
+  const userMessage = buildUserMessage(params);
+  const call = async (messages: LLMMessage[], maxTokens: number): Promise<LLMResponse> => {
+    try {
+      const llm = await callLLM({ purpose: 'script-generation', system: SYSTEM_PROMPT, messages, maxTokens });
+      calls.push(llm);
+      return llm;
+    } catch (error) {
+      throw withCompletedCalls(error, calls);
+    }
+  };
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(extractJsonText(llm.text));
-  } catch (error) {
-    throw buildReplyError('did not return valid JSON', llm, error);
-  }
+  const first = await call([{ role: 'user', content: userMessage }], SCRIPT_MAX_TOKENS);
+  const firstParsed = parseScriptReply(first);
+  if (firstParsed.ok) return { output: firstParsed.output, llm: first, calls };
 
-  const result = ScriptGenerationOutputSchema.safeParse(parsedJson);
-  if (!result.success) {
-    throw buildReplyError('output failed schema validation', llm, result.error);
-  }
+  // Bugs Task 11 (R3) — one more call inside the same attempt. A second failure
+  // is the existing non-transient error, so it never loops.
+  logReplyFailure(firstParsed.failure, first, 'first call, retrying once');
+  const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
+  const second = await call(retryRequest.messages, retryRequest.maxTokens);
+  const secondParsed = parseScriptReply(second);
+  if (secondParsed.ok) return { output: secondParsed.output, llm: second, calls };
 
-  return { output: result.data, llm };
+  logReplyFailure(secondParsed.failure, second, 'retry call, giving up');
+  throw buildReplyError(secondParsed.failure, second, calls, { failure: firstParsed.failure, llm: first });
 }

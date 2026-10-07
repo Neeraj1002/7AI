@@ -24,7 +24,7 @@ import { isCancellationRequested } from './cancellation-registry';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
-import { failureOutputFromError, failureUsageFields } from './stage-failure';
+import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -303,36 +303,41 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // than once around the whole withRetryAndCircuitBreaker call) is what makes
   // that true instead of undercounting retried spend.
   const attemptOnce = async (): Promise<ScriptGenerationOutput> => {
+    // Bugs Task 11 (R2/R3) — one UsageEvent per model call, success or failure:
+    // a generation that retried inside this attempt made two real calls, and a
+    // reply rejected after its call completed still cost what the call cost.
+    const bookCalls = async (spent: FailureUsageFields[]): Promise<void> => {
+      for (const call of spent) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'script-generation',
+          ...call,
+        });
+      }
+    };
     try {
-      const { output, llm } = await generateScript({
+      const { output, calls } = await generateScript({
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
         targetDurationSec: stageInput.targetDurationSec,
         fixNotes: fixNotes ?? undefined,
       });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      await bookCalls(
+        calls.map((llm) => ({
+          provider: llm.provider,
+          model: llm.model,
+          inputTokens: llm.usage.inputTokens,
+          outputTokens: llm.usage.outputTokens,
+          costUsd: llm.costUsd,
+        })),
+      );
       return output;
     } catch (error) {
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        ...failureUsageFields(error),
-      });
+      await bookCalls(failureUsageEvents(error));
       throw error;
     }
   };
