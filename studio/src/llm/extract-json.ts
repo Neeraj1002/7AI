@@ -60,3 +60,22 @@ function escapeControlCharsInStrings(text: string): string {
   }
   return out;
 }
+
+// Bugs Task 11 (PR #55) — what to say about a JSON.parse failure WITHOUT quoting
+// the reply. The error message ends up in pipeline_runs.lastError and
+// pipeline_stages.error, which the admin run inspector and the tenant run view
+// both return, so it must not carry model output. Node's own message can: it
+// names the offending character and, for short input, quotes the whole text.
+// Keep the generic wording and the position, drop everything quoted.
+export function describeJsonError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const position = /position (\d+)(?: \(line (\d+) column (\d+)\))?/.exec(message);
+  const generic = message
+    .replace(/,?\s*"[\s\S]*"\s*is not valid JSON/, '')
+    .replace(/ in JSON at position[\s\S]*$/, '')
+    .replace(/ after JSON at position[\s\S]*$/, ' after JSON')
+    .replace(/token '[\s\S]*?'/, 'token')
+    .trim();
+  const where = position ? ` at position ${position[1]}${position[2] ? ` (line ${position[2]} column ${position[3]})` : ''}` : '';
+  return `${generic || 'invalid JSON'}${where}`;
+}

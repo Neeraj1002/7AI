@@ -113,12 +113,15 @@ export async function callProviderModel(params: {
     // Attach provider/model so a caller that needs to write a UsageEvent row
     // on failure (Week 2 Task 4) has it without re-resolving the registry —
     // token counts aren't available for a call that never completed.
-    const context = { provider: params.provider, model: params.model };
+    const context: Record<string, unknown> = { provider: params.provider, model: params.model };
 
     // APICallError.isRetryable is the AI SDK's own transient/permanent
     // classification (rate limits, timeouts, 5xx vs. auth/validation 4xx) —
     // reuse it rather than re-deriving status-code logic per provider.
     if (APICallError.isInstance(error)) {
+      // Bugs Task 11 (R3) — the HTTP status, so a caller can tell a request the
+      // provider refused (400/422) from an outage (5xx) without parsing text.
+      if (typeof error.statusCode === 'number') context.statusCode = error.statusCode;
       if (error.isRetryable) {
         throw new TransientStageError(`LLM provider call failed (retryable): ${error.message}`, error, context);
       }

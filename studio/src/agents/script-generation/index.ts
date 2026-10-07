@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { callLLM, extractJsonObjectText, type LLMMessage, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonObjectText, type LLMMessage, type LLMResponse } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
 
@@ -88,7 +88,6 @@ function buildUserMessage(params: {
 }
 
 const REPLY_LOG_EDGE_CHARS = 300;
-const REPLY_ERROR_PREVIEW_CHARS = 200;
 const FEEDBACK_ERROR_CHARS = 500;
 const FEEDBACK_REPLY_CHARS = 8000;
 
@@ -124,7 +123,7 @@ function buildReplyError(
 ): NonTransientStageError {
   const retried = firstFailure ? ` Retried once after: ${firstFailure.failure.parseError}.` : '';
   return new NonTransientStageError(
-    `Script Generation ${failure.what}: ${failure.parseError} (stopReason=${llm.stopReason}, replyLength=${llm.text.length}).${retried} Reply starts: ${llm.text.slice(0, REPLY_ERROR_PREVIEW_CHARS)}`,
+    `Script Generation ${failure.what}: ${failure.parseError} (stopReason=${llm.stopReason}, replyLength=${llm.text.length}).${retried}`,
     failure.cause,
     {
       ...llmUsageContext(llm),
@@ -177,8 +176,10 @@ function withCompletedCalls(error: unknown, calls: LLMResponse[]): unknown {
   return error;
 }
 
-// A provider 4xx that blames the structured-output request itself.
-export const STRUCTURED_OUTPUT_REJECTED = /output_format|structured|json_schema|schema/i;
+// A 400 or 422 from a call that sent an outputSchema is the provider refusing the
+// structured-output request (invalid request / unprocessable schema). Any other
+// status (401, 429, 5xx, ...) is a different problem and must not fall back.
+export const STRUCTURED_OUTPUT_FALLBACK_STATUSES: readonly number[] = [400, 422];
 
 type ParsedReply ={ ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
 
@@ -187,7 +188,7 @@ function parseScriptReply(llm: LLMResponse): ParsedReply {
   try {
     parsedJson = JSON.parse(extractJsonObjectText(llm.text));
   } catch (error) {
-    const parseError = error instanceof Error ? error.message : String(error);
+    const parseError = describeJsonError(error);
     return { ok: false, failure: { what: 'did not return valid JSON', cause: error, parseError } };
   }
   const result = ScriptGenerationOutputSchema.safeParse(parsedJson);
@@ -251,8 +252,11 @@ export async function generateScript(params: {
       calls.push(llm);
       return llm;
     } catch (error) {
-      if (structured && calls.length === 0 && error instanceof NonTransientStageError && STRUCTURED_OUTPUT_REJECTED.test(error.message)) {
-        console.error(`[script-generation] provider rejected the structured-output request, falling back to plain text: ${error.message}`);
+      const status = getStageErrorContext(error)?.statusCode;
+      if (structured && calls.length === 0 && typeof status === 'number' && STRUCTURED_OUTPUT_FALLBACK_STATUSES.includes(status)) {
+        console.error(
+          `[script-generation] provider returned ${status} for the structured-output request, falling back to plain text: ${error instanceof Error ? error.message : String(error)}`,
+        );
         structured = false;
         return call(messages, maxTokens);
       }

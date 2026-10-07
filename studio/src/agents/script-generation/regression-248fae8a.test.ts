@@ -5,7 +5,7 @@ vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mock
 
 import { generateScript } from './index';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
-import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 // Bugs Task 11 — fixture modelled on run 248fae8a (the founder's own test
 // brief; creationOptions { audioLayer: 'none', visualSource: 'ai-stills',
@@ -105,22 +105,48 @@ describe('primary path: schema-constrained output (Bugs Task 11)', () => {
     expect(output.scriptText).not.toContain('"salt money"');
   });
 
-  it('falls back to plain text once when the provider rejects the structured-output request, and the retry/repair path still recovers straight quotes', async () => {
-    mocks.callLLM
-      .mockRejectedValueOnce(new NonTransientStageError('LLM provider call failed: invalid output_format schema', undefined, { provider: 'anthropic', model: 'm' }))
-      .mockResolvedValueOnce(reply(BAD_REPLY))
-      .mockResolvedValueOnce(reply(GOOD_REPLY));
-    const { output, calls } = await generateScript(params);
-    expect(calls).toHaveLength(2);
-    expect(mocks.callLLM).toHaveBeenCalledTimes(3);
-    expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
-    expect(mocks.callLLM.mock.calls[1][0].outputSchema).toBeUndefined();
-    expect(mocks.callLLM.mock.calls[2][0].outputSchema).toBeUndefined();
-    expect(output.scriptText).toContain('"salt money"');
+  // The fallback decides on the HTTP status the client attached, never on message text.
+  const providerError = (status: number | undefined, message = 'LLM provider call failed') => {
+    const context = { provider: 'anthropic', model: 'm', ...(status === undefined ? {} : { statusCode: status }) };
+    return status !== undefined && status >= 500
+      ? new TransientStageError(`${message} (retryable)`, undefined, context)
+      : new NonTransientStageError(message, undefined, context);
+  };
+
+  it.each([400, 422])(
+    'a %i from the structured-output call falls back to plain text once, and the retry/repair path still recovers straight quotes',
+    async (status) => {
+      mocks.callLLM
+        .mockRejectedValueOnce(providerError(status))
+        .mockResolvedValueOnce(reply(BAD_REPLY))
+        .mockResolvedValueOnce(reply(GOOD_REPLY));
+      const { output, calls } = await generateScript(params);
+      expect(calls).toHaveLength(2);
+      expect(mocks.callLLM).toHaveBeenCalledTimes(3);
+      expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
+      expect(mocks.callLLM.mock.calls[1][0].outputSchema).toBeUndefined();
+      expect(mocks.callLLM.mock.calls[2][0].outputSchema).toBeUndefined();
+      expect(output.scriptText).toContain('"salt money"');
+      const logged = (console.error as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).toContain(`provider returned ${status} for the structured-output request`);
+    },
+  );
+
+  it('falls back only once: a second 400 (now on the plain-text call) is raised, not retried again', async () => {
+    mocks.callLLM.mockRejectedValueOnce(providerError(400)).mockRejectedValueOnce(providerError(400));
+    await expect(generateScript(params)).rejects.toBeInstanceOf(NonTransientStageError);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(2);
   });
 
-  it('does not fall back for an unrelated provider error', async () => {
-    const original = new NonTransientStageError('LLM provider call failed: invalid x-api-key', undefined, { provider: 'anthropic', model: 'm' });
+  it.each([500, 529, 401, 429])('a %i does NOT fall back: the error is raised after one call', async (status) => {
+    const original = providerError(status);
+    mocks.callLLM.mockRejectedValueOnce(original);
+    await expect(generateScript(params)).rejects.toBe(original);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+  });
+
+  it('an error with no status (and a message that mentions the schema) does NOT fall back', async () => {
+    const original = providerError(undefined, 'LLM provider call failed: invalid output_format schema');
     mocks.callLLM.mockRejectedValueOnce(original);
     await expect(generateScript(params)).rejects.toBe(original);
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);

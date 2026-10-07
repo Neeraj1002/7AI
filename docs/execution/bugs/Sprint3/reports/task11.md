@@ -70,9 +70,10 @@ provider's schema dialect lacks (e.g. `minLength`) into the schema description (
   client returns the text and **real usage** as an ordinary result. The caller's own parse, fallback and
   accounting then handle it. (My first assessment rejected structured output partly because this case lost
   usage; handling it in the client removes that objection.)
-- Only a provider 4xx that blames the structured-output request itself (message matches
-  `output_format|structured|json_schema|schema`, on the first call, nothing billed) falls back **once** to
-  plain text, logged. No fallback on any other error.
+- A **400 or 422** from the first call (the one that sent `outputSchema`; nothing billed) falls back **once** to
+  plain text and logs `provider returned <status> for the structured-output request`. The decision is on the
+  HTTP status the client now attaches to the error (`statusCode` in the error context), not on message text.
+  No fallback on any other status (401, 429, 500, 529 ...), on an error with no status, or on a second 400.
 - Usage from a structured call reaches `usage_events`: `state-machine.structured-usage.test.ts` runs the real
   `generateScript` + client with only the SDK's `generateText` and the repositories mocked, and asserts the
   inserted event has the call's tokens, a positive cost, provider `anthropic` and model `claude-sonnet-5`, for
@@ -108,11 +109,13 @@ target) with SYNTHETIC replies (the real one was never stored):
 
 ## Tests
 
-`studio/`: `npm run build`, `npm run lint`, `npm run typecheck` clean; `npx vitest run` 308 passed, 49
-skipped (pre-existing skips). New or changed: `agents/script-generation/index.test.ts`,
+`studio/`: `npm run build`, `npm run lint`, `npm run typecheck` clean; `npx vitest run` 330 passed, 49
+skipped (pre-existing skips), five consecutive full runs, all green. New or changed: `agents/script-generation/index.test.ts`,
 `regression-248fae8a.test.ts`, `llm/client.test.ts`, `llm/extract-json.test.ts`,
 `run-pipeline/stage-failure.test.ts`, `stage-failure.usage.test.ts`,
-`state-machine.script-generation.test.ts`, `state-machine.structured-usage.test.ts`.
+`state-machine.script-generation.test.ts`, `state-machine.structured-usage.test.ts`, `llm/client.status.test.ts`,
+`llm/describe-json-error.test.ts`, `agents/script-generation/no-reply-text.test.ts`,
+`api/routers/admin/runs.failed-content.test.ts`.
 
 ## What I could not verify
 
@@ -120,13 +123,57 @@ skipped (pre-existing skips). New or changed: `agents/script-generation/index.te
   the SDK's `generateText`. In particular, **whether Anthropic accepts this schema for `claude-sonnet-5`, and
   whether the model's output stays within the 4096 cap, is unproven.** If the provider rejects the schema,
   the one-time fallback to plain text (with the curly-quote prompt, repair and retry) keeps script
-  generation working, and the log line `provider rejected the structured-output request` says so.
-- **The fallback trigger is a message-text match** on the provider's error. If Anthropic words a schema
-  rejection differently, the run would fail with that error instead of falling back. The first failed run
-  after deploy will show which.
-- **Flaky full-suite run** earlier in the work: two of four full runs had one failing test that passed on
-  rerun. I did not capture which. The last full run passed.
+  generation working if the provider answers 400 or 422, and the log line
+  `provider returned <status> for the structured-output request` says so. If Anthropic rejected the schema
+  with some other status, the run would fail with that error instead.
+- **The earlier intermittent failure** is named in the next section. I could not reproduce it in five
+  sequential full runs; I reproduced the same class of failure only under deliberate CPU contention.
 - **Founder SQL result** (below) has not been run.
+
+## Review changes on PR #55
+
+**1. Fallback decided on status, not message text.** `llm/client.ts` now puts the HTTP `statusCode` of a
+provider error into the error context. `generateScript` falls back once to plain text only when the
+structured-output call (nothing completed yet) fails with 400 or 422. Tests: 400 and 422 fall back (and the
+retry/repair path then recovers straight quotes); a second 400 is raised, not retried; 500, 529, 401 and 429
+do not fall back and are raised after one call; a message that mentions the schema but has no status does
+not fall back. `llm/client.status.test.ts` checks the status reaches the context (400/422 non-transient, 500
+transient, non-API error none).
+
+**2. Intermittent test failure.** Five sequential full runs: 330 passed, 49 skipped, 0 failed each time. I did
+not capture the original failing test, so I cannot say with certainty which one it was. When I forced load
+(three full runs at once, twice), the same two files failed every time with `Test timed out in 30000ms`:
+`src/storage/attempt-bundle.test.ts` (the ffmpeg-rendered "assembles the bundle for a stills render" and "…for
+a stock render") and `src/stock-footage/client.test.ts` ("stub honours excludeSourceIds … assigns a different
+sourceId when the first is excluded"). Those are the likely culprits: render-heavy tests with a 30 s timeout,
+sensitive to machine load. Both files are on `origin/main`, and I changed nothing under `src/storage` or
+`src/stock-footage`, so I did not touch them. A founder-side fix, if wanted, is a longer timeout or running
+the suite with fewer workers.
+
+**3. Reply text must not reach `lastError` or an admin response.** Checked by grep (the output is in the
+session; the files are `api/routers/admin/*`, `models/repositories/admin-runs.repository.ts`,
+`admin-tenants.repository.ts`). What I found and fixed:
+- `admin.runs.get` (structure only) returns `outputKeys` (key names), a stage `reason` taken from the stage's
+  `error` column (truncated to 300) and `lastError` (truncated to 500). It never returns stage output. But
+  those two error strings did carry reply text: script generation appended "Reply starts: <first 200 chars>",
+  and the other five parse sites (script review, video planning, metadata, video intelligence, intake)
+  appended `llm.text.slice(0, 200)` (existing behaviour). Node's own `JSON.parse` message can also quote the
+  text. **Fixed:** all six messages now carry only a sanitized parser description (`describeJsonError`: generic
+  wording and position, no quoted text, no offending character). Tests: `describe-json-error.test.ts`,
+  `no-reply-text.test.ts`. `admin-tenants`'s truncated `lastError` reads the same column, so it is clean too.
+- `admin.runs.content` (`kind: 'stage_output'`, audited) would have returned a failed stage's output, which now
+  holds the raw reply. **Fixed:** for a failed stage it returns only diagnostic keys (`stopReason`,
+  `replyLength`, `parseError`, `attempts`, ...) via `failedStageDiagnostics`. The raw reply is only readable
+  with SQL on the VPS. A completed stage's output is returned as before. Test:
+  `admin/runs.failed-content.test.ts`.
+- Not an admin router, not changed: the tenant-facing `runs.get` returns `stages` (full rows with `output`) to the
+  run's own tenant, so the owner of a failed run can now see the raw reply in that response. It is their own
+  content, but flag it if the app should not show it.
+
+**Known gap, stated plainly: video generation still writes an `unknown` usage row.** `generateVideo`
+(TTS, Whisper, image calls) throws without per-call usage, so its catch path in `state-machine.ts` still
+records provider/model `unknown` with no cost when a render fails. **The Admin alert can therefore still fire
+from the video_generation stage until that is fixed.** This task does not fix it.
 
 ## Founder actions
 

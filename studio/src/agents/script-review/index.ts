@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
 
@@ -132,7 +132,7 @@ export async function reviewScript(params: {
     parsedJson = JSON.parse(extractJsonText(llm.text));
   } catch (error) {
     throw new NonTransientStageError(
-      `Script Review did not return valid JSON: ${llm.text.slice(0, 200)}`,
+      `Script Review did not return valid JSON (${describeJsonError(error)})`,
       error,
       llmUsageContext(llm),
     );

@@ -1,4 +1,4 @@
-import { callLLM, extractJsonText, type LLMResponse } from '../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
 import { llmUsageContext } from './stage-failure';
@@ -40,7 +40,7 @@ export async function parseBrief(briefText: string): Promise<{ output: IntakePar
     parsedJson = JSON.parse(extractJsonText(raw));
   } catch (error) {
     throw new NonTransientStageError(
-      `Brief too vague/unparseable — model did not return valid JSON: ${raw.slice(0, 200)}`,
+      `Brief too vague/unparseable — model did not return valid JSON (${describeJsonError(error)})`,
       error,
       llmUsageContext(llm),
     );
