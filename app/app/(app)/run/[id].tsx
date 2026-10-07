@@ -19,6 +19,7 @@ import { Stepper } from '../../../components/Stepper';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { GateActionBar, type Privacy } from '../../../components/GateActionBar';
 import { ClampedText } from '../../../components/ClampedText';
+import { QualityChecksCard } from '../../../components/QualityChecksCard';
 import { PrimaryButton, SecondaryButton, DangerOutlineButton } from '../../../components/Buttons';
 import { ConfirmSheet } from '../../../components/ConfirmSheet';
 import { IndeterminateBar } from '../../../components/IndeterminateBar';
@@ -653,6 +654,7 @@ export default function RunDetailScreen() {
           </View>
         </Card>
       ) : null}
+      {isGate2 ? <QualityChecksCard videoReviewOutput={videoReviewStage?.output} /> : null}
 
       <Pressable style={styles.detailsToggle} onPress={() => setShowDetails((v) => !v)} accessibilityRole="button">
         <Text style={styles.detailsToggleText}>Details</Text>
