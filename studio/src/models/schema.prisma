@@ -86,6 +86,8 @@ model User {
   ownedChannels Channel[]
   // Sprint 4 Task 1: reverse side of ChannelProfileVersion.createdByUserId.
   createdProfileVersions ChannelProfileVersion[]
+  // Sprint 4 Task 4: reverse side of ReviewLog.approvedByUserId.
+  approvedReviewLogs     ReviewLog[]
   notifications Notification[]
 
   @@index([tenantId], map: "idx_users_tenant")
@@ -341,12 +343,18 @@ model ReviewLog {
   rationale    String @db.Text
   editedOutput Json?
 
+  // Sprint 4 Task 4: the real signed-in user who resolved a gate. null for
+  // every non-human row, every row that predates this column, and gates resolved
+  // through the ops-token/script path (no user).
+  approvedByUserId String? @db.Uuid
+
   timestamp DateTime @default(now())
 
-  tenant      Tenant         @relation(fields: [tenantId], references: [id])
-  channel     Channel        @relation(fields: [channelId], references: [id])
-  pipelineRun PipelineRun    @relation(fields: [pipelineRunId], references: [id])
-  stage       PipelineStage? @relation(fields: [stageId], references: [id])
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  channel        Channel        @relation(fields: [channelId], references: [id])
+  pipelineRun    PipelineRun    @relation(fields: [pipelineRunId], references: [id])
+  stage          PipelineStage? @relation(fields: [stageId], references: [id])
+  approvedByUser User?          @relation(fields: [approvedByUserId], references: [id], onDelete: SetNull)
 
   @@index([pipelineRunId], map: "idx_reviewlog_run")
   @@index([channelId, timestamp], map: "idx_reviewlog_channel_time")

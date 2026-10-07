@@ -12,7 +12,7 @@
 // real savings left in keeping the old names around.
 import { ExpoPushChannel } from './push-channel';
 import { InAppChannel } from './in-app-channel';
-import { resolvePendingApproval } from './pending-approvals';
+import { resolvePendingApproval, type ApprovalReply } from './pending-approvals';
 import { findUserById } from '../models/repositories/user.repository';
 import type { NotificationChannel } from './channel';
 import type { User } from '../types';
@@ -43,13 +43,13 @@ class MultiNotificationChannel implements NotificationChannel {
     }
   }
 
-  async requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }> {
+  async requestApproval(params: { threadKey: string; message: string }): Promise<ApprovalReply> {
     if (this.channels.length === 0) {
       throw new Error(`composeNotificationChannel: no real recipients resolved for threadKey ${params.threadKey}`);
     }
     const results = await Promise.allSettled(this.channels.map((channel) => channel.requestApproval(params)));
     const fulfilled = results.find(
-      (result): result is PromiseFulfilledResult<{ reply: string }> => result.status === 'fulfilled',
+      (result): result is PromiseFulfilledResult<ApprovalReply> => result.status === 'fulfilled',
     );
     for (const result of results) {
       if (result.status === 'rejected') {
@@ -62,8 +62,8 @@ class MultiNotificationChannel implements NotificationChannel {
     return fulfilled.value;
   }
 
-  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
-    return resolvePendingApproval(threadKey, reply);
+  resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
+    return resolvePendingApproval(threadKey, value);
   }
 }
 

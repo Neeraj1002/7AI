@@ -6,10 +6,14 @@ import type { Channel } from '../../types';
 // studio/src/notifications/'s interface, never a specific channel SDK
 // directly.
 
-export type Gate1Outcome =
+// Sprint 4 Task 4: every outcome the gate hands back also carries the real
+// user who resolved it (null for the ops/script path). The parser itself stays
+// pure and user-agnostic: it returns GateDecision, requestGate1Decision adds the id.
+export type GateDecision =
   | { type: 'approve' }
   | { type: 'reject'; reason: string }
   | { type: 'edit'; editedScriptText: string };
+export type Gate1Outcome = GateDecision & { approvedByUserId: string | null };
 
 // "approve" — case-insensitive, exact match preferred over fuzzy matching:
 // a false-positive fuzzy match (e.g. matching "approved!" or "not approve")
@@ -20,7 +24,7 @@ export type Gate1Outcome =
 // script text) — safe by construction, since worst case is an unintended
 // script substitution the founder can see and correct next round, not a
 // silently-approved bad script.
-export function parseGateReply(reply: string): Gate1Outcome {
+export function parseGateReply(reply: string): GateDecision {
   const trimmed = reply.trim();
 
   if (trimmed.toLowerCase() === 'approve') {
@@ -104,6 +108,6 @@ export async function requestGate1Decision(params: {
     channelId: params.channel.id,
     userIds: recipients.map((user) => user.id),
   });
-  const { reply } = await channel.requestApproval({ threadKey: params.runId, message });
-  return parseGateReply(reply);
+  const { reply, userId } = await channel.requestApproval({ threadKey: params.runId, message });
+  return { ...parseGateReply(reply), approvedByUserId: userId };
 }

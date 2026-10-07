@@ -1,6 +1,10 @@
 import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 import type { NotificationChannel } from './channel';
-import { getOrCreatePendingApproval, resolvePendingApproval as resolvePendingApprovalShared } from './pending-approvals';
+import {
+  getOrCreatePendingApproval,
+  resolvePendingApproval as resolvePendingApprovalShared,
+  type ApprovalReply,
+} from './pending-approvals';
 import { env } from '../config/env';
 
 // Sprint 3 Task 7 (O1) — the only file allowed to touch expo-server-sdk
@@ -63,16 +67,15 @@ export class ExpoPushChannel implements NotificationChannel {
     });
   }
 
-  async requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }> {
+  async requestApproval(params: { threadKey: string; message: string }): Promise<ApprovalReply> {
     await this.sendPush('7AI — action needed', params.message, {
       kind: 'approval_request',
       runId: params.threadKey,
     });
-    const reply = await getOrCreatePendingApproval(params.threadKey);
-    return { reply };
+    return getOrCreatePendingApproval(params.threadKey);
   }
 
-  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
-    return resolvePendingApprovalShared(threadKey, reply);
+  resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
+    return resolvePendingApprovalShared(threadKey, value);
   }
 }

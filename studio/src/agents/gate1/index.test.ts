@@ -107,3 +107,9 @@ describe('formatGateMessage', () => {
     expect(msg).not.toContain('Sources cited');
   });
 });
+
+describe('parseGateReply stays user-agnostic (Sprint 4 Task 4)', () => {
+  it('returns only the decision, never an approvedByUserId', () => {
+    expect(parseGateReply('approve')).toEqual({ type: 'approve' });
+  });
+});

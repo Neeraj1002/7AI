@@ -28,3 +28,9 @@ Tasks 2-6: none expected yet; update here if that changes.
 ## Task 3: none (prompt text and one env flag).
 
 ## Task 6: none (`creationOptions.formatKey` in the existing Json column).
+
+## Task 4: `review_logs.approvedByUserId` (migration `20261007085716_sprint4_review_log_approver`)
+
+`approvedByUserId uuid NULL REFERENCES users(id) ON DELETE SET NULL`. The real signed-in user who resolved
+a gate; `null` for non-human rows, rows that predate the column, and gates resolved via the ops/script
+path. No backfill.

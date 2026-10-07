@@ -308,7 +308,7 @@ export const channelsRouter = router({
       let cancelled = 0;
       for (const run of inFlight) {
         if (hasPendingApproval(run.id)) {
-          resolvePendingApproval(run.id, 'reject Channel deleted');
+          resolvePendingApproval(run.id, { reply: 'reject Channel deleted', userId: ctx.userId });
         } else {
           await updatePipelineRun(run.id, { status: 'failed', lastError: 'Channel deleted' });
         }

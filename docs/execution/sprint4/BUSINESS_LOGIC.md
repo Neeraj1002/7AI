@@ -54,3 +54,11 @@ Tasks 2-6: update here as each lands.
   (still beaten by an explicit run `targetDurationSec`) and passes the format's `scriptStructure` to Script
   Generation as one extra prompt line. An unknown or absent key changes nothing.
 - No new transitions or failure modes.
+
+## Task 4: Approver identity on gate decisions
+
+- A gate reply and the user who gave it travel together (`{ reply, userId }`) from `runs.gate1/gate2`
+  (`ctx.userId`) through `resolvePendingApproval` and the notification channels into `Gate1Outcome` /
+  `Gate2Outcome.approvedByUserId`, and from there into the human `ReviewLog` row. Ops/script resolutions
+  carry `userId: null`. No gate outcome logic changed.
+- `findGate1ApproverForRun(runId)` is the read side Task 5 uses for the `{editor}` credit.

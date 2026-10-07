@@ -10,6 +10,9 @@ export type ReviewLog = {
   rationale: string;
   editedOutput: Record<string, unknown> | null;
 
+  // Sprint 4 Task 4: the real user who resolved the gate; null if none.
+  approvedByUserId: string | null;
+
   timestamp: Date;
 };
 
@@ -22,4 +25,5 @@ export type CreateReviewLogInput = {
   verdict: string;
   rationale: string;
   editedOutput?: Record<string, unknown>;
+  approvedByUserId?: string | null;
 };

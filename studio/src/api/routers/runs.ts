@@ -456,7 +456,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.editedScriptText;
 
-      const { resolved } = resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, { reply: replyText, userId: ctx.userId });
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -496,7 +496,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.notes;
 
-      const { resolved } = resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, { reply: replyText, userId: ctx.userId });
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -587,7 +587,7 @@ export const runsRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
     }
     if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
-      if (resolvePendingApproval(run.id, 'reject Cancelled by user').resolved) {
+      if (resolvePendingApproval(run.id, { reply: 'reject Cancelled by user', userId: ctx.userId }).resolved) {
         return { cancelled: true };
       }
       // Gate not registered in this process (e.g. mid-restart) — fall through
