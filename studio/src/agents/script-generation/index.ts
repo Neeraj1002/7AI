@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { callLLM, extractJsonText, type LLMMessage, type LLMResponse } from '../../llm';
+import { callLLM, extractJsonObjectText, type LLMMessage, type LLMResponse } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
 
@@ -155,7 +155,7 @@ type ParsedReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; f
 function parseScriptReply(llm: LLMResponse): ParsedReply {
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(extractJsonText(llm.text));
+    parsedJson = JSON.parse(extractJsonObjectText(llm.text));
   } catch (error) {
     const parseError = error instanceof Error ? error.message : String(error);
     return { ok: false, failure: { what: 'did not return valid JSON', cause: error, parseError } };

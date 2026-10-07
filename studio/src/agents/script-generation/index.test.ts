@@ -36,6 +36,23 @@ describe('generateScript — first call', () => {
   });
 });
 
+describe('generateScript — Bugs Task 11 R4 tolerant parsing needs no retry', () => {
+  it('raw newlines inside scriptText are repaired on the first call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(
+      reply('{"scriptText":"Line one.\nLine two.\tTabbed.","captions":"c","hashtags":[]}'),
+    );
+    const { output, calls } = await generateScript(params);
+    expect(output.scriptText).toBe('Line one.\nLine two.\tTabbed.');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a code-fenced reply with prose around it is parsed on the first call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply('Here you go:\n```json\n' + GOOD + '\n```\nEnjoy.'));
+    const { calls } = await generateScript(params);
+    expect(calls).toHaveLength(1);
+  });
+});
+
 describe('generateScript — Bugs Task 11 R3 retry', () => {
   it('an unescaped quote fails the first call, the parse error is fed back, and the corrected reply is used', async () => {
     mocks.callLLM.mockResolvedValueOnce(reply(QUOTE_BUG)).mockResolvedValueOnce(reply(GOOD, { costUsd: '0.002000' }));
