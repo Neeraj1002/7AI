@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
 import { useIsAdmin } from '../../../lib/use-admin';
+import { usePushStatus } from '../../../lib/push';
 import { useChannels, type Channel } from '../../../lib/channel-context';
 import { deleteSecureItem, getSecureItem } from '../../../lib/storage';
 import { EMAIL_KEY } from '../../../lib/session-keys';
@@ -30,6 +31,7 @@ export default function ChannelsScreen() {
   const { apiUrl, signOut } = useAuth();
   const { channels, isLoading } = useChannels();
   const { isAdmin } = useIsAdmin();
+  const pushStatus = usePushStatus();
 
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -150,6 +152,18 @@ export default function ChannelsScreen() {
             <Text style={styles.meta}>Version</Text>
             <Text style={styles.accountValue} numberOfLines={1}>
               {Application.nativeApplicationVersion ?? '—'} · {Updates.updateId?.slice(0, 8) ?? 'built-in'}
+            </Text>
+          </View>
+          <View style={styles.accountRow}>
+            <Text style={styles.meta}>Push</Text>
+            <Text style={styles.accountValue} numberOfLines={1}>
+              {pushStatus.state === 'on'
+                ? 'on'
+                : pushStatus.state === 'off'
+                  ? 'off (permission denied)'
+                  : pushStatus.state === 'error'
+                    ? `error: ${pushStatus.reason}`
+                    : 'checking…'}
             </Text>
           </View>
           {isAdmin ? (
