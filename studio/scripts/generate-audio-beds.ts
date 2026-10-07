@@ -1,3 +1,7 @@
+// SUPERSEDED: data/audio-beds/ now holds real YouTube Audio Library tracks
+// (see src/audio-bed/manifest.ts). Running this script OVERWRITES them with the
+// old synthetic pads. Kept only as history of how the original library was made.
+//
 // One-off generator for the curated royalty-free audio-bed library
 // (Sprint 2 Task 3, F1) — layered FFmpeg sine-wave pads, synthesized
 // locally, not sourced from any external rights holder. Run once to
