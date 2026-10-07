@@ -15,7 +15,7 @@ describe('deriveScriptReview', () => {
       stage(1, { factualConcerns: ['old'], styleGuideViolations: [] }),
       stage(2, { factualConcerns: ['new'], styleGuideViolations: ['v'] }),
     ]);
-    expect(out).toEqual({ factualConcerns: ['new'], styleGuideViolations: ['v'], sources: ['https://e.com'] });
+    expect(out).toEqual({ factualConcerns: ['new'], styleGuideViolations: ['v'], sources: ['https://e.com'], repeatTopic: null });
   });
 
   it('defaults missing fields (a review stored before Task 2) to empty arrays', () => {
@@ -23,6 +23,24 @@ describe('deriveScriptReview', () => {
       factualConcerns: [],
       styleGuideViolations: [],
       sources: [],
+      repeatTopic: null,
     });
+  });
+});
+
+describe('deriveScriptReview repeatTopic (Sprint 4 Task 5, B16)', () => {
+  const review = {
+    stageName: 'script_review',
+    status: 'completed',
+    attemptNumber: 1,
+    output: { factualConcerns: [], styleGuideViolations: [] },
+  } as never;
+  const intake = (output: Record<string, unknown>) =>
+    ({ stageName: 'intake', status: 'completed', attemptNumber: 1, output }) as never;
+  it('returns the intake stage repeatTopic, or null when none', () => {
+    const warn = { runId: 'r1', topic: 'old topic', createdAt: '2026-10-02T00:00:00.000Z' };
+    expect(deriveScriptReview({ creationOptions: null }, [intake({ topic: 'x', repeatTopic: warn }), review])?.repeatTopic).toEqual(warn);
+    expect(deriveScriptReview({ creationOptions: null }, [intake({ topic: 'x' }), review])?.repeatTopic).toBeNull();
+    expect(deriveScriptReview({ creationOptions: null }, [review])?.repeatTopic).toBeNull();
   });
 });

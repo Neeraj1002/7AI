@@ -59,6 +59,8 @@ export function formatGateMessage(params: {
   factualConcerns?: string[];
   styleGuideViolations?: string[];
   sources?: string[];
+  // Sprint 4 Task 5 (R20): non-blocking, omitted when no likely repeat was found.
+  repeatTopic?: { topic: string; createdAt: string | Date } | null;
 }): string {
   const block = (label: string, items: string[] | undefined): string[] =>
     items && items.length > 0 ? [``, `${label}:`, ...items.map((item) => `- ${item}`)] : [];
@@ -78,6 +80,12 @@ export function formatGateMessage(params: {
     ...block('Factual concerns', params.factualConcerns),
     ...block('Style guide violations', params.styleGuideViolations),
     ...block('Sources cited in brief', params.sources),
+    ...(params.repeatTopic
+      ? [
+          ``,
+          `Possible repeat topic: this looks similar to a run from ${new Date(params.repeatTopic.createdAt).toISOString().slice(0, 10)} ("${params.repeatTopic.topic}") — not blocked, just flagged.`,
+        ]
+      : []),
     ``,
     `Reply "approve", "reject <reason>", or send edited script text.`,
   ].join('\n');
@@ -95,6 +103,7 @@ export async function requestGate1Decision(params: {
   factualConcerns?: string[];
   styleGuideViolations?: string[];
   sources?: string[];
+  repeatTopic?: { topic: string; createdAt: string | Date } | null;
 }): Promise<Gate1Outcome> {
   const message = formatGateMessage(params);
   // Sprint 3 Task 3 (K2) — real per-user routing: the channel's real owner

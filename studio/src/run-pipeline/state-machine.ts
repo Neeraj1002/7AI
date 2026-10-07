@@ -32,6 +32,9 @@ import {
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { loadResolvedConfig } from './resolved-config';
+import { findLikelyRepeatTopic } from './repeat-topic';
+import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
+import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
@@ -110,6 +113,31 @@ async function failStageAndEscalate(stageId: string, runId: string, error: unkno
 // the same run: it always reads `run.briefText` fresh and starts a new stage
 // attempt, so a crash-and-retry never assumes partial work happened
 // (BUSINESS_LOGIC.md's "idempotent resume" rule).
+// Sprint 4 Task 5 (R20, B16): compares the new topic with the channel's recent runs
+// and, on a likely repeat, stores it on the intake stage's own output as
+// `repeatTopic` (additive Json, no migration). Gate 1's message and runs.get both
+// read it from there, so the warning survives a restart and is no longer only a
+// line in one notification. It must never fail the run: any error is logged and
+// treated as "no warning".
+async function recordRepeatTopicWarning(
+  runId: string,
+  channelId: string,
+  intakeStageId: string,
+  topic: string,
+): Promise<void> {
+  try {
+    const recent = await listRecentRunTopicsForChannel(channelId, 20, runId);
+    const match = findLikelyRepeatTopic(topic, recent);
+    if (match) {
+      await patchStageOutput(intakeStageId, {
+        repeatTopic: { runId: match.runId, topic: match.topic, createdAt: match.createdAt.toISOString() },
+      });
+    }
+  } catch (error) {
+    console.error(`[intake] run ${runId}: repeat-topic check failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
@@ -179,7 +207,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     // written together, in one transaction — this is what makes resumability
     // possible after a restart, without a window where currentStage lags what
     // pipeline_stages actually shows (B1 fix).
-    return await prisma.$transaction(async (tx) => {
+    const advanced = await prisma.$transaction(async (tx) => {
       await completeStage(stage.id, output, tx);
       return await updatePipelineRun(
         runId,
@@ -192,6 +220,9 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
         tx,
       );
     });
+    // Sprint 4 Task 5 (R20/B16): best-effort, after the stage is already durable.
+    await recordRepeatTopicWarning(runId, run.channelId, stage.id, output.topic);
+    return advanced;
   } catch (error) {
     // A bad/unparseable brief, or an exhausted circuit breaker, is a
     // human-fixable input problem — needs_attention, not failed.
@@ -663,6 +694,8 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // sources from the run's explicit creationOptions.
   const reviewStage = await findLatestCompletedAttempt(runId, 'script_review');
   const reviewOut = (reviewStage?.output ?? {}) as { factualConcerns?: string[]; styleGuideViolations?: string[] };
+  const intakeStage = await findLatestCompletedAttempt(runId, 'intake');
+  const repeatTopic = (intakeStage?.output as { repeatTopic?: { topic: string; createdAt: string } } | null | undefined)?.repeatTopic ?? null;
   const outcome = await requestGate1Decision({
     runId,
     channel,
@@ -675,6 +708,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     factualConcerns: reviewOut.factualConcerns,
     styleGuideViolations: reviewOut.styleGuideViolations,
     sources: run.creationOptions?.sources,
+    repeatTopic,
   });
 
   const recordGate1Outcome = async (): Promise<PipelineRun> => {
@@ -1521,6 +1555,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   }
 
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
+  // Sprint 4 Task 5: packaging from the run's own snapshotted profile.
+  const config = await loadResolvedConfig(run, channel);
+  // {editor}: the real Gate 1 approver (Task 4), or null (ops path / lookup failure)
+  // which packaging.ts turns into "the team". A failed lookup must not block a publish.
+  let editorName: string | null = null;
+  try {
+    const approver = await findGate1ApproverForRun(runId);
+    editorName = approver ? (approver.name?.trim() || approver.email) : null;
+  } catch (error) {
+    console.error(`[publishing] run ${runId}: approver lookup failed, using the fallback credit: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const stageInput = { videoPath, scriptText: sanctionedScriptText, hashtags };
   const stage = await createStageAttempt({
     pipelineRunId: runId,
@@ -1531,7 +1576,16 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
   const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
     try {
-      const { metadata, llm } = await generatePublishingMetadata({ scriptText: sanctionedScriptText, hashtags });
+      const { metadata, llm } = await generatePublishingMetadata({
+        scriptText: sanctionedScriptText,
+        hashtags,
+        titleGuidance: config.titleGuidance,
+        descriptionTemplate: config.descriptionTemplate,
+        hashtagsBase: config.hashtagsBase,
+        editorCredit: config.editorCredit,
+        editorName,
+        sources: run.creationOptions?.sources,
+      });
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
@@ -1567,7 +1621,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
     const attemptUploadOnce = async (): Promise<UploadResult> =>
-      uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
+      uploadVideo({
+        channelId: channel.id,
+        videoPath,
+        metadata,
+        privacyStatus,
+        containsSyntheticMedia,
+        // Sprint 4 Task 5 (R18): always explicit, never left to the channel's Studio defaults.
+        selfDeclaredMadeForKids: config.selfDeclaredMadeForKids,
+        ...(config.categoryId && { categoryId: config.categoryId }),
+        ...(config.defaultLanguage && { defaultLanguage: config.defaultLanguage }),
+      });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Sprint 3 Task 12 (R3) — best-effort, same isolation posture as the
@@ -1635,6 +1699,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       youtubeVideoId: uploadResult.youtubeVideoId,
       privacyStatus: uploadResult.privacyStatus,
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids,
       coverFrameSet,
       metadata,
       // Sprint 3 Task 12 (R3) — included directly in this same fullOutput

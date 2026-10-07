@@ -90,6 +90,31 @@ export async function listRuns(params: {
   return rows.map(toDomainRun);
 }
 
+// Sprint 4 Task 5 (R20): the channel's most recent runs that got as far as an
+// Intake topic, newest first, excluding the current run. Failed and pending runs
+// are skipped (nothing was really made), everything else counts.
+export async function listRecentRunTopicsForChannel(
+  channelId: string,
+  limit: number,
+  excludeRunId: string,
+): Promise<{ runId: string; topic: string; createdAt: Date }[]> {
+  const rows = await prisma.pipelineRun.findMany({
+    where: {
+      channelId,
+      id: { not: excludeRunId },
+      status: { notIn: ['failed', 'pending'] },
+      intakeParsed: { not: Prisma.DbNull },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: { id: true, intakeParsed: true, createdAt: true },
+  });
+  return rows.flatMap((row) => {
+    const topic = (row.intakeParsed as { topic?: unknown } | null)?.topic;
+    return typeof topic === 'string' && topic.length > 0 ? [{ runId: row.id, topic, createdAt: row.createdAt }] : [];
+  });
+}
+
 export type PipelineRunPatch = Partial<{
   status: PipelineRunStatus;
   currentStage: StageName | null;

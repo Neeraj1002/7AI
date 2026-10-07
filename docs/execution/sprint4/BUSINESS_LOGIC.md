@@ -62,3 +62,16 @@ Tasks 2-6: update here as each lands.
   `Gate2Outcome.approvedByUserId`, and from there into the human `ReviewLog` row. Ops/script resolutions
   carry `userId: null`. No gate outcome logic changed.
 - `findGate1ApproverForRun(runId)` is the read side Task 5 uses for the `{editor}` credit.
+
+## Task 5: Packaging, upload fields and the repeat-topic warning
+
+- Metadata Generation receives the run's resolved packaging (title guidance, description template, base
+  hashtags, editor credit). `{editor}` = the Gate 1 approver's name/email (`findGate1ApproverForRun`), else
+  "the team"; `{sources}` = `creationOptions.sources` or removed. Credits are enforced on the model's reply,
+  never left to prompt-following. A failed approver lookup is logged and falls back; it never blocks a publish.
+- `videos.insert` always carries `status.selfDeclaredMadeForKids` (resolved, default false) and
+  `snippet.categoryId`/`defaultLanguage` only when the profile sets them; the publishing stage output
+  records `selfDeclaredMadeForKids`.
+- After Intake completes, the topic is compared with the channel's last 20 runs; a likely repeat is written
+  to the intake stage output as `repeatTopic`, shown at Gate 1 and returned by `runs.get`
+  (`scriptReview.repeatTopic`). Non-blocking; a failure of the check never fails the run.

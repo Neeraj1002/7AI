@@ -113,6 +113,7 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
       metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
       privacyStatus: 'private',
       containsSyntheticMedia: true,
+      selfDeclaredMadeForKids: false,
     });
     expect(extractRequestMetadata().status.containsSyntheticMedia).toBe(true);
   });
@@ -124,8 +125,48 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
       metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
       privacyStatus: 'private',
       containsSyntheticMedia: false,
+      selfDeclaredMadeForKids: false,
     });
     expect(extractRequestMetadata().status.containsSyntheticMedia).toBe(false);
+  });
+
+  // Sprint 4 Task 5 (R18): the real request body, parsed from the actual multipart
+  // payload handed to the (mocked) Google client.
+  function requestBody(): { snippet: Record<string, unknown>; status: Record<string, unknown> } {
+    const call = requestMock.mock.calls[0][0] as { data: Buffer };
+    const match = call.data.toString('utf-8').match(/Content-Type: application\/json; charset=UTF-8\r\n\r\n(\{.*?\})\r\n--/s);
+    if (!match) throw new Error('no JSON metadata part');
+    return JSON.parse(match[1]);
+  }
+  const base = {
+    channelId: TEST_CHANNEL_ID,
+    metadata: { title: 'T', description: 'D', tags: ['t'], coverFrameTimestampRatio: 0.3 },
+    privacyStatus: 'private' as const,
+    containsSyntheticMedia: false,
+    selfDeclaredMadeForKids: false,
+  };
+
+  it('always sends status.selfDeclaredMadeForKids, and omits categoryId/defaultLanguage when unset', async () => {
+    await uploadVideoViaProvider({ ...base, videoPath });
+    const body = requestBody();
+    expect(body.status).toEqual({ privacyStatus: 'private', containsSyntheticMedia: false, selfDeclaredMadeForKids: false });
+    expect(body.snippet).toEqual({ title: 'T', description: 'D', tags: ['t'] });
+    expect('categoryId' in body.snippet).toBe(false);
+    expect('defaultLanguage' in body.snippet).toBe(false);
+  });
+
+  it('sends categoryId and defaultLanguage when the profile sets them, and echoes the flag', async () => {
+    const result = await uploadVideoViaProvider({
+      ...base,
+      videoPath,
+      selfDeclaredMadeForKids: true,
+      categoryId: '27',
+      defaultLanguage: 'en',
+    });
+    const body = requestBody();
+    expect(body.snippet).toMatchObject({ categoryId: '27', defaultLanguage: 'en' });
+    expect(body.status.selfDeclaredMadeForKids).toBe(true);
+    expect(result.selfDeclaredMadeForKids).toBe(true);
   });
 
   it('throws a clear, specific error when the channel has no connected YouTube account', async () => {
@@ -137,6 +178,7 @@ describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disc
         metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
         privacyStatus: 'private',
         containsSyntheticMedia: false,
+        selfDeclaredMadeForKids: false,
       }),
     ).rejects.toThrow(/has no connected YouTube account/);
   });

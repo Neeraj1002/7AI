@@ -34,3 +34,5 @@ Tasks 2-6: none expected yet; update here if that changes.
 `approvedByUserId uuid NULL REFERENCES users(id) ON DELETE SET NULL`. The real signed-in user who resolved
 a gate; `null` for non-human rows, rows that predate the column, and gates resolved via the ops/script
 path. No backfill.
+
+## Task 5: none (`intake` stage output gains optional `repeatTopic`; publishing stage output gains `selfDeclaredMadeForKids`; both Json).

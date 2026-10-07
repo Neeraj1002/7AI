@@ -17,6 +17,7 @@ export async function stubUploadVideo(params: UploadParams): Promise<UploadResul
     youtubeVideoId: `stub-${randomUUID()}`,
     privacyStatus: params.privacyStatus,
     containsSyntheticMedia: params.containsSyntheticMedia,
+    selfDeclaredMadeForKids: params.selfDeclaredMadeForKids,
   };
 }
 

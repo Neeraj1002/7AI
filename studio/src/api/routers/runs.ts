@@ -90,6 +90,17 @@ function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' 
 // `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
 // below. `list`/`get` were both missed by that hardening pass — this closes
 // the second of the two.
+function intakeRepeatTopic(
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+): { runId: string; topic: string; createdAt: string } | null {
+  const intake = stages
+    .filter((s) => s.stageName === 'intake' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const value = (intake?.output as { repeatTopic?: { runId: string; topic: string; createdAt: string } } | null | undefined)
+    ?.repeatTopic;
+  return value ?? null;
+}
+
 // Sprint 4 Task 2: the latest completed script_review attempt's concerns and
 // violations plus the run's explicit sources. null before any review exists.
 export function deriveScriptReview(
@@ -105,6 +116,9 @@ export function deriveScriptReview(
     factualConcerns: out.factualConcerns ?? [],
     styleGuideViolations: out.styleGuideViolations ?? [],
     sources: run.creationOptions?.sources ?? [],
+    // Sprint 4 Task 5 (B16): the non-blocking repeat-topic warning, stored on the
+    // intake stage output (not only in the Gate 1 message). null when none.
+    repeatTopic: intakeRepeatTopic(stages),
   };
 }
 

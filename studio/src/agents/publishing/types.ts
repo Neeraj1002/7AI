@@ -44,6 +44,12 @@ export type UploadParams = {
   metadata: PublishingMetadata;
   privacyStatus: PrivacyStatus;
   containsSyntheticMedia: boolean;
+  // Sprint 4 Task 5 (R18): always sent explicitly (the resolver guarantees a
+  // concrete false default); categoryId and defaultLanguage only when the
+  // channel's profile sets them.
+  selfDeclaredMadeForKids: boolean;
+  categoryId?: string;
+  defaultLanguage?: string;
 };
 
 export type UploadResult = {
@@ -52,4 +58,5 @@ export type UploadResult = {
   // Echoed back the same way privacyStatus is — a real audit trail of what
   // was actually sent, not just what was intended.
   containsSyntheticMedia: boolean;
+  selfDeclaredMadeForKids: boolean;
 };

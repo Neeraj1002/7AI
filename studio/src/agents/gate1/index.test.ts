@@ -113,3 +113,23 @@ describe('parseGateReply stays user-agnostic (Sprint 4 Task 4)', () => {
     expect(parseGateReply('approve')).toEqual({ type: 'approve' });
   });
 });
+
+describe('formatGateMessage repeat-topic line (Sprint 4 Task 5, R20)', () => {
+  const base = { channelName: 'Chan', briefText: 'b', scriptText: 's', reviewScore: '8', reviewNotes: 'n' };
+  it('adds the non-blocking line before the Reply line, only when a repeat was found', () => {
+    const msg = formatGateMessage({
+      ...base,
+      repeatTopic: { topic: 'the fall of the Roman Empire', createdAt: new Date('2026-10-02T10:00:00Z') },
+    });
+    expect(msg).toContain(
+      'Possible repeat topic: this looks similar to a run from 2026-10-02 ("the fall of the Roman Empire") — not blocked, just flagged.',
+    );
+    expect(msg.endsWith('send edited script text.')).toBe(true);
+    expect(formatGateMessage({ ...base, repeatTopic: null })).toBe(formatGateMessage(base));
+  });
+  it('accepts the ISO string stored on the intake stage output', () => {
+    expect(
+      formatGateMessage({ ...base, repeatTopic: { topic: 'x y', createdAt: '2026-10-02T10:00:00.000Z' } }),
+    ).toContain('from 2026-10-02');
+  });
+});
