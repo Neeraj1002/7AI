@@ -165,6 +165,8 @@ any FFmpeg work starts, not mid-render. This is a **manifest-integrity check**, 
 Content-ID API call — no such public API exists to call synchronously at generation time; see
 `KNOWN_ISSUES_AND_BLOCKERS.md` §6 for the real API check this deliberately doesn't attempt.
 
+> **Update 2026-10-07:** the synthetic beds described below were replaced by five real YouTube Audio Library tracks (all "no attribution required"), loudness-normalised to about -18 LUFS / true peak <= -1.5 dBTP. Each manifest entry now carries `license: 'YouTube Audio Library (no attribution required)'` and the track name as `label`. The `CC0` claim below applies only to the original synthetic library.
+
 ### A real, live verification worth recording
 The curated library (`data/audio-beds/*.mp3`) is not sourced from any external rights holder — every
 track was synthesized locally with FFmpeg's own `sine`/`amix`/`tremolo` signal generators
