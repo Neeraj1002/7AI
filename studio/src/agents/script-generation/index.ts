@@ -79,6 +79,39 @@ function buildUserMessage(params: {
   return lines.join('\n');
 }
 
+const REPLY_LOG_EDGE_CHARS = 300;
+const REPLY_ERROR_PREVIEW_CHARS = 200;
+
+// Bugs Task 11 (R1) — run 248fae8a failed with only the first 200 characters
+// of the reply kept and the JSON.parse position error (on `cause`) never
+// logged, so the break could not be located. The error now carries the
+// stopReason (a truncated reply is `length`), the parser's own message
+// (which names the position), the reply length, and the full reply for the
+// failed stage row (stage-failure.ts caps what is stored); the head and tail
+// of the reply also go to the log.
+function buildReplyError(what: string, llm: LLMResponse, cause: unknown): NonTransientStageError {
+  const parseError = cause instanceof Error ? cause.message : String(cause);
+  const replyLength = llm.text.length;
+  console.error(
+    `[script-generation] unusable reply (${what}): stopReason=${llm.stopReason} replyLength=${replyLength} parseError=${parseError}
+` +
+      `  head: ${llm.text.slice(0, REPLY_LOG_EDGE_CHARS)}
+  tail: ${llm.text.slice(-REPLY_LOG_EDGE_CHARS)}`,
+  );
+  return new NonTransientStageError(
+    `Script Generation ${what}: ${parseError} (stopReason=${llm.stopReason}, replyLength=${replyLength}). Reply starts: ${llm.text.slice(0, REPLY_ERROR_PREVIEW_CHARS)}`,
+    cause,
+    {
+      provider: llm.provider,
+      model: llm.model,
+      stopReason: llm.stopReason,
+      replyLength,
+      parseError,
+      rawReply: llm.text,
+    },
+  );
+}
+
 export async function generateScript(params: {
   topic: string;
   constraints: string[];
@@ -97,17 +130,12 @@ export async function generateScript(params: {
   try {
     parsedJson = JSON.parse(extractJsonText(llm.text));
   } catch (error) {
-    throw new NonTransientStageError(
-      `Script Generation did not return valid JSON: ${llm.text.slice(0, 200)}`,
-      error,
-    );
+    throw buildReplyError('did not return valid JSON', llm, error);
   }
 
   const result = ScriptGenerationOutputSchema.safeParse(parsedJson);
   if (!result.success) {
-    throw new NonTransientStageError(
-      `Script Generation output failed schema validation: ${result.error.message}`,
-    );
+    throw buildReplyError('output failed schema validation', llm, result.error);
   }
 
   return { output: result.data, llm };

@@ -24,6 +24,7 @@ import { isCancellationRequested } from './cancellation-registry';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
+import { failureOutputFromError } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -99,7 +100,7 @@ async function failStageAndEscalate(stageId: string, runId: string, error: unkno
   const message = describeStageError(error);
   console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
-    await failStage(stageId, message, tx);
+    await failStage(stageId, message, tx, failureOutputFromError(error));
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);
   });
 }
