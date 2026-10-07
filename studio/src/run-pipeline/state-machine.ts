@@ -24,7 +24,7 @@ import { isCancellationRequested } from './cancellation-registry';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
-import { failureOutputFromError } from './stage-failure';
+import { failureOutputFromError, failureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -154,18 +154,13 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'intake',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -330,18 +325,13 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -433,18 +423,13 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-review',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -889,18 +874,13 @@ export async function runVideoGenerationStage(
       });
       return plan;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-production-planning',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -1210,6 +1190,20 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       return await updatePipelineRun(runId, runPatch, tx);
     });
   } catch (error) {
+    // Bugs Task 11 (R2) — a multimodal pass whose reply was rejected after the
+    // call completed still cost real money; the success path above is the only
+    // place this stage wrote a UsageEvent, so that spend was never booked.
+    const spent = failureUsageFields(error);
+    if (spent.provider !== 'unknown') {
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-intelligence-own-draft',
+        ...spent,
+      });
+    }
     return await failStageAndEscalate(stage.id, runId, error);
   }
 }
@@ -1519,18 +1513,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       });
       return metadata;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'metadata-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }

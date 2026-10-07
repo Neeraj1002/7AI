@@ -1,4 +1,5 @@
-import { getStageErrorContext } from './retry-with-backoff';
+import { getStageErrorContext, type StageErrorContext } from './retry-with-backoff';
+import type { LLMResponse } from '../llm';
 
 // Bugs Task 11 (R1) — what a failed stage row keeps beyond its one-line
 // `error`: the raw model reply, for the failures where a reply existed but
@@ -15,5 +16,46 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
     stopReason: context.stopReason ?? null,
     replyLength: context.replyLength ?? null,
     parseError: context.parseError ?? null,
+  };
+}
+
+// Bugs Task 11 (R2) — a stage whose model call completed but whose reply was
+// then rejected (unparseable, failed schema validation) threw an error with no
+// trace of that call, so every stage's failure-path usage event booked
+// provider/model 'unknown', tokens 0 and cost $0 for a call that was really
+// made and really billed (run 248fae8a: a Sonnet call recorded as $0).
+// Throwers now attach the finished call's usage to the error's context, and
+// the catch paths read it back here.
+export function llmUsageContext(llm: LLMResponse): StageErrorContext {
+  return {
+    provider: llm.provider,
+    model: llm.model,
+    inputTokens: llm.usage.inputTokens,
+    outputTokens: llm.usage.outputTokens,
+    costUsd: llm.costUsd,
+    stopReason: llm.stopReason,
+  };
+}
+
+export type FailureUsageFields = {
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: string;
+};
+
+// What a failed attempt's UsageEvent should record. An error with no attached
+// usage (the provider call itself failed, or a non-LLM failure) keeps the
+// previous behaviour: the provider/model client.ts attached when it has them,
+// otherwise 'unknown', with zero tokens and cost.
+export function failureUsageFields(error: unknown): FailureUsageFields {
+  const context = getStageErrorContext(error);
+  return {
+    provider: typeof context?.provider === 'string' ? context.provider : 'unknown',
+    model: typeof context?.model === 'string' ? context.model : 'unknown',
+    inputTokens: typeof context?.inputTokens === 'number' ? context.inputTokens : 0,
+    outputTokens: typeof context?.outputTokens === 'number' ? context.outputTokens : 0,
+    costUsd: typeof context?.costUsd === 'string' ? context.costUsd : '0.000000',
   };
 }

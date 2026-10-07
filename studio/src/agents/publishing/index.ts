@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import { uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
 import { stubUploadVideo, stubSetThumbnail } from './stub';
 import { env } from '../../config/env';
@@ -59,12 +60,13 @@ export async function generatePublishingMetadata(params: {
     throw new NonTransientStageError(
       `Metadata generation did not return valid JSON: ${llm.text.slice(0, 200)}`,
       error,
+      llmUsageContext(llm),
     );
   }
 
   const result = PublishingMetadataSchema.safeParse(parsedJson);
   if (!result.success) {
-    throw new NonTransientStageError(`Metadata generation output failed schema validation: ${result.error.message}`);
+    throw new NonTransientStageError(`Metadata generation output failed schema validation: ${result.error.message}`, undefined, llmUsageContext(llm));
   }
 
   return { metadata: result.data, llm };

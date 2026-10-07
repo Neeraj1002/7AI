@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 
 // Script Review agent — AGENT_FLEET_DESIGN.md Section 4.5. A lightweight
 // rubric score + notes over Script Generation's output, including the
@@ -133,6 +134,7 @@ export async function reviewScript(params: {
     throw new NonTransientStageError(
       `Script Review did not return valid JSON: ${llm.text.slice(0, 200)}`,
       error,
+      llmUsageContext(llm),
     );
   }
 
@@ -140,6 +142,8 @@ export async function reviewScript(params: {
   if (!result.success) {
     throw new NonTransientStageError(
       `Script Review output failed schema validation: ${result.error.message}`,
+      undefined,
+      llmUsageContext(llm),
     );
   }
 

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { env } from '../../config/env';
 import { NonTransientStageError, withRetryAndCircuitBreaker } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import type { VisualSource } from '../video-generation/plan';
 import type { QualityMetrics } from '../video-generation/quality-spec';
 import { hardFailureReason, measureQualityMetrics } from './quality-metrics';
@@ -256,6 +257,7 @@ export async function reviewVideo(params: {
     throw new NonTransientStageError(
       `Video Intelligence did not return valid JSON: ${llm.text.slice(0, 200)}`,
       error,
+      llmUsageContext(llm),
     );
   }
 
@@ -263,6 +265,8 @@ export async function reviewVideo(params: {
   if (!result.success) {
     throw new NonTransientStageError(
       `Video Intelligence output failed schema validation: ${result.error.message}`,
+      undefined,
+      llmUsageContext(llm),
     );
   }
 

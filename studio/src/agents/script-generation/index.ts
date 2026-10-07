@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
 // agent in the critical path: turns Intake's parsed brief into a script.
@@ -102,9 +103,7 @@ function buildReplyError(what: string, llm: LLMResponse, cause: unknown): NonTra
     `Script Generation ${what}: ${parseError} (stopReason=${llm.stopReason}, replyLength=${replyLength}). Reply starts: ${llm.text.slice(0, REPLY_ERROR_PREVIEW_CHARS)}`,
     cause,
     {
-      provider: llm.provider,
-      model: llm.model,
-      stopReason: llm.stopReason,
+      ...llmUsageContext(llm),
       replyLength,
       parseError,
       rawReply: llm.text,
