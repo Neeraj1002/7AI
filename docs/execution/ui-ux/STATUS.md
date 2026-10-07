@@ -15,8 +15,13 @@ the same computer, acts as this track's own "UI/UX agent" — see
 Tasks 6 + 4 (E1, E5–E7; E8 deferred) built on `UIEnhancement-3` (draft PR #43). All four await founder
 device verification and screenshots before any can be marked "Done". New Definition of Done (task 5): no
 UI task is "Done" without a phone screenshot beside each locked board it implements; built-but-flagged
-code is reported "Built — hidden (flag X off)".
-**Last updated**: 2026-09-28 (tasks 6 and 4 built in draft PR #43; E8 watermark deferred, needs a native build).
+code is reported "Built — hidden (flag X off)". **Last updated**: 2026-10-07. **Flow change**: the cancel-run
+bug (reserved here as task 7) and the push-notification fix are not UI/UX tasks — both need backend + app
+changes together, so they move to the bugs track as **Bugs Task 10**
+(`docs/execution/bugs/Sprint3/tasks/task10.md`, branch `BUGS_TASK10_CANCEL_PUSH`, PR #52, one hot-fixer, one
+PR). `docs/execution/bugs/Sprint3/closureTask2.md` only cross-references it. Task 7 is no longer used in this
+folder. Sprint 4 screens live in `docs/execution/sprint4/tasks/frontend-task1.md`. Order: Bugs Task 10
+(cancel + push) → Sprint 4 Frontend 1 items as their backend lands.
 
 **Checkout location**: this track works from its own dedicated worktree, **`D:\Study Material\7AI-UI`**,
 created fresh from `origin/main` — separate from `D:\Study Material\7AI-frontend` (**"7fe"**, the
