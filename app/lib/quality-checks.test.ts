@@ -18,8 +18,8 @@ test('run 75f69faa: one soft warning, passed through verbatim, no row coloured b
   const c = parseQualityMetrics({ qualityMetrics: warnRun })!;
   assert.deepEqual(c.softWarnings, ['Longest single shot is 4.9s (spec: ≤ 4s)']);
   const r = byKey(c);
-  assert.equal(r.loudness.value, '-14 LUFS');
-  assert.equal(r.truePeak.value, '-1.4 dBTP');
+  assert.equal(r.loudness.value, '−14 LUFS');
+  assert.equal(r.truePeak.value, '−1.4 dBTP');
   assert.equal(r.format.value, '1080×1920 · 30 fps');
   assert.equal(r.longestShot.value, '4.9 s');
   assert.equal(r.captions.value, 'Present');
@@ -29,7 +29,7 @@ test('run 75f69faa: one soft warning, passed through verbatim, no row coloured b
 test('run dc2062a2: all clear', () => {
   const c = parseQualityMetrics({ qualityMetrics: clearRun })!;
   assert.deepEqual(c.softWarnings, []);
-  assert.equal(byKey(c).loudness.value, '-14.3 LUFS');
+  assert.equal(byKey(c).loudness.value, '−14.3 LUFS');
   assert.equal(byKey(c).longestShot.value, '3.2 s');
   assert.ok(c.rows.every((x) => x.status === 'ok'));
 });

@@ -23,7 +23,8 @@ function num(v: unknown): number | null {
 }
 
 function trim(n: number, digits: number): string {
-  return String(Number(n.toFixed(digits)));
+  // True minus sign, as on the board (−14.2 LUFS).
+  return String(Number(n.toFixed(digits))).replace('-', '−');
 }
 
 export function parseQualityMetrics(output: Record<string, unknown> | null | undefined): QualityChecks | null {
@@ -68,10 +69,10 @@ export function parseQualityMetrics(output: Record<string, unknown> | null | und
       value: hasAudio && peak !== null ? `${trim(peak, 1)} dBTP` : '—',
       status: 'ok',
     },
-    { key: 'format', label: 'Resolution', value: formatParts.length ? formatParts.join(' · ') : '—', status: 'ok' },
+    { key: 'format', label: 'Resolution · frame rate', value: formatParts.length ? formatParts.join(' · ') : '—', status: 'ok' },
     {
       key: 'longestShot',
-      label: 'Longest shot',
+      label: 'Longest single shot',
       value: longest !== null ? `${trim(longest, 1)} s` : '—',
       status: 'ok',
     },

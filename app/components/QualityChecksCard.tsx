@@ -18,13 +18,16 @@ export function QualityChecksCard({ videoReviewOutput }: { videoReviewOutput: Re
   return (
     <Card>
       <Text style={styles.title}>Quality checks</Text>
+      <Text style={styles.meta}>
+        Measured on the final file. Red items block the video automatically; amber items are for your judgement.
+      </Text>
       {checks.rows.map((row) => {
         const icon = ICON[row.status];
         return (
           <View key={row.key} style={styles.row} accessible accessibilityLabel={`${row.label}: ${row.value}`}>
             <Feather name={icon.name} size={18} color={icon.fg} />
             <Text style={styles.label}>{row.label}</Text>
-            <Text style={[styles.value, row.status === 'fail' && styles.valueFail]}>{row.value}</Text>
+            <Text style={[styles.value, row.status === 'warn' && styles.valueWarn, row.status === 'fail' && styles.valueFail]}>{row.value}</Text>
           </View>
         );
       })}
@@ -45,7 +48,9 @@ const styles = StyleSheet.create({
   title: { ...type.sectionTitle, color: color.ink },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
   label: { ...type.meta, flex: 1 },
-  value: { ...type.meta, color: color.ink },
+  meta: { ...type.meta },
+  value: { ...type.meta, color: color.okText, fontWeight: '700' },
+  valueWarn: { color: color.warnText },
   valueFail: { color: color.danger },
   note: { backgroundColor: color.warnBg, borderRadius: radius.sm, padding: space.sm, gap: space.xs },
   noteText: { ...type.meta, color: color.warnText },

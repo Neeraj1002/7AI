@@ -2,7 +2,7 @@
 
 ## E1 — Gate 2 Quality checks
 
-**Status: Built, awaiting founder device verification. Provisional pending the board** (the "Gate 2 — quality checks" screenshot was not attached; built from the E1 text using the existing Video review card styling, no new visual language). Not "Done" until the founder's phone screenshot sits beside the board.
+**Status: Built, awaiting founder device verification.** The board was seen after the first build and the card was aligned to it (subtitle line, labels "Resolution · frame rate" / "Longest single shot", true minus sign, bold green values, right-aligned). Not "Done" until the founder's phone screenshot sits beside the board.
 
 **What changed (additive, `app/` only, JS-only)**
 - `app/lib/quality-checks.ts` — pure parser: `video_review` output → rows (Loudness, True peak, Resolution, Longest shot, Captions) + `softWarnings`.
@@ -25,3 +25,6 @@
 **Founder actions**
 1. Attach the board and compare; screenshot Gate 2 on the OnePlus (tenant account `7aistudiochannel@gmail.com`) beside it.
 2. After installing the Task 10 APK: `eas update --branch preview`. Not run by the agent.
+
+**Open difference from the board (founder decision needed)**
+The board shows the "Longest single shot 6.8 s" row amber, i.e. coloured from the soft warning. The founder decision for this build was to NOT colour individual rows from `softWarnings` (strings are not parsed), so that row stays green here and the warning text appears in an amber note under the rows, which the board does not show. To match the board exactly, either (a) the backend returns a structured per-row flag, or (b) the app maps "Longest single shot" warnings to that row by string match. Not done; waiting on a decision.
