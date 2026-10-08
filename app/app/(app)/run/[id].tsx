@@ -10,7 +10,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { humanizeRunError, relativeTime, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { humanizeRunError, relativeTime, stageLabel, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -663,7 +663,7 @@ export default function RunDetailScreen() {
           {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
           {stages.map((s) => (
             <Text key={s.id} style={[styles.raw, s.status === 'failed' && styles.rawFailed]}>
-              {s.stageName.replace(/_/g, ' ')} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
+              {stageLabel(s.stageName)} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
             </Text>
           ))}
         </Card>
