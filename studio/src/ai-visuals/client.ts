@@ -89,9 +89,11 @@ export async function generateStillsViaProvider(
   const context = { provider: 'openai', model: params.model };
   const pricing = resolveImagePricing(params.model);
 
+  // Declared outside the try so a failure part-way still reports what the
+  // stills already generated cost (Bugs Closure 2, P5): they were billed.
+  const imagePaths: string[] = [];
+  let totalCostUsd = 0;
   try {
-    const imagePaths: string[] = [];
-    let totalCostUsd = 0;
 
     // One request per still, not a single n>1 call — OpenAI's images.generate
     // applies one prompt to all n images in a batch; each still here needs
@@ -138,7 +140,12 @@ export async function generateStillsViaProvider(
       ...(skippedPromptCount > 0 && { skippedPromptCount }),
     };
   } catch (error) {
-    if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
-    throw mapOpenAiError(error, context);
+    const partial = { partialStillCount: imagePaths.length, partialCostUsd: totalCostUsd.toFixed(6) };
+    if (error instanceof TransientStageError || error instanceof NonTransientStageError) {
+      // Merge into the thrower's own context (the retry logic reads the class, not this).
+      (error as { context?: Record<string, unknown> }).context = { ...error.context, ...partial };
+      throw error;
+    }
+    throw mapOpenAiError(error, { ...context, ...partial });
   }
 }

@@ -10,11 +10,12 @@ import { buildStockShotList } from './stock-shotlist';
 import { generateStills } from '../../ai-visuals';
 import { pickAudioBedTrack } from '../../audio-bed';
 import { env } from '../../config/env';
-import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { NonTransientStageError, getStageErrorContext } from '../../run-pipeline/retry-with-backoff';
+import type { VideoSpend } from './spend';
 import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
-import { QUALITY_SPEC } from './quality-spec';
+import { QUALITY_SPEC, END_TAIL_SECONDS } from './quality-spec';
 import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
 import {
   buildAudioFilterGraph,
@@ -214,12 +215,16 @@ async function measureMixLoudness(params: {
   voicePath: string;
   bedPath?: string;
   bedGainDb?: number;
+  tailSeconds?: number;
+  voiceDurationSeconds?: number;
 }): Promise<MeasuredLoudness | undefined> {
   const graph = buildAudioFilterGraph({
     voiceInputIndex: 0,
     bedInputIndex: params.bedPath ? 1 : undefined,
     bedGainDb: params.bedGainDb,
     measureOnly: true,
+    tailSeconds: params.tailSeconds,
+    voiceDurationSeconds: params.voiceDurationSeconds,
   });
   try {
     const { stderr } = await execFileAsync(env.FFMPEG_PATH, [
@@ -380,6 +385,9 @@ export async function generateVideo(params: {
   voice?: string;
   // Bugs Closure R6 — stock clip ids this run's earlier attempts used (see stock-shotlist.ts).
   excludeStockSourceIds?: string[];
+  // Bugs Closure 2 (P5) - filled in as each paid call completes, so the caller can
+  // book the real cost of a render that fails part-way (see spend.ts).
+  spend?: VideoSpend;
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -387,7 +395,21 @@ export async function generateVideo(params: {
   // it, per docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md
   // Section 2 and Sprint 2 Task 2 (E2).
   const tts = await synthesizeSpeech(params.scriptText, { voice: params.voice });
+  if (params.spend) {
+    const entry = resolveMediaPurpose('tts');
+    params.spend.ttsProvider = entry.provider;
+    params.spend.ttsModel = entry.model;
+    params.spend.ttsCharacters = tts.characterCount;
+    params.spend.ttsCostUsd = Number(tts.costUsd);
+  }
   const asr = await transcribe(tts.audioPath);
+  if (params.spend) {
+    params.spend.transcriptionModel = resolveMediaPurpose('transcription').model;
+    params.spend.transcriptionSeconds = asr.audioDurationSeconds;
+    params.spend.transcriptionCostUsd = Number(asr.costUsd);
+  }
+  // Bugs Closure 2 (P8): the short hold after the last spoken word.
+  const tailSeconds = END_TAIL_SECONDS;
 
   const outputDir = path.resolve(DATA_DIR, 'videos', params.pipelineRunId);
   await fs.mkdir(outputDir, { recursive: true });
@@ -413,7 +435,7 @@ export async function generateVideo(params: {
   const captionSegments = buildCaptionSegments(timedWords, params.plan.captionStyle);
   if (captionsEnabled) {
     assertCaptionFontPresent();
-    const { ass } = buildAss({ words: timedWords, style: params.plan.captionStyle });
+    const { ass } = buildAss({ words: timedWords, style: params.plan.captionStyle, holdLastCueMs: Math.round(tailSeconds * 1000) });
     await fs.writeFile(path.join(outputDir, assFilename), ass, 'utf-8');
   }
 
@@ -447,7 +469,24 @@ export async function generateVideo(params: {
       // here too rather than trusting every caller re-validates.
       throw new NonTransientStageError("ProductionPlan.visualSource is 'ai-stills' but stillScenePrompts is empty");
     }
-    const stills = await generateStills({ scenePrompts });
+    let stills: Awaited<ReturnType<typeof generateStills>>;
+    try {
+      stills = await generateStills({ scenePrompts });
+    } catch (error) {
+      // Stills generated before the failure were billed (ai-visuals/client.ts reports them).
+      const ctx = getStageErrorContext(error);
+      if (params.spend && ctx) {
+        if (typeof ctx.model === 'string') params.spend.stillsModel = ctx.model;
+        params.spend.stillsCount += Number(ctx.partialStillCount ?? 0);
+        params.spend.stillsCostUsd += Number(ctx.partialCostUsd ?? 0);
+      }
+      throw error;
+    }
+    if (params.spend) {
+      params.spend.stillsModel = stills.model;
+      params.spend.stillsCount = stills.imagePaths.length;
+      params.spend.stillsCostUsd = Number(stills.costUsd);
+    }
     // Sprint 4 Task 8 (R6) — with the faster default pacing there can be more
     // stills than caption cues (e.g. sentence-grouped on a short script).
     // distributeStillWindows would silently drop the excess stills — paid-for
@@ -525,7 +564,9 @@ export async function generateVideo(params: {
   // referenced by its plain filename, avoiding FFmpeg's notoriously fiddly
   // colon/backslash escaping for the `ass` filter's path argument on
   // Windows.
-  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}`;
+  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}` +
+    // P8: hold the last frame through the tail (generous pad; -shortest trims it to the audio).
+    (tailSeconds > 0 ? `,tpad=stop_mode=clone:stop_duration=${(tailSeconds + 0.5).toFixed(2)}` : '');
   // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
   // escape in the filtergraph, identical on Windows and the Linux VPS.
   const fontsDirArg = path.relative(outputDir, FONTS_DIR).split(path.sep).join('/');
@@ -551,12 +592,20 @@ export async function generateVideo(params: {
         await measureIntegratedLufs(audioBedTrack.filePath, { cache: true }),
       )
     : undefined;
-  const measured = await measureMixLoudness({ voicePath: tts.audioPath, bedPath: audioBedTrack?.filePath, bedGainDb });
+  const measured = await measureMixLoudness({
+    voicePath: tts.audioPath,
+    bedPath: audioBedTrack?.filePath,
+    bedGainDb,
+    tailSeconds,
+    voiceDurationSeconds: asr.audioDurationSeconds,
+  });
   const audioFilterChain = `;${buildAudioFilterGraph({
     voiceInputIndex: 1,
     bedInputIndex: audioBedTrack ? audioBedInputIndex : undefined,
     bedGainDb,
     measured,
+    tailSeconds,
+    voiceDurationSeconds: asr.audioDurationSeconds,
   })}`;
   const filterComplex = `${videoFilterChain}${audioFilterChain}`;
 
@@ -564,7 +613,8 @@ export async function generateVideo(params: {
     '-y',
     // ai-stills keeps the (harmless, sub-frame) loop it always had; the stock
     // shot list is built to cover the voiceover and must never loop.
-    ...(params.plan.visualSource === 'ai-stills' ? ['-stream_loop', '-1'] : []),
+    // (With a tail the last frame is held by tpad instead: looping would flash the first still.)
+    ...(params.plan.visualSource === 'ai-stills' && tailSeconds <= 0 ? ['-stream_loop', '-1'] : []),
     '-i',
     visualPath,
     '-i',

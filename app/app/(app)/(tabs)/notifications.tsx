@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../../../lib/trpc';
 import { flags } from '../../../lib/feature-flags';
-import { relativeTime } from '../../../lib/run-labels';
+import { relativeTime, runTopic } from '../../../lib/run-labels';
 import { color, font, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
 import { Card } from '../../../components/Card';
@@ -88,7 +88,20 @@ function useResolvedDecision(notification: NotificationRow, gate: 1 | 2 | null):
   return log ? (DECISION_LABEL[log.verdict] ?? null) : null;
 }
 
+// Bugs Closure 2 (P9) - the run's topic line, so two cards on the same channel can be
+// told apart. Lazy per visible card; the run is cached by id and shared with the
+// other lookups on this screen.
+function useRunTopicLine(threadKey: string | null): string | null {
+  const trpc = useTRPC();
+  const { data } = useQuery({
+    ...trpc.runs.get.queryOptions({ id: threadKey ?? '' }),
+    enabled: Boolean(threadKey),
+  });
+  return data ? runTopic(data.run) : null;
+}
+
 function NotificationCard({ notification }: { notification: NotificationRow }) {
+  const topic = useRunTopicLine(notification.threadKey);
   const isPendingApproval = notification.kind === 'approval_request' && !notification.resolvedAt;
   const gate = notification.kind === 'approval_request' ? gateOf(notification.message) : null;
   const decision = useResolvedDecision(notification, gate);
@@ -111,6 +124,11 @@ function NotificationCard({ notification }: { notification: NotificationRow }) {
         />
         <Text style={styles.time}>{relativeTime(notification.createdAt)}</Text>
       </View>
+      {topic ? (
+        <Text style={styles.topic} numberOfLines={2}>
+          {topic}
+        </Text>
+      ) : null}
       <Text style={styles.message} numberOfLines={3}>
         {summary ?? notification.message}
       </Text>
@@ -198,6 +216,7 @@ const styles = StyleSheet.create({
   card: { gap: space.sm },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   time: { ...type.meta, fontSize: 12 },
+  topic: { ...type.bodyStrong, color: color.ink },
   message: { ...type.body, color: color.ink },
   resolved: { ...type.meta, color: color.okText },
   openRun: { fontFamily: font.bold, fontSize: 13, color: color.accentText },

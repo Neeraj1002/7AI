@@ -21,6 +21,7 @@ import { uploadAttemptBundle } from '../storage/attempt-bundle';
 import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { isCancellationRequested } from './cancellation-registry';
+import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
@@ -900,6 +901,13 @@ export async function runVideoGenerationStage(
   let lastArtifacts: VideoArtifacts | undefined;
   let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
+    // Bugs Closure 2 (P5): a fresh tally per attempt (each retry pays again),
+    // read by the failure path below.
+    const spend = emptyVideoSpend({
+      media: env.MEDIA_STUB === '1',
+      stockFootage: env.STOCK_FOOTAGE_STUB === '1',
+      aiVisuals: env.AI_VISUALS_STUB === '1',
+    });
     try {
       const { output, usage, artifacts } = await generateVideo({
         pipelineRunId: runId,
@@ -909,6 +917,7 @@ export async function runVideoGenerationStage(
         plan,
         voice: resolvedVoice,
         excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
+        spend,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -928,15 +937,20 @@ export async function runVideoGenerationStage(
       return output;
     } catch (error) {
       const context = getStageErrorContext(error);
+      // Real spend (TTS, transcription, stills) when the render got that far;
+      // otherwise the previous provider/model-or-unknown row at $0.
+      const realUsage = failedRenderUsage(spend, error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        costUsd: '0.000000',
+        ...(realUsage ?? {
+          provider: (context?.provider as string | undefined) ?? 'unknown',
+          model: (context?.model as string | undefined) ?? 'unknown',
+          costUsd: '0.000000',
+        }),
       });
       throw error;
     }

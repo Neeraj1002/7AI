@@ -224,6 +224,70 @@ The founder (or a planning chat) is the normal source of new task docs here, sam
 founder-reported bug with no existing doc — see Scope above — and should default to *asking* rather
 than assuming when a report is ambiguous enough that the Fix isn't obvious from the report alone.
 
+## Bug lifecycle: triage and closure *(added 2026-10-06)*
+This section governs what happens to a report after a tester logs it, and when a report may be closed.
+The Release & Branch Model above still governs how a fix is built and shipped; this section is about the
+report itself.
+
+**Why this exists**: on 2026-10-05 the preview server held 24 open reports, none triaged, and several
+already fixed by later work. Earlier fixes were marked `fixed` against the dev database and never carried
+over to preview, so "fixed" had stopped meaning anything. Two rules fall out of that: a report is closed
+only on evidence from the deployed build, and nothing is built twice.
+
+### The lifecycle of one report
+1. **Logged.** The tester files it in the app. It lands `open`, with a `reportType` (bug or feedback) and
+   a tester-chosen `priority` (`blocker` / `annoying` / `minor`). `area` is empty.
+2. **Triaged.** A triage pass (below) checks it against the build that is deployed now and records exactly
+   one classification: `duplicate` (of which report ID), `already fixed by PR #N` (verification still
+   pending), `by design`, `cannot reproduce` (say what information is missing; the report stays open),
+   `feedback` (backlog), or `real bug`. A real bug gets an `area` (`BE` / `FE` / `APP`) and a re-rated
+   priority. Everything is recorded through `bugs.updateTriage`, never by SQL on `bug_reports`.
+3. **Fixed.** Real bugs are grouped into one release (`BUGS_TASK<N>`, one branch, one PR, one commit per
+   `R#` item, as above). A `blocker` that cannot wait may be fast-tracked as its own small release.
+4. **Verified, then closed.** A report is set to `fixed` only after the fix is merged, deployed and
+   re-tested on preview, with the evidence written down (a run ID, a PR number, a screenshot or
+   recording, a bundle file). "The code is merged" is not enough, and neither is "it passes on dev".
+
+### Rules
+- **Closure needs evidence from the deployed build.** First record the commit preview is running
+  (`git log -1 --oneline` on the VPS, which the founder supplies). A report fixed by a merged PR that has
+  not been deployed yet is marked as fixed-but-unverified. Admin Sprint 1 BE R3 adds the status
+  `awaiting_verification` and a short `triageNote` (at most 500 characters) to `bug_reports`. Until that
+  PR is merged and deployed, use only the statuses that exist in `BUG_REPORT_STATUSES`
+  (`bug-report.repository.ts`): leave such a report `open` and record "fixed in PR #N, awaiting
+  verification" in the triage report. After it, set `awaiting_verification` and put the PR number in the
+  note ("fixed in PR #N, deployed <commit>"), and close the report only on evidence from the deployed
+  build. A triage pass never adds a status itself.
+- **Blockers are verified by the founder.** The hot-fixer hands the founder one batch ("please confirm
+  these on your phone") and closes a `blocker` only after the founder says it works. Other priorities can
+  be closed by the hot-fixer on its own evidence.
+- **Test first, code only if it still reproduces.** A report logged before a merged PR may already be
+  fixed. Re-test it on the deployed build before writing any code.
+- **No duplicate work.** Before fixing anything, read `docs/execution/sprint4/STATUS.md` (and the current
+  sprint's STATUS), run `gh pr list`, and run `git log origin/main -- <file>` for every file you intend to
+  touch. If a merged PR already built it, call it and close the report against that PR. If an in-flight
+  sprint task will build it, route the report to that task (note the task in the triage table) and do not
+  fix it here. A genuine defect in code a merged PR owns gets a minimal fix with a test and a note saying
+  so.
+- **Degrade quietly.** A field or function added by a merged PR may be missing on older runs. Code written
+  here must not throw when it is absent.
+- **Re-opening.** If a closed report's symptom returns on the same build, re-open it. If it returns on a
+  later build, file a new report that references the old ID.
+- **Evidence without direct DB access.** The hot-fixer never connects to `sevenai_preview`. Evidence comes
+  from the app and API (`bugs.list`, `runs.get`, `runs.getAttemptBundle`), and from SQL the founder runs
+  on the VPS and pastes back. Once the admin module's bug and run views exist
+  (`docs/execution/admin/ADMIN_MODULE_DESIGN.md`), use those instead of pasted SQL.
+
+### Who runs it, and when
+- **Who**: a hot-fixer chat runs the triage pass and records results through `bugs.updateTriage` (the ops
+  token, or an Admin session once Admin Sprint 1 BE R3 has landed; tenant owners lose access then). The
+  founder spends about 15 minutes per cycle on the verification batch.
+- **When**: immediately for any report with priority `blocker`; after every deploy, to catch what it fixed
+  or broke; and as a weekly sweep of everything else.
+- **Output of a triage pass**: a triage table (report ID, classification, `area`, status, evidence,
+  owning PR or task), the founder's verification batch, and the item list for the next release. A triage
+  pass writes no code unless the founder asks for it.
+
 ## Kickoff message
 To start a hot-fixer chat, open a new chat attached to this same "7AI" Project, link it to the same
 computer this repo lives on (same "Link to this computer" step used for any session that needs to touch
@@ -242,11 +306,25 @@ real files), and open with something like:
 > any circumstance, before opening a second PR for the same release, or if you hit any of the Guardrails
 > in the protocol doc.
 
+### Triage-pass kickoff (use this instead of the message above when the job is only triage)
+
+> You are the hot-fixer for the 7AI project's `docs/execution/bugs/` track. Read
+> `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` in full, especially **Bug lifecycle: triage and
+> closure**. This is a TRIAGE PASS, not a fix pass. List open reports with `bugs.list` (ops token); never
+> query `sevenai_preview` directly. First read the sprint `STATUS.md` files and `gh pr list`, and note the
+> deployed commit the founder gives you. Classify every open report as duplicate, already fixed by PR #N,
+> by design, cannot reproduce, feedback or real bug, using evidence (the report's run ID,
+> `runs.getAttemptBundle`, the Run screen), not code-reading alone. Set status and `area` through
+> `bugs.updateTriage`; mark `fixed` only for items verified on the deployed build. Group real bugs into
+> one release task doc, and route any that belong to an in-flight sprint task to that task. End with the
+> triage table, the founder's verification batch, and the next release's item list. Write no code.
+
 ## Links & References
 - [TASK_TEMPLATE.md](../templates/TASK_TEMPLATE.md)
 - [STATUS.md](STATUS.md)
 - [hardening-tenant-check.md](../sprint3/tasks/hardening-tenant-check.md) — precedent for a real,
   live-verification bar on a non-sprint-numbered fix
+- `docs/execution/admin/ADMIN_MODULE_DESIGN.md` — the admin module (bug and run views) that will replace pasted SQL
 - `docs/server/deployment/preview/detail.md`, `docs/server/usefulcmds.md` — the preview VPS itself:
   what it is, how to reach it, and its own "never run" list (never touch `sevenai_preview` directly
   except through the app's own code paths, per the Guardrails above)

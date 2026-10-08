@@ -117,3 +117,32 @@ export function relativeTime(date: string | Date): string {
   if (diffDay < 5) return `${diffDay}d ago`;
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
+
+// Bugs Closure 2 (P9) — the short line that tells two runs apart: the parsed
+// topic when intake produced one, otherwise the brief's first non-empty line,
+// trimmed. Never the whole brief.
+const TOPIC_MAX_CHARS = 90;
+export function runTopic(run: { briefText: string; intakeParsed?: { topic?: string } | null }): string {
+  const parsed = run.intakeParsed?.topic?.trim();
+  const firstLine = run.briefText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() ?? '';
+  const text = parsed || firstLine || 'Untitled run';
+  return text.length > TOPIC_MAX_CHARS ? `${text.slice(0, TOPIC_MAX_CHARS - 1)}…` : text;
+}
+
+// Chip for a run in the "Ended" list. The runs.list rows carry no endReason,
+// so this reads the same lastError texts the server's deriveEndReason matches.
+export function endedChip(run: { status: string; lastError?: string | null }): { label: string; kind: StatusChipKind } {
+  if (run.status === 'completed') return { label: 'Completed', kind: 'ok' };
+  const err = run.lastError ?? '';
+  if (err === 'Cancelled by user') return { label: 'Cancelled', kind: 'neutral' };
+  const rejected = /^Rejected at Gate ([12])/.exec(err);
+  if (rejected) return { label: `Rejected at Gate ${rejected[1]}`, kind: 'neutral' };
+  if (err === 'Channel deleted') return { label: 'Channel deleted', kind: 'neutral' };
+  return { label: 'Failed', kind: 'failed' };
+}
+
+// Bugs Closure 2 (P10) - "script_generation" -> "script generation", and the two
+// gates read "gate 1" / "gate 2" instead of the raw "gate1" / "gate2".
+export function stageLabel(stageName: string): string {
+  return stageName.replace(/_/g, ' ').replace(/^gate(\d)$/, 'gate $1');
+}
