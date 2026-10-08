@@ -1,12 +1,5 @@
 # Bugs Sprint 3 Closure: Triage and Fix the Open Preview-Server Bug Reports
 
-> **Repo note (2026-10-06)**: this is the founder's closure task doc, committed as-is from the version
-> handed to the hot-fixer on 2026-10-06 (the one containing D4 and step 5b). PR #48's scope was later
-> narrowed (see `closureTask2.md` and `reports/closure.md`): only the built items ship in #48; triage,
-> reports 12-15, R7-R9 and the image-cost rows (R1 step 7) moved to "closure part 2". The Git Workflow
-> section below names the branch `BUGS_CLOSURE`; the work actually lives on **`Sprint3_CLOSURE`** (PR #48),
-> kept under that name because it was already pushed with an open PR.
-
 **Read `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` and `docs/execution/templates/TASK_TEMPLATE.md` in
 full before starting.** This file lives in `docs/execution/bugs/Sprint3/`, next to the `tasks/` and
 `reports/` folders of the Bugs Tasks 1-9 that closed out Sprint 3's device-testing phase. It is **not**
@@ -198,7 +191,7 @@ code applies: the tenant's weekly budget is a stored number and its channels spl
      active channels. $20 per week per channel (sizing above) is guidance for what to grant, not code.
   3. **Overrides are validated when saved, not just warned about:** a `budgetOverrideUsd` is refused if it is
      greater than the weekly budget, or if the overrides would leave any default-share channel below the
-     minimum share (`MIN_CHANNEL_SHARE_USD = 5`, per week; **confirmed by the founder 2026-10-06**).
+     minimum share (`MIN_CHANNEL_SHARE_USD = 5`, per week; **confirmed by the founder, 2026-10-06**).
   4. **Two checks on every gate decision:** the channel's spend this week against its ceiling, and the
      tenant's total spend this week against the weekly budget. The budget is the hard cap on the sum of all
      channels whatever the per-channel numbers say.
@@ -298,7 +291,7 @@ contradicts the report's classification.
     are new.*
     a. The tenant weekly budget is read only from `AgentQuota.budgetCeilingUsd`; no code path computes it from
        the channel count.
-    b. Add `MIN_CHANNEL_SHARE_USD` (`5`, confirmed) to `budget-gate.ts`. Where overrides are
+    b. Add `MIN_CHANNEL_SHARE_USD = 5` (confirmed by the founder) to `budget-gate.ts`. Where overrides are
        written (find every writer of `Channel.budgetOverrideUsd`: a router, a script, or SQL helpers), reject an
        override that is greater than the weekly budget, or that leaves any other active default-share channel
        below `MIN_CHANNEL_SHARE_USD`. The error names the channels affected. Activating a channel is checked the
@@ -513,8 +506,8 @@ Set `area` and leave `open` until the founder decides. Suggested disposition:
 
 | Other doc | What it covers here |
 |---|---|
-| Sprint 4 Task 8 (`sprint4/tasks/task8.md`) | R6 (footage repeats, real-person subjects), R7 (30 fps, `+faststart`), R8 (loudness, ducking, real music beds). Built first in Sprint 4. |
-| Sprint 3 Task 13 (`sprint3/tasks/task13.md`) | **Stays a separate task** (reviewed on 2026-10-05 for merging into this one and kept apart: it is a new feature with its own branch `MEDIAARTIFACTS_BE`, five items and about 6-7h, not a bug fix). Its per-attempt debug bundles in R2 storage make R2/R6/R7's before-and-after checks possible without VPS access. Its R1 (PR #45 deploy verification and a loud boot warning when R2 storage isn't configured) is the one overlap: R7 needs `hasR2Draft` to be real on preview, so check Task 13/R1 first. |
+| Sprint 4 Task 8 (`sprint4/tasks/task8.md`) | **Merged to `main` as PR #46** (not yet run on the preview VPS). It already has audio mastering (loudnorm and a ducked bed), `.ass` captions, 30 fps and `+faststart`, planner default `ai-stills`, a stock shot list that skips used clip IDs, `QUALITY_SPEC` and `qualityMetrics` at the `video_review` stage, and moderation/429 handling in `ai-visuals`. **Do not rebuild any of it.** Merge `origin/main` into the closure branch, delete any closure code that duplicates these (the clip-skip and image-cost recording are the likely ones), and treat the items that depend on them as "verify on the deployed build", not "build". Its remaining Sprint 4 siblings (Tasks 7, 1, 2, 3, 6, 4, 5) are in progress: do not pre-build anything they own. |
+| Sprint 3 Task 13 (`sprint3/tasks/task13.md`) | **Merged to `main` as PR #47.** It added per-attempt debug bundles in R2 (`runs.getAttemptBundle`, `hasR2Bundle`) and the production boot warning when R2 isn't configured, so R2/R6/R7's before-and-after checks can use bundles instead of VPS access. Do not add a second bundle path. Its VPS checks (deploy, `R2_*` keys present, `NODE_ENV=production`, one real run) are still founder actions, so until they are done treat `hasR2Bundle` on preview as unknown. |
 | Cost dashboard changes (INR display, YouTube channel link) | The drafted "YouTube link + INR" task also edits the Dashboard's cost card. Land R1 steps 4-5 first or coordinate the two, so the card isn't changed twice. |
 | Sprint 3 Task 11 (`sprint3/tasks/task11.md`) | The publish-on-approval fix that R5's state-flicker reports may already be resolved by. |
 | Run-cancel fix (B15) and the YouTube-link/INR dashboard request | Separate drafted tasks, not part of this closure. |
@@ -576,14 +569,14 @@ run (budget pooled / budget channel / other); the exact refusal texts produced; 
 
 ## Git Workflow
 
-One branch, **`BUGS_CLOSURE`**, off a fresh `origin/main` in `D:\Study Material\7AI-bugs`
+One branch, **`Sprint3_CLOSURE`** (PR #48; this file is `docs/execution/bugs/Sprint3/closureTask.md`), off a fresh `origin/main` in `D:\Study Material\7AI-bugs`
 (`git fetch origin && git checkout main && git pull` first — the protocol's checkout rule). Record it in
 `docs/execution/bugs/STATUS.md` before the first commit (a new row for this closure pass). **First commit
 (`BUGS_CLOSURE_MOVE: ...`)**: the `tasks/` and `reports/` folders of Bugs Tasks 1-9 now live under
 `docs/execution/bugs/Sprint3/` (`git mv docs/execution/bugs/tasks docs/execution/bugs/Sprint3/tasks`, and
 the same for `reports`, if the checkout still has them at the old path), so update every link that points at
 the old paths in `bugs/STATUS.md` and `HOTFIXER_AGENT_PROTOCOL.md` in the same commit. One commit per
-item: `BUGS_CLOSURE_R<X>: ...`. Draft PR after R1, report plus STATUS row in the closing commit
+item: `BUGS_CLOSURE_R<X>: ...` (keep whatever prefix the branch's earlier commits already use; do not rewrite history to rename it). Draft PR after R1, report plus STATUS row in the closing commit
 (`BUGS_CLOSURE_REPORT: ...`), then `gh pr ready`. Never push or merge to `main`; never commit to a branch
 this task didn't create. Verification is on the live preview app, never a direct connection to
 `sevenai_preview`.
