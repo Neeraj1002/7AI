@@ -41,7 +41,7 @@ export default function NotificationsScreen() {
 // message the gate itself wrote ("Gate 1 — <channel>" / "Gate 2 — <channel>"), so no
 // payload change is needed.
 function gateOf(message: string): 1 | 2 | null {
-  const m = /^Gate ([12])/.exec(message);
+  const m = /^\s*Gate ([12])(?!\d)/.exec(message);
   return m ? (Number(m[1]) as 1 | 2) : null;
 }
 
