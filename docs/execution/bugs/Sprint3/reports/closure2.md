@@ -13,7 +13,7 @@ This report is partial on purpose. The code items are done; the items that need 
 | P3 Reports 12-15 in detail | Waits for P2 (re-test first, code only if it still reproduces). |
 | P4 Leftovers (17, 18, 19, 20) | Waits for P2. |
 | P5 Failed-render spend | **Built** (commit `BUGS_CLOSURE2_P5_P8`). Live check only possible when a real render fails. |
-| P6 Bug docs up to date | **Not done: needs the Project copies** of `HOTFIXER_AGENT_PROTOCOL.md`, `closureTask.md`, `closureTask2.md` from the founder (the task says not to rewrite them from memory). The STATUS rows for Task 10, Task 11, closure part 1 and PR #56 already exist in the repo; I added the closure part 2 row. |
+| P6 Bug docs up to date | **Done** (commit `BUGS_CLOSURE2_P6`). The protocol: the repo copy had no edit newer than the Project copy (a sentence-level comparison found only the Project's new material), so I added the Project's "Bug lifecycle: triage and closure" section and the triage-pass kickoff in the repo's formatting and kept the repo's relative links (plus an admin-module link). `closureTask.md` and `closureTask2.md` are replaced by the Project copies. STATUS: only the status text of the closure part 1, part 2, Task 10 and Task 11 rows was changed (merged PR numbers and dates). |
 | P7 Inbox chip | **Verify only**, on the deployed build after the OTA (P2 report 10). Not run. |
 | P8 End tail | **Built and checked on local test renders** (details below). The founder judges the ending by ear. |
 | P9 Ended runs findable | **Built** (typecheck/lint only, never run on a device). |
@@ -96,5 +96,5 @@ Answers to the task's four questions, from two local test renders (real TTS, `AI
 
 1. **Founder, P1:** confirm the deploy (`git log -1 --oneline` in `/var/www/7AI`, `pm2 status`, `prisma migrate status`), the R2 variable names, the stub flags, and the five audio-bed files. Paste the results.
 2. **Founder, P2:** run the scenarios in the task's P2 table on the deployed build (it also covers P7, the tail by ear for P8, and P9 after the OTA). I then record every report through `bugs.updateTriage` and fill the table. This also answers 12-16 and decides whether any P3/P4 code is needed.
-3. **Founder, P6:** attach the Project copies of `HOTFIXER_AGENT_PROTOCOL.md`, `closureTask.md` and `closureTask2.md`.
+3. ~~P6 docs~~ done, see above.
 4. **Ship:** the server needs a deploy (P5, P8) and the app an OTA, `eas update --branch preview` (P9, P10): JS only, no APK, but the OTA must target the runtime of the Task 10 APK the founder installed.
