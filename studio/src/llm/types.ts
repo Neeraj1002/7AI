@@ -1,6 +1,8 @@
 // This project's own LLM request/response/purpose types — never the underlying
 // library's. See docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 
+import type { ZodType } from 'zod';
+
 // Seeded with the purposes that exist so far. Add a purpose here, plus a
 // registry.ts entry, when its call site actually exists.
 export const PURPOSES = [
@@ -39,6 +41,11 @@ export type LLMRequest = {
   system: string;
   messages: LLMMessage[];
   maxTokens: number;
+  // Bugs Task 11 (R3) — ask the provider for schema-constrained JSON output, so the
+  // reply is valid JSON by construction (quotes and newlines escaped by the
+  // decoder, not left to the model). The reply is still returned as text and
+  // still parsed and validated by the caller.
+  outputSchema?: ZodType;
 };
 
 export type LLMUsage = {
