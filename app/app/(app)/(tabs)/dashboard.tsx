@@ -171,7 +171,7 @@ export default function DashboardScreen() {
               </View>
             ) : null}
             {ceiling !== null ? <Text style={styles.sub}>Resets Monday</Text> : null}
-            {perVideo !== null ? <Text style={styles.sub}>{money(perVideo)} per published video</Text> : null}
+            {perVideo !== null ? <Text style={styles.sub}>{money(perVideo)} per published video (all time, not this week)</Text> : null}
           </Card>
         ) : null}
 
