@@ -312,6 +312,9 @@ export function buildAss(params: {
   words: TimedWord[];
   style: CaptionStyle;
   metrics?: FontMetrics;
+  // Bugs Closure 2 (P8) - keeps the last caption on screen this long after its
+  // last word, so it stays up through the end tail.
+  holdLastCueMs?: number;
 }): AssBuildResult {
   const baseSize = captionFontSizePx(params.style);
   const karaoke = params.style !== 'word-flash';
@@ -339,7 +342,8 @@ export function buildAss(params: {
   ];
 
   const cues = groupCaptionCues(params.words, params.style);
-  const events = cues.map((cue) => {
+  const events = cues.map((cue, cueIndex) => {
+    const endMs = cueIndex === cues.length - 1 ? cue.endMs + (params.holdLastCueMs ?? 0) : cue.endMs;
     const size = fitFontSizePx(cue.text, baseSize, params.metrics);
     const sizeTag = size === baseSize ? '' : `\\fs${size}`;
     const tags = `{\\an5\\pos(${captions.playResX / 2},${CAPTION_CENTER_Y})${sizeTag}}`;
@@ -357,7 +361,7 @@ export function buildAss(params: {
     } else {
       body = escapeAssText(cue.text);
     }
-    return `Dialogue: 0,${assTimestamp(cue.startMs)},${assTimestamp(cue.endMs)},${karaoke ? 'Karaoke' : 'Plain'},,0,0,0,,${tags}${body}`;
+    return `Dialogue: 0,${assTimestamp(cue.startMs)},${assTimestamp(endMs)},${karaoke ? 'Karaoke' : 'Plain'},,0,0,0,,${tags}${body}`;
   });
 
   return { ass: [...header, ...events, ''].join('\n'), cueCount: cues.length, karaoke };
