@@ -1,0 +1,11 @@
+{
+  "name": "7ai-tools",
+  "private": true,
+  "description": "Repo-level commands. Deliberately NOT in app/package.json: the 'scripts' of app/package.json are part of the native fingerprint, so adding a script there would change the app's runtime version and orphan the installed APK. Do not add dependencies here.",
+  "scripts": {
+    "native:baseline": "node app/scripts/native-baseline.js",
+    "ota:check": "node app/scripts/ota-check.js",
+    "ota": "node app/scripts/ota.js",
+    "test:ota": "node --test app/scripts/ota-lib.test.js"
+  }
+}

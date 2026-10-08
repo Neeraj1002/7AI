@@ -1,0 +1,10 @@
+{
+  "hash": "bbbbbbbb22222222222222222222222222222222",
+  "installed": { "expo": "57.0.25", "expo-notifications": "57.0.22" },
+  "sources": [
+    { "key": "file:assets/icon.png", "hash": "i1", "reasons": ["expoConfigExternalFile"] },
+    { "key": "dir:node_modules/expo-notifications/android", "hash": "n2", "reasons": ["expoAutolinkingAndroid"] },
+    { "key": "contents:expoAutolinkingConfig:android", "hash": "c2", "reasons": ["expoAutolinkingAndroid"] },
+    { "key": "contents:expoConfig", "hash": "e1", "reasons": ["expoConfig"], "contents": "{\"android\":{\"package\":\"com.sevenai.studio\"},\"version\":\"1.0.0\"}" }
+  ]
+}

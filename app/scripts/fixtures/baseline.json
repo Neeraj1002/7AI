@@ -1,0 +1,11 @@
+{
+  "hash": "aaaaaaaa11111111111111111111111111111111",
+  "apk": { "gitCommit": "de9cd17017ba2f3004782607d1d433662c8f8bfa", "builtAt": "2026-10-07" },
+  "installed": { "expo": "57.0.25", "expo-notifications": "57.0.21" },
+  "sources": [
+    { "key": "file:assets/icon.png", "hash": "i1", "reasons": ["expoConfigExternalFile"] },
+    { "key": "dir:node_modules/expo-notifications/android", "hash": "n1", "reasons": ["expoAutolinkingAndroid"] },
+    { "key": "contents:expoAutolinkingConfig:android", "hash": "c1", "reasons": ["expoAutolinkingAndroid"] },
+    { "key": "contents:expoConfig", "hash": "e1", "reasons": ["expoConfig"], "contents": "{\"android\":{\"package\":\"com.sevenai.studio\"},\"version\":\"1.0.0\"}" }
+  ]
+}
