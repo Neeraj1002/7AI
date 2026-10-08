@@ -10,6 +10,7 @@ import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
 import { useIsAdmin } from '../../../lib/use-admin';
 import { usePushStatus } from '../../../lib/push';
+import { AppBuildInfo } from '../../../components/AppBuildInfo';
 import { useChannels, type Channel } from '../../../lib/channel-context';
 import { deleteSecureItem, getSecureItem } from '../../../lib/storage';
 import { EMAIL_KEY } from '../../../lib/session-keys';
@@ -166,6 +167,7 @@ export default function ChannelsScreen() {
                     : 'checking…'}
             </Text>
           </View>
+          <AppBuildInfo />
           {isAdmin ? (
             <Pressable
               style={styles.adminRow}
