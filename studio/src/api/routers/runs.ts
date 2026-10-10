@@ -18,6 +18,7 @@ import { requestCancellation, isCancellationRequested, isActivelyDriven } from '
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
+import { classifyEndError, type EndReason } from '../../run-pipeline/end-reason';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import {
   MAX_MANUAL_RETRIES_PER_STAGE,
@@ -85,13 +86,9 @@ function deriveLastGateDecision(stages: PipelineStage[]): LastGateDecision | nul
 // `runs.cancel` (R3/B11 below) — both cancel's own gate-paused and `'running'`
 // paths use this identical string, confirmed by direct read/coordinated in
 // this same PR.
-function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' | 'channel_deleted' | null {
+function deriveEndReason(run: PipelineRun): EndReason | null {
   if (run.status !== 'failed') return null;
-  const err = run.lastError ?? '';
-  if (err.startsWith('Rejected at Gate 1') || err.startsWith('Rejected at Gate 2')) return 'rejected';
-  if (err === CANCELLED_BY_USER) return 'cancelled';
-  if (err === 'Channel deleted') return 'channel_deleted';
-  return 'failed';
+  return classifyEndError(run.lastError);
 }
 
 // Bugs Task 10 (R1) — true while a cancel request is recorded in this process
