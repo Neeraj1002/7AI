@@ -39,7 +39,8 @@ export function formatGateReminder(params: {
   gateLabel: string;
   openHours: string;
 }): string {
-  const firstLine = params.briefText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() ?? '';
+  // Bugs Task 12 (U1): a brief often starts with its own "Topic:" label; the reminder reads better without it.
+  const firstLine = (params.briefText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() ?? '').replace(/^topic:\s*/i, '');
   const brief = firstLine.length > 80 ? firstLine.slice(0, 77) + '...' : firstLine;
   const what = brief ? '"' + brief + '" on ' + params.channelName : params.channelName;
   return 'Reminder: ' + what + ' has been waiting at ' + params.gateLabel + ' for about ' + params.openHours + 'h. Open the app to respond.';
