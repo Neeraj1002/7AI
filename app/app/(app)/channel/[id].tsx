@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Switch, BackHandler, Image, ActivityIndicator } from 'react-native';
+import { youtubeNeedsReconnect } from '../../../lib/server-extras';
+import { View, Text, TextInput, StyleSheet, Pressable, Switch, BackHandler, Image, ActivityIndicator, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as ImagePicker from 'expo-image-picker';
@@ -51,6 +52,13 @@ export default function ChannelSettingsScreen() {
   const operational = useQuery(trpc.dashboard.operational.queryOptions({ channelId: id }));
   const cost = useQuery(trpc.dashboard.cost.queryOptions({ channelId: id }));
 
+  // U16: the delete warning lists only what really applies to this channel.
+  const activeRuns = useQuery(
+    trpc.runs.list.queryOptions({
+      channelId: id,
+      statuses: ['running', 'pending', 'paused_gate1', 'paused_gate2', 'needs_attention'],
+    }),
+  );
   const [barHeight, setBarHeight] = useState(0);
   const [draft, setDraft] = useState<Draft>({});
   const [spendText, setSpendText] = useState<string | null>(null);
@@ -195,15 +203,15 @@ export default function ChannelSettingsScreen() {
     setWatermarkError(null);
     try {
       const form = new FormData();
-      // asset.file (web only) is a real File the browser's fetch/FormData
-      // already knows how to send; native RN's FormData instead wants the
-      // {uri,name,type} object shape.
-      if (asset.file) {
+      // Bugs Task 12 (R12): choose by platform, not by whether `asset.file` exists. Newer expo-image-picker
+      // can expose a `file` object on native too, and RN's FormData throws "Unsupported FormDataPart
+      // implementation" for any part that is not the {uri,name,type} shape. Web sends the real File.
+      if (Platform.OS === 'web' && asset.file) {
         form.append('file', asset.file);
       } else {
         form.append('file', {
           uri: asset.uri,
-          name: asset.fileName ?? 'watermark.png',
+          name: asset.fileName ?? asset.uri.split('/').pop() ?? 'watermark.png',
           type: asset.mimeType ?? 'image/png',
         } as unknown as Blob);
       }
@@ -284,6 +292,16 @@ export default function ChannelSettingsScreen() {
       <PrimaryButton label="Save changes" onPress={() => save.mutate()} disabled={!canSave} loading={save.isPending} />
     </BottomActionBar>
   ) : null;
+
+  const activeCount = activeRuns.data?.length ?? 0;
+  const deleteWarning =
+    [
+      activeCount > 0 ? `${activeCount} run${activeCount === 1 ? '' : 's'} still in progress on this channel will be cancelled` : null,
+      channel.hasYoutubeCredential ? 'its YouTube connection will be removed' : null,
+    ]
+      .filter(Boolean)
+      .join(', and ')
+      .replace(/^./, (c) => c.toUpperCase()) || undefined;
 
   return (
     <FormScreen
@@ -443,10 +461,12 @@ export default function ChannelSettingsScreen() {
         <Text style={styles.label}>YouTube</Text>
         <View style={styles.youtubeRow}>
           <StatusChip
-            kind={channel.hasYoutubeCredential ? 'ok' : 'attention'}
-            label={channel.hasYoutubeCredential ? 'Connected' : 'Not connected'}
+            kind={channel.hasYoutubeCredential && !youtubeNeedsReconnect(channel) ? 'ok' : 'attention'}
+            label={!channel.hasYoutubeCredential ? 'Not connected' : youtubeNeedsReconnect(channel) ? 'Reconnect needed' : 'Connected'}
           />
-          {channel.hasYoutubeCredential ? (
+          {channel.hasYoutubeCredential && youtubeNeedsReconnect(channel) ? (
+            <SecondaryButton label="Reconnect" icon="play" onPress={handleConnect} loading={connecting} />
+          ) : channel.hasYoutubeCredential ? (
             <SecondaryButton
               label="Disconnect"
               onPress={() => disconnect.mutate({ channelId: channel.id })}
@@ -569,7 +589,7 @@ export default function ChannelSettingsScreen() {
         icon="trash-2"
         title={`Delete "${channel.name}"?`}
         body="It's removed from your channel list, New Brief and the Dashboard picker. Its past runs, videos and spend history are kept."
-        warning="Runs still in progress on this channel will be cancelled, and its YouTube connection will be removed."
+        warning={deleteWarning}
         confirmLabel="Delete channel"
         destructive
         isConfirming={remove.isPending}

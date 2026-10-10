@@ -31,6 +31,8 @@ export function GateActionBar(props: {
   onApprove: (privacy?: Privacy) => void;
   onReject: (reason: string) => void;
   onEditOrRevise: (text: string) => void;
+  // Bugs Task 12 (R2): at the manual Revise cap the button stays visible but disabled, with this sentence under it.
+  reviseDisabledReason?: string;
 }) {
   const [mode, setMode] = useState<Mode>(null);
   const [privacy, setPrivacy] = useState<Privacy>(props.defaultPrivacy ?? 'private');
@@ -49,7 +51,7 @@ export function GateActionBar(props: {
 
   const approveLabel =
     props.gate === 1
-      ? 'Approve script'
+      ? 'Approve' // U6: 'Approve script' broke mid-word beside Reject and Edit on the Inbox card
       : effective === 'public'
         ? 'Approve & publish publicly'
         : `Approve & upload as ${effective}`;
@@ -91,8 +93,15 @@ export function GateActionBar(props: {
         <>
           <View style={styles.row}>
             <SecondaryButton label="Reject" icon="x" onPress={() => setMode('reject')} style={styles.flex} />
-            <SecondaryButton label="Revise" icon="rotate-cw" onPress={() => setMode('edit')} style={styles.flex} />
+            <SecondaryButton
+              label="Revise"
+              icon="rotate-cw"
+              disabled={Boolean(props.reviseDisabledReason)}
+              onPress={() => setMode('edit')}
+              style={styles.flex}
+            />
           </View>
+          {props.reviseDisabledReason ? <Text style={styles.hint}>{props.reviseDisabledReason}</Text> : null}
           <PrimaryButton label={approveLabel} icon="arrow-up" onPress={handleApprove} />
         </>
       )}

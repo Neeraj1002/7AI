@@ -9,8 +9,8 @@ import { Screen } from '../../../components/Screen';
 import { Card } from '../../../components/Card';
 import { StatusChip } from '../../../components/StatusChip';
 import { SecondaryButton } from '../../../components/Buttons';
-import { endedChip, humanizeRunError, queueChip, relativeTime, runTopic, statusLabel, stepperIndexForStage, STEPPER_STEPS } from '../../../lib/run-labels';
-import { channelColors, color, font, radius, space, type } from '../../../lib/theme';
+import { endedChip, humanizeRunError, queueChip, relativeTime, runTopic, startedLabel, statusLabel, stepperIndexForStage, STEPPER_STEPS } from '../../../lib/run-labels';
+import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 
 // Task 4/E1 — 'running'/'pending' added so an in-progress run is visible
 // somewhere in the Queue (it used to appear nowhere between creation and
@@ -21,8 +21,9 @@ const FAB_HEIGHT = 52;
 const ENDED_STATUSES = ['completed', 'failed'] as const;
 const ENDED_PAGE_SIZE = 20;
 
+// U14: short wording so three counts fit on the one subtitle line.
 function waitingLabel(n: number): string {
-  return `${n} ${n === 1 ? 'is' : 'are'} waiting on you`;
+  return `${n} waiting`;
 }
 function attentionLabel(n: number): string {
   return `${n} need${n === 1 ? 's' : ''} attention`;
@@ -39,7 +40,7 @@ export default function QueueScreen() {
   const { channelById, channelIndex } = useChannels();
   const channelDot = (channelId: string) => {
     const idx = channelIndex(channelId);
-    return idx >= 0 ? channelColors[idx % channelColors.length][1] : color.future;
+    return idx >= 0 ? channelDotColor(idx) : color.future;
   };
   const { data, isLoading, isFetching, refetch } = useQuery(
     // Bugs Task 7 (R4) — a freshly started run only lands here once it reaches
@@ -76,7 +77,7 @@ export default function QueueScreen() {
     <Screen
       variant="tabRoot"
       title="Queue"
-      subtitle={`${waitingLabel(waiting.length)} · ${attentionLabel(attention.length)}${inProgress.length ? ` · ${inProgress.length} in progress` : ''}`}
+      subtitle={`${waitingLabel(waiting.length)} · ${attentionLabel(attention.length)}${inProgress.length ? ` · ${inProgress.length} running` : ''}`}
     >
       <SectionList
         sections={sections}
@@ -117,7 +118,7 @@ export default function QueueScreen() {
                           <View style={styles.metaLine}>
                             <View style={[styles.dot, { backgroundColor: channelDot(run.channelId) }]} />
                             <Text style={styles.meta} numberOfLines={1}>
-                              {channelById(run.channelId)?.name ?? 'Deleted channel'}
+                              {channelById(run.channelId)?.name ?? 'Deleted channel'} · {startedLabel(run.createdAt)}
                             </Text>
                             <Feather name="chevron-right" size={18} color={color.muted} style={styles.chevron} />
                           </View>
@@ -175,7 +176,7 @@ export default function QueueScreen() {
         renderItem={({ item, section }) => {
           const channel = channelById(item.channelId);
           const idx = channelIndex(item.channelId);
-          const dot = idx >= 0 ? channelColors[idx % channelColors.length][1] : color.future;
+          const dot = idx >= 0 ? channelDotColor(idx) : color.future;
 
           if (section.key === 'inProgress') {
             const stepIndex = stepperIndexForStage(item.currentStage ?? undefined);
@@ -195,7 +196,7 @@ export default function QueueScreen() {
                   <View style={[styles.progressFill, { width: `${(stepIndex / 7) * 100}%` }]} />
                 </View>
                 <Text style={styles.meta} numberOfLines={1}>
-                  {stageLabelFor(item.currentStage)} · {channel?.name ?? 'Deleted channel'}
+                  {stageLabelFor(item.currentStage)} · {channel?.name ?? 'Deleted channel'} · {startedLabel(item.createdAt)}
                 </Text>
               </Pressable>
             );
@@ -211,7 +212,7 @@ export default function QueueScreen() {
                   ) : (
                     <View style={styles.attention}>
                       <Feather name="alert-triangle" size={14} color={color.warnText} />
-                      <Text style={styles.attentionText} numberOfLines={1}>
+                      <Text style={styles.attentionText} numberOfLines={2}>
                         {humanizeRunError(item.lastError) || 'Needs attention'}
                       </Text>
                     </View>
@@ -224,7 +225,7 @@ export default function QueueScreen() {
                 <View style={styles.metaLine}>
                   <View style={[styles.dot, { backgroundColor: dot }]} />
                   <Text style={styles.meta} numberOfLines={1}>
-                    {channel?.name ?? 'Deleted channel'}
+                    {channel?.name ?? 'Deleted channel'} · {startedLabel(item.createdAt)}
                     {isWaiting ? '' : ' · tap to retry or cancel'}
                   </Text>
                   <Feather name="chevron-right" size={18} color={color.muted} style={styles.chevron} />
@@ -243,7 +244,8 @@ export default function QueueScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: space.lg, paddingBottom: FAB_HEIGHT + 32, flexGrow: 1 },
+  // U2: the button's height plus its bottom margin plus breathing room, so the last card is never covered.
+  list: { paddingHorizontal: space.lg, paddingBottom: FAB_HEIGHT + space.lg + 48, flexGrow: 1 },
   empty: { alignItems: 'center', gap: space.lg, paddingVertical: 48 },
   emptyText: { ...type.body, color: color.muted },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.lg, paddingBottom: space.sm },

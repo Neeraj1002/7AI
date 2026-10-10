@@ -130,7 +130,8 @@ function NotificationCard({ notification }: { notification: NotificationRow }) {
         </Text>
       ) : null}
       <Text style={styles.message} numberOfLines={3}>
-        {summary ?? notification.message}
+        {/* U1: older reminders carry the brief's own 'Topic:' prefix - strip it. */}
+        {summary ?? notification.message.replace(/"Topic:s*/i, '"')}
       </Text>
       {notification.resolvedAt ? (
         <Text style={styles.resolved}>Resolved {relativeTime(notification.resolvedAt)}</Text>

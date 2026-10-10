@@ -7,7 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTRPC } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
-import { channelColors, color, font, radius, space, type } from '../../../lib/theme';
+import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
 import { Card } from '../../../components/Card';
 import { SecondaryButton } from '../../../components/Buttons';
@@ -65,6 +65,8 @@ export default function DashboardScreen() {
   // Bugs Closure R3 — deliberately not in `all` below: an older server without this route must not blank the screen.
   const gates = useQuery(trpc.dashboard.gates.queryOptions(input));
   const all = [quality, operational, cost, content];
+  // U7: measured card width so the performance chart fits inside its card instead of running past the edge.
+  const [chartWidth, setChartWidth] = useState(0);
 
   const isRefreshing = all.some((q) => q.isFetching && !q.isLoading);
   const isInitialLoading = all.some((q) => q.isLoading);
@@ -78,7 +80,7 @@ export default function DashboardScreen() {
       <View
         style={[
           styles.pillDot,
-          { backgroundColor: idx >= 0 ? channelColors[idx % channelColors.length][1] : color.ink },
+          { backgroundColor: idx >= 0 ? channelDotColor(idx) : color.ink },
         ]}
       />
       <Text style={styles.pillText} numberOfLines={1}>
@@ -113,8 +115,17 @@ export default function DashboardScreen() {
     );
   } else {
     const succ = operational.data?.successRate;
-    // D2 — a run in needs_attention is a stopped run and counts against the rate.
-    const succTotal = succ ? succ.completed + succ.failed + (succ.needsAttention ?? 0) : 0;
+    // Bugs Task 12 (R3): published / (published + failed + rejected); cancelled runs are not counted. An older
+    // server (no `published` field) falls back to the old completed/failed/needs-attention wording.
+    const split = succ as
+      | (typeof succ & { published?: number; rejected?: number; cancelled?: number })
+      | undefined;
+    const hasSplit = split?.published !== undefined;
+    const succTotal = split
+      ? hasSplit
+        ? (split.published ?? 0) + split.failed + (split.rejected ?? 0)
+        : split.completed + split.failed + (split.needsAttention ?? 0)
+      : 0;
     const regen = quality.data?.videoRegenRate;
     // Bugs Closure R1 (D1) — the limit is weekly; compare this week's spend, and for a
     // single channel its own effective ceiling. Falls back to the old fields against an
@@ -134,15 +145,15 @@ export default function DashboardScreen() {
             <Text style={styles.stat}>{succTotal > 0 ? pct(succ!.rate) : '—'}</Text>
             <Text style={styles.sub}>
               {succTotal > 0
-                ? `${succ!.completed} finished${succ!.needsAttention ? ` · ${succ!.needsAttention} needs attention` : ''}${succ!.failed ? ` · ${succ!.failed} failed` : ''}`
+                ? hasSplit
+                  ? `${split!.published} published · ${split!.failed} failed · ${split!.rejected ?? 0} rejected`
+                  : `${succ!.completed} finished${succ!.needsAttention ? ` · ${succ!.needsAttention} needs attention` : ''}${succ!.failed ? ` · ${succ!.failed} failed` : ''}`
                 : totalRuns > 0
                   ? 'No finished runs yet'
                   : 'No runs yet'}
             </Text>
-            {operational.data?.publishedRate && operational.data.publishedRate.stopped > 0 ? (
-              <Text style={styles.sub}>
-                {operational.data.publishedRate.published} of {operational.data.publishedRate.stopped} published
-              </Text>
+            {hasSplit && (split?.cancelled ?? 0) > 0 ? (
+              <Text style={styles.subMuted}>{split!.cancelled} cancelled (not counted)</Text>
             ) : null}
           </Card>
           <Card style={styles.half}>
@@ -243,7 +254,7 @@ export default function DashboardScreen() {
                 </View>
                 <View style={styles.legendRow}>
                   <LegendItem color={color.accent} label={`Approved ${g1.approve}`} />
-                  <LegendItem color={color.chartEdit} label={`Edited ${g1.edit}`} />
+                  <LegendItem color={color.chartEdit} label={`Revised ${g1.edit}`} />
                   <LegendItem color={color.ink} label={`Rejected ${g1.reject}`} />
                 </View>
               </>
@@ -261,14 +272,20 @@ export default function DashboardScreen() {
               likes · {content.data.totals.comments} comments
             </Text>
             {content.data.trend.length > 1 ? (
+              <View onLayout={(e) => setChartWidth(e.nativeEvent.layout.width)}>
               <LineChart
                 data={content.data.trend.map((row) => ({ value: row.views }))}
                 height={140}
+                width={Math.max(0, chartWidth - 48)}
+                adjustToWidth
+                initialSpacing={4}
+                endSpacing={4}
                 color={color.accent}
                 thickness={2}
                 yAxisTextStyle={styles.axis}
                 hideDataPoints={content.data.trend.length > 20}
               />
+              </View>
             ) : (
               <Text style={styles.sub}>Not enough snapshots yet for a trend.</Text>
             )}
@@ -276,7 +293,7 @@ export default function DashboardScreen() {
         ) : content.data ? (
           <Card>
             <Text style={styles.cardTitle}>Content performance</Text>
-            <Text style={styles.sub}>Nothing yet — this fills in once videos are published and polled.</Text>
+            <Text style={styles.sub}>No data yet.</Text>
           </Card>
         ) : null}
       </>
@@ -325,6 +342,7 @@ const styles = StyleSheet.create({
   statLabel: { ...type.meta },
   stat: { ...type.stat, color: color.ink },
   sub: { ...type.meta, fontSize: 12 },
+  subMuted: { ...type.meta, fontSize: 12, opacity: 0.7 },
   spendRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
   track: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
