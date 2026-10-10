@@ -1,5 +1,6 @@
 import { prisma } from '../prisma-client';
 import { Prisma } from '@prisma/client';
+import { markNotificationsResolvedByThreadKey } from './notification.repository';
 import type { PipelineRun as PrismaPipelineRun } from '@prisma/client';
 import type { DbClient } from './pipeline-stage.repository';
 import type {
@@ -96,6 +97,8 @@ export type PipelineRunPatch =Partial<{
   lastError: string | null;
   startedAt: Date;
   completedAt: Date;
+  // Bugs Task 12 - shallow-merged into the stored creationOptions (never replaces user picks).
+  creationOptionsMerge: Partial<CreationOptions>;
 }>;
 
 export async function updatePipelineRun(
@@ -115,6 +118,13 @@ export async function updatePipelineRun(
     ...(patch.startedAt !== undefined && { startedAt: patch.startedAt }),
     ...(patch.completedAt !== undefined && { completedAt: patch.completedAt }),
   };
+  if (patch.creationOptionsMerge) {
+    const current = await client.pipelineRun.findUnique({ where: { id }, select: { creationOptions: true } });
+    data.creationOptions = {
+      ...((current?.creationOptions as Record<string, unknown> | null) ?? {}),
+      ...patch.creationOptionsMerge,
+    } as Prisma.InputJsonValue;
+  }
   // Bugs Task 10 (R1) — a cancelled run is final: a stage that was mid-flight
   // when the cancel landed must not resurrect it (a status/currentStage write
   // after its own long await). The cancel's own write passes, so re-cancelling
@@ -130,6 +140,13 @@ export async function updatePipelineRun(
       },
       data,
     });
+    // Bugs Task 12 (R5f) - an ended run closes its open Inbox cards (a cancelled run's Gate 2 card
+    // used to stay under "needs action"). Fire-and-forget: never blocks or fails the run write.
+    if (patch.status === 'failed' || patch.status === 'completed') {
+      void markNotificationsResolvedByThreadKey(id, new Date()).catch((error) => {
+        console.error(`[pipeline-run] could not resolve notifications for ended run ${id}:`, error);
+      });
+    }
     return toDomainRun(row);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {

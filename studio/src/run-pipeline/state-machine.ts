@@ -633,6 +633,11 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     );
   }
 
+  // Bugs Task 12 (R5c) - same invariant as Gate 2: never 'running' at a gate.
+  if (run.status !== 'paused_gate1' || run.currentStage !== 'gate1') {
+    await updatePipelineRun(runId, { status: 'paused_gate1', currentStage: 'gate1' });
+  }
+
   // Blocks here until a reply arrives (or, per Task 6's founder-availability
   // note, a simulated one is fed in for testing) — this is the "pause" that
   // PipelineRun.status = 'paused_gate1' represents.
@@ -1285,6 +1290,13 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     );
   }
 
+  // Bugs Task 12 (R5c) - invariant: a run is never 'running' at a gate. Whoever got us here (the
+  // pipeline moving forward, a resume, a stray Retry) the run is parked at the gate, so the app shows
+  // Approve/Reject/Revise for the pending approval registered just below.
+  if (run.status !== 'paused_gate2' || run.currentStage !== 'gate2') {
+    await updatePipelineRun(runId, { status: 'paused_gate2', currentStage: 'gate2' });
+  }
+
   // Blocks here until a reply arrives (or, per Task 6/Week 2's
   // founder-availability convention, a simulated one for testing).
   const outcome = await requestGate2Decision({
@@ -1359,15 +1371,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
       });
     }
 
-    // Revise — a founder-requested regen respects the same attempt cap as
-    // Task 3's automatic regen loop; it doesn't bypass it.
-    const revisePatch: Parameters<typeof updatePipelineRun>[1] =
-      videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
-        ? { status: 'running', currentStage: 'video_generation' }
-        : {
-            status: 'needs_attention',
-            lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
-          };
+    // Revise - Bugs Task 12 (R5a): a human Revise is a different request from Task 3's automatic regen
+    // loop and is no longer refused by that cap (it ended at "Video retry limit reached" with no way
+    // forward). Its own limit is the manual cap (R2), enforced up front in runs.gate2 before the
+    // reply is accepted, so by here the new attempt is always allowed.
+    const revisePatch: Parameters<typeof updatePipelineRun>[1] = { status: 'running', currentStage: 'video_generation' };
 
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(

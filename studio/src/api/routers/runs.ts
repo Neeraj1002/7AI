@@ -19,6 +19,14 @@ import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
+import {
+  MAX_MANUAL_RETRIES_PER_STAGE,
+  MANUAL_RETRY_CAP_MESSAGE,
+  isManualRetryCapReached,
+  manualRetriesUsed,
+  recordManualRetry,
+  retryTargetStage,
+} from '../../run-pipeline/manual-retries';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
@@ -138,6 +146,18 @@ async function getRunDetail(id: string, ctx: Context) {
     lastGateDecision: deriveLastGateDecision(stages),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
+    // Bugs Task 12 (R2) - the app disables Retry / Revise (with the reason under them) at the cap.
+    manualRetry: {
+      max: MAX_MANUAL_RETRIES_PER_STAGE,
+      retryStage: retryTargetStage(run),
+      retryUsed: run.currentStage ? manualRetriesUsed(run, retryTargetStage(run) ?? run.currentStage) : 0,
+      retryCapReached: (() => {
+        const stage = retryTargetStage(run);
+        return stage ? isManualRetryCapReached(run, stage) : false;
+      })(),
+      reviseCapReached: isManualRetryCapReached(run, 'video_generation'),
+      message: MANUAL_RETRY_CAP_MESSAGE,
+    },
     hasR2Draft: stages.some(
       (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
     ),
@@ -490,6 +510,22 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.notes;
 
+      // Bugs Task 12 (R2/R5a) - a Revise starts a new video attempt: it is counted by the manual cap
+      // (not the automatic regeneration cap) and refused up front, with the reason, at that cap or
+      // when the budget gate would refuse the render. A refused Revise creates no attempt and does
+      // not count.
+      let reviseRun: PipelineRun | null = null;
+      if (input.action === 'revise') {
+        reviseRun = await findPipelineRunById(input.runId);
+        if (reviseRun && isManualRetryCapReached(reviseRun, 'video_generation')) {
+          throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
+        }
+        const budget = await checkBudget(channel.tenantId, channel.id, channel.platform);
+        if (!budget.ok) {
+          throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
+        }
+      }
+
       const { resolved } = resolvePendingApproval(input.runId, replyText);
       if (!resolved) {
         throw new TRPCError({
@@ -497,6 +533,7 @@ export const runsRouter = router({
           message: `Gate 2 for run ${input.runId} is not currently pending (already resolved, or not open yet)`,
         });
       }
+      if (reviseRun) await recordManualRetry(reviseRun, 'video_generation');
       return { resolved: true };
     }),
 
@@ -529,21 +566,34 @@ export const runsRouter = router({
     // 'video_review'; re-reviewing the same video just hits the cap again
     // (18a5e2f5). Retry means "make one more video": step back to
     // video_generation, which feeds the latest review's fix notes forward.
-    const regenCapped = run.currentStage === 'video_review' && (run.lastError ?? '').includes('regen cap');
+    // Bugs Task 12 (R5b) - Retry restarts the stage that actually failed and never re-runs a gate: a
+    // run parked at gate2 retries video_generation, at gate1 script_generation. (Re-running gate2
+    // here is what created the orphan 'running' gate attempt of 2026-10-10.)
+    const target = retryTargetStage(run);
+    if (!target) {
+      throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
+    }
+    // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
+    if (isManualRetryCapReached(run, target)) {
+      throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
+    }
+    const regenCapped = target !== run.currentStage;
     // Bugs Closure R1 — a Retry that would be refused by the budget gate at
     // once only creates another skipped attempt and bounces back to Needs
     // attention (reports "I retried 10 times"). Say why instead, with the numbers.
-    const retryStage = regenCapped ? 'video_generation' : run.currentStage;
+    const retryStage = target;
     if (retryStage === 'script_generation' || retryStage === 'video_generation') {
       const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
       if (!budget.ok) {
         throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
       }
     }
+    // Only a Retry that really starts a new attempt counts (budget refusal threw above).
+    await recordManualRetry(run, target);
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,
-      ...(regenCapped && { currentStage: 'video_generation' as const }),
+      ...(regenCapped && { currentStage: target }),
     });
     continuePipelineInBackground(run.id);
     return updated;
@@ -569,7 +619,10 @@ export const runsRouter = router({
       tenantId: ctx.tenantId,
       channelId: sourceRun.channelId,
       briefText: sourceRun.briefText,
-      creationOptions: sourceRun.creationOptions ?? undefined,
+      // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
+      creationOptions: sourceRun.creationOptions
+        ? (({ manualRetries: _m, videoFallbackUsed: _v, ...picks }) => picks)(sourceRun.creationOptions)
+        : undefined,
     });
     startPipelineInBackground(run.id);
     return run;

@@ -76,8 +76,25 @@ function startTelegramStartPollChecker(): void {
   );
 }
 
+// Bugs Task 12 (R5e) - the 2026-10-10 crash loop left about 60 boots in the PM2 error log and no
+// stack trace: the process was leaving without saying why. Log the full stack for anything fatal
+// before exiting (exit behaviour is unchanged), and log every exit code.
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection:', reason instanceof Error ? (reason.stack ?? reason.message) : reason);
+  process.exit(1);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[fatal] uncaughtException:', error.stack ?? error.message);
+  process.exit(1);
+});
+process.on('exit', (code) => {
+  console.error(`[exit] process exiting with code ${code} after ${Math.round(process.uptime())}s`);
+});
+
 async function main(): Promise<void> {
-  console.log(`[boot] 7AI orchestrator starting (env=${env.NODE_ENV})`);
+  console.log(
+    `[boot] 7AI orchestrator starting (env=${env.NODE_ENV}, pid=${process.pid}, pm_id=${process.env.pm_id ?? "n/a"}, pm2 restarts=${process.env.restart_time ?? "n/a"})`,
+  );
 
   // Bugs Task 4 (R3) — a real request already produced a localhost link
   // (and would produce the same text in a Telegram message) when this was
