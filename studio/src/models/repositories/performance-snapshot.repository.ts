@@ -53,9 +53,28 @@ export async function findLatestSnapshotForRun(pipelineRunId: string): Promise<P
 // PipelineRun that has actually published a video, independent of any single
 // run's own state machine (a run stays `completed` forever; polling keeps
 // accumulating snapshots against it on its own schedule).
-export async function listCompletedRunsWithPublishedVideo(): Promise<
-  { pipelineRunId: string; tenantId: string; channelId: string; youtubeVideoId: string }[]
-> {
+export type PublishedVideoTarget = {
+  pipelineRunId: string;
+  tenantId: string;
+  channelId: string;
+  youtubeVideoId: string;
+  publishedAt: Date | null;
+};
+
+// Bugs Task 12 (R10.7) - newest snapshot per run, so the poll can stop after its final snapshot.
+export async function latestSnapshotAtByRun(runIds: string[]): Promise<Map<string, Date>> {
+  if (runIds.length === 0) return new Map();
+  const rows = await prisma.performanceSnapshot.groupBy({
+    by: ['pipelineRunId'],
+    where: { pipelineRunId: { in: runIds } },
+    _max: { snapshotAt: true },
+  });
+  const out = new Map<string, Date>();
+  for (const r of rows) if (r._max.snapshotAt) out.set(r.pipelineRunId, r._max.snapshotAt);
+  return out;
+}
+
+export async function listCompletedRunsWithPublishedVideo(): Promise<PublishedVideoTarget[]> {
   const stages = await prisma.pipelineStage.findMany({
     where: {
       stageName: 'publishing',
@@ -74,7 +93,7 @@ export async function listCompletedRunsWithPublishedVideo(): Promise<
   // shouldn't, given the resume-safety checkpoint) — de-dupe by run id,
   // keeping the highest attemptNumber (already the query's sort order).
   const seen = new Set<string>();
-  const results: { pipelineRunId: string; tenantId: string; channelId: string; youtubeVideoId: string }[] = [];
+  const results: PublishedVideoTarget[] = [];
   for (const stage of stages) {
     if (seen.has(stage.pipelineRunId)) continue;
     seen.add(stage.pipelineRunId);
@@ -85,6 +104,7 @@ export async function listCompletedRunsWithPublishedVideo(): Promise<
       tenantId: stage.pipelineRun.tenantId,
       channelId: stage.pipelineRun.channelId,
       youtubeVideoId: output.youtubeVideoId,
+      publishedAt: stage.completedAt ?? null,
     });
   }
   return results;

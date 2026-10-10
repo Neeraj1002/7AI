@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../config/env';
 import { signOAuthStateToken, verifyOAuthStateToken } from '../auth/jwt';
+import { clearYoutubeAuthFailure } from './youtube-auth-health';
 import { upsertForChannel } from '../models/repositories/agent-credential.repository';
 
 // Sprint 3 Task 5 (M2) — the real, app-triggered replacement for
@@ -74,5 +75,6 @@ export async function exchangeYoutubeAuthCode(params: { code: string; state: str
   }
 
   await upsertForChannel(statePayload.channelId, 'youtube', tokens.refresh_token);
+  await clearYoutubeAuthFailure(statePayload.channelId);
   return { ok: true, channelId: statePayload.channelId };
 }

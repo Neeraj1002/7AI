@@ -55,6 +55,8 @@ const EnvSchema = z.object({
   // real public origin once this is actually deployed somewhere testers can
   // reach.
   PUBLIC_API_BASE_URL: z.string().optional(),
+  // Bugs Task 12 (R10.12) - comma-separated browser origins allowed by CORS (the native app sends none).
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   // Sprint 3 Task 5 (M1) — 32 raw bytes, base64-encoded, the AES-256-GCM key
   // encrypting every AgentCredential.refreshTokenEncrypted at rest. No
   // insecure default, same posture as JWT_SECRET — a real per-channel OAuth

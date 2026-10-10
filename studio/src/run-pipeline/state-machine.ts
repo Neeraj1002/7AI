@@ -25,6 +25,7 @@ import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/s
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
+import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
@@ -98,7 +99,14 @@ function describeStageError(error: unknown): string {
 }
 
 async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
-  const message = describeStageError(error);
+  let message = describeStageError(error);
+  // Bugs Task 12 (R13) - an expired YouTube token says so in plain words (technical text kept after it)
+  // and flags the channel "Reconnect needed".
+  if (isInvalidGrant(error)) {
+    const failedRun = await findPipelineRunById(runId).catch(() => null);
+    if (failedRun) await noteYoutubeAuthFailure(failedRun.channelId, error);
+    message = `${YOUTUBE_RECONNECT_MESSAGE} (${message})`;
+  }
   console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
     await failStage(stageId, message, tx, failureOutputFromError(error));

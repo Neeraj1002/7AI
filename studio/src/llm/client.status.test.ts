@@ -23,6 +23,13 @@ const apiError = (statusCode: number) =>
 beforeEach(() => vi.clearAllMocks());
 
 describe('callProviderModel attaches the HTTP status to the error context (Bugs Task 11 R3)', () => {
+  it('a 429 is a transient error carrying statusCode 429', async () => {
+    mocks.generateText.mockRejectedValue(apiError(429));
+    const error = await callProviderModel(base).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TransientStageError);
+    expect(getStageErrorContext(error)).toMatchObject({ statusCode: 429 });
+  });
+
   it.each([400, 422])('a %i is a non-transient error carrying statusCode', async (status) => {
     mocks.generateText.mockRejectedValue(apiError(status));
     const error = await callProviderModel(base).catch((e: unknown) => e);
