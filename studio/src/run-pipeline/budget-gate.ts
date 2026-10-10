@@ -1,5 +1,6 @@
 import { findAgentQuota } from '../models/repositories/agent-quota.repository';
 import { listActiveChannelsByTenantAndPlatform } from '../models/repositories/channel.repository';
+import { listChannelIdsWithCredential } from '../models/repositories/agent-credential.repository';
 import {
   sumUsageCostForTenantChannelPlatform,
   sumUsageCostForTenantPlatform,
@@ -135,7 +136,11 @@ export function describeBudgetRefusal(check: BudgetRefusal): string {
 export type ChannelBudgetView = {
   poolCeilingUsd: number;
   ceilings: Map<string, number>;
+  // Bugs Task 12 (R7): only active channels WITH a connected YouTube account. These alone share the
+  // pool; a channel with no connection cannot run (assertChannelCanRun), so it takes no share.
   channels: { id: string; name: string; budgetOverrideUsd: number | null }[];
+  // Every active channel, connected or not (name lookup for a run already in flight).
+  allActiveChannels?: { id: string; name: string; budgetOverrideUsd: number | null }[];
 };
 
 // Shared by the gate and the Dashboard so both show the same effective ceiling.
@@ -145,11 +150,14 @@ export async function loadChannelBudgetView(tenantId: string, platform: ChannelP
     throw new NoBudgetConfiguredError(tenantId, platform);
   }
   const poolCeilingUsd = Number(quota.budgetCeilingUsd);
-  const channels = (await listActiveChannelsByTenantAndPlatform(tenantId, platform)).map((c) => ({
+  const allActiveChannels = (await listActiveChannelsByTenantAndPlatform(tenantId, platform)).map((c) => ({
     id: c.id,
     name: c.name,
     budgetOverrideUsd: c.budgetOverrideUsd !== null ? Number(c.budgetOverrideUsd) : null,
   }));
+  // Nothing is stored per channel, so connecting or disconnecting changes everyone's share at once.
+  const connected = await listChannelIdsWithCredential(allActiveChannels.map((c) => c.id));
+  const channels = allActiveChannels.filter((c) => connected.has(c.id));
   const ceilings = computeChannelBudgetCeilings({
     poolCeilingUsd,
     channels: channels.map((c) => ({ channelId: c.id, budgetOverrideUsd: c.budgetOverrideUsd })),
@@ -166,7 +174,7 @@ export async function loadChannelBudgetView(tenantId: string, platform: ChannelP
       );
     },
   });
-  return { poolCeilingUsd, ceilings, channels };
+  return { poolCeilingUsd, ceilings, channels, allActiveChannels };
 }
 
 export async function checkBudget(
@@ -179,7 +187,8 @@ export async function checkBudget(
   const since = currentBudgetWindowStart(now);
   const resetsAt = nextBudgetWindowStart(now);
 
-  const channel = view.channels.find((c) => c.id === channelId);
+  const connectedChannel = view.channels.find((c) => c.id === channelId);
+  const channel = connectedChannel ?? view.allActiveChannels?.find((c) => c.id === channelId);
   if (!channel) {
     throw new Error(
       `Channel ${channelId} is not an active channel for tenant ${tenantId}/platform ${platform} — cannot compute its budget ceiling`,
@@ -200,7 +209,9 @@ export async function checkBudget(
     };
   }
 
-  const channelCeiling = view.ceilings.get(channelId) as number;
+  // A channel with no YouTube connection has no share; it can't start a run, so for one already in
+  // flight only the pool ceiling (checked above) applies.
+  const channelCeiling = connectedChannel ? (view.ceilings.get(channelId) as number) : view.poolCeilingUsd;
   const channelSpent = await sumUsageCostForTenantChannelPlatform(tenantId, channelId, platform, since);
   if (channelSpent >= channelCeiling) {
     return {
@@ -228,6 +239,9 @@ export async function isBudgetAvailable(
 // Bugs Closure R1 (D4) — the smallest weekly share a default-share channel may be left with
 // by another channel's override. PROPOSED value; the founder confirms the number.
 export const MIN_CHANNEL_SHARE_USD = 5;
+// Bugs Task 12 (R7) - the weekly budget a new tenant gets from scripts/invite-tenant.ts (existing
+// tenants are untouched). Weekly, like every AgentQuota ceiling (window resets Monday 00:00 UTC).
+export const DEFAULT_WEEKLY_BUDGET_USD = 10;
 // Guidance for what to grant a tenant per active channel per week — never applied by code.
 export const WEEKLY_BUDGET_GUIDE_PER_CHANNEL_USD = 20;
 
