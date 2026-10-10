@@ -143,6 +143,8 @@ async function getRunDetail(id: string, ctx: Context) {
     lastGateDecision: deriveLastGateDecision(stages),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
+    // Bugs Task 12 (R1) - the app adds a Details line ("Switched to AI stills after stock footage failed review").
+    videoFallbackUsed: run.creationOptions?.videoFallbackUsed === true,
     // Bugs Task 12 (R2) - the app disables Retry / Revise (with the reason under them) at the cap.
     manualRetry: {
       max: MAX_MANUAL_RETRIES_PER_STAGE,

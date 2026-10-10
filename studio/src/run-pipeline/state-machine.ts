@@ -1151,8 +1151,29 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // Regen-cap decision computed once, up front, so every branch inside the
     // transaction below applies the exact same patch it would have applied
     // outside one — the transaction only changes atomicity, not the logic.
-    const runPatch: Parameters<typeof updatePipelineRun>[1] =
-      outcome.verdict === 'pass'
+    // Bugs Task 12 (R1) - a stock-footage run that reached the regeneration cap and was still rejected
+    // gets ONE extra attempt with AI stills. Once per run (persisted marker, so a restart, a resume or a
+    // manual Retry can't trigger a second), only if the budget gate would allow the render, and it does
+    // not count against the cap. Otherwise the run parks exactly as before.
+    const atRegenCap = outcome.verdict !== 'pass' && videoGenStage.attemptNumber > MAX_VIDEO_REGEN_ATTEMPTS;
+    const stockFallback =
+      atRegenCap &&
+      visualSource === 'stock-footage' &&
+      !run.creationOptions?.videoFallbackUsed &&
+      (await checkBudget(run.tenantId, channel.id, channel.platform)).ok;
+    if (stockFallback) {
+      console.log(
+        `[video-fallback] run ${runId}: stock footage failed review after ${videoGenStage.attemptNumber} attempts - one AI-stills attempt`,
+      );
+    }
+
+    const runPatch: Parameters<typeof updatePipelineRun>[1] = stockFallback
+      ? {
+          status: 'running',
+          currentStage: 'video_generation',
+          creationOptionsMerge: { visualSource: 'ai-stills', videoFallbackUsed: true },
+        }
+      : outcome.verdict === 'pass'
         ? gate2AutoApproveStage
           ? { status: 'running', currentStage: nextStageAfter('gate2') }
           : { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
@@ -1194,6 +1215,21 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       // path writes (outcome/privacyStatus), plus a separate agent:'system'
       // ReviewLog row so the run's history plainly shows Gate 2 was skipped,
       // not silently absent.
+      if (stockFallback) {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'system',
+            verdict: 'video-fallback',
+            rationale: 'Switched to AI stills after stock footage failed review',
+          },
+          tx,
+        );
+      }
+
       if (gate2AutoApproveStage) {
         const privacyStatus = channel.defaultPrivacyStatus;
         await completeStage(gate2AutoApproveStage.id, { outcome: 'approve', privacyStatus }, tx);
@@ -1415,6 +1451,12 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
 // redo on any resume) and the YouTube upload itself — the pipeline's first
 // stage with a real, non-repeatable external side effect. See
 // docs/execution/week4/BUSINESS_LOGIC.md Sections 1-2.
+// Bugs Task 12 (R1) - read from the plan of the LATEST completed video_generation attempt, so the
+// stock -> ai-stills fallback attempt is disclosed as synthetic with no separate flag to keep in sync.
+export function deriveContainsSyntheticMedia(videoGenOutput: { plan?: { visualSource?: string } }): boolean {
+  return videoGenOutput.plan?.visualSource === 'ai-stills';
+}
+
 export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
@@ -1477,7 +1519,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // separately-set flag that could disagree with it. Falls back to `false`
   // for a pre-Sprint-2 stage row (every such video really was stock
   // footage, since 'ai-stills' didn't exist yet).
-  const containsSyntheticMedia = videoGenOutput.plan?.visualSource === 'ai-stills';
+  const containsSyntheticMedia = deriveContainsSyntheticMedia(videoGenOutput);
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
