@@ -10,13 +10,17 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
-import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, runStatusLabel, humanizeRunError, relativeTime, stageLabel, statusChipKind, stepperIndexForStage } from '../../../lib/run-labels';
+import { gateDecisionsOf, manualRetryOf, resolvedOptionsOf, videoFallbackUsed } from '../../../lib/server-extras';
+import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, humanizeRunError, relativeTime, runTopic, stageLabel, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
 import { StatusChip } from '../../../components/StatusChip';
 import { Stepper } from '../../../components/Stepper';
+import { RunSettingsTiles } from '../../../components/RunSettingsTiles';
+import { RunTabs, type RunTab } from '../../../components/RunTabs';
+import { StepHistory } from '../../../components/StepHistory';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { GateActionBar, type Privacy } from '../../../components/GateActionBar';
 import { ClampedText } from '../../../components/ClampedText';
@@ -47,9 +51,9 @@ function decisionSummary(gate: 1 | 2, action: string, privacy?: Privacy): string
   return 'Rejected';
 }
 
-// No fixed tag vocabulary is enforced server-side (Backend Task 7/O4); these
-// are quick-pick suggestions only, free text is always accepted.
-const SUGGESTED_TAGS = ['weak_hook', 'topic_already_saturated', 'bad_thumbnail_frame'];
+// No fixed tag vocabulary is enforced server-side (Backend Task 7/O4); the app owns the
+// quick-pick list (POST_HOC_TAGS in lib/run-view.ts), free text is always accepted.
+const capitalise = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const FOUNDER_POST_HOC_AGENT = 'founder-post-hoc';
 
 type Stage = {
@@ -95,6 +99,8 @@ export default function RunDetailScreen() {
   // submit time from the mutation's own variables.
   const [sentSummary, setSentSummary] = useState<string | null>(null);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+  // Brief / Script / Video tab; null until the user picks one, so the default follows the run's state.
+  const [tabChoice, setTabChoice] = useState<RunTab | null>(null);
   const [confirmCancelRunning, setConfirmCancelRunning] = useState(false);
   // Bugs Task 10 (R2) — whether a cancel is in flight comes from the server
   // (`cancelRequested` on runs.get), so it survives leaving the screen,
@@ -257,8 +263,7 @@ export default function RunDetailScreen() {
     | undefined;
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
-  const wordCount = scriptText.trim() ? scriptText.trim().split(/\s+/).length : 0;
-  const approxSec = wordCount > 0 ? Math.round(wordCount / 2.5) : undefined;
+  const stats = scriptStats(scriptText);
   const reviewScore = scriptReviewStage?.output?.score as number | undefined;
   const reviewNotes = scriptReviewStage?.output?.notes as string | undefined;
   const videoVerdict = videoReviewStage?.output?.verdict as string | undefined;
@@ -306,6 +311,21 @@ export default function RunDetailScreen() {
   // leave a video live on YouTube while the app says "Cancelled".
   const isRunningOrPending = (run.status === 'running' || run.status === 'pending') && !isPublishing;
   const isPublished = run.status === 'completed' && !!publishOutput?.youtubeVideoId;
+
+  const chip = runChip(run, endReason);
+  const settings = settingTiles({
+    creationOptions: run.creationOptions,
+    resolved: resolvedOptionsOf(data),
+    videoKind: data.videoKind,
+    targetSeconds: data.targetSeconds,
+  });
+  const history = buildStepHistory({
+    stages: stages as unknown as StageLike[],
+    lastGateDecision,
+    gateDecisions: gateDecisionsOf(data),
+  });
+  // Default tab follows the state: the video at Gate 2, the script while it is made or reviewed, the brief once ended.
+  const tab: RunTab = tabChoice ?? (isGate2 ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
 
   const cancelRequested = data.cancelRequested;
   const cancelling = cancelMutation.isPending || (cancelRequested && !cancelTimedOut);
@@ -417,16 +437,22 @@ export default function RunDetailScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: barHeight + space.xl }]}
       footer={footer}
     >
-      <StatusChip kind={statusChipKind(run.status)} label={runStatusLabel(run)} />
-
-      <View style={styles.brief}>
-        <Text style={styles.briefLabel}>Brief</Text>
-        <ClampedText lines={3} style={styles.briefText} text={run.briefText} moreLabel="Show more" lessLabel="Show less" />
+      <View style={styles.statusRow}>
+        <StatusChip kind={chip.kind} label={chip.label} />
+        {isPublished ? (
+          <Text style={styles.chipMeta}>
+            {[publishOutput?.privacyStatus ? capitalise(publishOutput.privacyStatus) : null, `uploaded ${relativeTime(run.completedAt ?? run.createdAt)}`]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        ) : null}
       </View>
 
-      <Card>
-        <Stepper currentIndex={stepIndex} attention={isNeedsAttention} ended={isEnded} />
-      </Card>
+      <Text style={styles.runTitle}>{isPublished && publishOutput?.metadata?.title ? publishOutput.metadata.title : runTopic(run)}</Text>
+
+      <RunSettingsTiles tiles={settings.tiles} formatLine={settings.formatLine} />
+
+      <Stepper currentIndex={stepIndex} attention={isNeedsAttention} ended={isEnded} />
 
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
 
@@ -523,23 +549,6 @@ export default function RunDetailScreen() {
             ) : null}
           </Card>
           <Gate1ReviewCards review={data.scriptReview} />
-          <Card>
-            <View style={styles.scriptHeader}>
-              <Text style={styles.cardTitle}>Script</Text>
-              {approxSec !== undefined ? (
-                <Text style={styles.meta}>
-                  ~{approxSec} sec · {wordCount} words
-                </Text>
-              ) : null}
-            </View>
-            <ClampedText
-              lines={6}
-              style={styles.body}
-              text={scriptText}
-              moreLabel="Show full script"
-              lessLabel="Show less"
-            />
-          </Card>
         </>
       ) : null}
 
@@ -628,18 +637,7 @@ export default function RunDetailScreen() {
       ) : null}
 
       {isPublished ? (
-        <Card style={styles.publishedCard}>
-          <View style={styles.publishedHeader}>
-            <View style={styles.publishedIconTile}>
-              <Feather name="play" size={18} color={color.okText} />
-            </View>
-            <Text style={styles.cardTitle}>Published to YouTube</Text>
-          </View>
-          {publishOutput?.metadata?.title ? <Text style={styles.body}>{publishOutput.metadata.title}</Text> : null}
-          <View style={styles.publishedChips}>
-            <StatusChip kind="neutral" label={publishOutput?.privacyStatus ?? 'unknown'} />
-            <StatusChip kind="neutral" label={`Uploaded ${relativeTime(run.completedAt ?? run.createdAt)}`} />
-          </View>
+        <>
           <Pressable
             style={styles.openYoutube}
             onPress={() => void Linking.openURL(`https://youtu.be/${publishOutput?.youtubeVideoId}`)}
@@ -651,33 +649,64 @@ export default function RunDetailScreen() {
           {ageHours(run.completedAt ?? run.createdAt) < 6 ? (
             <Text style={styles.meta}>Views and likes show up on the Dashboard once the first poll runs.</Text>
           ) : null}
-        </Card>
+        </>
       ) : null}
 
-      {isGate2 ? (
-        <Card>
-          <View style={styles.videoRow}>
-            {videoSource ? (
-              <VideoView style={styles.video} player={player} nativeControls />
-            ) : (
-              <View style={[styles.video, styles.videoLoading]}>
-                <ActivityIndicator color={color.onAccent} />
+      {isGate2 ? <QualityChecksCard qualityMetrics={data.qualityMetrics} /> : null}
+
+      <RunTabs value={tab} onChange={setTabChoice} />
+      <Card key={tab}>
+        {tab === 'brief' ? (
+          <>
+            <Text style={styles.cardMeta}>What you asked for · {startedLabel(run.createdAt)}</Text>
+            <ClampedText lines={4} style={styles.body} text={run.briefText} moreLabel="Show full brief" lessLabel="Show less" />
+          </>
+        ) : tab === 'script' ? (
+          scriptText ? (
+            <>
+              <View style={styles.scriptHeader}>
+                {stats ? (
+                  <Text style={styles.cardMeta}>
+                    ~{stats.words} words · ~{stats.seconds} s
+                  </Text>
+                ) : null}
+                {reviewScore !== undefined && !isGate1 ? <StatusChip kind="neutral" label={`Review ${reviewScore}/10`} /> : null}
               </View>
-            )}
+              <ClampedText lines={6} style={styles.body} text={scriptText} moreLabel="Show full script" lessLabel="Show less" />
+            </>
+          ) : (
+            <Text style={styles.cardMeta}>The script isn&apos;t written yet.</Text>
+          )
+        ) : (
+          <View style={styles.videoRow}>
+            {isGate2 ? (
+              videoSource ? (
+                <VideoView style={styles.video} player={player} nativeControls />
+              ) : (
+                <View style={[styles.video, styles.videoLoading]}>
+                  <ActivityIndicator color={color.onAccent} />
+                </View>
+              )
+            ) : null}
             <View style={styles.videoInfo}>
-              <Text style={styles.cardTitle}>Video review</Text>
+              <Text style={styles.cardTitle}>{isGate2 ? 'Video review' : 'Video'}</Text>
               {videoPassed !== undefined ? (
                 <StatusChip kind={videoPassed ? 'ok' : 'failed'} label={videoPassed ? 'Passed' : 'Failed'} />
+              ) : (
+                <Text style={styles.cardMeta}>No video review yet.</Text>
+              )}
+              {videoRationale ? (
+                <ClampedText lines={3} style={styles.meta} text={videoRationale} moreLabel="Read full review" lessLabel="Show less" />
               ) : null}
-              {videoRationale ? <ClampedText lines={3} style={styles.meta} text={videoRationale} /> : null}
               {regensUsed !== undefined ? (
                 <Text style={styles.meta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
               ) : null}
             </View>
           </View>
-        </Card>
-      ) : null}
-      {isGate2 ? <QualityChecksCard qualityMetrics={data.qualityMetrics} /> : null}
+        )}
+      </Card>
+
+      <StepHistory steps={history.steps} summary={history.summary} />
 
       <Pressable style={styles.detailsToggle} onPress={() => setShowDetails((v) => !v)} accessibilityRole="button">
         <Text style={styles.detailsToggleText}>Details</Text>
@@ -741,6 +770,7 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
   const queryClient = useQueryClient();
   const [tag, setTag] = useState('');
   const [notes, setNotes] = useState('');
+  const [open, setOpen] = useState(false);
 
   const existingTags = reviewLogs
     .filter((log) => log.agent === FOUNDER_POST_HOC_AGENT)
@@ -762,18 +792,30 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
   };
 
   return (
+    <View>
+      <Pressable
+        style={styles.tagHeader}
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
+        <Text style={styles.tagHeaderTitle}>
+          Why didn&apos;t it work? <Text style={styles.tagHeaderHint}>· optional tags</Text>
+        </Text>
+        <Text style={styles.tagHeaderHint}>{open ? '▲' : '▼'}</Text>
+      </Pressable>
+      {open ? (
     <Card>
-      <Text style={styles.cardTitle}>Post-hoc tag</Text>
       {existingTags.map((log) => (
         <Text key={log.id} style={styles.meta}>
-          {log.verdict}
+          {tagLabel(log.verdict)}
           {log.rationale && log.rationale !== log.verdict ? ` — ${log.rationale}` : ''} ({relativeTime(log.timestamp)})
         </Text>
       ))}
       <View style={styles.chipRow}>
-        {SUGGESTED_TAGS.map((suggestion) => (
-          <Pressable key={suggestion} style={styles.chip} onPress={() => setTag(suggestion)}>
-            <Text style={styles.chipText}>{suggestion}</Text>
+        {POST_HOC_TAGS.map((suggestion) => (
+          <Pressable key={suggestion.key} style={[styles.chip, tag === suggestion.key && styles.chipActive]} onPress={() => setTag(suggestion.key)} accessibilityRole="button">
+            <Text style={styles.chipText}>{suggestion.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -804,6 +846,8 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
         disabled={!tag.trim()}
       />
     </Card>
+      ) : null}
+    </View>
   );
 }
 
@@ -812,9 +856,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },
   loadErrorActions: { width: '100%', gap: space.sm },
   errorText: { ...type.body, color: color.danger },
-  brief: { gap: 2 },
-  briefLabel: { fontFamily: font.regular, fontSize: 12, color: color.muted },
-  briefText: { fontFamily: font.semibold, fontSize: 17, lineHeight: 24, color: color.ink },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  chipMeta: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  runTitle: { fontFamily: font.black, fontSize: 22, lineHeight: 28, letterSpacing: -0.2, color: color.ink },
+  cardMeta: { fontFamily: font.semibold, fontSize: 12, lineHeight: 16, color: color.muted },
   cardTitle: { ...type.sectionTitle, color: color.ink },
   scriptHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm },
   body: { ...type.body, color: color.ink },
@@ -836,7 +881,11 @@ const styles = StyleSheet.create({
   rawHeading: { fontFamily: font.bold, fontSize: 12, color: color.ink },
   failedWhy: { gap: 2, paddingLeft: space.sm, paddingVertical: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { backgroundColor: color.surface2, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
+  chip: { backgroundColor: color.surface2, borderRadius: radius.pill, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' },
+  chipActive: { backgroundColor: color.accentSoft },
+  tagHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: color.border },
+  tagHeaderTitle: { fontFamily: font.black, fontSize: 15, color: color.ink },
+  tagHeaderHint: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   chipText: { fontFamily: font.semibold, fontSize: 12, color: color.ink },
   input: {
     borderWidth: 2,

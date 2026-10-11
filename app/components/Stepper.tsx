@@ -1,32 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import { color, font, space } from '../lib/theme';
 import { STEPPER_STEPS } from '../lib/run-labels';
 
-// `ended` (U5): the run is over, so no step is in progress - the stop point shows a final marker, not an active ring.
+// Slim stepper (NEXT 1 Run board): seven 4 px bars with a label under each, one line. Bars up to and including the
+// current step are filled; the current step turns amber when the run needs attention or has ended there.
 export function Stepper({ currentIndex, attention, ended }: { currentIndex: number; attention?: boolean; ended?: boolean }) {
   return (
-    <View style={styles.row}>
+    <View style={styles.row} accessible accessibilityLabel={`Step ${Math.min(currentIndex + 1, STEPPER_STEPS.length)} of ${STEPPER_STEPS.length}: ${STEPPER_STEPS[Math.min(currentIndex, STEPPER_STEPS.length - 1)]}`}>
       {STEPPER_STEPS.map((label, i) => {
-        const state = i < currentIndex ? 'done' : i === currentIndex ? (ended ? 'stopped' : 'current') : 'future';
-        const isFailedStep = state === 'current' && attention;
+        const filled = i <= currentIndex;
+        const stuck = i === currentIndex && (attention || ended);
         return (
           <View key={label} style={styles.step}>
-            <View
-              style={[
-                styles.dot,
-                state === 'done' && styles.dotDone,
-                state === 'current' && styles.dotCurrent,
-                isFailedStep && styles.dotAttention,
-                state === 'future' && styles.dotFuture,
-                state === 'stopped' && styles.dotStopped,
-              ]}
-            >
-              {state === 'done' ? <Feather name="check" size={12} color={color.onAccent} /> : null}
-              {state === 'stopped' ? <Feather name="x" size={12} color={color.danger} /> : null}
-              {isFailedStep ? <Feather name="alert-triangle" size={11} color={color.warnText} /> : null}
-            </View>
+            <View style={[styles.bar, filled && styles.barDone, stuck && styles.barStuck]} />
             <Text style={styles.label} numberOfLines={1}>
               {label}
             </Text>
@@ -37,22 +24,11 @@ export function Stepper({ currentIndex, attention, ended }: { currentIndex: numb
   );
 }
 
-const DOT_SIZE = 22;
-
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
-  step: { alignItems: 'center', gap: space.xs, flex: 1 },
-  dot: {
-    width: DOT_SIZE,
-    height: DOT_SIZE,
-    borderRadius: DOT_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotDone: { backgroundColor: color.accent },
-  dotCurrent: { backgroundColor: color.accentSoft, borderWidth: 3, borderColor: color.accent },
-  dotAttention: { backgroundColor: color.warnBg, borderColor: color.warnText },
-  dotStopped: { backgroundColor: color.bg, borderWidth: 2, borderColor: color.danger },
-  dotFuture: { backgroundColor: color.bg, borderWidth: 2, borderColor: color.future },
-  label: { fontFamily: font.regular, fontSize: 10, color: color.muted, textAlign: 'center' },
+  row: { flexDirection: 'row', gap: 2 },
+  step: { flex: 1, alignItems: 'center', gap: space.xs },
+  bar: { width: '100%', height: 4, borderRadius: 2, backgroundColor: color.border },
+  barDone: { backgroundColor: color.accent },
+  barStuck: { backgroundColor: color.amber },
+  label: { fontFamily: font.bold, fontSize: 10, color: color.muted, textAlign: 'center' },
 });

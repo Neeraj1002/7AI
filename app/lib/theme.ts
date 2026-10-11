@@ -27,6 +27,12 @@ export const color = {
   chartLow: '#F6C3C0',
   chartEdit: '#F2A19D',
   video: '#000000',
+  // Slim stepper: the step a run stopped or is stuck on (NEXT 1 Run board).
+  amber: '#E8A317',
+  // Dark status card (In progress): progress-bar track.
+  darkTrack: '#3A3A3A',
+  // Light amber card body (Needs attention, Factual concerns).
+  warnSoft: '#FFFBEF',
 };
 
 export const card = {
