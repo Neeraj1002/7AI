@@ -3,6 +3,7 @@ import type { NotificationChannel } from './channel';
 import { getOrCreatePendingApproval, resolvePendingApproval as resolvePendingApprovalShared } from './pending-approvals';
 import { env } from '../config/env';
 import { handleTicket, startReceiptChecker } from './push-receipts';
+import { buildPushBody, PUSH_BODY_MAX_CHARS, type PushDecision } from './resend-policy';
 
 // Sprint 3 Task 7 (O1) — the only file allowed to touch expo-server-sdk
 // directly, same provider-boundary pattern every external-integration
@@ -52,21 +53,36 @@ export class ExpoPushChannel implements NotificationChannel {
     // Bugs Task 10 (R3) — error tickets are logged (without the token) and a
     // DeviceNotRegistered one clears the stored token; accepted tickets are
     // kept so their delivery receipts can be read later. Never throws.
+    // Bugs Task 12 (R6): one line per push so a missing one can be traced (token: last 6 chars only).
+    console.log(
+      `[push] user=${this.params.userId} token=...${this.params.expoPushToken.slice(-7, -1)} kind=${String(data.kind)} bodyChars=${body.length} ticket=${ticket.status === 'ok' ? ticket.id : 'error'}`,
+    );
     await handleTicket(ticket, { userId: this.params.userId, token: this.params.expoPushToken });
   }
 
   async notify(message: string, meta?: { threadKey?: string }): Promise<void> {
-    await this.sendPush('7AI', message, {
+    await this.sendPush('7AI', message.length > PUSH_BODY_MAX_CHARS ? `${message.slice(0, PUSH_BODY_MAX_CHARS - 1)}…` : message, {
       kind: 'notify',
       ...(meta?.threadKey && { runId: meta.threadKey }),
     });
   }
 
-  async requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }> {
-    await this.sendPush('7AI — action needed', params.message, {
-      kind: 'approval_request',
-      runId: params.threadKey,
-    });
+  get recipientUserId(): string {
+    return this.params.userId;
+  }
+
+  async requestApproval(params: { threadKey: string; message: string; pushDecision?: PushDecision }): Promise<{ reply: string }> {
+    const decision = params.pushDecision ?? 'send';
+    if (decision === 'skip-recent' || decision === 'skip-stale') {
+      console.log(`[push-channel] user ${this.params.userId}: not re-pushing gate ${params.threadKey} (${decision})`);
+    } else {
+      // The full text stays in the in-app Notification row; the push carries a short summary
+      // (Gate 1's whole brief + script + review notes is what Expo rejected as malformed).
+      await this.sendPush('7AI — action needed', buildPushBody(params.message, decision === 'reminder'), {
+        kind: 'approval_request',
+        runId: params.threadKey,
+      });
+    }
     const reply = await getOrCreatePendingApproval(params.threadKey);
     return { reply };
   }

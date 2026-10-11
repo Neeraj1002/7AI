@@ -30,6 +30,8 @@ export type BrandAssets = {
   // explicitly opts out. No migration needed; brandAssets is an existing
   // Json column.
   captionsEnabled?: boolean;
+  // Bugs Task 12 (R13) - last invalid_grant seen for this channel's YouTube token; cleared on reconnect.
+  youtubeAuthError?: { at: string; code: 'invalid_grant' };
 };
 
 export type Channel = {

@@ -55,6 +55,8 @@ const EnvSchema = z.object({
   // real public origin once this is actually deployed somewhere testers can
   // reach.
   PUBLIC_API_BASE_URL: z.string().optional(),
+  // Bugs Task 12 (R10.12) - comma-separated browser origins allowed by CORS (the native app sends none).
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   // Sprint 3 Task 5 (M1) — 32 raw bytes, base64-encoded, the AES-256-GCM key
   // encrypting every AgentCredential.refreshTokenEncrypted at rest. No
   // insecure default, same posture as JWT_SECRET — a real per-channel OAuth
@@ -119,6 +121,10 @@ const EnvSchema = z.object({
   // ~16x that, comfortable headroom for a slow network or retry backoff
   // without leaving a genuinely abandoned run sitting silently for hours.
   RESUME_STALE_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
+  // Bugs Task 12 (R6/R5g) - a re-sent gate prompt (after a restart) is pushed at most once per this window,
+  // and never for a gate older than GATE_RESEND_STALE_DAYS (it is reopened silently).
+  GATE_RESEND_PUSH_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
+  GATE_RESEND_STALE_DAYS: z.coerce.number().optional().default(7),
   // Week 5 Task 3 — a "you haven't answered in a while" nudge, independent
   // of a restart. Deliberately much longer than RESUME_STALE_WINDOW_MS: an
   // automated stage stuck for 30 minutes is suspicious, but a human approval

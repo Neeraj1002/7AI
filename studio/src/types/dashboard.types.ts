@@ -13,7 +13,16 @@ export type OperationalDashboard = {
   }[];
   recentCompletions: { id: string; channelId: string; briefText: string; completedAt: Date | null }[];
   // D2: rate is over every stopped run (completed + needsAttention + failed).
-  successRate: { completed: number; needsAttention: number; failed: number; rate: number | null };
+  // Bugs Task 12 (R3): rate = published / (published + failed + rejected); cancelled is excluded.
+  successRate: {
+    completed: number;
+    needsAttention: number;
+    published: number;
+    failed: number;
+    rejected: number;
+    cancelled: number;
+    rate: number | null;
+  };
   // D3: published videos / stopped runs.
   publishedRate: { published: number; stopped: number; rate: number | null };
 };

@@ -1,6 +1,7 @@
 import { prisma } from '../prisma-client';
 import { currentBudgetWindowStart, loadChannelBudgetView, NoBudgetConfiguredError, nextBudgetWindowStart } from '../../run-pipeline/budget-gate';
 import { Prisma } from '@prisma/client';
+import { tallyEndedRuns } from '../../run-pipeline/end-reason';
 import type {
   ContentPerformanceDashboard,
   CostDashboard,
@@ -34,7 +35,7 @@ function channelFilterSql(channelId: string | undefined, column: Prisma.Sql): Pr
 
 export async function getOperationalDashboard(tenantId: string, channelId?: string): Promise<OperationalDashboard> {
   const channelWhere = channelId ? { channelId } : {};
-  const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedCount, needsAttentionCount, publishedCount] =
+  const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedGroups, needsAttentionCount, publishedCount] =
     await Promise.all([
       prisma.pipelineRun.groupBy({
         by: ['currentStage'],
@@ -53,7 +54,12 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
         select: { id: true, channelId: true, briefText: true, completedAt: true },
       }),
       prisma.pipelineRun.count({ where: { tenantId, status: 'completed', ...channelWhere } }),
-      prisma.pipelineRun.count({ where: { tenantId, status: 'failed', ...channelWhere } }),
+      // Bugs Task 12 (R3) - grouped by lastError so cancelled / rejected / failed are told apart.
+      prisma.pipelineRun.groupBy({
+        by: ['lastError'],
+        where: { tenantId, status: 'failed', ...channelWhere },
+        _count: { _all: true },
+      }),
       prisma.pipelineRun.count({ where: { tenantId, status: 'needs_attention', ...channelWhere } }),
       // A run counts as published only when it is completed AND its publishing stage completed.
       prisma.pipelineRun.count({
@@ -66,8 +72,13 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
       }),
     ]);
 
-  // Bugs Closure R3 (D2) — a run stuck in needs_attention is a stopped run, not a missing one.
-  const terminalCount = completedCount + failedCount + needsAttentionCount;
+  // Bugs Task 12 (R3) - published / failed / rejected / cancelled. Cancelled runs leave the success
+  // rate; rejections stay in it but are labelled "rejected", not "failed".
+  const ended = tallyEndedRuns(
+    publishedCount,
+    failedGroups.map((g) => ({ lastError: g.lastError, count: g._count._all })),
+  );
+  const denominator = ended.published + ended.failed + ended.rejected;
 
   return {
     stageFunnel: funnelRows.map((row) => ({
@@ -79,14 +90,17 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
     successRate: {
       completed: completedCount,
       needsAttention: needsAttentionCount,
-      failed: failedCount,
-      rate: terminalCount > 0 ? completedCount / terminalCount : null,
+      published: ended.published,
+      failed: ended.failed,
+      rejected: ended.rejected,
+      cancelled: ended.cancelled,
+      rate: ended.rate,
     },
     // Bugs Closure R3 (D3) — published videos / runs that have stopped.
     publishedRate: {
       published: publishedCount,
-      stopped: terminalCount,
-      rate: terminalCount > 0 ? publishedCount / terminalCount : null,
+      stopped: denominator,
+      rate: denominator > 0 ? publishedCount / denominator : null,
     },
   };
 }

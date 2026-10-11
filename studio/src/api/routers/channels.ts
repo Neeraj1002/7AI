@@ -27,9 +27,16 @@ import type { Channel } from '../../types';
 // token is Task 5's own failure-handling concern, surfaced at publish/poll
 // time, not here). Shared by list/get/create so all three report the exact
 // same derived field the same way.
-async function withHasYoutubeCredential(channel: Channel): Promise<Channel & { hasYoutubeCredential: boolean }> {
+async function withHasYoutubeCredential(
+  channel: Channel,
+): Promise<Channel & { hasYoutubeCredential: boolean; youtubeNeedsReconnect: boolean }> {
   const credential = await findByChannel(channel.id);
-  return { ...channel, hasYoutubeCredential: credential !== null };
+  return {
+    ...channel,
+    hasYoutubeCredential: credential !== null,
+    // Bugs Task 12 (R13): the credential exists but Google rejected it (invalid_grant) - show "Reconnect needed".
+    youtubeNeedsReconnect: credential !== null && Boolean(channel.brandAssets.youtubeAuthError),
+  };
 }
 
 // Sprint 3 Task 8 — shared by update/archive: NOT_FOUND for a missing channel
