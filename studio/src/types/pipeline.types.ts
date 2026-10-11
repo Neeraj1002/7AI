@@ -45,6 +45,11 @@ export const CreationOptionsSchema = z.object({
   // never a behavior change for a run that doesn't set it (script-generation
   // falls back to its existing "30-60 seconds" framing when unset).
   targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+  // Sprint 4 Task 2 (R5): explicit source URLs/citations the brief relies on.
+  // Shown at Gate 1; never inferred from the free-text brief.
+  sources: z.array(z.string()).optional(),
+  // Sprint 4 Task 6: a key from formats/manifest.ts. Validated at the API edge.
+  formatKey: z.string().optional(),
   // Bugs Task 12 - run-owned bookkeeping, NOT user choices (stripped by runs.rerun):
   // manual Retry/Revise count per stage (R2) and the one-shot AI-stills fallback marker (R1).
   manualRetries: z.record(z.string(), z.number().int().nonnegative()).optional(),
@@ -63,6 +68,10 @@ export type PipelineRun = {
   briefText: string;
   intakeParsed: IntakeParsed | null;
   creationOptions: CreationOptions | null;
+
+  // Sprint 4 Task 1: snapshot of the channel active profile version at run
+  // creation. null = the channel had no profile.
+  profileVersionId: string | null;
 
   retryCount: number;
   lastError: string | null;

@@ -21,6 +21,23 @@ import { loadChannelBudgetView, validateBudgetOverride, budgetDilutionWarning, N
 import { createChannelWithCapCheck, ChannelCapExceededError } from '../../manage-channels/channel-cap';
 import { CreateChannelInputSchema } from '../../types';
 import type { Channel } from '../../types';
+import { ChannelProfileDataSchema } from '../../channel-profile';
+import { CONTENT_FORMATS } from '../../formats/manifest';
+import {
+  insertProfileVersion,
+  findActiveProfileForChannel,
+  listProfileVersionsForChannel,
+} from '../../models/repositories/channel-profile-version.repository';
+
+// Sprint 4 Task 1: tenant-scoped read access (any member of the tenant), same
+// rule as channels.get. Another tenant's channel reads as NOT_FOUND.
+async function loadReadableChannel(channelId: string, ctx: Context): Promise<Channel> {
+  const channel = await findChannelById(channelId);
+  if (!channel || channel.tenantId !== ctx.tenantId) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `Channel ${channelId} not found` });
+  }
+  return channel;
+}
 
 // Sprint 3 Task 6 (N2) — a plain existence check against Task 5's
 // agent_credentials table, not a validity check (a revoked-but-still-present
@@ -83,6 +100,49 @@ export const channelsRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: `Channel ${input.channelId} not found` });
       }
       return withHasYoutubeCredential(channel);
+    }),
+
+  // Sprint 4 Task 6: the static format list for the brief form's picker. Plain
+  // reference data, so any valid session may read it.
+  listFormats: publicProcedure.query(() => CONTENT_FORMATS),
+
+  // Sprint 4 Task 1 (R2): channel profile versions. Creating one is a
+  // channel-management action, so it is ownership-checked like connecting
+  // YouTube (loadManageableChannel = canResolveGate). The new version becomes
+  // the channel active one in the same transaction. Bad `data` is a
+  // BAD_REQUEST with Zod's own message, before anything is written.
+  createProfileVersion: publicProcedure
+    .input(z.object({ channelId: z.string().uuid(), data: z.unknown() }))
+    .mutation(async ({ input, ctx }) => {
+      const channel = await loadManageableChannel(input.channelId, ctx);
+      const parsed = ChannelProfileDataSchema.safeParse(input.data);
+      if (!parsed.success) {
+        const detail = parsed.error.issues
+          .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+          .join('; ');
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Invalid channel profile: ${detail}` });
+      }
+      return insertProfileVersion({
+        channelId: channel.id,
+        data: parsed.data,
+        createdByUserId: ctx.userId ?? null,
+      });
+    }),
+
+  // null when the channel has never had a profile: a valid, expected state.
+  getActiveProfile: publicProcedure
+    .input(z.object({ channelId: z.string().uuid() }))
+    .query(async ({ input, ctx }) => {
+      const channel = await loadReadableChannel(input.channelId, ctx);
+      return findActiveProfileForChannel(channel.id);
+    }),
+
+  // Newest first.
+  listProfileVersions: publicProcedure
+    .input(z.object({ channelId: z.string().uuid() }))
+    .query(async ({ input, ctx }) => {
+      const channel = await loadReadableChannel(input.channelId, ctx);
+      return listProfileVersionsForChannel(channel.id);
     }),
 
   // POST /channels — Sprint 3 Task 6 (N1). tenantId is never client-supplied
@@ -281,7 +341,7 @@ export const channelsRouter = router({
       let cancelled = 0;
       for (const run of inFlight) {
         if (hasPendingApproval(run.id)) {
-          resolvePendingApproval(run.id, 'reject Channel deleted');
+          resolvePendingApproval(run.id, { reply: 'reject Channel deleted', userId: ctx.userId });
         } else {
           await updatePipelineRun(run.id, { status: 'failed', lastError: 'Channel deleted' });
         }

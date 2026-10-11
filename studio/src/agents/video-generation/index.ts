@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { synthesizeSpeech, transcribe, resolveMediaPurpose, type TranscriptSegment } from '../../media';
 import { buildStockShotList } from './stock-shotlist';
 import { generateStills } from '../../ai-visuals';
+import { buildStyledScenePrompts, type SceneStyle } from './scene-prompts';
 import { pickAudioBedTrack } from '../../audio-bed';
 import { env } from '../../config/env';
 import { NonTransientStageError, getStageErrorContext } from '../../run-pipeline/retry-with-backoff';
@@ -382,6 +383,8 @@ export async function generateVideo(params: {
   // this function never applies its own default, it just threads through
   // whatever it's given.
   voice?: string;
+  // Sprint 4 Task 3: resolved visual style for ai-stills scene prompts.
+  sceneStyle?: SceneStyle;
   // Bugs Closure R6 — stock clip ids this run's earlier attempts used (see stock-shotlist.ts).
   excludeStockSourceIds?: string[];
   // Bugs Closure 2 (P5) - filled in as each paid call completes, so the caller can
@@ -470,7 +473,10 @@ export async function generateVideo(params: {
     }
     let stills: Awaited<ReturnType<typeof generateStills>>;
     try {
-      stills = await generateStills({ scenePrompts });
+      // Sprint 4 Task 3 (R9/R11): style, negative and safety text ride on each scene prompt.
+      stills = await generateStills({
+        scenePrompts: buildStyledScenePrompts(scenePrompts, params.sceneStyle ?? {}),
+      });
     } catch (error) {
       // Stills generated before the failure were billed (ai-visuals/client.ts reports them).
       const ctx = getStageErrorContext(error);

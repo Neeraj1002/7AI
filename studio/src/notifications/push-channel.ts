@@ -1,6 +1,10 @@
 import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 import type { NotificationChannel } from './channel';
-import { getOrCreatePendingApproval, resolvePendingApproval as resolvePendingApprovalShared } from './pending-approvals';
+import {
+  getOrCreatePendingApproval,
+  resolvePendingApproval as resolvePendingApprovalShared,
+  type ApprovalReply,
+} from './pending-approvals';
 import { env } from '../config/env';
 import { handleTicket, startReceiptChecker } from './push-receipts';
 import { buildPushBody, PUSH_BODY_MAX_CHARS, type PushDecision } from './resend-policy';
@@ -71,7 +75,7 @@ export class ExpoPushChannel implements NotificationChannel {
     return this.params.userId;
   }
 
-  async requestApproval(params: { threadKey: string; message: string; pushDecision?: PushDecision }): Promise<{ reply: string }> {
+  async requestApproval(params: { threadKey: string; message: string; pushDecision?: PushDecision }): Promise<ApprovalReply> {
     const decision = params.pushDecision ?? 'send';
     if (decision === 'skip-recent' || decision === 'skip-stale') {
       console.log(`[push-channel] user ${this.params.userId}: not re-pushing gate ${params.threadKey} (${decision})`);
@@ -83,12 +87,11 @@ export class ExpoPushChannel implements NotificationChannel {
         runId: params.threadKey,
       });
     }
-    const reply = await getOrCreatePendingApproval(params.threadKey);
-    return { reply };
+    return getOrCreatePendingApproval(params.threadKey);
   }
 
-  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
-    return resolvePendingApprovalShared(threadKey, reply);
+  resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
+    return resolvePendingApprovalShared(threadKey, value);
   }
 }
 

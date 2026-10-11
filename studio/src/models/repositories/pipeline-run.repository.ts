@@ -22,6 +22,7 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
     briefText: row.briefText,
     intakeParsed: (row.intakeParsed as IntakeParsed | null) ?? null,
     creationOptions: (row.creationOptions as CreationOptions | null) ?? null,
+    profileVersionId: row.profileVersionId,
     retryCount: row.retryCount,
     lastError: row.lastError,
     startedAt: row.startedAt,
@@ -31,13 +32,17 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
   };
 }
 
-export async function createPipelineRun(input: CreatePipelineRunInput): Promise<PipelineRun> {
+export async function createPipelineRun(
+  input: CreatePipelineRunInput,
+  profileVersionId: string | null = null,
+): Promise<PipelineRun> {
   const row = await prisma.pipelineRun.create({
     data: {
       tenantId: input.tenantId,
       channelId: input.channelId,
       briefText: input.briefText,
       creationOptions: input.creationOptions as Prisma.InputJsonValue | undefined,
+      profileVersionId,
       status: 'pending',
     },
   });
@@ -86,10 +91,35 @@ export async function listRuns(params: {
   return rows.map(toDomainRun);
 }
 
+// Sprint 4 Task 5 (R20): the channel's most recent runs that got as far as an
+// Intake topic, newest first, excluding the current run. Failed and pending runs
+// are skipped (nothing was really made), everything else counts.
+export async function listRecentRunTopicsForChannel(
+  channelId: string,
+  limit: number,
+  excludeRunId: string,
+): Promise<{ runId: string; topic: string; createdAt: Date }[]> {
+  const rows = await prisma.pipelineRun.findMany({
+    where: {
+      channelId,
+      id: { not: excludeRunId },
+      status: { notIn: ['failed', 'pending'] },
+      intakeParsed: { not: Prisma.DbNull },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: { id: true, intakeParsed: true, createdAt: true },
+  });
+  return rows.flatMap((row) => {
+    const topic = (row.intakeParsed as { topic?: unknown } | null)?.topic;
+    return typeof topic === 'string' && topic.length > 0 ? [{ runId: row.id, topic, createdAt: row.createdAt }] : [];
+  });
+}
+
 // The exact text runs.cancel writes; runs.ts's deriveEndReason string-matches it.
 export const CANCELLED_BY_USER = 'Cancelled by user';
 
-export type PipelineRunPatch =Partial<{
+export type PipelineRunPatch = Partial<{
   status: PipelineRunStatus;
   currentStage: StageName | null;
   intakeParsed: IntakeParsed | null;

@@ -77,6 +77,23 @@ export function estimateStillCount(scriptText: string): number {
   return Math.min(QUALITY_SPEC.pacing.maxStills, Math.max(QUALITY_SPEC.pacing.minStills, raw));
 }
 
+// Sprint 4 Task 3 (R10): a profile's secondsPerStill overrides the Task 8 default.
+// Computed from the resolved target length (TTS has not run yet at planning
+// time); bounded 3-20 whatever the profile asks for. undefined when unset, so
+// the planner keeps estimateStillCount's default.
+export const PROFILE_STILL_COUNT_MIN = 3;
+export const PROFILE_STILL_COUNT_MAX = 20;
+export function computeDesiredStillCount(
+  targetSeconds: number,
+  secondsPerStill: number | null | undefined,
+): number | undefined {
+  if (!secondsPerStill || secondsPerStill <= 0) return undefined;
+  return Math.min(
+    PROFILE_STILL_COUNT_MAX,
+    Math.max(PROFILE_STILL_COUNT_MIN, Math.ceil(targetSeconds / secondsPerStill)),
+  );
+}
+
 // The shot list is best-effort planning data, not worth failing the whole stage
 // over: too long is truncated to the cap; too short (or empty/not an array) is
 // dropped so the single stockFootageQuery fallback is used instead.
@@ -198,6 +215,8 @@ export async function planVideoProduction(params: {
   // Sprint 2 Task 3 (F1) — same resolution-order pattern: an explicit
   // per-run choice always wins, else the planning LLM decides.
   audioLayerOverride?: AudioLayer;
+  // Sprint 4 Task 3 (R10): replaces estimateStillCount when set.
+  desiredStillCount?: number;
 }): Promise<{ plan: ProductionPlan; llm: LLMResponse }> {
   const attemptContext = params.fixNotes
     ? `This is a REGENERATION attempt. The previous attempt failed review for this reason:\n${params.fixNotes}\nYour plan must concretely change whatever caused that failure.`
@@ -205,7 +224,11 @@ export async function planVideoProduction(params: {
 
   const llm = await callLLM({
     purpose: 'video-production-planning',
-    system: buildSystemPrompt(params.visualSourceOverride, params.audioLayerOverride, estimateStillCount(params.scriptText)),
+    system: buildSystemPrompt(
+      params.visualSourceOverride,
+      params.audioLayerOverride,
+      params.desiredStillCount ?? estimateStillCount(params.scriptText),
+    ),
     messages: [{ role: 'user', content: `Topic: ${params.topic}\nScript: ${params.scriptText}\n\n${attemptContext}` }],
     // Up to 20 scene prompts or 8 stock queries, plus the rest of the plan.
     maxTokens: 2048,

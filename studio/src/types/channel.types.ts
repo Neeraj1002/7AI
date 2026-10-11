@@ -61,6 +61,9 @@ export type Channel = {
   // studio/src/run-pipeline/state-machine.ts's voice-resolution order.
   defaultVoice: string | null;
 
+  // Sprint 4 Task 1: the channel active profile version; null = no profile.
+  activeProfileVersionId: string | null;
+
   // Sprint 3 Task 8 (R1) — 'private' | 'unlisted' | 'public'; applied at Gate 2
   // approval when no explicit choice is made.
   defaultPrivacyStatus: 'private' | 'unlisted' | 'public';

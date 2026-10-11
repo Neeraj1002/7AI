@@ -16,10 +16,12 @@ import { formatQualityMetrics } from '../video-intelligence/quality-metrics';
 // flipped back. `privacyStatus` is always resolved by parseGate2Reply itself
 // (defaulting to DEFAULT_PRIVACY_STATUS on a bare "approve"), so every caller
 // downstream sees a concrete value.
-export type Gate2Outcome =
+export type Gate2Decision =
   | { type: 'approve'; privacyStatus?: PrivacyStatus }
   | { type: 'reject'; reason: string }
   | { type: 'revise'; notes: string };
+// Sprint 4 Task 4: plus the real user who resolved it (null for the ops/script path).
+export type Gate2Outcome = Gate2Decision & { approvedByUserId: string | null };
 
 // Same reply-command tolerance as Gate 1: exact, case-insensitive match for
 // `approve`; `reject` matches its own command word only. Anything else is
@@ -36,7 +38,7 @@ export type Gate2Outcome =
 // failure mode than requiring the founder to reply again.
 const APPROVE_WITH_PRIVACY = /^approve\s+(public|unlisted|private)$/i;
 
-export function parseGate2Reply(reply: string): Gate2Outcome {
+export function parseGate2Reply(reply: string): Gate2Decision {
   const trimmed = reply.trim();
 
   if (trimmed.toLowerCase() === 'approve') {
@@ -108,10 +110,10 @@ export async function requestGate2Decision(params: {
     channelId: params.channel.id,
     userIds: recipients.map((user) => user.id),
   });
-  const { reply } = await channel.requestApproval({
+  const { reply, userId } = await channel.requestApproval({
     threadKey: params.runId,
     message,
   });
 
-  return parseGate2Reply(reply);
+  return { ...parseGate2Reply(reply), approvedByUserId: userId };
 }

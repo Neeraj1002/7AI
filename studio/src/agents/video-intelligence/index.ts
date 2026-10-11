@@ -174,7 +174,16 @@ unrelated to the topic.`;
 whether it's a *reasonable* backdrop for this content, not whether it's visually impressive.`;
 }
 
-function buildSystemPrompt(visualSource: VisualSource): string {
+// Sprint 4 Task 3 (R11): only for AI-generated stills. Real stock footage can
+// legitimately show real people, so none of this applies there.
+export const SAFETY_CHECK_INSTRUCTION = `
+
+This channel enforces a safety rule on AI-generated images. Also fail the video if any sampled frame
+clearly shows any of: a recognisable brand logo or trademark; legible text baked into the image
+(other than the burned-in captions); a photoreal depiction of an identifiable real person; gore or
+graphic content. Name the offending frame in the notes so the next attempt can steer away from it.`;
+
+export function buildSystemPrompt(visualSource: VisualSource, safetyChecks = false): string {
   return `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
 (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's
 approved for publishing, alongside the topic and script it's based on. Judge the video as a whole
@@ -189,7 +198,9 @@ shows something genuinely wrong (blank/corrupted footage, content unrelated to t
 
 Respond with ONLY a JSON object: {"verdict": "pass" | "fail", "notes": string}
 "notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.
-Respond with raw JSON only — no markdown code fences, no commentary.`;
+Respond with raw JSON only — no markdown code fences, no commentary.${
+    safetyChecks && visualSource === 'ai-stills' ? SAFETY_CHECK_INSTRUCTION : ''
+  }`;
 }
 
 export type VideoIntelligenceOutcome = {
@@ -215,6 +226,9 @@ export async function reviewVideo(params: {
   // Sprint 4 Task 8 (R7) — whether this channel burns captions in; drives the
   // caption-presence measurement. Defaults to true, matching BrandAssets.
   captionsEnabled?: boolean;
+  // Sprint 4 Task 3 (R11): the platform safety-negatives flag; applies to
+  // ai-stills only.
+  safetyChecks?: boolean;
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
@@ -238,7 +252,7 @@ export async function reviewVideo(params: {
   const llm = await withRetryAndCircuitBreaker(() =>
     callLLM({
       purpose: 'video-intelligence-own-draft',
-      system: buildSystemPrompt(params.visualSource),
+      system: buildSystemPrompt(params.visualSource, params.safetyChecks),
       messages: [
         {
           role: 'user',

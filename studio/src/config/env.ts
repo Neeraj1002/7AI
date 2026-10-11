@@ -79,6 +79,11 @@ const EnvSchema = z.object({
   // stub instead of a real OpenAI image-generation call. Reuses
   // OPENAI_API_KEY (same as media/), no separate credential.
   AI_VISUALS_STUB: z.string().optional().default(''),
+  // Sprint 4 Task 3 (R11): when '1', a fixed platform negative clause (no logos,
+  // no baked-in text, no photoreal identifiable people, no gore) is appended to
+  // every AI-stills scene prompt, and Video Intelligence checks AI stills for
+  // it. Off by default until a real regression run clears it.
+  AI_VISUALS_SAFETY_NEGATIVES_ENABLED: z.string().optional().default(''),
   // Week 4 Task 2/3 — YouTube Data API v3 (upload + statistics). Stopgap env-var
   // credentials per docs/execution/week1/SCHEMA.md Section 2 (still one channel).
   YOUTUBE_CLIENT_ID: z.string().optional().default(''),

@@ -35,8 +35,12 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
+import { loadResolvedConfig } from './resolved-config';
+import { findLikelyRepeatTopic } from './repeat-topic';
+import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
+import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
-import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
+import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
@@ -53,7 +57,6 @@ import {
   type PrivacyStatus,
 } from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
-import { resolveVoice } from '../media';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
@@ -64,7 +67,10 @@ import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } fro
 // comes online.
 
 export async function createRun(input: CreatePipelineRunInput): Promise<PipelineRun> {
-  return createPipelineRun(input);
+  // Sprint 4 Task 1: snapshot the channel active profile version onto the run;
+  // it is never re-read from the channel later in the run life.
+  const channel = await findChannelById(input.channelId);
+  return createPipelineRun(input, channel?.activeProfileVersionId ?? null);
 }
 
 function nextStageAfter(stage: StageName): StageName | null {
@@ -118,6 +124,31 @@ async function failStageAndEscalate(stageId: string, runId: string, error: unkno
 // the same run: it always reads `run.briefText` fresh and starts a new stage
 // attempt, so a crash-and-retry never assumes partial work happened
 // (BUSINESS_LOGIC.md's "idempotent resume" rule).
+// Sprint 4 Task 5 (R20, B16): compares the new topic with the channel's recent runs
+// and, on a likely repeat, stores it on the intake stage's own output as
+// `repeatTopic` (additive Json, no migration). Gate 1's message and runs.get both
+// read it from there, so the warning survives a restart and is no longer only a
+// line in one notification. It must never fail the run: any error is logged and
+// treated as "no warning".
+async function recordRepeatTopicWarning(
+  runId: string,
+  channelId: string,
+  intakeStageId: string,
+  topic: string,
+): Promise<void> {
+  try {
+    const recent = await listRecentRunTopicsForChannel(channelId, 20, runId);
+    const match = findLikelyRepeatTopic(topic, recent);
+    if (match) {
+      await patchStageOutput(intakeStageId, {
+        repeatTopic: { runId: match.runId, topic: match.topic, createdAt: match.createdAt.toISOString() },
+      });
+    }
+  } catch (error) {
+    console.error(`[intake] run ${runId}: repeat-topic check failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
@@ -182,7 +213,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     // written together, in one transaction — this is what makes resumability
     // possible after a restart, without a window where currentStage lags what
     // pipeline_stages actually shows (B1 fix).
-    return await prisma.$transaction(async (tx) => {
+    const advanced = await prisma.$transaction(async (tx) => {
       await completeStage(stage.id, output, tx);
       return await updatePipelineRun(
         runId,
@@ -195,6 +226,9 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
         tx,
       );
     });
+    // Sprint 4 Task 5 (R20/B16): best-effort, after the stage is already durable.
+    await recordRepeatTopicWarning(runId, run.channelId, stage.id, output.topic);
+    return advanced;
   } catch (error) {
     // A bad/unparseable brief, or an exhausted circuit breaker, is a
     // human-fixable input problem — needs_attention, not failed.
@@ -243,14 +277,21 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     fixNotes = latestAutoReject?.rationale;
   }
 
+  // Sprint 4 Task 2: guide, length, fact policy and banned lists come from the
+  // resolved config of the profile this run was created against.
+  const config = await loadResolvedConfig(run, channel);
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: run.intakeParsed.constraints,
-    styleGuide: channel.styleGuide,
-    // Sprint 3 Task 9 (R4) — additive per-run creation option; unset for a
-    // run that never set it, same as before this field existed.
-    targetDurationSec: run.creationOptions?.targetDurationSec,
+    styleGuide: config.scriptGuide,
+    // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
+    targetSeconds: config.targetSeconds,
     fixNotes: fixNotes ?? null,
+    briefText: run.briefText,
+    factPolicy: config.factPolicy,
+    bannedOpeners: config.bannedOpeners,
+    bannedEndings: config.bannedEndings,
+    scriptStructure: config.formatScriptStructure,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -332,8 +373,13 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
-        targetDurationSec: stageInput.targetDurationSec,
+        targetSeconds: stageInput.targetSeconds,
         fixNotes: fixNotes ?? undefined,
+        briefText: stageInput.briefText,
+        factPolicy: stageInput.factPolicy,
+        bannedOpeners: stageInput.bannedOpeners,
+        bannedEndings: stageInput.bannedEndings,
+        scriptStructure: stageInput.scriptStructure,
       });
       await bookCalls(
         calls.map((llm) => ({
@@ -404,11 +450,16 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
 
   const previousAttempt = await findLatestAttempt(runId, 'script_review');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const config = await loadResolvedConfig(run, channel);
   const stageInput = {
     scriptText: scriptOutput.scriptText,
     captions: scriptOutput.captions,
     nicheDescription: channel.nicheDescription,
-    styleGuide: channel.styleGuide,
+    styleGuide: config.scriptGuide,
+    briefText: run.briefText,
+    targetSeconds: config.targetSeconds,
+    bannedOpeners: config.bannedOpeners,
+    bannedEndings: config.bannedEndings,
   };
 
   const stage = await createStageAttempt({
@@ -504,13 +555,10 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         output.videoGenFit.flags.length > 0
           ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
           : '';
-      // C3 (Week 5 Task 4): surfaced in the same ReviewLog rationale gate1
-      // reads from, so a plausibility concern actually reaches the founder
-      // at Gate 1, not just the raw stage output.
-      const factualConcernsNote =
-        output.factualConcerns.length > 0
-          ? ` Factual concerns (plausibility check, not verified): ${output.factualConcerns.join('; ')}.`
-          : '';
+      // Sprint 4 Task 2: factualConcerns and styleGuideViolations are no longer
+      // folded into this rationale. Gate 1 renders them as their own labelled
+      // blocks from the stage output, and runs.get returns them as
+      // `scriptReview`; keeping them here too would show each twice.
       // G3 (Sprint 2 Task 4): same reasoning — the hook score/notes reach
       // the founder at Gate 1 in the same rationale text, not just the raw
       // stage output only a direct DB query would surface.
@@ -529,7 +577,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}${autoRetryCapNote}`,
+          rationale: `${output.notes}${flagsNote}${hookNote}${autoRetryCapNote}`,
         },
         tx,
       );
@@ -649,6 +697,12 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
   // Blocks here until a reply arrives (or, per Task 6's founder-availability
   // note, a simulated one is fed in for testing) — this is the "pause" that
   // PipelineRun.status = 'paused_gate1' represents.
+  // Sprint 4 Task 2 (R8): concerns/violations from the latest completed review,
+  // sources from the run's explicit creationOptions.
+  const reviewStage = await findLatestCompletedAttempt(runId, 'script_review');
+  const reviewOut = (reviewStage?.output ?? {}) as { factualConcerns?: string[]; styleGuideViolations?: string[] };
+  const intakeStage = await findLatestCompletedAttempt(runId, 'intake');
+  const repeatTopic = (intakeStage?.output as { repeatTopic?: { topic: string; createdAt: string } } | null | undefined)?.repeatTopic ?? null;
   const outcome = await requestGate1Decision({
     runId,
     channel,
@@ -658,6 +712,10 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     reviewScore: latestReview.verdict,
     reviewNotes: latestReview.rationale,
     restarted: isRestartReopen,
+    factualConcerns: reviewOut.factualConcerns,
+    styleGuideViolations: reviewOut.styleGuideViolations,
+    sources: run.creationOptions?.sources,
+    repeatTopic,
   });
 
   const recordGate1Outcome = async (): Promise<PipelineRun> => {
@@ -670,6 +728,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'human',
+            approvedByUserId: outcome.approvedByUserId,
             verdict: 'reject',
             rationale: outcome.reason,
           },
@@ -700,6 +759,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
           pipelineRunId: runId,
           stageId: stage.id,
           agent: 'human',
+          approvedByUserId: outcome.approvedByUserId,
           verdict: outcome.type,
           rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
           editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
@@ -801,10 +861,11 @@ export async function runVideoGenerationStage(
   // Resolved to a concrete value here (never left as an unresolved override
   // or null) so generateVideo/synthesizeSpeech always receive something
   // real, regardless of which of the three cases applied.
-  const resolvedVoice = resolveVoice({
-    overrideVoice: run.creationOptions?.voice,
-    channelDefaultVoice: channel.defaultVoice,
-  });
+  // Sprint 4 Task 3: the resolved config adds the profile level between the run
+  // override and the channel default; a profile-less channel resolves exactly as
+  // resolveVoice did before.
+  const config = await loadResolvedConfig(run, channel);
+  const resolvedVoice = config.audioDefaultVoice;
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -868,16 +929,19 @@ export async function runVideoGenerationStage(
         // here), but this drives a real disclosure-policy flag downstream,
         // so an unrecognized value is treated as "no override" rather than
         // trusted blindly.
+        // Sprint 4 Task 3: run override, else the profile's visual.defaultSource.
         visualSourceOverride:
-          run.creationOptions?.visualSource === 'stock-footage' || run.creationOptions?.visualSource === 'ai-stills'
-            ? run.creationOptions.visualSource
+          config.visualDefaultSource === 'stock-footage' || config.visualDefaultSource === 'ai-stills'
+            ? config.visualDefaultSource
             : undefined,
         // Sprint 2 Task 3 (F1) — same narrowing posture as visualSource
         // above: creationOptions.audioLayer is a plain string (validated at
         // the API edge before it gets here), narrowed against the real
         // AUDIO_LAYERS list rather than cast, so an unrecognized value is
         // "no override," not trusted blindly.
-        audioLayerOverride: resolveAudioLayerOverride(run.creationOptions?.audioLayer),
+        audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
+        // Sprint 4 Task 3 (R10): only when the profile sets secondsPerStill.
+        desiredStillCount: computeDesiredStillCount(config.targetSeconds, config.visualSecondsPerStill),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -929,6 +993,11 @@ export async function runVideoGenerationStage(
         brandAssets: channel.brandAssets,
         plan,
         voice: resolvedVoice,
+        sceneStyle: {
+          stylePrompt: config.visualStylePrompt,
+          negativePrompt: config.visualNegativePrompt,
+          safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
+        },
         excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
         spend,
       });
@@ -1116,6 +1185,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       visualSource,
       // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
       captionsEnabled: channel.brandAssets.captionsEnabled !== false,
+      safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -1363,6 +1433,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'human',
+            approvedByUserId: outcome.approvedByUserId,
             verdict: 'reject',
             rationale: outcome.reason,
           },
@@ -1397,6 +1468,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'human',
+            approvedByUserId: outcome.approvedByUserId,
             verdict: 'approve',
             rationale: 'Approved as-is',
             editedOutput: privacyStatus !== DEFAULT_PRIVACY_STATUS ? { privacyStatus } : undefined,
@@ -1429,6 +1501,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           pipelineRunId: runId,
           stageId: stage.id,
           agent: 'human',
+          approvedByUserId: outcome.approvedByUserId,
           verdict: 'revise',
           rationale: outcome.notes,
         },
@@ -1565,6 +1638,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   }
 
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
+  // Sprint 4 Task 5: packaging from the run's own snapshotted profile.
+  const config = await loadResolvedConfig(run, channel);
+  // {editor}: the real Gate 1 approver (Task 4), or null (ops path / lookup failure)
+  // which packaging.ts turns into "the team". A failed lookup must not block a publish.
+  let editorName: string | null = null;
+  try {
+    const approver = await findGate1ApproverForRun(runId);
+    editorName = approver ? (approver.name?.trim() || approver.email) : null;
+  } catch (error) {
+    console.error(`[publishing] run ${runId}: approver lookup failed, using the fallback credit: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const stageInput = { videoPath, scriptText: sanctionedScriptText, hashtags };
   const stage = await createStageAttempt({
     pipelineRunId: runId,
@@ -1575,7 +1659,16 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
   const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
     try {
-      const { metadata, llm } = await generatePublishingMetadata({ scriptText: sanctionedScriptText, hashtags });
+      const { metadata, llm } = await generatePublishingMetadata({
+        scriptText: sanctionedScriptText,
+        hashtags,
+        titleGuidance: config.titleGuidance,
+        descriptionTemplate: config.descriptionTemplate,
+        hashtagsBase: config.hashtagsBase,
+        editorCredit: config.editorCredit,
+        editorName,
+        sources: run.creationOptions?.sources,
+      });
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
@@ -1606,7 +1699,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
     const attemptUploadOnce = async (): Promise<UploadResult> =>
-      uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
+      uploadVideo({
+        channelId: channel.id,
+        videoPath,
+        metadata,
+        privacyStatus,
+        containsSyntheticMedia,
+        // Sprint 4 Task 5 (R18): always explicit, never left to the channel's Studio defaults.
+        selfDeclaredMadeForKids: config.selfDeclaredMadeForKids,
+        ...(config.categoryId && { categoryId: config.categoryId }),
+        ...(config.defaultLanguage && { defaultLanguage: config.defaultLanguage }),
+      });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Sprint 3 Task 12 (R3) — best-effort, same isolation posture as the
@@ -1674,6 +1777,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       youtubeVideoId: uploadResult.youtubeVideoId,
       privacyStatus: uploadResult.privacyStatus,
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids,
       coverFrameSet,
       metadata,
       // Sprint 3 Task 12 (R3) — included directly in this same fullOutput

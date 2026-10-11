@@ -18,9 +18,13 @@ import { markNotificationsResolvedByThreadKey } from '../models/repositories/not
 // only through a real, explicit API call now (the app, or
 // scripts/dry-run.ts's own simulated equivalent).
 
+// Sprint 4 Task 4: the reply and the user who gave it travel as one unit, so they
+// can never drift apart. userId is null for the ops-token/script path.
+export type ApprovalReply = { reply: string; userId: string | null };
+
 type PendingApproval = {
-  promise: Promise<string>;
-  resolve: (reply: string) => void;
+  promise: Promise<ApprovalReply>;
+  resolve: (value: ApprovalReply) => void;
 };
 
 const pendingByThreadKey = new Map<string, PendingApproval>();
@@ -30,12 +34,12 @@ const pendingByThreadKey = new Map<string, PendingApproval>();
 // channel) gets the exact same promise back. This is what lets multiple
 // channels/recipients all await "the same gate" without any one of them
 // silently overwriting another's resolve callback.
-export function getOrCreatePendingApproval(threadKey: string): Promise<string> {
+export function getOrCreatePendingApproval(threadKey: string): Promise<ApprovalReply> {
   const existing = pendingByThreadKey.get(threadKey);
   if (existing) return existing.promise;
 
-  let resolveFn!: (reply: string) => void;
-  const promise = new Promise<string>((resolve) => {
+  let resolveFn!: (value: ApprovalReply) => void;
+  const promise = new Promise<ApprovalReply>((resolve) => {
     resolveFn = resolve;
   });
   pendingByThreadKey.set(threadKey, { promise, resolve: resolveFn });
@@ -66,13 +70,13 @@ export function hasPendingApproval(threadKey: string): boolean {
 // remember, so a Notification row can never end up permanently "still
 // pending" in the dashboard just because whichever channel resolved the
 // gate wasn't the in-app one.
-export function resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
+export function resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
   const pending = pendingByThreadKey.get(threadKey);
   if (!pending) {
     return { resolved: false };
   }
   pendingByThreadKey.delete(threadKey);
-  pending.resolve(reply);
+  pending.resolve(value);
   void markNotificationsResolvedByThreadKey(threadKey, new Date()).catch((error) => {
     console.error(`[pending-approvals] failed to mark Notification rows resolved for ${threadKey}:`, error);
   });

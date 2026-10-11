@@ -1,6 +1,10 @@
 import type { NotificationChannel } from './channel';
 import { insertNotification, insertOrReuseApprovalNotification } from '../models/repositories/notification.repository';
-import { getOrCreatePendingApproval, resolvePendingApproval as resolvePendingApprovalShared } from './pending-approvals';
+import {
+  getOrCreatePendingApproval,
+  resolvePendingApproval as resolvePendingApprovalShared,
+  type ApprovalReply,
+} from './pending-approvals';
 
 // Sprint 3 Task 3 (K2) — the real "in-app push through the dashboard"
 // default channel MVP_PART2 §1 asked for. Always dispatched to, regardless
@@ -28,7 +32,7 @@ export class InAppChannel implements NotificationChannel {
     });
   }
 
-  async requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }> {
+  async requestApproval(params: { threadKey: string; message: string }): Promise<ApprovalReply> {
     await insertOrReuseApprovalNotification({
       tenantId: this.params.tenantId,
       channelId: this.params.channelId,
@@ -37,11 +41,10 @@ export class InAppChannel implements NotificationChannel {
       message: params.message,
       threadKey: params.threadKey,
     });
-    const reply = await getOrCreatePendingApproval(params.threadKey);
-    return { reply };
+    return getOrCreatePendingApproval(params.threadKey);
   }
 
-  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean } {
-    return resolvePendingApprovalShared(threadKey, reply);
+  resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
+    return resolvePendingApprovalShared(threadKey, value);
   }
 }

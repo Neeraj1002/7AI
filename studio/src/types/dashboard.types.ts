@@ -60,6 +60,27 @@ export type QualityDashboard = {
   gate2Rates: { approve: number; revise: number; reject: number };
 };
 
+// Sprint 4 Task 7: side-by-side channel x format comparison. A views/likes/
+// comments proxy view, NOT a P&L (no ad-revenue data exists yet).
+export type ComparisonTotals = { views: number; likes: number; comments: number };
+
+export type ComparisonFormatRow = {
+  formatKey: string | null; // null = every run submitted without a format (Freeform)
+  videoCount: number;
+  totals: ComparisonTotals;
+  avgViewsPerVideo: number | null;
+};
+
+export type ChannelComparisonDashboard = {
+  channels: {
+    channelId: string;
+    channelName: string;
+    videoCount: number;
+    totals: ComparisonTotals;
+    avgViewsPerVideo: number | null;
+    byFormat: ComparisonFormatRow[];
+  }[];
+};
 // Bugs Closure R3 (D3). medianDecisionSeconds blends per-verdict medians weighted by count (approximate).
 export type GateOutcome = { approved: number; revised: number; rejected: number; medianDecisionSeconds: number | null };
 export type GateAnalyticsDashboard = { gate1: GateOutcome; gate2: GateOutcome };

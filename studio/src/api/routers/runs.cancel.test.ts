@@ -99,7 +99,7 @@ describe('runs.cancel', () => {
     mocks.findPipelineRunById.mockResolvedValue(run({ status: 'paused_gate1' }));
     mocks.resolvePendingApproval.mockReturnValue({ resolved: true });
     expect(await caller().cancel({ runId: RUN_ID })).toEqual({ cancelled: true, immediate: true, alreadyEnded: false });
-    expect(mocks.resolvePendingApproval).toHaveBeenCalledWith(RUN_ID, 'reject Cancelled by user');
+    expect(mocks.resolvePendingApproval).toHaveBeenCalledWith(RUN_ID, { reply: 'reject Cancelled by user', userId: 'u1' });
   });
 
   it('is idempotent on a run already ended as a cancel', async () => {

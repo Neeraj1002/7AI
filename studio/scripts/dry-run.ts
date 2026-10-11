@@ -155,7 +155,7 @@ async function gate1(runId: string, outcomeArg: string, editText?: string): Prom
     throw new Error('Timed out waiting for gate1 to open (no pending approval registered)');
   }
 
-  const { resolved } = resolvePendingApproval(runId, replyText);
+  const { resolved } = resolvePendingApproval(runId, { reply: replyText, userId: null });
   if (!resolved) {
     throw new Error(`resolvePendingApproval unexpectedly reported resolved=false for run ${runId}`);
   }
@@ -201,7 +201,7 @@ async function gate2(runId: string, outcomeArg: string): Promise<void> {
     throw new Error('Timed out waiting for gate2 to open (no pending approval registered)');
   }
 
-  const { resolved } = resolvePendingApproval(runId, replyText);
+  const { resolved } = resolvePendingApproval(runId, { reply: replyText, userId: null });
   if (!resolved) {
     throw new Error(`resolvePendingApproval unexpectedly reported resolved=false for run ${runId}`);
   }

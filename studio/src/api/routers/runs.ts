@@ -31,6 +31,7 @@ import {
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
+import { FORMAT_KEYS } from '../../formats/manifest';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
 
@@ -114,6 +115,38 @@ function lastProgressAt(run: PipelineRun, stages: PipelineStage[]): Date {
 // `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
 // below. `list`/`get` were both missed by that hardening pass — this closes
 // the second of the two.
+function intakeRepeatTopic(
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+): { runId: string; topic: string; createdAt: string } | null {
+  const intake = stages
+    .filter((s) => s.stageName === 'intake' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const value = (intake?.output as { repeatTopic?: { runId: string; topic: string; createdAt: string } } | null | undefined)
+    ?.repeatTopic;
+  return value ?? null;
+}
+
+// Sprint 4 Task 2: the latest completed script_review attempt's concerns and
+// violations plus the run's explicit sources. null before any review exists.
+export function deriveScriptReview(
+  run: Pick<PipelineRun, 'creationOptions'>,
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+) {
+  const latest = stages
+    .filter((s) => s.stageName === 'script_review' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  if (!latest) return null;
+  const out = latest.output as { factualConcerns?: string[]; styleGuideViolations?: string[] };
+  return {
+    factualConcerns: out.factualConcerns ?? [],
+    styleGuideViolations: out.styleGuideViolations ?? [],
+    sources: run.creationOptions?.sources ?? [],
+    // Sprint 4 Task 5 (B16): the non-blocking repeat-topic warning, stored on the
+    // intake stage output (not only in the Gate 1 message). null when none.
+    repeatTopic: intakeRepeatTopic(stages),
+  };
+}
+
 async function getRunDetail(id: string, ctx: Context) {
   const run = await findPipelineRunById(id);
   if (!run) {
@@ -141,6 +174,9 @@ async function getRunDetail(id: string, ctx: Context) {
     stages,
     reviewLogs,
     lastGateDecision: deriveLastGateDecision(stages),
+    // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
+    // stable place (derived from stage output and creationOptions, not stored).
+    scriptReview: deriveScriptReview(run, stages),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
     // Bugs Task 12 (R1) - the app adds a Details line ("Switched to AI stills after stock footage failed review").
@@ -242,6 +278,10 @@ export const runsRouter = router({
         // Sprint 3 Task 9 (R4) — same edge-validation posture as
         // voice/visualSource/audioLayer above.
         targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+        // Sprint 4 Task 2 (R5): explicit sources only, folded into creationOptions.
+        sources: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
+        // Sprint 4 Task 6: validated against the format manifest at the edge.
+        formatKey: z.enum(FORMAT_KEYS).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -265,12 +305,14 @@ export const runsRouter = router({
       }
       await assertChannelCanRun(channel);
       const creationOptions =
-        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec
+        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length || input.formatKey
           ? {
               ...(input.voice && { voice: input.voice }),
               ...(input.visualSource && { visualSource: input.visualSource }),
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
               ...(input.targetDurationSec && { targetDurationSec: input.targetDurationSec }),
+              ...(input.sources?.length && { sources: input.sources }),
+              ...(input.formatKey && { formatKey: input.formatKey }),
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
@@ -469,7 +511,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.editedScriptText;
 
-      const { resolved } = resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, { reply: replyText, userId: ctx.userId });
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -525,7 +567,7 @@ export const runsRouter = router({
         }
       }
 
-      const { resolved } = resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, { reply: replyText, userId: ctx.userId });
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -657,7 +699,7 @@ export const runsRouter = router({
       });
     }
     if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
-      if (resolvePendingApproval(run.id, `reject ${CANCELLED_BY_USER}`).resolved) {
+      if (resolvePendingApproval(run.id, { reply: `reject ${CANCELLED_BY_USER}`, userId: ctx.userId }).resolved) {
         return { cancelled: true, immediate: true, alreadyEnded: false };
       }
       // Gate not registered in this process (e.g. mid-restart) — fall through
