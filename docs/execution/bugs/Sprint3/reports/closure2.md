@@ -86,11 +86,24 @@ Answers to the task's four questions, from two local test renders (real TTS, `AI
 - app: `npx tsc --noEmit` clean; `eslint` on the changed screens shows only a pre-existing `Array<T>` warning in `run-labels.ts` (line 57, not mine).
 - Two local test renders for P8 (real OpenAI TTS and Whisper, a few cents; stubbed visuals). The earlier `audio-bed` test render pattern was reused. No server was started, `sevenai_preview` was never touched.
 
-## The 24 reports (P2): not started
+## The 24 reports (P2): verdicts
 
-| # | Classification | area | status | evidence | fixed by |
-|---|---|---|---|---|---|
-| 1-24 | _to be filled after P1 and the device tests_ | | | | |
+Founder verdicts, 2026-10-11, from the phone and server tests (`closure2-phone-verification.md`, PR #63 for the post-approval screen). They are recorded through `bugs.updateTriage`'s service function (`triageBugReportWithAudit`, audit actor `script`) by `studio/scripts/triage-verdicts.ts`, run on the preview server: first a dry run that lists every open report with the verdict it would apply, then `--apply` after the mapping is confirmed. Reports are matched to a group by their description, not by number; a report that fits no group (or two) is left unchanged and listed for the founder. **State: script written and tested; dry run and `--apply` not yet run.** The per-report rows below are filled from the apply output.
+
+| Group (closureTask2 P2 rows) | Verdict note, verbatim | Status set |
+|---|---|---|
+| Budget (1-5), identical clips (6, 14-16; 6 = "AI images don't work", used in published runs since 2026-10-07), stutter (17-18), audio (19) | No longer reproduces on the real build (2026-10-11) | fixed |
+| Dashboard (7-9), Inbox (10), failed label (11) | Verified OK on the real build | fixed |
+| Wrong status after approval (12-13) | Reproduced, fixed by PR #63, verified on the phone 2026-10-11 (stepper, Publishing chip, no Cancel) | fixed |
+| Quality line | Not built; planned for Sprint 4 (Gate 2 quality checks, PR #53) | open (unchanged) |
+| Old `endMs` failure | Probably fixed by PR #46; not reproduced | awaiting_verification (not verified, so not closed) |
+| Report 20 and the four feedback reports | Area noted only; no code change in Sprint 3 | unchanged; area set (APP) |
+
+Failed-runs check (founder SQL, 2026-10-11): 24 failed runs = 18 cancelled + 6 rejected, none real failures.
+
+| # | Report | Group | Status set | Note |
+|---|---|---|---|---|
+| 1-24 | _filled from the `--apply` output_ | | | |
 
 ## What is left, and what I need
 
