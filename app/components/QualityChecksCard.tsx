@@ -14,11 +14,12 @@ const BADGE: Record<QualityRowStatus, { glyph: string; bg: string; fg: string }>
 // Sprint 4 FE E1 — Gate 2 "Quality checks", from `runs.get().qualityMetrics`. Colours and messages come from
 // the server's per-row `{ warn, message }`; rows the server omits are not applicable and are hidden.
 // Renders nothing when there are no measured metrics (older runs).
-export function QualityChecksCard({ qualityMetrics }: { qualityMetrics: unknown }) {
+export function QualityChecksCard({ qualityMetrics, embedded }: { qualityMetrics: unknown; embedded?: boolean }) {
   const checks = parseQualityMetrics(qualityMetrics);
   if (!checks) return null;
+  const Wrapper = embedded ? View : Card;
   return (
-    <Card>
+    <Wrapper style={embedded ? styles.embedded : undefined}>
       <Text style={styles.title}>Quality checks</Text>
       <Text style={styles.intro}>
         Measured on the final file. Red items block the video automatically; amber items are for your judgement.
@@ -38,11 +39,12 @@ export function QualityChecksCard({ qualityMetrics }: { qualityMetrics: unknown 
           </View>
         );
       })}
-    </Card>
+    </Wrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  embedded: { gap: 8 },
   title: { ...type.sectionTitle, color: color.ink },
   intro: { ...type.meta, lineHeight: 19 },
   rowWrap: { borderTopWidth: 1, borderTopColor: color.border, paddingVertical: 7, gap: 2 },

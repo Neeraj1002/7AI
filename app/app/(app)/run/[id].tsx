@@ -10,8 +10,9 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { gateDecisionsOf, manualRetryOf, resolvedOptionsOf, videoFallbackUsed } from '../../../lib/server-extras';
+import { gateDecisionsOf, manualRetryOf, resolvedOptionsOf, spentUsdOf, videoFallbackUsed } from '../../../lib/server-extras';
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, humanizeRunError, relativeTime, runTopic, stageLabel, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
 import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
@@ -98,7 +99,6 @@ export default function RunDetailScreen() {
   // Task 6/E2 — what the decision-sent card should say; derived once at
   // submit time from the mutation's own variables.
   const [sentSummary, setSentSummary] = useState<string | null>(null);
-  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   // Brief / Script / Video tab; null until the user picks one, so the default follows the run's state.
   const [tabChoice, setTabChoice] = useState<RunTab | null>(null);
   const [confirmCancelRunning, setConfirmCancelRunning] = useState(false);
@@ -457,38 +457,7 @@ export default function RunDetailScreen() {
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
 
       {isNeedsAttention ? (
-        <Card>
-          <View style={styles.warnHeader}>
-            <View style={styles.warnIconTile}>
-              <Feather name="alert-triangle" size={18} color={color.warnText} />
-            </View>
-            <Text style={styles.warnTitle}>What went wrong</Text>
-          </View>
-          <Text style={styles.body}>
-            {humanizeRunError(run.lastError) || 'This run stopped and needs a decision.'}
-            {run.currentStage ? <Text style={styles.meta}> (at {run.currentStage.replace(/_/g, ' ')})</Text> : null}
-          </Text>
-          <Text style={styles.meta}>
-            {capNextStep ?? 'Retry runs this step again from scratch. Cancel stops the run for good — nothing is published.'}
-          </Text>
-          {run.lastError ? (
-            <>
-              <Pressable
-                style={styles.detailsToggle}
-                onPress={() => setShowTechnicalDetails((v) => !v)}
-                accessibilityRole="button"
-              >
-                <Text style={styles.detailsToggleText}>Technical details</Text>
-                <Feather
-                  name={showTechnicalDetails ? 'chevron-down' : 'chevron-right'}
-                  size={16}
-                  color={color.muted}
-                />
-              </Pressable>
-              {showTechnicalDetails ? <Text style={styles.raw}>{run.lastError}</Text> : null}
-            </>
-          ) : null}
-        </Card>
+        <NeedsAttentionCard stage={run.currentStage} stages={stages as unknown as StageLike[]} lastError={run.lastError} extra={capNextStep} />
       ) : null}
 
       <ConfirmSheet
@@ -611,30 +580,16 @@ export default function RunDetailScreen() {
       ) : null}
 
       {isEnded ? (
-        <Card>
-          {endReason === 'rejected' ? (
-            <>
-              <StatusChip kind="failed" label={`Rejected at Gate ${lastGateDecision?.gate ?? '?'}`} />
-              <Text style={styles.body}>
-                You rejected this {lastGateDecision?.gate === 1 ? 'script' : 'video'}
-                {lastGateDecision?.reason ? `: "${lastGateDecision.reason}"` : '.'}
-              </Text>
-              <Text style={styles.meta}>Nothing was published.</Text>
-            </>
-          ) : endReason === 'cancelled' ? (
-            <>
-              <StatusChip kind="failed" label="Cancelled" />
-              <Text style={styles.body}>You cancelled this run. Nothing was published.</Text>
-            </>
-          ) : (
-            <>
-              <StatusChip kind="failed" label="Failed" />
-              <Text style={styles.body}>This run stopped.</Text>
-              {run.lastError ? <Text style={styles.meta}>{humanizeRunError(run.lastError)}</Text> : null}
-            </>
-          )}
-        </Card>
+        <EndedCard
+          endReason={endReason}
+          rejectedGate={lastGateDecision?.gate}
+          reason={lastGateDecision?.reason}
+          lastError={run.lastError}
+          spentUsd={spentUsdOf(data)}
+        />
       ) : null}
+
+      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} /> : null}
 
       {isPublished ? (
         <>
@@ -652,7 +607,21 @@ export default function RunDetailScreen() {
         </>
       ) : null}
 
-      {isGate2 ? <QualityChecksCard qualityMetrics={data.qualityMetrics} /> : null}
+      {isGate2 ? (
+        <Card>
+          <View style={styles.reviewHeader}>
+            <Text style={styles.cardTitle}>Video review</Text>
+            {videoPassed !== undefined ? <StatusChip kind={videoPassed ? 'ok' : 'failed'} label={videoPassed ? 'Passed' : 'Failed'} /> : null}
+          </View>
+          {videoRationale ? (
+            <ClampedText lines={3} style={styles.meta} text={videoRationale} moreLabel="Read full review" lessLabel="Show less" />
+          ) : null}
+          {regensUsed !== undefined ? (
+            <Text style={styles.meta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
+          ) : null}
+          <QualityChecksCard embedded qualityMetrics={data.qualityMetrics} />
+        </Card>
+      ) : null}
 
       <RunTabs value={tab} onChange={setTabChoice} />
       <Card key={tab}>
@@ -678,20 +647,25 @@ export default function RunDetailScreen() {
             <Text style={styles.cardMeta}>The script isn&apos;t written yet.</Text>
           )
         ) : (
-          <View style={styles.videoRow}>
-            {isGate2 ? (
-              videoSource ? (
+          isGate2 ? (
+            <View style={styles.videoRow}>
+              {videoSource ? (
                 <VideoView style={styles.video} player={player} nativeControls />
               ) : (
                 <View style={[styles.video, styles.videoLoading]}>
                   <ActivityIndicator color={color.onAccent} />
                 </View>
-              )
-            ) : null}
+              )}
+              <View style={styles.videoInfo}>
+                <Text style={styles.cardTitle}>Draft video</Text>
+                <Text style={styles.meta}>Tap the video to play it, then decide below.</Text>
+              </View>
+            </View>
+          ) : (
             <View style={styles.videoInfo}>
-              <Text style={styles.cardTitle}>{isGate2 ? 'Video review' : 'Video'}</Text>
+              <Text style={styles.cardTitle}>Video</Text>
               {videoPassed !== undefined ? (
-                <StatusChip kind={videoPassed ? 'ok' : 'failed'} label={videoPassed ? 'Passed' : 'Failed'} />
+                <StatusChip kind={videoPassed ? 'ok' : 'failed'} label={videoPassed ? 'Review passed' : 'Review failed'} />
               ) : (
                 <Text style={styles.cardMeta}>No video review yet.</Text>
               )}
@@ -702,7 +676,7 @@ export default function RunDetailScreen() {
                 <Text style={styles.meta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
               ) : null}
             </View>
-          </View>
+          )
         )}
       </Card>
 
@@ -864,12 +838,12 @@ const styles = StyleSheet.create({
   scriptHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm },
   body: { ...type.body, color: color.ink },
   meta: { ...type.meta },
-  link: { ...type.bodyStrong, color: color.accentText },
   scoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   score: { ...type.stat, color: color.ink },
   scoreOf: { ...type.body, color: color.muted },
   barTrack: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4 },
+  reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
   videoRow: { flexDirection: 'row', gap: space.md },
   video: { width: 118, height: 210, borderRadius: radius.sm, backgroundColor: color.video },
   videoLoading: { alignItems: 'center', justifyContent: 'center' },
@@ -896,16 +870,6 @@ const styles = StyleSheet.create({
     ...type.body,
     color: color.ink,
   },
-  warnHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  warnIconTile: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    backgroundColor: color.warnBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  warnTitle: { fontFamily: font.black, fontSize: 16, color: color.ink },
   darkCard: { backgroundColor: color.ink, borderColor: color.ink },
   darkHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   darkTitle: { fontFamily: font.bold, fontSize: 15, color: color.onAccent },
@@ -913,17 +877,6 @@ const styles = StyleSheet.create({
   darkMeta: { fontFamily: font.regular, fontSize: 12, color: 'rgba(255,255,255,0.6)' },
   darkLink: { fontFamily: font.bold, color: color.onAccent },
   answerAgain: { alignSelf: 'center', marginTop: space.xs },
-  publishedCard: { borderWidth: 2, borderColor: color.okText },
-  publishedHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  publishedIconTile: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    backgroundColor: color.okBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  publishedChips: { flexDirection: 'row', gap: space.sm },
   openYoutube: {
     height: 46,
     borderRadius: radius.lg,
