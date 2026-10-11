@@ -270,25 +270,20 @@ Per-task reports: `reports/task1.md` through `reports/task13.md` (`task10.md`, `
   cleanup. Not confirmed whether Task 10/R1 folded this in while `.env.example`/`.env`/`.env.local`
   were already open — worth checking once Task 10's report is available.
 - **L2 verification item — confirm the real Cloud Console quota numbers match the assumed defaults**
-  — a real, quick check only the founder can do (their own Google login). See
-  `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+  — **closed 2026-10-11 (Task 12 F7): the founder is not pursuing it.** The quota figures were not
+  recorded. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
 - **Performance Analytics' unbounded polling design (found during Task 4's L2)** — grows in real
   quota cost with cumulative published-video count, not daily upload volume; not urgent today, worth
   a real fix before it is. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
-- **The new-tenant default `AgentQuota.budgetCeilingUsd` ($2.00) is still unconfirmed by you** — same
-  status as the founder's own original figure it reuses. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
-- **A real founder action needed to close out Task 5's own core verification claim** — the founder's
-  existing YouTube refresh token is expired/revoked at Google's end (confirmed live, independent of
-  this project's code — see Task 5's row above). A fresh consent via the new in-app connect flow is
-  needed before a real publish/stats-poll can be proven to succeed through the new `AgentCredential`
-  path. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
-- **The YouTube OAuth client's registered redirect URI needs a Console update once a real deployed
-  callback URL exists** — a real, live-blocking instance of this hit 2026-09-28 (a private-IP
-  `redirect_uri` rejected by Google); tracked now as Bugs Task 5, not just a someday item. **A real
-  candidate URL now exists** — the preview VPS's own `YOUTUBE_REDIRECT_URI=https://7aistudio.tech/oauth2callback`
-  (`docs/server/deployment/preview/detail.md` §6) — Bugs Task 5's remaining blocker (migrating the
-  OAuth client from "Desktop app" to "Web application" type) is what would actually let this URL be
-  registered. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1 and `docs/execution/bugs/tasks/task5.md`.
+- **The new-tenant default `AgentQuota.budgetCeilingUsd` ($2.00) — superseded 2026-10-11 (Task 12 R7):**
+  the founder set $10 a week, split equally across YouTube-connected channels. See
+  `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
+- **Task 5's own core verification (founder action) — closed 2026-10-11 (Task 12 F7):** YouTube connect
+  works through the in-app flow. Testing-mode tokens expire every 7 days; the founder accepts reconnecting
+  each channel weekly, and Google production verification is out of scope. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+- **The YouTube OAuth client's redirect URI — closed 2026-10-11 (Task 12 F7):** `YOUTUBE_REDIRECT_URI=https://7aistudio.tech/oauth2callback`
+  (`docs/server/deployment/preview/detail.md` §6) is registered in the Google Console and the connect flow
+  works (Bugs Task 5, `docs/execution/bugs/Sprint3/tasks/task5.md`).
 - **A real founder action needed to verify Task 7/O1** — real push delivery has to be checked against
   a real physical device (simulators don't deliver real push); tracked as a founder-action item the
   same way Task 4/L2 and Task 5's own remaining item are.
