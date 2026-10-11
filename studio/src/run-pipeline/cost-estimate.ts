@@ -2,26 +2,23 @@ import { resolvePurpose, resolvePricing } from '../llm';
 import { resolveMediaPurpose, resolveTtsPricing, resolveTranscriptionPricing } from '../media';
 import { resolveAiVisualsPurpose, resolveImagePricing } from '../ai-visuals/registry';
 import type { VideoKind } from '../formats/manifest';
+import { longStillCount } from '../agents/video-generation/plan-long';
 
 // Sprint 4 Task 9 (R7): a pre-flight cost estimate from the real unit prices
 // (never hard-coded rates), so the brief screen can suggest a per-video limit and
 // runs.create can refuse a video the channel cannot afford. The token and
-// character counts are planning assumptions, not measurements: PR B replaces them
-// with measured numbers from the 2-minute real run.
+// character counts are planning assumptions. Checked against the real 2-minute run of
+// 2026-10-11: estimated $0.4125, actually paid $0.4032 (reports/task9.md).
 
 export const LONG_WORDS_PER_MINUTE = 145;
 const SHORT_WORDS_PER_MINUTE = 150;
 const CHARS_PER_WORD = 6; // average English word plus its space
 const TOKENS_PER_WORD = 1.4;
-export const LONG_DEFAULT_SECONDS_PER_STILL = 5;
 const SHORT_SECONDS_PER_STILL = 2.5;
-export const LONG_STILL_MIN = 12;
-export const LONG_STILL_MAX = 200;
 const ATTEMPTS_WORST_CASE = 3;
 
-export function longFormStillCount(targetSeconds: number, secondsPerStill: number): number {
-  return Math.min(LONG_STILL_MAX, Math.max(LONG_STILL_MIN, Math.ceil(targetSeconds / secondsPerStill)));
-}
+// One rule for how many stills a long video gets, shared with the planner that actually asks for them.
+export const longFormStillCount = longStillCount;
 
 export type CostEstimate = {
   estimateUsd: number; // one attempt
@@ -50,7 +47,7 @@ export function estimateRunCost(params: {
   const long = params.videoKind === 'long';
   const words = Math.round((params.targetSeconds / 60) * (long ? LONG_WORDS_PER_MINUTE : SHORT_WORDS_PER_MINUTE));
   const stillCount = long
-    ? longFormStillCount(params.targetSeconds, params.secondsPerStill ?? LONG_DEFAULT_SECONDS_PER_STILL)
+    ? longStillCount(params.targetSeconds, params.secondsPerStill)
     : Math.min(20, Math.max(6, Math.ceil(params.targetSeconds / (params.secondsPerStill ?? SHORT_SECONDS_PER_STILL))));
 
   const imageModel = resolveAiVisualsPurpose('still-generation').model;

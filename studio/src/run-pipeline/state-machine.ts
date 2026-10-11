@@ -898,7 +898,15 @@ export async function runVideoGenerationStage(
   // limit checked between paid calls. A Short takes none of these branches.
   const isLong = config.videoKind === 'long';
   const maxCostUsd = run.creationOptions?.maxCostUsd;
-  const runLimitGuard = isLong && maxCostUsd ? () => assertWithinRunLimit(runId, maxCostUsd) : undefined;
+  // Awaited between paid calls. It also honours a Cancel: the runner only looks for one between
+  // stages, and a long video's stage runs for tens of minutes, so without this a cancelled run would
+  // keep paying for stills until the stage ended.
+  const runLimitGuard = isLong
+    ? async () => {
+        if (isCancellationRequested(runId)) throw new NonTransientStageError('Cancelled by user');
+        if (maxCostUsd) await assertWithinRunLimit(runId, maxCostUsd);
+      }
+    : undefined;
   const sanctionedChapters = isLong ? (gate1Stage.output as { chapters?: ScriptChapter[] }).chapters : undefined;
   if (isLong && (!sanctionedChapters || sanctionedChapters.length === 0)) {
     throw new Error(`PipelineRun ${runId} gate1 output has no chapters, cannot render a long-form video`);

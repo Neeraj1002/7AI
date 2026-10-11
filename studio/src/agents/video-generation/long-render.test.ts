@@ -145,3 +145,39 @@ describe('still counts', () => {
     expect(Math.min(...counts)).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('chapter segments resume after a crash (Sprint 4 Task 9, R6.3)', () => {
+  it('a finished chapter is reused; only a missing one is rendered again', async () => {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const fsp = await import('node:fs/promises');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { renderChapterSegments } = await import('./long-render');
+    const { env } = await import('../../config/env');
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'segments-'));
+    try {
+      const img = path.join(dir, 'a.png');
+      await promisify(execFile)(env.FFMPEG_PATH, ['-y', '-f', 'lavfi', '-i', 'color=c=0x336699:size=1536x1024:rate=1', '-frames:v', '1', img]);
+      const chapters = [0, 1].map((chapterIndex) => ({ chapterIndex, scenes: [{ sceneIndex: chapterIndex, imagePath: img, frames: 6 }] }));
+      const events: string[] = [];
+      const run = () =>
+        renderChapterSegments({
+          chapters,
+          workDir: path.join(dir, 'seg'),
+          profile: renderProfileFor('long'),
+          onChapterDone: (ci, resumed) => events.push(`${ci}:${resumed ? 'resumed' : 'rendered'}`),
+        });
+      const first = await run();
+      expect(events).toEqual(['0:rendered', '1:rendered']);
+      // The process "crashes" after chapter 0: chapter 1's file is gone.
+      await fsp.rm(first[1]);
+      events.length = 0;
+      const second = await run();
+      expect(events).toEqual(['0:resumed', '1:rendered']);
+      expect(second).toEqual(first);
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
