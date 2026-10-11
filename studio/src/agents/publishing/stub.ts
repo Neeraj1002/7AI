@@ -26,3 +26,8 @@ export async function stubUploadVideo(params: UploadParams): Promise<UploadResul
 export async function stubSetThumbnail(_params: { youtubeVideoId: string; imagePath: string }): Promise<void> {
   return undefined;
 }
+
+// Sprint 4 Task 10: stand-in for captions.insert under YOUTUBE_STUB=1.
+export async function stubUploadCaptions(_params: { youtubeVideoId: string; srtPath: string }): Promise<{ captionId?: string }> {
+  return { captionId: 'stub-caption' };
+}

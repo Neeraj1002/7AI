@@ -39,6 +39,10 @@ export async function uploadAttemptBundle(params: {
   scriptText: string;
   scratchDir: string;
   context: BundleManifestContext;
+  // Sprint 4 Task 10 (R3.3): a long-form bundle keeps only the small files (script, plan, ffmpeg args,
+  // transcript): no full-length intermediate videos, voiceover, bed or the ~120 stills. The Gate 2
+  // preview copy is stored beside the draft video instead.
+  longForm?: boolean;
 }): Promise<{ manifestKey: string; files: BundleManifestFile[] }> {
   const { artifacts: a, prefix } = params;
 
@@ -52,13 +56,17 @@ export async function uploadAttemptBundle(params: {
     { name: 'ffmpeg-args.json', filePath: a.ffmpegArgsJsonPath, contentType: 'application/json' },
     { name: 'script.txt', filePath: scriptPath, contentType: 'text/plain' },
   ];
-  if (a.captionsPath) candidates.push({ name: 'captions.ass', filePath: a.captionsPath, contentType: 'text/x-ssa' });
-  if (a.stockVideoPath) candidates.push({ name: 'stock-shotlist.mp4', filePath: a.stockVideoPath, contentType: 'video/mp4' });
-  if (a.stillsVideoPath) candidates.push({ name: 'stills-video.mp4', filePath: a.stillsVideoPath, contentType: 'video/mp4' });
-  (a.stillImagePaths ?? []).forEach((p, i) =>
+  if (params.longForm) {
+    // keep: transcript.json, plan.json, ffmpeg-args.json, script.txt
+    candidates.splice(0, 1);
+  }
+  if (!params.longForm && a.captionsPath) candidates.push({ name: 'captions.ass', filePath: a.captionsPath, contentType: 'text/x-ssa' });
+  if (!params.longForm && a.stockVideoPath) candidates.push({ name: 'stock-shotlist.mp4', filePath: a.stockVideoPath, contentType: 'video/mp4' });
+  if (!params.longForm && a.stillsVideoPath) candidates.push({ name: 'stills-video.mp4', filePath: a.stillsVideoPath, contentType: 'video/mp4' });
+  (params.longForm ? [] : a.stillImagePaths ?? []).forEach((p, i) =>
     candidates.push({ name: `still-${i}.png`, filePath: p, contentType: 'image/png' }),
   );
-  if (a.audioBedPath) {
+  if (!params.longForm && a.audioBedPath) {
     const ext = path.extname(a.audioBedPath) || '.mp3';
     candidates.push({ name: `audio-bed${ext}`, filePath: a.audioBedPath, contentType: ext === '.wav' ? 'audio/wav' : 'audio/mpeg' });
   }

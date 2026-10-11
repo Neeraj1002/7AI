@@ -1,6 +1,6 @@
 import { fetchVideoStatsViaProvider } from './youtube-stats-client';
-import { fetchRetentionCurveViaProvider } from './youtube-analytics-client';
-import { stubFetchVideoStats, stubFetchRetentionCurve } from './stub';
+import { fetchRetentionCurveViaProvider, fetchLongFormMetricsViaProvider } from './youtube-analytics-client';
+import { stubFetchVideoStats, stubFetchRetentionCurve, stubFetchLongFormMetrics } from './stub';
 import {
   insertPerformanceSnapshot,
   listCompletedRunsWithPublishedVideo,
@@ -10,7 +10,7 @@ import { findChannelById } from '../../models/repositories/channel.repository';
 import { isInvalidGrant, noteYoutubeAuthFailure } from '../../manage-channels/youtube-auth-health';
 import { decidePoll } from './poll-policy';
 import { env } from '../../config/env';
-import type { PerformanceSnapshot, RetentionCurvePoint } from '../../types';
+import type { LongFormMetrics, PerformanceSnapshot, RetentionCurvePoint } from '../../types';
 import type { VideoStats } from './types';
 
 // Performance Analytics agent — AGENT_FLEET_DESIGN.md Section 4.8, "basic
@@ -56,6 +56,20 @@ async function fetchRetentionCurve(channelId: string, youtubeVideoId: string): P
   }
 }
 
+// Sprint 4 Task 10 (R6): same isolation as the retention curve above - the Analytics call can be
+// blocked by a missing scope or API, which must never fail the views/likes/comments snapshot.
+async function fetchLongFormMetrics(channelId: string, youtubeVideoId: string): Promise<LongFormMetrics | undefined> {
+  try {
+    if (env.YOUTUBE_ANALYTICS_STUB === '1') {
+      return await stubFetchLongFormMetrics(youtubeVideoId);
+    }
+    return await fetchLongFormMetricsViaProvider(channelId, youtubeVideoId);
+  } catch (error) {
+    console.warn(`[performance-analytics] long-form metrics fetch failed for video ${youtubeVideoId} (other snapshot fields unaffected):`, error);
+    return undefined;
+  }
+}
+
 // Records one snapshot for a single run's published video. Used both for the
 // initial post-publish snapshot and by each periodic poll tick — a plain
 // insert, no upsert/dedup logic, since accumulating many rows over time is
@@ -71,9 +85,12 @@ export async function recordSnapshot(params: {
   channelId: string;
   pipelineRunId: string;
   youtubeVideoId: string;
+  // Sprint 4 Task 10: long-form videos also get the long-form metrics; a Short is recorded as before.
+  videoKind?: 'short' | 'long';
 }): Promise<PerformanceSnapshot> {
   const stats = await fetchVideoStats(params.channelId, params.youtubeVideoId);
   const retentionCurve = await fetchRetentionCurve(params.channelId, params.youtubeVideoId);
+  const longFormMetrics = params.videoKind === 'long' ? await fetchLongFormMetrics(params.channelId, params.youtubeVideoId) : undefined;
   return insertPerformanceSnapshot({
     tenantId: params.tenantId,
     channelId: params.channelId,
@@ -83,6 +100,7 @@ export async function recordSnapshot(params: {
     likes: stats.likes,
     comments: stats.comments,
     retentionCurve,
+    ...(longFormMetrics && { longFormMetrics }),
     snapshotAt: new Date(),
   });
 }

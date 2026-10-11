@@ -4,6 +4,8 @@ import { promisify } from 'node:util';
 import { env } from '../../config/env';
 import {
   QUALITY_SPEC,
+  SHORT_PROFILE,
+  type QualityProfile,
   QUALITY_ROW_KEYS,
   type QualityMetrics,
   type QualityRow,
@@ -59,9 +61,13 @@ export function parseFrameRate(rate: string | undefined): number | null {
 
 // The only things that BLOCK a video (deterministic fail, no LLM call): ones
 // that would ship a visibly/audibly broken file.
-export function hardFailureReason(m: QualityMetrics): string | null {
+export function hardFailureReason(
+  m: QualityMetrics,
+  profile: QualityProfile = SHORT_PROFILE,
+  durations?: { videoSeconds?: number; narrationSeconds?: number },
+): string | null {
   if (!m.hasAudio) return 'Video has no audio track';
-  const { width, height, fps } = QUALITY_SPEC.video;
+  const { width, height, fps } = profile;
   if (m.width !== width || m.height !== height) {
     return `Wrong resolution ${m.width}x${m.height} (expected ${width}x${height})`;
   }
@@ -77,6 +83,23 @@ export function hardFailureReason(m: QualityMetrics): string | null {
   if (m.integratedLufs === null || Math.abs(m.integratedLufs - targetLufs) > hardToleranceLufs) {
     return `Loudness ${m.integratedLufs === null ? 'unmeasurable' : `${m.integratedLufs.toFixed(1)} LUFS`} is outside the ${targetLufs} ±${hardToleranceLufs} LUFS band`;
   }
+  // Sprint 4 Task 10 (R2): long-form length bounds, and the video must follow the narration.
+  const video = durations?.videoSeconds;
+  if (video !== undefined) {
+    if (profile.minDurationSec !== null && video < profile.minDurationSec) {
+      return `Duration ${video.toFixed(1)}s is under the ${profile.minDurationSec}s minimum`;
+    }
+    if (profile.videoKind === 'long' && video > profile.maxDurationSec) {
+      return `Duration ${video.toFixed(1)}s is over the ${profile.maxDurationSec}s maximum`;
+    }
+    const narration = durations?.narrationSeconds;
+    if (profile.narrationToleranceFraction !== null && narration && narration > 0) {
+      const gap = Math.abs(video - narration) / narration;
+      if (gap > profile.narrationToleranceFraction) {
+        return `Video length ${video.toFixed(1)}s differs from the narration (${narration.toFixed(1)}s) by ${(gap * 100).toFixed(1)}%, more than ${profile.narrationToleranceFraction * 100}%`;
+      }
+    }
+  }
   return null;
 }
 
@@ -86,7 +109,11 @@ type MetricsInput = Omit<QualityMetrics, 'softWarnings' | 'rows'>;
 // checked row is evaluated once, and both the warning text list and the per-row warn
 // flags come from it, so they cannot disagree. A row is omitted when it does not apply
 // to this video or cannot be evaluated (never reported as warn:false in that case).
-export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' | 'stock-footage' | undefined): QualityRows {
+export function evaluateQualityRows(
+  m: MetricsInput,
+  visualSource: 'ai-stills' | 'stock-footage' | undefined,
+  profile: QualityProfile = SHORT_PROFILE,
+): QualityRows {
   const rows: QualityRows = {};
   const row = (warn: boolean, message: string): QualityRow => ({ warn, message: warn ? message : null });
   const { targetLufs, toleranceLufs, maxTruePeakDb } = QUALITY_SPEC.loudness;
@@ -116,8 +143,8 @@ export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' |
   }
   if (visualSource === 'ai-stills' && m.longestShotSeconds !== null) {
     rows.longestShot = row(
-      m.longestShotSeconds > QUALITY_SPEC.shot.maxSeconds,
-      `Longest single shot is ${m.longestShotSeconds.toFixed(1)}s (spec: ≤ ${QUALITY_SPEC.shot.maxSeconds}s)`,
+      m.longestShotSeconds > profile.maxShotSeconds,
+      `Longest single shot is ${m.longestShotSeconds.toFixed(1)}s (spec: ≤ ${profile.maxShotSeconds}s)`,
     );
   }
   if (visualSource === 'stock-footage' && m.shotCount !== null) {
@@ -126,15 +153,19 @@ export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' |
       `Only ${m.shotCount} distinct shot(s) detected in a stock-footage video (spec: a cut per beat)`,
     );
   }
-  if (m.captionsExpected && m.captionsDetected !== null) {
+  if (profile.checkCaptions && m.captionsExpected && m.captionsDetected !== null) {
     rows.captions = row(m.captionsDetected === false, 'Captions are enabled but none were detected in the frame');
   }
   return rows;
 }
 
 // Spec rows that missed but never block — recorded and shown at Gate 2 (same order as before).
-export function collectSoftWarnings(m: MetricsInput, visualSource: 'ai-stills' | 'stock-footage' | undefined): string[] {
-  const rows = evaluateQualityRows(m, visualSource);
+export function collectSoftWarnings(
+  m: MetricsInput,
+  visualSource: 'ai-stills' | 'stock-footage' | undefined,
+  profile: QualityProfile = SHORT_PROFILE,
+): string[] {
+  const rows = evaluateQualityRows(m, visualSource, profile);
   return QUALITY_ROW_KEYS.flatMap((key) => {
     const r = rows[key];
     return r?.warn && r.message ? [r.message] : [];
@@ -144,9 +175,13 @@ export function collectSoftWarnings(m: MetricsInput, visualSource: 'ai-stills' |
 // For runs measured before `rows` existed: derive it from the stored metrics and the
 // run's visual source. Returns the metrics unchanged when rows are already there, and
 // without rows when the metrics are too incomplete to evaluate (absent, not false).
-export function withQualityRows(m: QualityMetrics, visualSource: 'ai-stills' | 'stock-footage' | undefined): QualityMetrics {
+export function withQualityRows(
+  m: QualityMetrics,
+  visualSource: 'ai-stills' | 'stock-footage' | undefined,
+  profile: QualityProfile = SHORT_PROFILE,
+): QualityMetrics {
   if (m.rows) return m;
-  const rows = evaluateQualityRows(m, visualSource);
+  const rows = evaluateQualityRows(m, visualSource, profile);
   return Object.keys(rows).length > 0 ? { ...m, rows } : m;
 }
 
@@ -266,12 +301,15 @@ export async function measureQualityMetrics(params: {
   videoPath: string;
   captionsEnabled: boolean;
   visualSource?: 'ai-stills' | 'stock-footage';
+  // Sprint 4 Task 10: long-form passes its own profile (no caption check, longer shots allowed).
+  profile?: QualityProfile;
 }): Promise<QualityMetrics> {
+  const profile = params.profile ?? SHORT_PROFILE;
   const probe = await probeStreams(params.videoPath);
   const [loudness, shots, captionsDetected] = await Promise.all([
     probe.audio ? measureLoudness(params.videoPath) : Promise.resolve({ integratedLufs: null, truePeakDb: null }),
     measureShots(params.videoPath, probe.durationSeconds),
-    params.captionsEnabled ? detectCaptions(params.videoPath) : Promise.resolve(null),
+    params.captionsEnabled && profile.checkCaptions ? detectCaptions(params.videoPath) : Promise.resolve(null),
   ]);
   const v = probe.video;
   const a = probe.audio;
@@ -291,8 +329,12 @@ export async function measureQualityMetrics(params: {
     hasAudio: Boolean(a),
     longestShotSeconds: shots.longestShotSeconds,
     shotCount: shots.shotCount,
-    captionsExpected: params.captionsEnabled,
+    captionsExpected: params.captionsEnabled && profile.checkCaptions,
     captionsDetected,
   };
-  return { ...base, softWarnings: collectSoftWarnings(base, params.visualSource), rows: evaluateQualityRows(base, params.visualSource) };
+  return {
+    ...base,
+    softWarnings: collectSoftWarnings(base, params.visualSource, profile),
+    rows: evaluateQualityRows(base, params.visualSource, profile),
+  };
 }

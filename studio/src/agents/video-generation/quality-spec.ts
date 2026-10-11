@@ -81,6 +81,64 @@ export const QUALITY_SPEC = {
   },
 } as const;
 
+// Sprint 4 Task 10 (R2): what differs between a Short and a long-form video. Everything not
+// listed here (loudness, codec, audio, ...) is the same QUALITY_SPEC for both.
+export type QualityProfile = {
+  videoKind: 'short' | 'long';
+  width: number;
+  height: number;
+  fps: number;
+  // Whether burned-in captions are expected and checked. Long-form ships an SRT instead.
+  checkCaptions: boolean;
+  // Longest single visual allowed before the row warns.
+  maxShotSeconds: number;
+  // Hard bounds on the file's duration (seconds); the minimum applies to long-form only.
+  minDurationSec: number | null;
+  maxDurationSec: number;
+  // Allowed gap between the video and the narration, as a fraction of the narration. null = unchecked.
+  narrationToleranceFraction: number | null;
+};
+
+export const LONG_FORM_SPEC = {
+  width: 1920,
+  height: 1080,
+  fps: 30,
+  minDurationSec: 120,
+  maxDurationSec: 900,
+  narrationToleranceFraction: 0.02,
+  // A still may be held up to this many times its planned length before the shot row warns.
+  maxShotFactor: 1.5,
+  defaultSecondsPerStill: 5,
+} as const;
+
+export const SHORT_PROFILE: QualityProfile = {
+  videoKind: 'short',
+  width: QUALITY_SPEC.video.width,
+  height: QUALITY_SPEC.video.height,
+  fps: QUALITY_SPEC.video.fps,
+  checkCaptions: true,
+  maxShotSeconds: QUALITY_SPEC.shot.maxSeconds,
+  minDurationSec: null,
+  maxDurationSec: 60,
+  narrationToleranceFraction: null,
+};
+
+export function qualityProfileFor(videoKind: 'short' | 'long' | undefined, secondsPerStill?: number | null): QualityProfile {
+  if (videoKind !== 'long') return SHORT_PROFILE;
+  const perStill = secondsPerStill && secondsPerStill > 0 ? secondsPerStill : LONG_FORM_SPEC.defaultSecondsPerStill;
+  return {
+    videoKind: 'long',
+    width: LONG_FORM_SPEC.width,
+    height: LONG_FORM_SPEC.height,
+    fps: LONG_FORM_SPEC.fps,
+    checkCaptions: false,
+    maxShotSeconds: Number((perStill * LONG_FORM_SPEC.maxShotFactor).toFixed(2)),
+    minDurationSec: LONG_FORM_SPEC.minDurationSec,
+    maxDurationSec: LONG_FORM_SPEC.maxDurationSec,
+    narrationToleranceFraction: LONG_FORM_SPEC.narrationToleranceFraction,
+  };
+}
+
 // One entry per checked quality row. `warn` is true exactly when that row missed its
 // QUALITY_SPEC target (the same condition that produces its softWarnings text), so a
 // client never has to match warning text. `message` is that text, or null when !warn.

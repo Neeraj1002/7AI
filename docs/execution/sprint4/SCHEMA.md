@@ -40,3 +40,8 @@ path. No backfill.
 ## Task 9 (PR A): none (Json-column additions only)
 
 `PipelineRun.creationOptions` gains `videoKind` (stored only for long), a widened integer `targetDurationSec` (long: 120..900 whole minutes, stored as resolved) and `maxCostUsd` (long only). `ChannelProfileVersion.data` gains optional `offeredFormatKeys: string[]`; an older version without it means "none offered". `PipelineStage.output` for script_generation may carry `chapters` (written by PR B).
+
+## Task 10: `performance_snapshots.longFormMetrics` (migration `20261011120000_sprint4_task10_snapshot_longform_metrics`)
+
+`longFormMetrics jsonb NULL`: `{ averageViewDurationSec, averageViewPercentage, estimatedMinutesWatched, impressionsClickThroughRate: null }`. Written only for long-form snapshots; null for every Short and every existing row. No backfill. `videoKind` is not stored on the snapshot: it is read from the run's `creationOptions.videoKind` (absent = short), so there is one source.
+Json-only additions (no migration): the `video_review` stage output gains `previewPath`, `previewBytes`, `srtPath`, `r2PreviewKey`, `r2SrtKey` (long only); the `publishing` stage output gains `subtitlesUploaded`, `subtitlesMessage`, `subtitlesError`, `subtitlesLanguage`, `subtitlesQuotaUnits`, `chapterListIncluded` (long only); the `script_review` stage output gains optional `chapterNotes`.

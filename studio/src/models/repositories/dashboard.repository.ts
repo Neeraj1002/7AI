@@ -379,6 +379,7 @@ export async function getQualityDashboard(tenantId: string, channelId?: string):
 export type ComparisonVideoRow = {
   channelId: string;
   formatKey: string | null;
+  videoKind?: 'short' | 'long'; // absent = 'short' (every run before long-form)
   views: number;
   likes: number;
   comments: number;
@@ -387,7 +388,8 @@ export type ComparisonVideoRow = {
 export function buildChannelComparison(
   channels: { id: string; name: string }[],
   videos: ComparisonVideoRow[],
-  runFormats: { channelId: string; formatKey: string | null }[],
+  runFormats: { channelId: string; formatKey: string | null; videoKind?: 'short' | 'long' }[],
+  videoKindFilter?: 'short' | 'long',
 ): ChannelComparisonDashboard {
   const avg = (views: number, count: number) => (count > 0 ? views / count : null);
   const zero = (): ComparisonTotals => ({ views: 0, likes: 0, comments: 0 });
@@ -396,64 +398,86 @@ export function buildChannelComparison(
     channels: channels.map((channel) => {
       const total = zero();
       let count = 0;
-      const formats = new Map<string | null, { count: number; totals: ComparisonTotals }>();
-      const bucket = (key: string | null) => {
-        let b = formats.get(key);
+      type Kind = 'short' | 'long';
+      const kindOf = (k: Kind | undefined): Kind => k ?? 'short';
+      const wanted = (k: Kind | undefined) => !videoKindFilter || kindOf(k) === videoKindFilter;
+      const formats = new Map<string, { formatKey: string | null; videoKind: Kind; count: number; totals: ComparisonTotals }>();
+      const kinds = new Map<Kind, { count: number; totals: ComparisonTotals }>();
+      const bucket = (key: string | null, kind: Kind) => {
+        const id = `${key ?? ''} ${key === null ? 'n' : 'f'} ${kind}`;
+        let b = formats.get(id);
         if (!b) {
-          b = { count: 0, totals: zero() };
-          formats.set(key, b);
+          b = { formatKey: key, videoKind: kind, count: 0, totals: zero() };
+          formats.set(id, b);
         }
         return b;
       };
 
       for (const run of runFormats) {
-        if (run.channelId === channel.id) bucket(run.formatKey);
+        if (run.channelId === channel.id && wanted(run.videoKind)) bucket(run.formatKey, kindOf(run.videoKind));
       }
       for (const video of videos) {
-        if (video.channelId !== channel.id) continue;
-        const b = bucket(video.formatKey);
-        for (const t of [b.totals, total]) {
+        if (video.channelId !== channel.id || !wanted(video.videoKind)) continue;
+        const kind = kindOf(video.videoKind);
+        const b = bucket(video.formatKey, kind);
+        let kb = kinds.get(kind);
+        if (!kb) {
+          kb = { count: 0, totals: zero() };
+          kinds.set(kind, kb);
+        }
+        for (const t of [b.totals, total, kb.totals]) {
           t.views += video.views;
           t.likes += video.likes;
           t.comments += video.comments;
         }
         b.count += 1;
+        kb.count += 1;
         count += 1;
       }
-      if (formats.size === 0) bucket(null);
+      if (formats.size === 0) bucket(null, videoKindFilter ?? 'short');
 
       return {
         channelId: channel.id,
         channelName: channel.name,
         videoCount: count,
         totals: total,
-        avgViewsPerVideo: avg(total.views, count),
-        byFormat: [...formats.entries()]
-          .map(([formatKey, b]) => ({
-            formatKey,
+        // Never one average over two kinds: with both present (and no filter) it is null and
+        // byVideoKind carries the per-kind averages.
+        avgViewsPerVideo: kinds.size > 1 ? null : avg(total.views, count),
+        byVideoKind: [...kinds.entries()]
+          .map(([videoKind, k]) => ({ videoKind, videoCount: k.count, totals: k.totals, avgViewsPerVideo: avg(k.totals.views, k.count) }))
+          .sort((a, b) => (a.videoKind === b.videoKind ? 0 : a.videoKind === 'short' ? -1 : 1)),
+        byFormat: [...formats.values()]
+          .map((b) => ({
+            formatKey: b.formatKey,
+            videoKind: b.videoKind,
             videoCount: b.count,
             totals: b.totals,
             avgViewsPerVideo: avg(b.totals.views, b.count),
           }))
           // Named formats by views desc, Freeform (null) last.
           .sort((a, b) =>
-            a.formatKey === null ? 1 : b.formatKey === null ? -1 : b.totals.views - a.totals.views,
+            a.formatKey === null ? (b.formatKey === null ? 0 : 1) : b.formatKey === null ? -1 : b.totals.views - a.totals.views,
           ),
       };
     }),
   };
 }
 
-export async function getChannelComparisonDashboard(tenantId: string): Promise<ChannelComparisonDashboard> {
+export async function getChannelComparisonDashboard(
+  tenantId: string,
+  videoKind?: 'short' | 'long',
+): Promise<ChannelComparisonDashboard> {
   const channels = await prisma.channel.findMany({
     where: { tenantId, isActive: true },
     orderBy: { name: 'asc' },
     select: { id: true, name: true },
   });
 
-  const runFormats = await prisma.$queryRaw<{ channelId: string; formatKey: string | null }[]>(
+  const runFormats = await prisma.$queryRaw<{ channelId: string; formatKey: string | null; videoKind: 'short' | 'long' }[]>(
     Prisma.sql`
-      SELECT DISTINCT pr."channelId" AS "channelId", pr."creationOptions"->>'formatKey' AS "formatKey"
+      SELECT DISTINCT pr."channelId" AS "channelId", pr."creationOptions"->>'formatKey' AS "formatKey",
+             CASE WHEN pr."creationOptions"->>'videoKind' = 'long' THEN 'long' ELSE 'short' END AS "videoKind"
       FROM pipeline_runs pr
       WHERE pr."tenantId" = ${tenantId}::uuid
     `,
@@ -464,12 +488,13 @@ export async function getChannelComparisonDashboard(tenantId: string): Promise<C
     // Same "most recent snapshot per video wins" selection as
     // getContentPerformanceDashboard, plus the run's channel and formatKey.
     const rows = await prisma.$queryRaw<
-      { channelId: string; formatKey: string | null; views: bigint; likes: bigint; comments: bigint }[]
+      { channelId: string; formatKey: string | null; videoKind: 'short' | 'long'; views: bigint; likes: bigint; comments: bigint }[]
     >(
       Prisma.sql`
         SELECT DISTINCT ON (ps."youtubeVideoId")
           pr."channelId" AS "channelId",
           pr."creationOptions"->>'formatKey' AS "formatKey",
+          CASE WHEN pr."creationOptions"->>'videoKind' = 'long' THEN 'long' ELSE 'short' END AS "videoKind",
           ps.views, ps.likes, ps.comments
         FROM performance_snapshots ps
         JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
@@ -480,6 +505,7 @@ export async function getChannelComparisonDashboard(tenantId: string): Promise<C
     videos = rows.map((r) => ({
       channelId: r.channelId,
       formatKey: r.formatKey,
+      videoKind: r.videoKind,
       views: Number(r.views),
       likes: Number(r.likes),
       comments: Number(r.comments),
@@ -498,7 +524,7 @@ export async function getChannelComparisonDashboard(tenantId: string): Promise<C
     }
   }
 
-  return buildChannelComparison(channels, videos, runFormats);
+  return buildChannelComparison(channels, videos, runFormats, videoKind);
 }
 
 // Bugs Closure R3 (D3) — per-gate resolution analytics, kept apart from the success rate.

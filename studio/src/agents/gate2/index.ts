@@ -67,6 +67,8 @@ export function formatGate2Message(params: {
   qualityMetrics?: QualityMetrics;
   // Week 5 Task 3 (restart-safe gates) — see gate1's own comment.
   restarted?: boolean;
+  // Sprint 4 Task 10 (R4.1): plain warnings shown above the reply instructions (e.g. no chapter list).
+  warnings?: string[];
 }): string {
   const lines = [
     `Gate 2 — ${params.channelName}`,
@@ -77,6 +79,7 @@ export function formatGate2Message(params: {
     `Video Intelligence verdict: ${params.verdict}`,
     `Notes: ${params.rationale}`,
     ...(params.qualityMetrics ? [formatQualityMetrics(params.qualityMetrics)] : []),
+    ...(params.warnings ?? []).map((w) => `Warning: ${w}`),
     ``,
     // Sprint 3 Task 7 (O2) — no channel left in this system attaches the
     // real video file to a gate message; the dashboard/app always reads it
@@ -94,6 +97,7 @@ export async function requestGate2Decision(params: {
   rationale: string;
   qualityMetrics?: QualityMetrics;
   restarted?: boolean;
+  warnings?: string[];
 }): Promise<Gate2Outcome> {
   const message = formatGate2Message({
     channelName: params.channelName,
@@ -101,6 +105,7 @@ export async function requestGate2Decision(params: {
     rationale: params.rationale,
     qualityMetrics: params.qualityMetrics,
     restarted: params.restarted,
+    warnings: params.warnings,
   });
 
   // Sprint 3 Task 3 (K2) — same real per-user routing as Gate 1.

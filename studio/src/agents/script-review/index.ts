@@ -50,6 +50,8 @@ export const ScriptReviewOutputSchema = z.object({
   // Sprint 4 Task 2 (R8): same shape as factualConcerns. Defaulted so stage
   // outputs stored before this field existed still parse.
   styleGuideViolations: z.array(z.string()).default([]),
+  // Sprint 4 Task 10 (R1): long-form only. One short note per chapter; absent for a Short.
+  chapterNotes: z.array(z.object({ chapterTitle: z.string(), note: z.string() })).optional(),
 });
 export type ScriptReviewOutput = z.infer<typeof ScriptReviewOutputSchema>;
 
@@ -106,6 +108,48 @@ A low score or failed fit checks are still a valid review outcome, not an error 
 respond with a complete, well-formed review. Respond with raw JSON only — no markdown code
 fences, no commentary.`;
 
+// Sprint 4 Task 10 (R1): the rubric for a 2 to 15 minute chaptered video. The JSON shape is the
+// Shorts one plus optional chapterNotes; the factual-concern and style-guide rules are the same
+// text as the Shorts prompt, and hookScore/hookNotes judge the cold open instead of the first swipe.
+export const LONG_FORM_SYSTEM_PROMPT = `You review a long-form (2 to 15 minute, 16:9) YouTube video script,
+written in chapters, before it goes to production. Respond with ONLY a JSON object of the shape:
+{"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[], "chapterNotes": [{"chapterTitle": string, "note": string}]}
+
+"score" is 0-10, scoring quality, clarity, structure, and brand alignment together. Judge:
+- Chapter flow: does each chapter answer the question it opens with, and does the next chapter follow
+  from it without repeating it?
+- Open loops: every question or promise raised early must be closed by a later chapter. List any
+  that are left open, or closed too early to matter.
+- Closing line: does the video end on a line that points forward, rather than trailing off or
+  restating the intro?
+"notes" explains the score in a few sentences.
+
+"hookScore" is a SEPARATE 0-10 score judging ONLY the cold open (the first 20-40 seconds of narration):
+does it start in the middle of the idea, state a question or surprising claim that earns the next
+minute, and avoid logo/intro filler and "Today we're going to talk about..."? Score 8-10 only for an
+opening that does real work; 0-3 for a slow or generic one. "hookNotes" explains the hookScore.
+
+"videoGenFit" checks the script is producible by a TTS voiceover plus AI still images with slow
+zoom/pan and an SRT subtitle file (no generated video, no on-screen text):
+- "fitsLengthLimit": read aloud at a natural pace (about 145 words per minute), is the narration
+  within 20% of the target length given in the user message, and between 2 and 15 minutes?
+- "pacingRealistic": can the toolchain change picture about every 5 seconds without complex staging?
+- "visualsProducible": can every described visual be an AI still image?
+- "flags": specific problems, empty array if none.
+
+"factualConcerns" is a plausibility check, not a verified fact-check: list specific claims that seem
+incorrect, outdated or unverifiable, and any date, price, number or name that is not in the original
+brief. Quote or closely paraphrase; empty array if nothing stands out.
+
+"styleGuideViolations" lists specific breaks of the channel style guide or the banned opening/ending
+phrases in the user message; empty array if none were given or nothing violates them.
+
+"chapterNotes" has one entry per chapter, in order: "chapterTitle" exactly as given, and a one-sentence
+"note" on what works or what to fix in that chapter.
+
+A low score or failed fit checks are still a valid review outcome, not an error. Respond with raw
+JSON only, no markdown code fences, no commentary.`;
+
 export type ReviewScriptParams = {
   scriptText: string;
   captions: string;
@@ -116,6 +160,11 @@ export type ReviewScriptParams = {
   targetSeconds?: number;
   bannedOpeners?: string[];
   bannedEndings?: string[];
+  // Sprint 4 Task 10 (R1): long-form only; absent for a Short.
+  videoKind?: 'short' | 'long';
+  chapterTitles?: string[];
+  // Task 9 R2.3: the script's word count was outside +/-20% of the target after the repair attempt.
+  lengthOutOfRange?: boolean;
 };
 
 export function buildUserMessage(params: ReviewScriptParams): string {
@@ -136,18 +185,31 @@ export function buildUserMessage(params: ReviewScriptParams): string {
   if (params.bannedEndings && params.bannedEndings.length > 0) {
     lines.push(`Banned endings: ${params.bannedEndings.join('; ')}`);
   }
-  if (params.targetSeconds) {
+  if (params.videoKind === 'long') {
+    if (params.chapterTitles && params.chapterTitles.length > 0) {
+      lines.push(`Chapters, in order: ${params.chapterTitles.map((t, i) => `${i + 1}. ${t}`).join('; ')}`);
+    }
+    if (params.targetSeconds) {
+      lines.push(
+        `Target length: approximately ${params.targetSeconds} seconds (${Math.round(params.targetSeconds / 60)} minutes) when read aloud, within plus or minus 20%.`,
+      );
+    }
+    if (params.lengthOutOfRange) {
+      lines.push('Generation note: the word count was outside the 20% range of the target even after one repair attempt. Set fitsLengthLimit to false and say so in flags.');
+    }
+  } else if (params.targetSeconds) {
     lines.push(`Target length: approximately ${params.targetSeconds} seconds when read aloud (never more than 60).`);
   }
   return lines.join('\n\n');
 }
 
 export async function reviewScript(params: ReviewScriptParams): Promise<ScriptReviewResult> {
+  const isLong = params.videoKind === 'long';
   const llm = await callLLM({
     purpose: 'script-review',
-    system: SYSTEM_PROMPT,
+    system: isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT,
     messages: [{ role: 'user', content: buildUserMessage(params) }],
-    maxTokens: 1024,
+    maxTokens: isLong ? 2048 : 1024,
   });
 
   let parsedJson: unknown;

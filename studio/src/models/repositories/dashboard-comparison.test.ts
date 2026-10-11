@@ -21,7 +21,7 @@ describe('buildChannelComparison', () => {
     expect(b.totals).toEqual({ views: 0, likes: 0, comments: 0 });
     expect(b.avgViewsPerVideo).toBeNull();
     expect(b.byFormat).toEqual([
-      { formatKey: null, videoCount: 0, totals: { views: 0, likes: 0, comments: 0 }, avgViewsPerVideo: null },
+      { formatKey: null, videoKind: 'short', videoCount: 0, totals: { views: 0, likes: 0, comments: 0 }, avgViewsPerVideo: null },
     ]);
   });
 
@@ -46,6 +46,40 @@ describe('buildChannelComparison', () => {
     const story = out.channels[0].byFormat.find((f) => f.formatKey === 'story')!;
     expect(story.videoCount).toBe(0);
     expect(story.avgViewsPerVideo).toBeNull();
+  });
+
+  it('never averages Shorts and long-form together', () => {
+    const long = (views: number) => ({ ...v('a', 'chaptered-explainer', views), videoKind: 'long' as const });
+    const out = buildChannelComparison(channels, [v('a', null, 100), v('a', null, 300), long(1000)], []);
+    const a = out.channels[0];
+    expect(a.avgViewsPerVideo).toBeNull();
+    expect(a.totals.views).toBe(1400);
+    expect(a.byVideoKind).toEqual([
+      expect.objectContaining({ videoKind: 'short', videoCount: 2, avgViewsPerVideo: 200 }),
+      expect.objectContaining({ videoKind: 'long', videoCount: 1, avgViewsPerVideo: 1000 }),
+    ]);
+    expect(a.byFormat.map((f) => [f.formatKey, f.videoKind])).toEqual([
+      ['chaptered-explainer', 'long'],
+      [null, 'short'],
+    ]);
+  });
+
+  it('splits Freeform into one row per kind', () => {
+    const out = buildChannelComparison(channels, [v('a', null, 10), { ...v('a', null, 90), videoKind: 'long' as const }], []);
+    expect(out.channels[0].byFormat.map((f) => [f.formatKey, f.videoKind, f.avgViewsPerVideo])).toEqual([
+      [null, 'short', 10],
+      [null, 'long', 90],
+    ]);
+  });
+
+  it('filters by videoKind', () => {
+    const long = { ...v('a', 'chaptered-explainer', 1000), videoKind: 'long' as const };
+    const out = buildChannelComparison(channels, [v('a', null, 100), long], [{ channelId: 'a', formatKey: null, videoKind: 'short' }], 'long');
+    const a = out.channels[0];
+    expect(a.videoCount).toBe(1);
+    expect(a.avgViewsPerVideo).toBe(1000);
+    expect(a.byFormat).toHaveLength(1);
+    expect(a.byFormat[0].videoKind).toBe('long');
   });
 
   it('does not leak one channel video into another', () => {

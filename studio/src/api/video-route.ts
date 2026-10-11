@@ -35,4 +35,19 @@ export async function registerVideoRoute(fastify: FastifyInstance): Promise<void
 
     return reply.sendFile(path.basename(videoPath), path.dirname(videoPath));
   });
+
+  // Sprint 4 Task 10 (R3): the long-form Gate 2 preview copy and the subtitle file, served from the
+  // local files when R2 is not configured (runs.get then returns these paths as previewUrl/subtitlesUrl).
+  const sendReviewFile = (field: 'previewPath' | 'srtPath', contentType: string, filename?: string) =>
+    async (request: { params: { id: string } }, reply: import('fastify').FastifyReply) => {
+      const stage = await findLatestAttempt(request.params.id, 'video_review');
+      const filePath =
+        stage?.status === 'completed' ? ((stage.output as Record<string, string | undefined> | null)?.[field] ?? undefined) : undefined;
+      if (!filePath) return reply.code(404).send({ error: 'not available for this run yet' });
+      if (filename) reply.header('Content-Disposition', `attachment; filename="${filename}"`);
+      reply.type(contentType);
+      return reply.sendFile(path.basename(filePath), path.dirname(filePath));
+    };
+  fastify.get<{ Params: { id: string } }>('/runs/:id/preview', sendReviewFile('previewPath', 'video/mp4'));
+  fastify.get<{ Params: { id: string } }>('/runs/:id/subtitles', sendReviewFile('srtPath', 'application/x-subrip', 'captions.srt'));
 }

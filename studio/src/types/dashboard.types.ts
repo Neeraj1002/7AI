@@ -66,6 +66,9 @@ export type ComparisonTotals = { views: number; likes: number; comments: number 
 
 export type ComparisonFormatRow = {
   formatKey: string | null; // null = every run submitted without a format (Freeform)
+  // Sprint 4 Task 10 (R6): Shorts and long-form are never averaged together, so a Freeform group
+  // that has both kinds is two rows.
+  videoKind: 'short' | 'long';
   videoCount: number;
   totals: ComparisonTotals;
   avgViewsPerVideo: number | null;
@@ -77,7 +80,9 @@ export type ChannelComparisonDashboard = {
     channelName: string;
     videoCount: number;
     totals: ComparisonTotals;
+    // null when the channel has both kinds and no videoKind filter was sent (see byVideoKind).
     avgViewsPerVideo: number | null;
+    byVideoKind: { videoKind: 'short' | 'long'; videoCount: number; totals: ComparisonTotals; avgViewsPerVideo: number | null }[];
     byFormat: ComparisonFormatRow[];
   }[];
 };

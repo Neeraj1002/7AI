@@ -2,7 +2,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env';
 import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { findDecryptedRefreshTokenForChannel } from '../../models/repositories/agent-credential.repository';
-import type { RetentionCurvePoint } from '../../types';
+import type { LongFormMetrics, RetentionCurvePoint } from '../../types';
 
 // The only file allowed to touch the YouTube Analytics API v2's reports.query
 // endpoint — same boundary pattern as youtube-stats-client.ts (Data API) and
@@ -135,6 +135,45 @@ export async function fetchRetentionCurveViaProvider(channelId: string, youtubeV
       elapsedVideoTimeRatio: Number(row[0]),
       audienceWatchRatio: Number(row[1]),
     }));
+  } catch (error) {
+    if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
+    throw classifyAnalyticsError(error, context);
+  }
+}
+
+// Sprint 4 Task 10 (R6): the long-form numbers, one reports.query call for the whole life of the
+// video (same open date range as the retention report). averageViewDuration (seconds),
+// averageViewPercentage and estimatedMinutesWatched are documented video-report metrics. Google's
+// Analytics API v2 has no thumbnail-impressions click-through metric (checked against the metrics
+// reference on 2026-10-11), so impressionsClickThroughRate is returned as null, never estimated.
+export function parseLongFormMetricsResponse(data: YoutubeAnalyticsReportResponse): LongFormMetrics {
+  const headers = (data.columnHeaders ?? []).map((h) => h.name);
+  const row = data.rows?.[0];
+  const pick = (name: string): number | null => {
+    const i = headers.indexOf(name);
+    const v = i >= 0 && row ? Number(row[i]) : NaN;
+    return Number.isFinite(v) ? v : null;
+  };
+  return {
+    averageViewDurationSec: pick('averageViewDuration'),
+    averageViewPercentage: pick('averageViewPercentage'),
+    estimatedMinutesWatched: pick('estimatedMinutesWatched'),
+    impressionsClickThroughRate: null,
+  };
+}
+
+export async function fetchLongFormMetricsViaProvider(channelId: string, youtubeVideoId: string): Promise<LongFormMetrics> {
+  const context = { provider: 'youtube-analytics' };
+  try {
+    const client = await getOAuthClient(channelId);
+    const url = new URL(YOUTUBE_ANALYTICS_REPORTS_URL);
+    url.searchParams.set('ids', 'channel==MINE');
+    url.searchParams.set('startDate', '2020-01-01');
+    url.searchParams.set('endDate', new Date().toISOString().slice(0, 10));
+    url.searchParams.set('metrics', 'averageViewDuration,averageViewPercentage,estimatedMinutesWatched');
+    url.searchParams.set('filters', `video==${youtubeVideoId}`);
+    const response = await client.request<YoutubeAnalyticsReportResponse>({ url: url.toString() });
+    return parseLongFormMetricsResponse(response.data);
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw classifyAnalyticsError(error, context);

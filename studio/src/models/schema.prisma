@@ -441,6 +441,10 @@ model PerformanceSnapshot {
   // Nothing reads this yet — Continuous Learning (a later sprint) is what
   // eventually will; "cheap now, expensive to reconstruct later."
   retentionCurve   Json?
+  // Sprint 4 Task 10 (R6) - long-form only: { averageViewDurationSec, averageViewPercentage,
+  // estimatedMinutesWatched, impressionsClickThroughRate: null }. Null for a Short and for any
+  // snapshot taken before the Analytics scope/API was granted. Shorts metrics are never mixed in.
+  longFormMetrics  Json?
 
   snapshotAt DateTime
   createdAt  DateTime @default(now())

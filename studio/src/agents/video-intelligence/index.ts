@@ -7,7 +7,8 @@ import { env } from '../../config/env';
 import { NonTransientStageError, withRetryAndCircuitBreaker } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import type { VisualSource } from '../video-generation/plan';
-import type { QualityMetrics } from '../video-generation/quality-spec';
+import { SHORT_PROFILE, type QualityMetrics, type QualityProfile } from '../video-generation/quality-spec';
+import type { ChapterTiming } from '../../long-form/chapters';
 import { hardFailureReason, measureQualityMetrics } from './quality-metrics';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
@@ -74,22 +75,33 @@ async function probeMeanVolumeDb(videoPath: string): Promise<number> {
 // this task exists to prove.
 export async function runDeterministicChecks(
   videoPath: string,
-  options: { captionsEnabled?: boolean; visualSource?: VisualSource } = {},
+  options: {
+    captionsEnabled?: boolean;
+    visualSource?: VisualSource;
+    // Sprint 4 Task 10: long-form profile and the narration length its video must follow.
+    profile?: QualityProfile;
+    narrationSeconds?: number;
+  } = {},
 ): Promise<DeterministicCheckResult> {
   const meta = await probeVideoMeta(videoPath);
+  const profile = options.profile ?? SHORT_PROFILE;
+  const isLong = profile.videoKind === 'long';
 
-  if (meta.durationSeconds > MAX_DURATION_SECONDS) {
+  if (!isLong && meta.durationSeconds > MAX_DURATION_SECONDS) {
     return {
       passed: false,
       reason: `Duration ${meta.durationSeconds.toFixed(1)}s exceeds the ${MAX_DURATION_SECONDS}s Shorts limit`,
     };
   }
 
+  const expectedRatio = isLong ? 16 / 9 : EXPECTED_ASPECT_RATIO_VALUE;
   const actualRatio = meta.width / meta.height;
-  if (Math.abs(actualRatio - EXPECTED_ASPECT_RATIO_VALUE) > ASPECT_RATIO_TOLERANCE) {
+  if (Math.abs(actualRatio - expectedRatio) > ASPECT_RATIO_TOLERANCE * (isLong ? 16 / 9 : 1)) {
     return {
       passed: false,
-      reason: `Aspect ratio ${meta.width}x${meta.height} is not 9:16 (expected vertical Shorts format)`,
+      reason: isLong
+        ? `Aspect ratio ${meta.width}x${meta.height} is not 16:9 (expected a landscape long-form video)`
+        : `Aspect ratio ${meta.width}x${meta.height} is not 9:16 (expected vertical Shorts format)`,
     };
   }
 
@@ -101,8 +113,12 @@ export async function runDeterministicChecks(
     videoPath,
     captionsEnabled: options.captionsEnabled ?? false,
     visualSource: options.visualSource,
+    profile,
   });
-  const hardFailure = hardFailureReason(metrics);
+  const hardFailure = hardFailureReason(metrics, profile, {
+    videoSeconds: meta.durationSeconds,
+    narrationSeconds: options.narrationSeconds,
+  });
   if (hardFailure) {
     return { passed: false, reason: hardFailure, metrics };
   }
@@ -128,10 +144,21 @@ export async function runDeterministicChecks(
 // sampled instant.
 const SAMPLE_FRACTIONS = [0.25, 0.5, 0.75];
 
-async function extractSampleFramesBase64(videoPath: string, durationSeconds: number): Promise<string[]> {
+// Sprint 4 Task 10 (R2): long-form frames are taken inside every chapter (its midpoint), so no
+// chapter goes unseen. Capped so a many-chapter video does not send an unbounded number of images;
+// when over the cap the chapters are thinned evenly (first and last always kept).
+export const MAX_REVIEW_FRAMES = 12;
+export function chapterSampleTimestamps(chapters: ChapterTiming[], durationSeconds: number): number[] {
+  const mids = chapters.map((c) => Math.min(Math.max(0, (c.startSec + c.endSec) / 2), Math.max(0, durationSeconds - 0.1)));
+  if (mids.length <= MAX_REVIEW_FRAMES) return mids;
+  return Array.from({ length: MAX_REVIEW_FRAMES }, (_, i) => mids[Math.round((i * (mids.length - 1)) / (MAX_REVIEW_FRAMES - 1))]);
+}
+
+async function extractSampleFramesBase64(videoPath: string, durationSeconds: number, timestamps?: number[]): Promise<string[]> {
   const frames: string[] = [];
-  for (const [index, fraction] of SAMPLE_FRACTIONS.entries()) {
-    const timestamp = Math.max(0, durationSeconds * fraction);
+  const points = timestamps ?? SAMPLE_FRACTIONS.map((f) => durationSeconds * f);
+  for (const [index, point] of points.entries()) {
+    const timestamp = Math.max(0, point);
     const framePath = `${videoPath}.frame${index}.jpg`;
     await execFileAsync(env.FFMPEG_PATH, [
       '-y',
@@ -183,10 +210,14 @@ clearly shows any of: a recognisable brand logo or trademark; legible text baked
 (other than the burned-in captions); a photoreal depiction of an identifiable real person; gore or
 graphic content. Name the offending frame in the notes so the next attempt can steer away from it.`;
 
-export function buildSystemPrompt(visualSource: VisualSource, safetyChecks = false): string {
-  return `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
+export function buildSystemPrompt(visualSource: VisualSource, safetyChecks = false, longForm?: { frameCount: number }): string {
+  const framesIntro = longForm
+    ? `You are reviewing ${longForm.frameCount} frames, one taken from inside each chapter, from a long-form
+16:9 YouTube video before it's approved for publishing, alongside the topic and script it's based on.`
+    : `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
 (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's
-approved for publishing, alongside the topic and script it's based on. Judge the video as a whole
+approved for publishing, alongside the topic and script it's based on.`;
+  return `${framesIntro} Judge the video as a whole
 across all the frames together — not blank, not corrupted, and roughly consistent with the
 described topic and tone (${visualContextInstruction(visualSource)}).
 
@@ -229,16 +260,23 @@ export async function reviewVideo(params: {
   // Sprint 4 Task 3 (R11): the platform safety-negatives flag; applies to
   // ai-stills only.
   safetyChecks?: boolean;
+  // Sprint 4 Task 10 (R2): long-form only. Absent for a Short, which then behaves exactly as before.
+  longForm?: { profile: QualityProfile; chapterTimings?: ChapterTiming[]; narrationSeconds?: number };
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
     visualSource: params.visualSource,
+    ...(params.longForm && { profile: params.longForm.profile, narrationSeconds: params.longForm.narrationSeconds }),
   });
   if (!deterministic.passed) {
     return { verdict: 'fail', rationale: deterministic.reason, multimodalRan: false, qualityMetrics: deterministic.metrics };
   }
 
-  const framesBase64 = await extractSampleFramesBase64(params.videoPath, deterministic.meta.durationSeconds);
+  const chapterTimestamps =
+    params.longForm?.chapterTimings && params.longForm.chapterTimings.length > 0
+      ? chapterSampleTimestamps(params.longForm.chapterTimings, deterministic.meta.durationSeconds)
+      : undefined;
+  const framesBase64 = await extractSampleFramesBase64(params.videoPath, deterministic.meta.durationSeconds, chapterTimestamps);
 
   // B3 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2): only this one call is wrapped,
   // not the whole function — runDeterministicChecks above returns a result
@@ -252,7 +290,11 @@ export async function reviewVideo(params: {
   const llm = await withRetryAndCircuitBreaker(() =>
     callLLM({
       purpose: 'video-intelligence-own-draft',
-      system: buildSystemPrompt(params.visualSource, params.safetyChecks),
+      system: buildSystemPrompt(
+        params.visualSource,
+        params.safetyChecks,
+        params.longForm ? { frameCount: framesBase64.length } : undefined,
+      ),
       messages: [
         {
           role: 'user',

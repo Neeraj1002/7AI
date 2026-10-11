@@ -37,5 +37,8 @@ export const dashboardRouter = router({
     .input(dashboardInput)
     .query(async ({ input, ctx }) => getQualityDashboard(ctx.tenantId, input.channelId)),
   // Sprint 4 Task 7: every active channel side by side, broken down by formatKey.
-  comparison: publicProcedure.query(async ({ ctx }) => getChannelComparisonDashboard(ctx.tenantId)),
+  // Sprint 4 Task 10 (R6): optional videoKind filter; without it Shorts and long-form are separate rows.
+  comparison: publicProcedure
+    .input(z.object({ videoKind: z.enum(['short', 'long']).optional() }).optional())
+    .query(async ({ input, ctx }) => getChannelComparisonDashboard(ctx.tenantId, input?.videoKind)),
 });
