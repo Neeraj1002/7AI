@@ -18,6 +18,7 @@ export type VerdictGroupKey =
   | 'quality-line'
   | 'endms'
   | 'earlier-fixes'
+  | 'redesign'
   | 'area-only';
 
 export type Verdict = {
@@ -47,6 +48,11 @@ export const VERDICTS: Record<VerdictGroupKey, Verdict> = {
   'area-only': { note: 'Area noted only; no code change in Sprint 3', area: 'APP' },
   // Founder, 2026-10-11: every other report in the closure set was fixed by earlier Sprint 3 fixes or by Task 12
   // and simply never closed. Used only with --rest-fixed, for reports that match no specific group.
+  // Founder, 2026-10-11: closed because the Queue, Inbox and Run screens are being redesigned. Override only.
+  redesign: {
+    status: 'fixed',
+    note: 'Superseded: the Queue, Inbox and Run screens are being redesigned (closed 2026-10-11)',
+  },
   'earlier-fixes': {
     status: 'fixed',
     note: 'Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; the report was not closed at the time (closed 2026-10-11)',
@@ -79,6 +85,7 @@ const RULES: Record<VerdictGroupKey, RegExp[]> = {
   'quality-line': [/quality (line|check|metric|numbers)/, /loudness.*(length|shots)/],
   endms: [/endms/],
   'earlier-fixes': [],
+  redesign: [],
   'area-only': [],
 };
 

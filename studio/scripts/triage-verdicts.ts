@@ -16,7 +16,7 @@
 //
 // --override <idprefix>=<group> forces a report into a group (use it for the "needs a decision" list after
 // the mapping is confirmed). Groups: budget, identical-clips, stutter, audio, dashboard, inbox,
-// failed-label, wrong-status-after-approval, quality-line, endms, area-only.
+// failed-label, wrong-status-after-approval, quality-line, endms, earlier-fixes, redesign, area-only.
 // --rest-fixed closes every report that matches no specific group with the 'earlier-fixes' note (fixed).
 // --default-priority sets a priority only on reports that have none (a bug must have one).
 // Reports that are not 'open' are not touched. A report's current triage note is REPLACED by the verdict note
