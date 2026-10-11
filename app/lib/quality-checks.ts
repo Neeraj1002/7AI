@@ -1,8 +1,8 @@
-// Sprint 4 FE E1 — turns the `video_review` stage's `qualityMetrics` into the rows of the Gate 2
-// "Quality checks" card. Pass/fail against the quality spec is decided server-side (hard failures
-// already block the run before Gate 2), so this file never compares a measurement to a threshold:
-// it shows measured values, flags only "no audio" (red) and "captions expected but missing" (amber),
-// and passes the server's own `softWarnings` strings through verbatim.
+// Sprint 4 FE E1 — turns `runs.get().qualityMetrics` into the rows of the Gate 2 "Quality checks" card.
+// The server decides every warning: `qualityMetrics.rows.<row> = { warn, message }`. A row that is absent
+// means "not applicable" and is hidden. This file never compares a measurement to a threshold and never
+// reads text to decide a colour. The only two things it shows without a `rows` entry are the resolution/fps
+// line (hard-gated server-side, so a run at Gate 2 already passed it) and "No audio" (red).
 
 export type QualityRowStatus = 'ok' | 'warn' | 'fail';
 
@@ -11,12 +11,11 @@ export type QualityRow = {
   label: string;
   value: string;
   status: QualityRowStatus;
+  /** The server's own explanation, set only on a warned row. */
+  message: string | null;
 };
 
-export type QualityChecks = {
-  rows: QualityRow[];
-  softWarnings: string[];
-};
+export type QualityChecks = { rows: QualityRow[] };
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -27,10 +26,19 @@ function trim(n: number, digits: number): string {
   return String(Number(n.toFixed(digits))).replace('-', '−');
 }
 
-export function parseQualityMetrics(output: Record<string, unknown> | null | undefined): QualityChecks | null {
-  const raw = output?.qualityMetrics;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const m = raw as Record<string, unknown>;
+type ServerRow = { warn: boolean; message: string | null };
+
+function serverRow(rows: unknown, key: string): ServerRow | null {
+  if (!rows || typeof rows !== 'object') return null;
+  const r = (rows as Record<string, unknown>)[key];
+  if (!r || typeof r !== 'object') return null;
+  const o = r as Record<string, unknown>;
+  return { warn: o.warn === true, message: typeof o.message === 'string' && o.message.trim() ? o.message : null };
+}
+
+export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
+  if (!metrics || typeof metrics !== 'object' || Array.isArray(metrics)) return null;
+  const m = metrics as Record<string, unknown>;
 
   const lufs = num(m.integratedLufs);
   const peak = num(m.truePeakDb);
@@ -39,49 +47,49 @@ export function parseQualityMetrics(output: Record<string, unknown> | null | und
   const fps = num(m.fps);
   const longest = num(m.longestShotSeconds);
   const hasAudio = m.hasAudio !== false;
-  const captionsExpected = m.captionsExpected === true;
-  const captionsDetected = typeof m.captionsDetected === 'boolean' ? m.captionsDetected : null;
+
+  const out: QualityRow[] = [];
+  const flagged = (key: string): Pick<QualityRow, 'status' | 'message'> => {
+    const r = serverRow(m.rows, key);
+    return r?.warn ? { status: 'warn', message: r.message } : { status: 'ok', message: null };
+  };
+
+  const loudnessRow = serverRow(m.rows, 'loudness');
+  if (!hasAudio) {
+    out.push({ key: 'loudness', label: 'Loudness', value: 'No audio', status: 'fail', message: null });
+  } else if (loudnessRow) {
+    out.push({ key: 'loudness', label: 'Loudness', value: lufs !== null ? `${trim(lufs, 1)} LUFS` : '—', ...flagged('loudness') });
+  }
+
+  if (hasAudio && serverRow(m.rows, 'truePeak')) {
+    out.push({ key: 'truePeak', label: 'True peak', value: peak !== null ? `${trim(peak, 1)} dBTP` : '—', ...flagged('truePeak') });
+  }
 
   const formatParts: string[] = [];
   if (width !== null && height !== null) formatParts.push(`${trim(width, 0)}×${trim(height, 0)}`);
   if (fps !== null) formatParts.push(`${trim(fps, 2)} fps`);
-
-  let captionsValue = 'Not expected';
-  let captionsStatus: QualityRowStatus = 'ok';
-  if (captionsExpected) {
-    if (captionsDetected === true) captionsValue = 'Present';
-    else if (captionsDetected === false) {
-      captionsValue = 'Not detected';
-      captionsStatus = 'warn';
-    } else captionsValue = 'Not checked';
+  if (formatParts.length) {
+    out.push({ key: 'format', label: 'Resolution · frame rate', value: formatParts.join(' · '), status: 'ok', message: null });
   }
 
-  const rows: QualityRow[] = [
-    {
-      key: 'loudness',
-      label: 'Loudness',
-      value: !hasAudio ? 'No audio' : lufs !== null ? `${trim(lufs, 1)} LUFS` : '—',
-      status: hasAudio ? 'ok' : 'fail',
-    },
-    {
-      key: 'truePeak',
-      label: 'True peak',
-      value: hasAudio && peak !== null ? `${trim(peak, 1)} dBTP` : '—',
-      status: 'ok',
-    },
-    { key: 'format', label: 'Resolution · frame rate', value: formatParts.length ? formatParts.join(' · ') : '—', status: 'ok' },
-    {
+  if (serverRow(m.rows, 'longestShot')) {
+    out.push({
       key: 'longestShot',
       label: 'Longest single shot',
       value: longest !== null ? `${trim(longest, 1)} s` : '—',
-      status: 'ok',
-    },
-    { key: 'captions', label: 'Captions', value: captionsValue, status: captionsStatus },
-  ];
+      ...flagged('longestShot'),
+    });
+  }
 
-  const softWarnings = Array.isArray(m.softWarnings)
-    ? m.softWarnings.filter((w): w is string => typeof w === 'string' && w.trim().length > 0)
-    : [];
+  if (serverRow(m.rows, 'captions')) {
+    const detected = typeof m.captionsDetected === 'boolean' ? m.captionsDetected : null;
+    out.push({
+      key: 'captions',
+      label: 'Captions',
+      value: detected === true ? 'Present' : detected === false ? 'Not detected' : 'Not checked',
+      ...flagged('captions'),
+    });
+  }
 
-  return { rows, softWarnings };
+  return out.length ? { rows: out } : null;
 }

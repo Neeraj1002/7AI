@@ -677,7 +677,7 @@ export default function RunDetailScreen() {
           </View>
         </Card>
       ) : null}
-      {isGate2 ? <QualityChecksCard videoReviewOutput={videoReviewStage?.output} /> : null}
+      {isGate2 ? <QualityChecksCard qualityMetrics={data.qualityMetrics} /> : null}
 
       <Pressable style={styles.detailsToggle} onPress={() => setShowDetails((v) => !v)} accessibilityRole="button">
         <Text style={styles.detailsToggleText}>Details</Text>

@@ -26,8 +26,7 @@
 1. Attach the board and compare; screenshot Gate 2 on the OnePlus (tenant account `7aistudiochannel@gmail.com`) beside it.
 2. After installing the Task 10 APK: `eas update --branch preview`. Not run by the agent.
 
-**Open difference from the board (founder decision needed)**
-The board shows the "Longest single shot 6.8 s" row amber, i.e. coloured from the soft warning. The founder decision for this build was to NOT colour individual rows from `softWarnings` (strings are not parsed), so that row stays green here and the warning text appears in an amber note under the rows, which the board does not show. To match the board exactly, either (a) the backend returns a structured per-row flag, or (b) the app maps "Longest single shot" warnings to that row by string match. Not done; waiting on a decision.
+**Update 2026-10-11 (backend PR #64):** the card now reads `runs.get().qualityMetrics.rows.<row> = { warn, message }`. `warn` colours a row amber and `message` is shown under it; an absent row is hidden (not applicable); no text matching, no thresholds in the app. The previous card-level `softWarnings` note is gone (the row message replaces it). "Longest single shot" now matches the board.
 
 ## E2–E6 (same PR #53; backend PR #49 merged)
 
@@ -51,4 +50,3 @@ All status "Built, awaiting founder device verification". The only board I could
 
 **Checks:** `cd studio && npx vitest run --root ../app` → 6 files, 25 tests pass (new: quality-checks, gate1-review, compare, brief-extras, profile-form). `cd app && npx tsc --noEmit` → no errors in `app/` (22 pre-existing under `studio/` in this worktree). `npx expo lint` → clean. No `package.json` / lockfile / `app.json` / native changes.
 
-**Still open:** the "Longest single shot" row stays green until the backend flag exists; send the field name and I'll wire it.
