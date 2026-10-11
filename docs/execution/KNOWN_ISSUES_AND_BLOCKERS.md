@@ -440,12 +440,3 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   against whatever that source's own platform offers becomes worth building — not attempted here,
   per the design doc's own "expensive way to learn this" framing for why it's worth getting ahead
   of, not urgent to solve immediately. — *`sprint2/reports/task3.md`*
-
-## Bugs Task 12 closure notes (2026-10-11)
-
-Findings from the 2026-10-10 testing session and what happened to them; detail in `bugs/Sprint3/reports/task12.md`.
-- Gate 2 Revise/Retry stall, resume loop and silent restarts: code fixed (cause of the silent exit is a hypothesis; new logging will name it if it recurs). Needs the deploy check (F1).
-- Gate 1 push never arrived: payload shortened, receipt details now logged. Needs F8.
-- Dashboard counted cancellations as failures: fixed (published / failed / rejected / cancelled).
-- Performance Analytics polling every video forever (Section 4, L2) and the permissive CORS `origin: true` (Section 3): both bounded/closed in Task 12 R10.
-- Default new-tenant budget is now $10 a week shared by YouTube-connected channels; `MIN_CHANNEL_SHARE_USD` is an override guard only and is not enforced at run time (founder decision, 2026-10-11).

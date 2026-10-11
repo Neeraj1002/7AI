@@ -1,7 +1,3 @@
-# SUPERSEDED (2026-10-11): the backend half is already in the codebase
-
-> Confirmed by the founder's `d bug_reports` on 2026-10-11: `area`, `priority`, `reportType` (not null, default `'bug'`) and `triageNote` exist, with no extra index, and `bugs.updateTriage` exists (closure part 2 / Admin Sprint 1). **R1 (list/update endpoint) and R3 (`area`) are closed.** **R2 (the tester-facing type and priority chips) moves to Sprint 4.** Nothing further is built under this task. See `Sprint3/reports/task12.md` (R9).
-
 # Bugs Task 7: Bug-Report Triage Fields (Type, Priority, Area) + a Real List/Update Endpoint
 
 **Read `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` before starting.** This task needs a schema
