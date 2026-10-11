@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { env } from '../config/env';
 import type { GenerateStillsParams, GeneratedStillsResult } from './types';
 import { DATA_DIR } from '../config/paths';
+import { STILL_SIZE_PORTRAIT } from './sizes';
 
 // Testing-only stand-in for the real OpenAI-backed image generation, used
 // only when AI_VISUALS_STUB=1. Same reasoning as stock-footage/stub.ts: a
@@ -46,6 +47,7 @@ export async function stubGenerateStills(params: GenerateStillsParams): Promise<
   await ensureTmpDir();
   await ensureStubFont();
   const imagePaths: string[] = [];
+  const size = params.size ?? STILL_SIZE_PORTRAIT;
 
   for (let i = 0; i < params.scenePrompts.length; i += 1) {
     const imageFilename = `${randomUUID()}.png`;
@@ -74,7 +76,7 @@ export async function stubGenerateStills(params: GenerateStillsParams): Promise<
         '-f',
         'lavfi',
         '-i',
-        `color=c=0x${((i * 47) % 256).toString(16).padStart(2, '0')}3355:size=1024x1536:rate=1`,
+        `color=c=0x${((i * 47) % 256).toString(16).padStart(2, '0')}3355:size=${size}:rate=1`,
         '-vf',
         `${pictogram},drawtext=fontfile=${STUB_FONT_FILENAME}:text='${safeText}':fontcolor=white:fontsize=40:x=(w-text_w)/2:y=1100:line_spacing=12:box=1:boxcolor=black@0.4:boxborderw=20`,
         '-frames:v',

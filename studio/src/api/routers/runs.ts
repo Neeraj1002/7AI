@@ -42,6 +42,7 @@ import { resolveChannelConfig } from '../../channel-profile';
 import { findActiveProfileForChannel } from '../../models/repositories/channel-profile-version.repository';
 import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
+import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
@@ -179,6 +180,9 @@ export function deriveScriptReview(
 // subtitles fields are never faked.
 export type LongFormRunFields = {
   chapters?: { title: string; text: string }[];
+  // Gate 1 edit sheet for a long script: each chapter as "## Title" then its text. Saving an edit
+  // parses the "##" lines back into chapters.
+  scriptEditText?: string;
   previewUrl?: string;
   subtitlesUrl?: string;
   subtitlesUploaded?: boolean;
@@ -266,7 +270,13 @@ async function getRunDetail(id: string, ctx: Context) {
   // the same values the pipeline does.
   const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
   const longForm: LongFormRunFields = { chapters: deriveChapters(stages) };
+  // The SRT of the latest long-form attempt, as a fresh signed link (signing is local: no request is made).
+  const srtKey = [...stages].reverse().map((s) => (s.output as { r2SubtitlesKey?: string } | null)?.r2SubtitlesKey).find(Boolean);
+  if (srtKey && isR2Configured()) {
+    longForm.subtitlesUrl = await getPresignedDownloadUrl({ key: srtKey, expiresInSeconds: 24 * 60 * 60 });
+  }
   if (longForm.chapters === undefined) delete longForm.chapters;
+  else longForm.scriptEditText = formatChapterSheet(longForm.chapters);
   return {
     run,
     channel,
@@ -444,6 +454,17 @@ export const runsRouter = router({
           badRequest(
             `Spend limit $${maxCostUsd.toFixed(2)} is below the estimated $${estimate.estimateUsd.toFixed(2)} for this video`,
           );
+        }
+        // R7.2: one attempt must fit in what this channel may still spend this week.
+        let remaining: number;
+        try {
+          remaining = await getRemainingWeeklyUsd(channel.tenantId, channel.id, channel.platform);
+        } catch (err) {
+          if (err instanceof NoBudgetConfiguredError) badRequest('No weekly budget is configured for this account');
+          throw err;
+        }
+        if (estimate.estimateUsd > remaining) {
+          badRequest(`Estimated $${estimate.estimateUsd.toFixed(2)} for this video, $${remaining.toFixed(2)} left this week for this channel`);
         }
       }
 
@@ -688,6 +709,16 @@ export const runsRouter = router({
     .mutation(async ({ input, ctx }) => {
       await assertGateOwnership(input.runId, ctx);
 
+      // Sprint 4 Task 9 (R2.5): a long script is edited as "## Title" chapter sections; refuse an edit
+      // that does not parse into at least 3 chapters before it reaches the pipeline.
+      if (input.action === 'edit') {
+        const editedRun = await findPipelineRunById(input.runId);
+        if (editedRun?.creationOptions?.videoKind === 'long') {
+          const parsed = parseChapterSheet(input.editedScriptText);
+          if (!parsed.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: parsed.message });
+        }
+      }
+
       const replyText =
         input.action === 'approve'
           ? 'approve'
@@ -769,7 +800,9 @@ export const runsRouter = router({
   // runXStage starts a fresh attempt, and the budget gate/circuit breakers
   // still apply exactly as on a first attempt. Same ownership check as the
   // gates: moving a run forward or killing it is at least as sensitive.
-  retry: publicProcedure.input(z.object({ runId: z.string().uuid() })).mutation(async ({ input, ctx }) => {
+  retry: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), maxCostUsd: z.number().positive().optional() }))
+    .mutation(async ({ input, ctx }) => {
     const channel = await assertGateOwnership(input.runId, ctx);
     // Same rule as create — the runner would only re-fail it as 'Channel deleted'.
     if (!channel.isActive) {
@@ -813,12 +846,24 @@ export const runsRouter = router({
         throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
       }
     }
+    // Sprint 4 Task 9 (R7.3): a run stopped at its spend limit can be retried with a higher one.
+    let newMaxCostUsd: number | undefined;
+    if (input.maxCostUsd !== undefined) {
+      if (run.creationOptions?.videoKind !== 'long') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'A spend limit can only be set for a long video' });
+      }
+      if (input.maxCostUsd > env.LONGFORM_MAX_RUN_USD_LIMIT) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `The spend limit cannot be more than $${env.LONGFORM_MAX_RUN_USD_LIMIT.toFixed(2)} per video` });
+      }
+      newMaxCostUsd = input.maxCostUsd;
+    }
     // Only a Retry that really starts a new attempt counts (budget refusal threw above).
     await recordManualRetry(run, target);
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,
       ...(regenCapped && { currentStage: target }),
+      ...(newMaxCostUsd !== undefined && { creationOptionsMerge: { maxCostUsd: newMaxCostUsd } }),
     });
     continuePipelineInBackground(run.id);
     return updated;

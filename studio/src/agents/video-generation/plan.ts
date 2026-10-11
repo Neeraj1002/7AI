@@ -54,6 +54,12 @@ export const ProductionPlanSchema = z
     // scene prompt per still, in on-screen order. Required by the
     // refinement below exactly when visualSource is 'ai-stills'.
     stillScenePrompts: z.array(z.string().min(1)).optional(),
+    // Sprint 4 Task 9 (R5.3): long-form only. One entry per still: the chapter it belongs to (0-based),
+    // the opening words of the narration it illustrates (so image timing follows the voice), and its
+    // prompt. stillScenePrompts holds the same prompts, flattened, so readers of the old field still work.
+    longScenes: z
+      .array(z.object({ chapterIndex: z.number().int().min(0), words: z.string().min(1), prompt: z.string().min(1) }))
+      .optional(),
     captionStyle: z.enum(CAPTION_STYLES),
     audioLayer: z.enum(AUDIO_LAYERS),
     pacingNotes: z.string().min(1),

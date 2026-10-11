@@ -21,6 +21,9 @@ export type VideoSpend = {
   stillsCount: number;
   stillsCostUsd: number;
   stubFlags: { media: boolean; stockFootage: boolean; aiVisuals: boolean };
+  // Sprint 4 Task 9: a long-form render books every paid call (narration chunk, still) the moment it
+  // completes, so there is nothing left for the failure path to book (it would double count).
+  bookedSeparately?: boolean;
 };
 
 export function emptyVideoSpend(stubFlags: VideoSpend['stubFlags']): VideoSpend {
@@ -48,6 +51,7 @@ export function failedRenderUsage(
   CreateUsageEventInput,
   'provider' | 'model' | 'characterCount' | 'audioDurationSeconds' | 'costUsd' | 'metadata'
 > | null {
+  if (spend.bookedSeparately) return null;
   const total = totalVideoSpendUsd(spend);
   if (total <= 0 && spend.ttsCharacters === 0 && spend.stillsCount === 0) return null;
   return {

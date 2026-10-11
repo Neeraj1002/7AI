@@ -14,4 +14,7 @@ export type AudioBedTrack = {
   // real, representable "missing" case to refuse, not just a hypothetical
   // one the type system rules out before the check can ever run.
   license?: string;
+  // Sprint 4 Task 9 (R6.4): the credit line a video using this track must carry in its description.
+  // Required when `license` says attribution is required; absent for 'no attribution required' tracks.
+  attribution?: string;
 };

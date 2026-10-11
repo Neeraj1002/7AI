@@ -106,6 +106,16 @@ A low score or failed fit checks are still a valid review outcome, not an error 
 respond with a complete, well-formed review. Respond with raw JSON only — no markdown code
 fences, no commentary.`;
 
+// Sprint 4 Task 9: a stop-gap so a long-form script is not judged by the Shorts rules above (a
+// 60-second limit it can never meet, a 1-2 second swipe hook). The real long-form rubric is Sprint 4
+// Task 10; until it lands, this only switches the Shorts-specific criteria off.
+export const LONG_FORM_REVIEW_ADDENDUM = `
+
+IMPORTANT: this script is for a LONG-FORM landscape video of several minutes, NOT a Short. Ignore every
+rule above that is specific to Shorts: there is no 60-second limit (judge length against the target
+in the user message only), and the hook is judged on the cold open, the first 20 to 40 seconds, not
+the first 1-2 seconds. The script is split into chapters; judge it as one continuous narration.`;
+
 export type ReviewScriptParams = {
   scriptText: string;
   captions: string;
@@ -116,6 +126,8 @@ export type ReviewScriptParams = {
   targetSeconds?: number;
   bannedOpeners?: string[];
   bannedEndings?: string[];
+  // 'long' selects the long-form addendum above. Absent = a Short.
+  videoKind?: 'short' | 'long';
 };
 
 export function buildUserMessage(params: ReviewScriptParams): string {
@@ -137,7 +149,11 @@ export function buildUserMessage(params: ReviewScriptParams): string {
     lines.push(`Banned endings: ${params.bannedEndings.join('; ')}`);
   }
   if (params.targetSeconds) {
-    lines.push(`Target length: approximately ${params.targetSeconds} seconds when read aloud (never more than 60).`);
+    lines.push(
+      params.videoKind === 'long'
+        ? `Target length: approximately ${params.targetSeconds} seconds when read aloud.`
+        : `Target length: approximately ${params.targetSeconds} seconds when read aloud (never more than 60).`,
+    );
   }
   return lines.join('\n\n');
 }
@@ -145,7 +161,7 @@ export function buildUserMessage(params: ReviewScriptParams): string {
 export async function reviewScript(params: ReviewScriptParams): Promise<ScriptReviewResult> {
   const llm = await callLLM({
     purpose: 'script-review',
-    system: SYSTEM_PROMPT,
+    system: params.videoKind === 'long' ? SYSTEM_PROMPT + LONG_FORM_REVIEW_ADDENDUM : SYSTEM_PROMPT,
     messages: [{ role: 'user', content: buildUserMessage(params) }],
     maxTokens: 1024,
   });

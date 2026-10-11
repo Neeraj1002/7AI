@@ -44,6 +44,15 @@ export const VideoGenerationOutputSchema = z.object({
   durationSeconds: z.number(),
   aspectRatio: z.string(),
   plan: ProductionPlanSchema.optional(),
+  // Sprint 4 Task 9: set only by a long-form render (long-form.ts). A Short's output is unchanged.
+  videoKind: z.enum(['short', 'long']).optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  fps: z.number().optional(),
+  frameCount: z.number().nullable().optional(),
+  chapterTimings: z.array(z.object({ title: z.string(), startSec: z.number(), endSec: z.number() })).optional(),
+  subtitlesPath: z.string().optional(),
+  bedCredits: z.array(z.string()).optional(),
 });
 export type VideoGenerationOutput = z.infer<typeof VideoGenerationOutputSchema>;
 
@@ -81,6 +90,11 @@ export type VideoGenerationUsage = {
     // Sprint 4 Task 8 (R6) — scene prompts the provider's safety system refused.
     aiVisualsSkippedStills?: number;
     aiVisualsCostUsd?: string;
+    // Sprint 4 Task 9: long-form only. Narration and stills are booked per call as they are paid
+    // for, so this aggregated row carries $0 and these figures are for information only.
+    videoKind?: 'short' | 'long';
+    costsBookedSeparately?: boolean;
+    narrationCostUsd?: string;
     // Sprint 2 Task 3 (F1) — always present ('none' is a real, valid value,
     // not an absent field). No real cost: the audio-bed library is local
     // and free, unlike every other per-run media cost here.
@@ -113,6 +127,10 @@ export type VideoArtifacts = {
   audioBedPath?: string;
   ffmpegArgsJsonPath: string;
   stubFlags: { media: boolean; stockFootage: boolean; aiVisuals: boolean };
+  // Sprint 4 Task 9: long-form extras for the debug bundle.
+  srtPath?: string;
+  bedAudioPath?: string;
+  mixedAudioPath?: string;
 };
 
 export type VideoGenerationResult = {

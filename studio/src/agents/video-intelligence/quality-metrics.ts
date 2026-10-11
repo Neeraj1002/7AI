@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { env } from '../../config/env';
+import { RENDER_PROFILES } from '../video-generation/render-profile';
 import {
   QUALITY_SPEC,
   QUALITY_ROW_KEYS,
@@ -59,9 +60,10 @@ export function parseFrameRate(rate: string | undefined): number | null {
 
 // The only things that BLOCK a video (deterministic fail, no LLM call): ones
 // that would ship a visibly/audibly broken file.
-export function hardFailureReason(m: QualityMetrics): string | null {
+export function hardFailureReason(m: QualityMetrics, videoKind: 'short' | 'long' = 'short'): string | null {
   if (!m.hasAudio) return 'Video has no audio track';
-  const { width, height, fps } = QUALITY_SPEC.video;
+  const { fps } = QUALITY_SPEC.video;
+  const { width, height } = videoKind === 'long' ? RENDER_PROFILES.long : QUALITY_SPEC.video;
   if (m.width !== width || m.height !== height) {
     return `Wrong resolution ${m.width}x${m.height} (expected ${width}x${height})`;
   }
@@ -86,7 +88,11 @@ type MetricsInput = Omit<QualityMetrics, 'softWarnings' | 'rows'>;
 // checked row is evaluated once, and both the warning text list and the per-row warn
 // flags come from it, so they cannot disagree. A row is omitted when it does not apply
 // to this video or cannot be evaluated (never reported as warn:false in that case).
-export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' | 'stock-footage' | undefined): QualityRows {
+export function evaluateQualityRows(
+  m: MetricsInput,
+  visualSource: 'ai-stills' | 'stock-footage' | undefined,
+  videoKind: 'short' | 'long' = 'short',
+): QualityRows {
   const rows: QualityRows = {};
   const row = (warn: boolean, message: string): QualityRow => ({ warn, message: warn ? message : null });
   const { targetLufs, toleranceLufs, maxTruePeakDb } = QUALITY_SPEC.loudness;
@@ -114,7 +120,8 @@ export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' |
   if (m.audioBitrateKbps !== null) {
     rows.audioBitrate = row(m.audioBitrateKbps < QUALITY_SPEC.audio.minBitrateKbps, `Audio bitrate ${m.audioBitrateKbps} kbps is below ${QUALITY_SPEC.audio.minBitrateKbps}`);
   }
-  if (visualSource === 'ai-stills' && m.longestShotSeconds !== null) {
+  // The 4 s longest-shot rule is a Shorts pacing rule; a long-form video holds each still about 5 s.
+  if (visualSource === 'ai-stills' && m.longestShotSeconds !== null && videoKind === 'short') {
     rows.longestShot = row(
       m.longestShotSeconds > QUALITY_SPEC.shot.maxSeconds,
       `Longest single shot is ${m.longestShotSeconds.toFixed(1)}s (spec: ≤ ${QUALITY_SPEC.shot.maxSeconds}s)`,
@@ -133,8 +140,12 @@ export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' |
 }
 
 // Spec rows that missed but never block — recorded and shown at Gate 2 (same order as before).
-export function collectSoftWarnings(m: MetricsInput, visualSource: 'ai-stills' | 'stock-footage' | undefined): string[] {
-  const rows = evaluateQualityRows(m, visualSource);
+export function collectSoftWarnings(
+  m: MetricsInput,
+  visualSource: 'ai-stills' | 'stock-footage' | undefined,
+  videoKind: 'short' | 'long' = 'short',
+): string[] {
+  const rows = evaluateQualityRows(m, visualSource, videoKind);
   return QUALITY_ROW_KEYS.flatMap((key) => {
     const r = rows[key];
     return r?.warn && r.message ? [r.message] : [];
@@ -266,6 +277,7 @@ export async function measureQualityMetrics(params: {
   videoPath: string;
   captionsEnabled: boolean;
   visualSource?: 'ai-stills' | 'stock-footage';
+  videoKind?: 'short' | 'long';
 }): Promise<QualityMetrics> {
   const probe = await probeStreams(params.videoPath);
   const [loudness, shots, captionsDetected] = await Promise.all([
@@ -294,5 +306,10 @@ export async function measureQualityMetrics(params: {
     captionsExpected: params.captionsEnabled,
     captionsDetected,
   };
-  return { ...base, softWarnings: collectSoftWarnings(base, params.visualSource), rows: evaluateQualityRows(base, params.visualSource) };
+  const videoKind = params.videoKind ?? 'short';
+  return {
+    ...base,
+    softWarnings: collectSoftWarnings(base, params.visualSource, videoKind),
+    rows: evaluateQualityRows(base, params.visualSource, videoKind),
+  };
 }
