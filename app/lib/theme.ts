@@ -61,6 +61,13 @@ export const type = {
 // Fixed per-channel identity colors, index = channel's position in
 // channels.list (createdAt asc). [background, foreground] of the avatar tile;
 // the small dot uses the foreground.
+// U11: the dot uses the tile's foreground, which is white on the black tile (channel #2) and so vanished on a
+// white card. A white foreground falls back to the tile's own (dark) background.
+export function channelDotColor(index: number): string {
+  const [bg, fg] = channelColors[((index % channelColors.length) + channelColors.length) % channelColors.length];
+  return fg.toUpperCase() === '#FFFFFF' ? bg : fg;
+}
+
 export const channelColors = [
   ['#FDEBEA', '#A81E18'],
   ['#0F0F0F', '#FFFFFF'],

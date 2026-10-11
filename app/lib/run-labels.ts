@@ -57,6 +57,8 @@ export function queueChip(status: string): string {
 const ERROR_PATTERNS: Array<{ test: (msg: string) => boolean; label: string }> = [
   { test: (m) => m.startsWith('[stale-resume-skip]'), label: 'Stalled — no progress 30+ min' },
   { test: (m) => m.startsWith('Video Intelligence regen cap'), label: 'Video retry limit reached' },
+  { test: (m) => m.startsWith('Retry limit reached'), label: 'Retry limit reached' },
+  { test: (m) => m.startsWith('The YouTube connection'), label: 'YouTube connection expired - reconnect needed' },
   { test: (m) => m.startsWith('Gate 2 regen cap'), label: 'Revision limit reached' },
   { test: (m) => m.startsWith('Rejected at Gate 1'), label: 'Rejected at Gate 1' },
   { test: (m) => m.startsWith('Rejected at Gate 2'), label: 'Rejected at Gate 2' },
@@ -104,6 +106,17 @@ export function stepperIndexForStage(stageName: string | null | undefined): numb
   }
 }
 
+// U3: two runs of the same brief look alike; the exact start (e.g. "12 Oct, 14:05") tells them apart.
+export function startedLabel(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+export function ageHours(date: string | Date): number {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return (Date.now() - d.getTime()) / 3_600_000;
+}
+
 export function relativeTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const diffMs = Date.now() - d.getTime();
@@ -138,6 +151,8 @@ export function endedChip(run: { status: string; lastError?: string | null }): {
   const rejected = /^Rejected at Gate ([12])/.exec(err);
   if (rejected) return { label: `Rejected at Gate ${rejected[1]}`, kind: 'neutral' };
   if (err === 'Channel deleted') return { label: 'Channel deleted', kind: 'neutral' };
+  // Bugs Task 12 (R3): the server's classifyEndError (run-pipeline/end-reason.ts) is the source of truth;
+  // this mirrors it for the list rows, which carry no endReason.
   return { label: 'Failed', kind: 'failed' };
 }
 

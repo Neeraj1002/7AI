@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { youtubeNeedsReconnect } from '../lib/server-extras';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { BottomSheet } from './BottomSheet';
@@ -82,7 +83,9 @@ function Body({
             status={
               mode === 'select'
                 ? c.hasYoutubeCredential
-                  ? { text: 'YouTube connected', ok: true }
+                  ? youtubeNeedsReconnect(c)
+                    ? { text: 'Reconnect needed — connect to run', ok: false }
+                    : { text: 'YouTube connected', ok: true }
                   : { text: 'Not connected — connect to run', ok: false }
                 : undefined
             }
