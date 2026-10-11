@@ -17,6 +17,7 @@
 // --override <idprefix>=<group> forces a report into a group (use it for the "needs a decision" list after
 // the mapping is confirmed). Groups: budget, identical-clips, stutter, audio, dashboard, inbox,
 // failed-label, wrong-status-after-approval, quality-line, endms, area-only.
+// --rest-fixed closes every report that matches no specific group with the 'earlier-fixes' note (fixed).
 // --default-priority sets a priority only on reports that have none (a bug must have one).
 // Reports that are not 'open' are not touched. A report's current triage note is REPLACED by the verdict note
 // (that is what bugs.updateTriage does); the dry run prints the current note so nothing is lost by surprise.
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
     if (!prefix || !(group in VERDICTS)) throw new Error(`bad --override "${o}" (groups: ${Object.keys(VERDICTS).join(', ')})`);
     overrides[prefix] = group as VerdictGroupKey;
   }
+  const restFixed = args.includes('--rest-fixed');
   const defaultPriority = flagValues(args, '--default-priority')[0] as BugReportPriority | undefined;
   if (defaultPriority && !BUG_REPORT_PRIORITIES.includes(defaultPriority)) {
     throw new Error(`--default-priority must be one of ${BUG_REPORT_PRIORITIES.join(', ')}`);
@@ -71,7 +73,7 @@ async function main(): Promise<void> {
   reports.forEach((report, index) => {
     const label = `#${index + 1} ${report.id.slice(0, 8)} [${report.reportType}]`;
     const head = `${label}  ${report.description.replace(/\s+/g, ' ').slice(0, 110)}`;
-    const c = classifyReport(report, overrides);
+    const c = classifyReport(report, overrides, restFixed);
     if (c.kind === 'needs-decision') {
       console.log(`${head}\n    -> NEEDS A DECISION (${c.reason}${c.candidates.length ? `: ${c.candidates.join(' / ')}` : ''}); unchanged\n`);
       undecided.push(head);
@@ -98,7 +100,7 @@ async function main(): Promise<void> {
 
   let done = 0;
   for (const report of reports) {
-    const c = classifyReport(report, overrides);
+    const c = classifyReport(report, overrides, restFixed);
     if (c.kind !== 'group') continue;
     const v = VERDICTS[c.group];
     const updated = await triageBugReportWithAudit({ kind: 'script', userId: null }, report.id, {

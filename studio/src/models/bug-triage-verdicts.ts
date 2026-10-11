@@ -17,6 +17,7 @@ export type VerdictGroupKey =
   | 'wrong-status-after-approval'
   | 'quality-line'
   | 'endms'
+  | 'earlier-fixes'
   | 'area-only';
 
 export type Verdict = {
@@ -44,6 +45,12 @@ export const VERDICTS: Record<VerdictGroupKey, Verdict> = {
   // Not verified, so not closed: the closest existing status is awaiting_verification.
   endms: { status: 'awaiting_verification', note: 'Probably fixed by PR #46; not reproduced' },
   'area-only': { note: 'Area noted only; no code change in Sprint 3', area: 'APP' },
+  // Founder, 2026-10-11: every other report in the closure set was fixed by earlier Sprint 3 fixes or by Task 12
+  // and simply never closed. Used only with --rest-fixed, for reports that match no specific group.
+  'earlier-fixes': {
+    status: 'fixed',
+    note: 'Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; the report was not closed at the time (closed 2026-10-11)',
+  },
 };
 
 // Keyword rules per group (case-insensitive, over the description + screen context).
@@ -71,16 +78,18 @@ const RULES: Record<VerdictGroupKey, RegExp[]> = {
   ],
   'quality-line': [/quality (line|check|metric|numbers)/, /loudness.*(length|shots)/],
   endms: [/endms/],
+  'earlier-fixes': [],
   'area-only': [],
 };
 
 export type Classification =
-  | { kind: 'group'; group: VerdictGroupKey; via: 'keywords' | 'override' | 'feedback' }
+  | { kind: 'group'; group: VerdictGroupKey; via: 'keywords' | 'override' | 'feedback' | 'rest' }
   | { kind: 'needs-decision'; reason: string; candidates: VerdictGroupKey[] };
 
 export function classifyReport(
   report: Pick<BugReport, 'id' | 'description' | 'reportType' | 'screenContext'>,
   overrides: Record<string, VerdictGroupKey> = {},
+  restFixed = false,
 ): Classification {
   const override = Object.entries(overrides).find(([prefix]) => report.id.startsWith(prefix));
   if (override) return { kind: 'group', group: override[1], via: 'override' };
@@ -91,6 +100,10 @@ export function classifyReport(
   // Founder, 2026-10-11: every feedback-type report is "area noted only", whatever its text matches.
   if (report.reportType === 'feedback') return { kind: 'group', group: 'area-only', via: 'feedback' };
   if (hits.length === 1) return { kind: 'group', group: hits[0], via: 'keywords' };
-  if (hits.length === 0) return { kind: 'needs-decision', reason: 'matches no group', candidates: [] };
+  if (hits.length === 0) {
+    return restFixed
+      ? { kind: 'group', group: 'earlier-fixes', via: 'rest' }
+      : { kind: 'needs-decision', reason: 'matches no group', candidates: [] };
+  }
   return { kind: 'needs-decision', reason: 'matches more than one group', candidates: hits };
 }

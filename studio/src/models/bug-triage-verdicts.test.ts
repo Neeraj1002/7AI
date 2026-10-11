@@ -38,6 +38,10 @@ describe('classifyReport', () => {
       candidates: ['budget', 'dashboard'],
     });
   });
+  it('with restFixed, a report matching no group is closed with the earlier-fixes note; an ambiguous one still waits', () => {
+    expect(classifyReport(r('something odd happened'), {}, true)).toMatchObject({ group: 'earlier-fixes', via: 'rest' });
+    expect(classifyReport(r('the dashboard budget number looks wrong'), {}, true)).toMatchObject({ kind: 'needs-decision' });
+  });
   it('treats every feedback report as area-only, even one that mentions the inbox', () => {
     expect(classifyReport(r('UI bug in inbox: two entries', 'feedback'))).toMatchObject({ group: 'area-only', via: 'feedback' });
   });
