@@ -1,6 +1,6 @@
 # SUPERSEDED (2026-10-11): the backend half is already in the codebase
 
-> `bug_reports` has `reportType`, `priority`, `area` and `triageNote` (`schema.prisma`), and `bugs.updateTriage` exists (closure part 2 / Admin Sprint 1). Nothing is built under this task. The tester-facing type and priority chips (R2) are **deferred to Sprint 4**. Pending: the founder's `\d bug_reports` output on the VPS to confirm the live columns. See `Sprint3/reports/task12.md` (R9).
+> Confirmed by the founder's `d bug_reports` on 2026-10-11: `area`, `priority`, `reportType` (not null, default `'bug'`) and `triageNote` exist, with no extra index, and `bugs.updateTriage` exists (closure part 2 / Admin Sprint 1). **R1 (list/update endpoint) and R3 (`area`) are closed.** **R2 (the tester-facing type and priority chips) moves to Sprint 4.** Nothing further is built under this task. See `Sprint3/reports/task12.md` (R9).
 
 # Bugs Task 7: Bug-Report Triage Fields (Type, Priority, Area) + a Real List/Update Endpoint
 

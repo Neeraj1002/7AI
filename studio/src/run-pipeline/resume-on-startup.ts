@@ -82,6 +82,8 @@ export async function resumeOnStartup(): Promise<void> {
 // count lives in the (otherwise unused) PipelineRun.retryCount column: incremented when a resume
 // starts, reset to 0 when the resumed stage returns. A process that dies mid-resume (the
 // 2026-10-10 restart storm) therefore leaves the count behind and the third boot parks the run.
+// The one resume rule: a resume that THROWS parks the run at once (resumeInBackground); a resume that
+// HANGS or whose process dies is parked on the third boot (this constant). Neither is retried again.
 export const MAX_RESUME_ATTEMPTS = 2;
 
 function isGateStage(stage: string | null | undefined): stage is 'gate1' | 'gate2' {

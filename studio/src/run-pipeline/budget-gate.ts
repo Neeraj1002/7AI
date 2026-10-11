@@ -237,7 +237,7 @@ export async function isBudgetAvailable(
 }
 
 // Bugs Closure R1 (D4) — the smallest weekly share a default-share channel may be left with
-// by another channel's override. PROPOSED value; the founder confirms the number.
+// by another channel's override. Founder decision (2026-10-11): an override guard only; the run-time gate does not enforce it.
 export const MIN_CHANNEL_SHARE_USD = 5;
 // Bugs Task 12 (R7) - the weekly budget a new tenant gets from scripts/invite-tenant.ts (existing
 // tenants are untouched). Weekly, like every AgentQuota ceiling (window resets Monday 00:00 UTC).

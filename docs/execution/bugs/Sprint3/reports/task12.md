@@ -19,7 +19,7 @@ Nothing here was run against `sevenai_preview`, a sandbox database or a phone. E
 | R6 | Done (tests), live check not done | See below. |
 | R7 | Done (tests) | See table below. |
 | R8 | Answered, no code | See below. |
-| R9 | Pending founder | `schema.prisma` has `reportType`, `priority`, `area`, `triageNote` and `bugs.updateTriage` exists. Confirm with `\d bug_reports` on the VPS; then Task 7 can be marked superseded (STATUS row updated to say so provisionally). Nothing built. |
+| R9 | Closed, nothing built | The founder's `d bug_reports` (2026-10-11) shows `area`, `priority`, `reportType` (not null, default `'bug'`) and `triageNote`, no extra index; `bugs.updateTriage` exists. Task 7 R1 and R3 are closed; R2 (tester chips) moves to Sprint 4. `task7.md` and the STATUS row say so. |
 | R10 | Done except where noted | See below. |
 | R12 watermark | Done (OTA), not seen on a phone | Branch on `Platform.OS === 'web' && asset.file`, otherwise always send `{uri,name,type}`. Likely cause: newer expo-image-picker exposes `asset.file` on native, so the old `if (asset.file)` sent a part with no `uri`. Not reproduced on a device. |
 | R13 reconnect needed | Done (BE + app), not on a phone | `invalid_grant` is recorded in `Channel.brandAssets.youtubeAuthError` (existing JSON, no migration), set by the publish failure path and the analytics poll, cleared by the OAuth exchange. `channels.get/list` expose `youtubeNeedsReconnect`; the Channels list, Channel detail and picker show "Reconnect needed"; New brief shows a hint; a publish that fails this way says so in plain words. |
@@ -50,7 +50,7 @@ Nothing here was run against `sevenai_preview`, a sandbox database or a phone. E
 3. **Running at a gate with no way to act.** `runGate2Stage` assumed the caller had already set `paused_gate2` and never set it itself. After Retry set `running`, the gate attempt opened under `running` and the app, which shows Approve/Reject/Revise only for `paused_gate2`, showed only "Cancel run". Fixed: both gate stages set `paused_gateN` when they open; boot repairs any run left `running` at a gate (`[resume-repair]`) without re-running it.
 4. **Silent exit.** **Unproven hypothesis, from code reading:** `resumeOnStartup` *awaited* `runGate2Stage`, which blocks on a human reply, before `startApiServer` and the pollers ran; with only an in-memory promise pending (and the receipt timer unref'd) Node's event loop empties and the process exits quietly, PM2 restarts it, and each boot re-sent the push. That matches "no stack trace, about one boot per second, a push per boot", but I could not observe it. Changes: resumed stages now run in the background (boot never waits on a render or a gate); each run's resume is wrapped; `retryCount` counts resumes that started but did not finish and the third boot parks the run under Needs attention; `unhandledRejection`/`uncaughtException` log the stack; an `exit` handler logs the exit code and uptime; the boot line logs pid and the PM2 restart count if PM2 provides it. **If the loop returns, the new `[exit]` / `[fatal]` lines will name the cause.**
 
-Deviation: a resume that *throws* is parked immediately rather than after a second try (retrying a deterministic error on the next boot helps nobody). A resume that never returns (process death) is parked on the third boot, as specified.
+**The resume rule (one rule; code in `resume-on-startup.ts`, tests in `resume-on-startup.test.ts`):** a run resumed after a restart is parked under Needs attention (a) **immediately, on the first resume that throws** (one try; retrying a deterministic error on the next boot helps nobody), and (b) **on the third boot** if two earlier resume starts never finished, which is what a hang or a process death looks like (`MAX_RESUME_ATTEMPTS = 2`, counted in `retryCount`, reset to 0 when the resumed stage returns). Neither case is retried on a later boot. This deliberately differs from the brief's "after 2 failed resumes", which would have applied one count to both cases.
 
 R5f: a run that becomes `failed` or `completed` resolves its open Inbox cards inside `updatePipelineRun` (covers cancel, reject and failure). R5g: see R6.
 
@@ -87,7 +87,7 @@ How it works: the pool is `AgentQuota.budgetCeilingUsd` for a 7-day window start
 | 3 | $3.33 | yes |
 | 7 | $1.43 | yes |
 
-**The minimum is not enforced at run time.** `MIN_CHANNEL_SHARE_USD` is used only when someone sets a channel override (`validateBudgetOverride` refuses an override that would leave another channel under $5) and in warning text. `checkBudget` refuses a run only when spend reaches the channel's share. `budgetDilutionWarning` says runs "will be refused" below the minimum, which is not true. I did not change the constant. Options for the founder: (a) lower it to $3 or less, (b) make it a fraction of the pool, (c) leave it, and reword the warning. A run on a channel that has lost its connection is bounded by the pool only. Existing tenants (the founder's ceiling of 40) are untouched.
+**Founder decision (2026-10-11): `MIN_CHANNEL_SHARE_USD` ($5) is an override guard only and is not enforced at run time.** It is used when someone sets a channel override (`validateBudgetOverride` refuses an override that would leave another channel under $5) and in warning text. `checkBudget` refuses a run only when spend reaches the channel's share, so three or seven connected channels on the $10 default still run. The constant is unchanged, and `budgetDilutionWarning` now says runs are still allowed (it used to say they "will be refused"). A run on a channel that has lost its connection is bounded by the pool only. Existing tenants (the founder's ceiling of 40) are untouched.
 
 ## R8
 
@@ -116,11 +116,10 @@ How it works: the pool is `AgentQuota.budgetCeilingUsd` for a 7-day window start
 
 - **Deploy and check** (F1, F8): repeat reject -> cap -> Revise -> Retry -> `pm2 restart` on a throwaway run and watch for `[resume-repair]`, `[exit]`, `[fatal]`; confirm a Gate 1 push arrives, once.
 - **OTA**: `BUGS_TASK12_APP` is JS-only. `package.json`, the lockfile and `app.json` are unchanged against `origin/main`. I did **not** run `eas update`, and I did not get a trustworthy `fingerprint:generate` (the worktree shares `node_modules` by junction, so the paths in the output point at another checkout): run it from a normal checkout of the branch and compare with the installed build before publishing. Open the APP PR when you want one (I opened only the BE draft PR).
-- **Decisions** (F9): `MIN_CHANNEL_SHARE_USD` (R7 options above), the 7-day gate staleness, the weekly assumption (confirmed from the code).
-- **R9**: paste `\d bug_reports`.
+- **Decisions** (F9), made by the founder: `MIN_CHANNEL_SHARE_USD` is an override guard only (R7), gates older than 7 days reopen silently, and the budget is per week (confirmed from the code).
 - **Sprint 4 hand-off**: per-channel colour setting; estimated duration at Gate 1 (R10.10); the stock-path ideas listed under R1 "Not in this task"; reword `budgetDilutionWarning`.
 - Closure lane C1-C7, D1 and Founder rows F2-F7, F10 are unchanged by this work.
 
 ## Founder checklist state
 
-F1 pending deploy. F2 open. F3 open. F4 open (`PUBLIC_API_BASE_URL`). F5 open. F6 open (needs the OTA). F7 open. F8 pending deploy. F9 decisions listed above. F10 open.
+F1 pending deploy. F2 open. F3 open. F4 open (`PUBLIC_API_BASE_URL`). F5 open. F6 open (needs the OTA). F7 open. F8 pending deploy. F9 decided by the founder (see above). F10 open.

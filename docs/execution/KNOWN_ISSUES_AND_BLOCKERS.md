@@ -448,4 +448,4 @@ Findings from the 2026-10-10 testing session and what happened to them; detail i
 - Gate 1 push never arrived: payload shortened, receipt details now logged. Needs F8.
 - Dashboard counted cancellations as failures: fixed (published / failed / rejected / cancelled).
 - Performance Analytics polling every video forever (Section 4, L2) and the permissive CORS `origin: true` (Section 3): both bounded/closed in Task 12 R10.
-- Default new-tenant budget is now $10 a week shared by YouTube-connected channels; `MIN_CHANNEL_SHARE_USD` is not enforced at run time (decision pending).
+- Default new-tenant budget is now $10 a week shared by YouTube-connected channels; `MIN_CHANNEL_SHARE_USD` is an override guard only and is not enforced at run time (founder decision, 2026-10-11).
