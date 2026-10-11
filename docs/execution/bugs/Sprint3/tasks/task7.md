@@ -1,3 +1,7 @@
+# SUPERSEDED (2026-10-11): the backend half is already in the codebase
+
+> `bug_reports` has `reportType`, `priority`, `area` and `triageNote` (`schema.prisma`), and `bugs.updateTriage` exists (closure part 2 / Admin Sprint 1). Nothing is built under this task. The tester-facing type and priority chips (R2) are **deferred to Sprint 4**. Pending: the founder's `\d bug_reports` output on the VPS to confirm the live columns. See `Sprint3/reports/task12.md` (R9).
+
 # Bugs Task 7: Bug-Report Triage Fields (Type, Priority, Area) + a Real List/Update Endpoint
 
 **Read `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` before starting.** This task needs a schema

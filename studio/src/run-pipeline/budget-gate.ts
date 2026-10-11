@@ -287,6 +287,6 @@ export function budgetDilutionWarning(view: ChannelBudgetView): string | null {
   const lowest = Math.min(...shared.map((c) => view.ceilings.get(c.id) ?? 0));
   if (lowest >= WEEKLY_BUDGET_GUIDE_PER_CHANNEL_USD) return null;
   const usd = (n: number) => `$${n.toFixed(2)}`;
-  const floorNote = lowest < MIN_CHANNEL_SHARE_USD ? ` — below the ${usd(MIN_CHANNEL_SHARE_USD)} minimum, runs will be refused` : '';
+  const floorNote = lowest < MIN_CHANNEL_SHARE_USD ? ` — below the ${usd(MIN_CHANNEL_SHARE_USD)} suggested minimum (runs are still allowed; they stop only when the channel's share is spent)` : '';
   return `The ${usd(view.poolCeilingUsd)} weekly budget is now split over ${view.channels.length} active channel(s): about ${usd(lowest)} a week each for channels without their own limit (guide: ${usd(WEEKLY_BUDGET_GUIDE_PER_CHANNEL_USD)} per channel)${floorNote}.`;
 }

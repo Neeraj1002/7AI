@@ -69,7 +69,7 @@ WHERE r.id::text = n."threadKey" AND n.kind = 'approval_request' AND n."resolved
 ## R6
 
 - **Gate 1 never arrives.** Not verified against a receipt. The one concrete difference I found between the two payloads: Gate 1's push `body` was the whole message (brief + full script + review notes, easily over a kilobyte), Gate 2's was a few lines. Pushes are now a short summary (`buildPushBody`, 180 characters; the full text stays in the Inbox row). If receipts still say `DeveloperError`, receipts now log `details`, and each push logs `user, token (last 6), kind, bodyChars, ticket id`. A `DeveloperError` never clears a token (only `DeviceNotRegistered` does, unchanged).
-- **Repeats.** `decideApprovalPush` (pure, tested): an open card + a notification of any kind for that thread in the last 30 minutes -> no push; older -> one "Reminder:" push, which also writes a `notify` row so the next restart sees it; a gate open longer than 14 days -> reopened silently. Uses existing `notifications` rows (no column). Env: `GATE_RESEND_PUSH_WINDOW_MS`, `GATE_RESEND_STALE_DAYS`. The "per boot cap" is covered by the persisted window.
+- **Repeats.** `decideApprovalPush` (pure, tested): an open card + a notification of any kind for that thread in the last 30 minutes -> no push; older -> one "Reminder:" push, which also writes a `notify` row so the next restart sees it; a gate open longer than 7 days -> reopened silently. Uses existing `notifications` rows (no column). Env: `GATE_RESEND_PUSH_WINDOW_MS`, `GATE_RESEND_STALE_DAYS`. The "per boot cap" is covered by the persisted window.
 - Collapse-by-tag was not added: the Expo SDK version here has no collapse field; the dedupe makes stacking impossible instead.
 
 ## R3 evidence
@@ -116,7 +116,7 @@ How it works: the pool is `AgentQuota.budgetCeilingUsd` for a 7-day window start
 
 - **Deploy and check** (F1, F8): repeat reject -> cap -> Revise -> Retry -> `pm2 restart` on a throwaway run and watch for `[resume-repair]`, `[exit]`, `[fatal]`; confirm a Gate 1 push arrives, once.
 - **OTA**: `BUGS_TASK12_APP` is JS-only. `package.json`, the lockfile and `app.json` are unchanged against `origin/main`. I did **not** run `eas update`, and I did not get a trustworthy `fingerprint:generate` (the worktree shares `node_modules` by junction, so the paths in the output point at another checkout): run it from a normal checkout of the branch and compare with the installed build before publishing. Open the APP PR when you want one (I opened only the BE draft PR).
-- **Decisions** (F9): `MIN_CHANNEL_SHARE_USD` (R7 options above), the 14-day gate staleness, the weekly assumption (confirmed from the code).
+- **Decisions** (F9): `MIN_CHANNEL_SHARE_USD` (R7 options above), the 7-day gate staleness, the weekly assumption (confirmed from the code).
 - **R9**: paste `\d bug_reports`.
 - **Sprint 4 hand-off**: per-channel colour setting; estimated duration at Gate 1 (R10.10); the stock-path ideas listed under R1 "Not in this task"; reword `budgetDilutionWarning`.
 - Closure lane C1-C7, D1 and Founder rows F2-F7, F10 are unchanged by this work.

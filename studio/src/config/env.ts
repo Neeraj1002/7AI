@@ -124,7 +124,7 @@ const EnvSchema = z.object({
   // Bugs Task 12 (R6/R5g) - a re-sent gate prompt (after a restart) is pushed at most once per this window,
   // and never for a gate older than GATE_RESEND_STALE_DAYS (it is reopened silently).
   GATE_RESEND_PUSH_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
-  GATE_RESEND_STALE_DAYS: z.coerce.number().optional().default(14),
+  GATE_RESEND_STALE_DAYS: z.coerce.number().optional().default(7),
   // Week 5 Task 3 — a "you haven't answered in a while" nudge, independent
   // of a restart. Deliberately much longer than RESUME_STALE_WINDOW_MS: an
   // automated stage stuck for 30 minutes is suspicious, but a human approval

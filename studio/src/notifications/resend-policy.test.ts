@@ -3,7 +3,7 @@ import { decideApprovalPush, buildPushBody, PUSH_BODY_MAX_CHARS } from './resend
 
 const now = Date.parse('2026-10-11T12:00:00Z');
 const ago = (ms: number) => new Date(now - ms);
-const base = { now, windowMs: 30 * 60_000, staleDays: 14 };
+const base = { now, windowMs: 30 * 60_000, staleDays: 7 };
 
 describe('decideApprovalPush', () => {
   it('sends normally when no card is open (a new gate)', () => {
@@ -16,7 +16,7 @@ describe('decideApprovalPush', () => {
     expect(decideApprovalPush({ ...base, openApprovalCreatedAt: ago(3600_000), lastNotificationAt: ago(40 * 60_000) })).toBe('reminder');
   });
   it('reopens a gate older than the staleness limit without a push', () => {
-    expect(decideApprovalPush({ ...base, openApprovalCreatedAt: ago(15 * 86_400_000), lastNotificationAt: ago(15 * 86_400_000) })).toBe('skip-stale');
+    expect(decideApprovalPush({ ...base, openApprovalCreatedAt: ago(8 * 86_400_000), lastNotificationAt: ago(8 * 86_400_000) })).toBe('skip-stale');
   });
 });
 
