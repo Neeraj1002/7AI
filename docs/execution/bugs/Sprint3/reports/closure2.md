@@ -86,11 +86,53 @@ Answers to the task's four questions, from two local test renders (real TTS, `AI
 - app: `npx tsc --noEmit` clean; `eslint` on the changed screens shows only a pre-existing `Array<T>` warning in `run-labels.ts` (line 57, not mine).
 - Two local test renders for P8 (real OpenAI TTS and Whisper, a few cents; stubbed visuals). The earlier `audio-bed` test render pattern was reused. No server was started, `sevenai_preview` was never touched.
 
-## The 24 reports (P2): not started
+## The 24 reports (P2): verdicts
 
-| # | Classification | area | status | evidence | fixed by |
-|---|---|---|---|---|---|
-| 1-24 | _to be filled after P1 and the device tests_ | | | | |
+Founder verdicts, 2026-10-11, from the phone and server tests (`closure2-phone-verification.md`, PR #63 for the post-approval screen). They are recorded through `bugs.updateTriage`'s service function (`triageBugReportWithAudit`, audit actor `script`) by `studio/scripts/triage-verdicts.ts`, run on the preview server: first a dry run that lists every open report with the verdict it would apply, then `--apply` after the mapping is confirmed. Reports are matched to a group by their description, not by number; a report that fits no group (or two) is left unchanged and listed for the founder. **State: applied on the preview server on 2026-10-11 (`--first 28 --rest-fixed`, 28 reports changed, audit rows written with actor `script`).** The five newest open reports (raised after the closure set, not part of these tasks) were ignored and are still `open`. The rows below are from that run; "#" is the position among open reports, oldest first, not a number the reports carry.
+
+| Group (closureTask2 P2 rows) | Verdict note, verbatim | Status set |
+|---|---|---|
+| Budget (1-5), identical clips (6, 14-16; 6 = "AI images don't work", used in published runs since 2026-10-07), stutter (17-18), audio (19) | No longer reproduces on the real build (2026-10-11) | fixed |
+| Dashboard (7-9), Inbox (10), failed label (11) | Verified OK on the real build | fixed |
+| Wrong status after approval (12-13) | Reproduced, fixed by PR #63, verified on the phone 2026-10-11 (stepper, Publishing chip, no Cancel) | fixed |
+| Quality line | Not built; planned for Sprint 4 (Gate 2 quality checks, PR #53) | open (unchanged) |
+| Old `endMs` failure | Probably fixed by PR #46; not reproduced | awaiting_verification (not verified, so not closed) |
+| Report 20 and the four feedback reports | Area noted only; no code change in Sprint 3 | unchanged; area set (APP) |
+
+Failed-runs check (founder SQL, 2026-10-11): 24 failed runs = 18 cancelled + 6 rejected, none real failures.
+
+| # | Report (id, short) | Group | Status set | Note |
+|---|---|---|---|---|
+| 1 | `0c97c8bc` UI fix: Bug icon to green | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 2 | `1da9b7ac` Script/review/video reviews have no screen (feedback) | area noted only | open, area APP | Area noted only; no code change in Sprint 3 |
+| 3 | `3b66cf38` Queue showed the run on Brief again after approve/publishing | wrong status after approval | fixed | Reproduced, fixed by PR #63, verified on the phone 2026-10-11 (stepper, Publishing chip, no Cancel) |
+| 4 | `2cd64d6c` Inbox shows two entries after both gates (feedback) | area noted only | open, area APP | Area noted only; no code change in Sprint 3 |
+| 5 | `6aa8314e` Video quality bad, sticks every 2 s | stutter | fixed | No longer reproduces on the real build (2026-10-11) |
+| 6 | `3a83d980` Stages reset after Gate 2 approved, before publishing | wrong status after approval | fixed | Reproduced, fixed by PR #63, verified on the phone 2026-10-11 (stepper, Publishing chip, no Cancel) |
+| 7 | `274a09c6` AI images not working | identical clips / AI images | fixed | No longer reproduces on the real build (2026-10-11) |
+| 8 | `61ad1f75` Upload an image of my character (feedback) | area noted only | open, area APP | Area noted only; no code change in Sprint 3 |
+| 9 | `2947b8da` Rating on videos (feedback) | area noted only | open, area APP | Area noted only; no code change in Sprint 3 |
+| 10 | `64cc061a` Why the run failed at video generation | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 11 | `6431d7b7` Gate 2 video stuck at 17 s, 22 s | stutter | fixed | No longer reproduces on the real build (2026-10-11) |
+| 12 | `f3c7914b` Revised video, no visible difference | identical clips | fixed | No longer reproduces on the real build (2026-10-11) |
+| 13 | `53775dbc` Retried 10 times, still failing | budget | fixed | No longer reproduces on the real build (2026-10-11) |
+| 14 | `888b5ad7` Success rate 5/5 but one failed | dashboard | fixed | Verified OK on the real build |
+| 15 | `614cf41c` Same brief as the run that failed 10-11 times | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 16 | `8027fdf7` Stock image keeps playing the same image | identical clips | fixed | No longer reproduces on the real build (2026-10-11) |
+| 17 | `eb33f5f2` Background music not working | audio | fixed | No longer reproduces on the real build (2026-10-11) |
+| 18 | `5acfa5fb` Exact same footage as the 1st run | identical clips | fixed | No longer reproduces on the real build (2026-10-11) |
+| 19 | `50c9385b` 16 runs showing only 17 in success | dashboard | fixed | Verified OK on the real build |
+| 20 | `f84e5d6d` Cards all say "approval needed"; should show current stage | redesign (superseded) | fixed | Superseded: the Queue, Inbox and Run screens are being redesigned (closed 2026-10-11) |
+| 21 | `e3ef93db` Shows 4 runs, there are more | dashboard | fixed | Verified OK on the real build |
+| 22 | `91915982` Failed attempt shows completed in Details | failed label | fixed | Verified OK on the real build |
+| 23 | `6b140a25` "Its not making the video" | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 24 | `ae06afc7` Which ceiling was hit, channel or system | budget | fixed | No longer reproduces on the real build (2026-10-11) |
+| 25 | `f50aa143` Gate 2 enable button not toggling | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 26 | `16f1bdd6` "What is failing here" | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 27 | `6a344dee` "Again failed at script generation" | earlier fixes | fixed | Fixed by earlier Sprint 3 bug fixes or Bugs Task 12; not closed at the time (closed 2026-10-11) |
+| 28 | `65ab9a7c` Each run should have one card with its current stage | redesign (superseded) | fixed | Superseded: the Queue, Inbox and Run screens are being redesigned (closed 2026-10-11) |
+
+No report was matched to the "quality line" or the old `endMs` verdicts, so those two notes were not used. #10 and #15 describe the repeated failed video attempts and are the likely `endMs` reports; they carry the generic earlier-fixes note. Priority was not changed on any report (the four without one are the feedback reports).
 
 ## What is left, and what I need
 
