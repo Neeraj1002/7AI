@@ -11,6 +11,7 @@
 // Usage:
 //   NODE_ENV=production npx tsx scripts/triage-verdicts.ts      # DRY RUN: prints what it would do, writes nothing
 //   NODE_ENV=production npx tsx scripts/triage-verdicts.ts --override 3f9a=area-only --override c01b=endms
+//   NODE_ENV=production npx tsx scripts/triage-verdicts.ts --first 24 ...   (only the 24 oldest open reports; newer ones ignored)
 //   NODE_ENV=production npx tsx scripts/triage-verdicts.ts --apply [--override ...] [--default-priority annoying]
 //
 // --override <idprefix>=<group> forces a report into a group (use it for the "needs a decision" list after
@@ -53,8 +54,15 @@ async function main(): Promise<void> {
   }
 
   // Oldest first; "#" is only the position in this list (the reports carry no number of their own).
-  const reports = (await listBugReportsFiltered({ status: 'open' })).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  console.log(`${apply ? 'APPLY' : 'DRY RUN'}: ${reports.length} open report(s)\n`);
+  const firstArg = flagValues(args, '--first')[0];
+  const first = firstArg ? Number(firstArg) : undefined;
+  if (firstArg && (!Number.isInteger(first) || (first as number) < 1)) throw new Error('--first must be a positive integer');
+  const allOpen = (await listBugReportsFiltered({ status: 'open' })).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  // --first N keeps only the N oldest open reports (the closure set); newer ones are ignored entirely.
+  const reports = first ? allOpen.slice(0, first) : allOpen;
+  console.log(
+    `${apply ? 'APPLY' : 'DRY RUN'}: ${reports.length} open report(s)${first ? ` (the ${first} oldest of ${allOpen.length}; ${allOpen.length - reports.length} newer ignored)` : ''}\n`,
+  );
 
   const undecided: string[] = [];
   let planned = 0;

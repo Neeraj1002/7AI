@@ -88,8 +88,8 @@ export function classifyReport(
   const text = `${report.description} ${report.screenContext ?? ''}`.toLowerCase();
   const hits = (Object.keys(RULES) as VerdictGroupKey[]).filter((g) => RULES[g].some((re) => re.test(text)));
 
-  // Feedback reports are "area noted only" unless their text clearly belongs to one other group.
-  if (report.reportType === 'feedback' && hits.length === 0) return { kind: 'group', group: 'area-only', via: 'feedback' };
+  // Founder, 2026-10-11: every feedback-type report is "area noted only", whatever its text matches.
+  if (report.reportType === 'feedback') return { kind: 'group', group: 'area-only', via: 'feedback' };
   if (hits.length === 1) return { kind: 'group', group: hits[0], via: 'keywords' };
   if (hits.length === 0) return { kind: 'needs-decision', reason: 'matches no group', candidates: [] };
   return { kind: 'needs-decision', reason: 'matches more than one group', candidates: hits };

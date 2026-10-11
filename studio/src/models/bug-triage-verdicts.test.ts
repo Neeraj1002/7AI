@@ -38,6 +38,9 @@ describe('classifyReport', () => {
       candidates: ['budget', 'dashboard'],
     });
   });
+  it('treats every feedback report as area-only, even one that mentions the inbox', () => {
+    expect(classifyReport(r('UI bug in inbox: two entries', 'feedback'))).toMatchObject({ group: 'area-only', via: 'feedback' });
+  });
   it('treats unmatched feedback as area-only, and an override wins', () => {
     expect(classifyReport(r('would be nice to have dark mode', 'feedback'))).toMatchObject({ group: 'area-only', via: 'feedback' });
     expect(classifyReport(r('something odd happened', 'bug', 'beef0001'), { beef: 'area-only' })).toMatchObject({
