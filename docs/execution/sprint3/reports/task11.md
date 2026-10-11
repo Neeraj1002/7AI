@@ -143,4 +143,4 @@ Live-verification transcripts reproduced in full above, per item.
 - `docs/execution/ui-ux/tasks/task6.md` — the source UI spec (B11–B14)
 - `docs/execution/sprint3/tasks/task8.md`, `tasks/task9.md`, `tasks/task10.md` — the prior UI-Enhancement-driven
   backend tasks this one follows the same posture as
-- `docs/execution/bugs/tasks/task8.md` (R1) — the "not connected to YouTube" channel check R4/B12 reuses
+- `docs/execution/bugs/Sprint3/tasks/task8.md` (R1) — the "not connected to YouTube" channel check R4/B12 reuses

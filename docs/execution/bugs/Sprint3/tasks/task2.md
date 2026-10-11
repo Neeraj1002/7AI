@@ -63,7 +63,7 @@ concluding nothing else is pending:
   link, channel switcher, push notifications) already shipped native config (`expo-secure-store`,
   `expo-notifications` are both already in `app.json`'s plugins as of this task) — confirm nothing from
   that work was left half-configured.
-- `docs/execution/bugs/tasks/task1.md` and its report — confirm R1 (cleartext) is the *only* native
+- `docs/execution/bugs/Sprint3/tasks/task1.md` and its report — confirm R1 (cleartext) is the *only* native
   change that task introduced, so nothing from it is still outstanding.
 - `git log -p` for the earlier "Add EAS build configuration for Android" commit (the one that added
   `app/eas.json` and, per R2's finding below, appears to have also added `expo-updates` and an `updates`
@@ -148,7 +148,7 @@ None new — this is client-side native/build configuration, not application log
 ## Implementation
 
 ### Files to Create
-- `docs/execution/bugs/reports/task2.md` (this task's report).
+- `docs/execution/bugs/Sprint3/reports/task2.md` (this task's report).
 
 ### Files to Modify
 - `app/app.json` — `runtimeVersion.policy` (decide fingerprint vs. appVersion), `updates.checkAutomatically`,
@@ -189,7 +189,7 @@ founder-action-pending, same honest framing, not asserted as done.
 
 ## Report Template
 
-Generate at: `docs/execution/bugs/reports/task2.md`, standard shape (see Task 1's report for the
+Generate at: `docs/execution/bugs/Sprint3/reports/task2.md`, standard shape (see Task 1's report for the
 pattern this repo uses), with an explicit **Bundled native changes** list (R1) and an explicit
 **Founder verification steps for OTA** section (R2) — both called out clearly enough that a founder
 skimming the report knows exactly what to do next.
@@ -206,5 +206,5 @@ skimming the report knows exactly what to do next.
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - [KNOWN_ISSUES_AND_BLOCKERS.md](../../KNOWN_ISSUES_AND_BLOCKERS.md)
-- `docs/execution/bugs/tasks/task1.md` and `docs/execution/bugs/reports/task1.md`
+- `docs/execution/bugs/Sprint3/tasks/task1.md` and `docs/execution/bugs/Sprint3/reports/task1.md`
 - `docs/execution/bugs/STATUS.md`

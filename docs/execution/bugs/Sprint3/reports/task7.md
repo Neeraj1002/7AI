@@ -84,5 +84,5 @@ before merge" step, same as every schema-touching task before this one.
 - Ready for Integration: yes. Founder still needs to deploy the migration to the shared dev DB.
 
 ## Links & References
-- `docs/execution/bugs/tasks/task7.md`, `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task3.md` R2, `docs/execution/bugs/tasks/task4.md` R1 — the flows this doesn't regress
+- `docs/execution/bugs/Sprint3/tasks/task7.md`, `docs/execution/bugs/STATUS.md`
+- `docs/execution/bugs/Sprint3/tasks/task3.md` R2, `docs/execution/bugs/Sprint3/tasks/task4.md` R1 — the flows this doesn't regress

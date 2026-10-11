@@ -165,5 +165,5 @@ observed outcome (delivered successfully, or the specific failure the new loggin
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task3.md` — R2 and R5 there are what this task corrects/completes. R4
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R2 and R5 there are what this task corrects/completes. R4
   there (keyboard overlap) is out of scope here — see the UI/UX track instead.

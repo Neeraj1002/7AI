@@ -122,7 +122,7 @@ own row and `tasks/task12.md`.
 live-verified, including real upload/download/delete round trips against the founder's real `7ai-preview`
 bucket (never mocked); PR [#45](https://github.com/Neeraj1002/7AI/pull/45) is out of draft, ready for
 review.
-**Last updated**: 2026-09-28 (Task 12 — all six items complete, PR #45 ready for review).
+**Last updated**: 2026-10-11 (Sprint 3 closing status section added: the sprint is closed by Bugs Task 12; Task 13 row records PR #47 as merged; the "reports not synced" notes replaced). Before that: 2026-09-28 (Task 12 — all six items complete, PR #45 ready for review).
 
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
@@ -138,15 +138,27 @@ review.
 | 10 | Server/Local Environment Config + Runtime Server Switcher + Telegram Token-Delivery Fixes | **Code complete — PR #40 ready for review** | **Founder** (review + merge; on-device R2 verification) | `SERVERCONFIG_BE` — PR [#40](https://github.com/Neeraj1002/7AI/pull/40) | R1: `studio/src/config/env.ts`'s `dotenv.config()` now branches on `NODE_ENV === 'production'` to load `.env` (server) vs. `.env.local` (local dev, unchanged) — confirmed root cause, live-verified both branches load distinct values correctly. R2: the runtime server switch already existed (SecureStore, not AsyncStorage — corrected premise); added named "Local"/"Preview" presets on the login screen, fixed the one real save-timing gap (now persists immediately on preset tap or "Done"), and wired `setApiUrl` to re-check `/health` against the new URL immediately, surfacing Bugs Task 8/R2's existing server-down screen without duplicating it. R3: Telegram login-token message is now just the raw token. R4: `runTelegramStartPollCheck`'s `getUpdates` call gets exponential retry/backoff (3s base, capped at 60s) with log-once-per-failure-streak — live-verified via a simulated 3-failure-then-recover sequence: one error logged, backed-off ticks skip silently, a real `/start` update still handled correctly on recovery. **One real mistake made and disclosed in the report**: an early R2-verification attempt booted a throwaway `studio` server against the shared dev DB, which woke real resume-on-startup logic and re-opened 8 genuinely-pending gate1 runs (likely re-sending some real notifications) before being caught and killed ~15-20s later; redone safely afterward with a bare `/health`-only stub server, no app/DB involved. **What's honestly not provable without a physical device**: R2's on-device verification (tap "Preview" on a real phone, confirm the request hits `7aistudio.tech` in the VPS's own Nginx log) — tracked as a founder-action item, not a code gap. Build/lint/typecheck clean across `studio/` and `app/`; `npm test` 108/108. Full detail at `tasks/task10.md`, report at `reports/task10.md`. |
 | 11 | UI Enhancement 3 — Backend Requirements (Run Lifecycle: Publish-on-Approval, Gate Decision Fields, Cancel Running, Run Again) | **Code complete — all R-items done, PR #42 ready for review** | **Founder** (review + merge) | `UIENHANCEMENT3_BE` — PR [#42](https://github.com/Neeraj1002/7AI/pull/42) | R1/B14: `pipeline-runner.ts`'s `driveFromCurrentStage` loop gains `case 'publishing'`/`case 'analytics'` (previously stopped dead at `'publishing'` — a live Gate 2 approval never actually uploaded until the next process restart picked it up via `resume-on-startup.ts`); publishing gets a 10-minute stall guard (races the real call against a timer, doesn't cancel it — `runPublishingStage` already checkpoints `youtubeVideoId` before any re-upload, so a stalled-then-late-succeeding call is provably safe, documented as a benign self-healing race in the report). Also closes Task 9/R2's Gate-2-off auto-approve path (same loop). Live-verified: a real run driven purely through `runPipelineToNextGate` (real script-generation/video-generation, `reviewScript`/`reviewVideo` mocked to a passing outcome) reached `completed` with a real stub `youtubeVideoId`, entirely from the live request path, no restart anywhere in the test. R2/B13: `runs.get` gains `lastGateDecision` (normalizes gate1/gate2's three different raw output field names — `reason`/`privacyStatus`/`notes` — into one consistent shape) and `endReason` (string-matched off `run.lastError`'s exact strings, a real disclosed fragility). R3/B11: a new in-memory `cancellation-registry.ts` (same precedent as `pending-approvals.ts`) lets `runs.cancel` accept a genuinely `'running'` run — recorded and returned immediately, checked once per `pipeline-runner.ts` loop iteration; an in-flight stage is allowed to finish, only the next stage is refused. R4/B12: `runs.rerun` reuses a new shared `assertChannelCanRun` (same archived/not-connected checks `create` already had) against the source run's channel; found `creationOptions` was already present on `runs.get`'s response before this task (a direct `PipelineRun` field), so nothing further was needed there. R5 (optional): `runs.progress` → `{ stage, attemptNo }`, no fabricated `pct`. All five live-verified against isolated sandbox DBs with `reviewScript`/`reviewVideo`/`generateScript` mocked for determinism/speed — real stages (`video_generation`, `publishing`, `analytics`) stayed real, stub media/upload only. One real, live-found nuance in R3's own verification: `currentStage` can legitimately still read `'video_review'` after a mid-flight cancel (the in-flight stage's own normal completion write isn't discarded, per the task's own instruction) — the real proof the loop stopped is that `video_review`'s own function was never called, not that field's text; an initial, stricter test assertion was wrong and corrected once the real result showed why. Full detail at `tasks/task11.md`, report at `reports/task11.md`. |
 | 12 | Generated Media Storage — Cloudflare R2 Integration | **Code complete — all 6 R-items done, PR #45 ready for review** | **Founder** (review + merge) | `MEDIASTORAGE_BE` — PR [#45](https://github.com/Neeraj1002/7AI/pull/45) | Revised 2026-09-28 to two-tier storage (`drafts/` = every `video_generation` attempt, `final/` = anchored to `runPublishingStage`'s own upload success) plus the channel watermark, per the founder's own refined design. Confirmed (again, directly) before starting that no R2 code existed on `main` despite a prior commit's misleading message claiming otherwise. R1: new `studio/src/storage/r2-client.ts`, `@aws-sdk/client-s3`/`@aws-sdk/s3-request-presigner`, `R2_*` env wiring (`R2_TOKEN_VALUE` confirmed out of scope). Live-verified: a real 1KB file uploaded/downloaded/checksum-matched/deleted against the real `7ai-preview` bucket. R2: `drafts/` upload after `video_generation` completes, via a new `patchStageOutput` repository helper (nothing existing merged into an already-completed stage's `output`). Live-verified: a real ~2.4MB generated video's `r2DraftKey` confirmed in Postgres and its real R2 bytes checksum-matched against the local file; separately, `R2_BUCKET` cleared for one run confirmed `video_generation` completes/advances exactly as on `main` today. R3: `final/` upload right after `runPublishingStage`'s real upload succeeds, folded into the same `fullOutput` checkpoint write. Live-verified: a real full Gate1→Gate2→publish run's `r2FinalKey` checksum-matched; separately, a real publish *failure* (no credential, with `YOUTUBE_STUB` deliberately cleared for that one call so the real check path ran instead of the stub short-circuiting past it) confirmed `final/` never gets an object for a run that didn't actually publish. R4: watermark mirrored to R2 (`watermarkR2Key` on `brandAssets`) alongside its existing local read/write, both upload and delete. Live-verified against an isolated dev-server instance: real PNG upload checksum-matched in R2, real delete removed it (confirmed 404), local `GET` route unaffected. R5: `runs.getVideoUrl({runId, variant?})` mints a fresh 24h presigned URL for either tier (omitted variant prefers `final`) — live-verified with real, sessionless `fetch()` downloads for both variants, the correct omitted-variant preference, and a clean `{available:false}` for a run with neither key. R6 (built, not skipped): `hasR2Draft`/`hasR2Final` flags on `runs.get`, live-verified. All real R2 verification hit the founder's actual bucket (never mocked) with every test object tracked and deleted afterward. Full detail at `tasks/task12.md`, report at `reports/task12.md`. |
-| 13 | Stage-Artifact Capture to R2 (Per-Attempt Debug Bundle) + PR #45 Deploy Verification | **Code complete (R1-R5), pipeline-level verified — PR #47 draft; R1 VPS checks outstanding (founder)** | Claude Code / **Founder** (R1 VPS checks) | `MEDIAARTIFACTS_BE` | See `reports/task13.md` for what was and wasn't verified. 
+| 13 | Stage-Artifact Capture to R2 (Per-Attempt Debug Bundle) + PR #45 Deploy Verification | **Code complete (R1-R5), pipeline-level verified; merged to `main` as PR #47.** R1's VPS checks (deploy, `R2_*` keys present, `NODE_ENV=production`, one real run) are still a founder action (Bugs Task 12 F4) | Claude Code / **Founder** (R1 VPS checks) | `MEDIAARTIFACTS_BE` | See `reports/task13.md` for what was and wasn't verified. 
+
+## Sprint 3 closing status, 2026-10-11
+
+Sprint 3 is closed by **one task: Bugs Task 12** (`docs/execution/bugs/Sprint3/tasks/task12.md`, branches `BUGS_TASK12` and `BUGS_TASK12_APP`, dispatched 2026-10-11). It holds every bug, polish item and open Sprint 3 item found up to now, and ends with a **Sprint 3 exit checklist**. Sprint 3 is marked closed here when that checklist is fully Verified or Moved and the report `bugs/Sprint3/reports/task12.md` is written.
+
+Progress, 2026-10-11: the hot-fixer pushed Bugs Task 12 code (`BUGS_TASK12`, draft PR #58; `BUGS_TASK12_APP`, no PR yet). It is covered by unit tests only. Sprint 3 stays open until the live checks (R5 restart loop on a real database, F1-F10), the closure carry-over (C1-C7) and the docs match (D1) are done. The architect review and merge conditions are in the task doc.
+
+What the 2026-10-10 and 2026-10-11 preview and phone tests settled for the Sprint 3 tasks:
+
+- **Task 7/O1 (push on a physical device)**: partly verified. Gate 2 pushes reach the phone. Gate 1 pushes do not, and Expo's receipts show `DeveloperError` for the tenant user; a restart loop re-sent a Gate 2 push on every boot. Handled by Bugs Task 12 R5 and R6; founder check F8.
+- **Task 5 (per-channel YouTube OAuth)**: the core claim is now shown in use. Channels connect through the in-app flow and real publishes went through the per-channel credential on 2026-10-10. The Web application client replaced the Desktop client on 2026-09-28. The 7-day expiry of Testing-mode tokens is not fixable by code (`KNOWN_ISSUES_AND_BLOCKERS.md` Section 7); Task 12 R13 adds "Reconnect needed".
+- **Task 4/L2 (Console quota numbers)**: the founder confirmed "100 accounts for testing" (the Testing-mode test-user cap); the quota page itself was not read and is not pursued (Task 12 F7 closed by the founder 2026-10-11). The new-tenant default budget is now $10 a week split equally across YouTube-connected channels (Task 12 R7), replacing the explicit `--weekly-budget` requirement (closure part 1 had already removed the old $2.00 default).
+- **Task 10 R2 (server switcher)**: verified on the phone (presets and the "Can't reach the server" screen).
+- **Task 3's unexplained resume-loop edge case**: recurred on 2026-10-10 as a restart loop; handled by Task 12 R5.
+- **Task 11 and the Enhancement 3 run lifecycle**: verified on the phone for Retry/Cancel, Published and the ended-run views; two captures are still open (Task 12 F6).
+- **Task 13**: merged as PR #47; whether bundles appear on preview is checked by Task 12 F4.
+- **Bugs Tasks 4 and 5** PRs are merged (founder, 2026-10-11).
 
 ## Full detail
-Per-task reports: `reports/task1.md`, `reports/task2.md`, `reports/task3.md`, `reports/task4.md`,
-`reports/task5.md`, `reports/task6.md`, `reports/task7.md`, `reports/task8.md`, `reports/task9.md`.
-Task 10's report (`reports/task10.md`) and Task 11's report (`reports/task11.md`) are referenced by
-name in the local checkout's own STATUS.md as already written, but neither has been synced to this
-Project yet — flagged, not fabricated; ask the hot-fixer session or founder for the actual report
-content before this Project's copy claims either exists.
+Per-task reports: `reports/task1.md` through `reports/task13.md` (`task10.md`, `task11.md` and `task13.md` exist in the repo; `reports/task12.md` here is the Sprint 3 Task 12 R2-storage report, not Bugs Task 12). Bugs and closure reports are under `docs/execution/bugs/Sprint3/reports/`.
 
 ## Open items closed by Task 1
 - `MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` §1's "No `User` model exists at all" item — **closed**.
@@ -258,25 +270,20 @@ content before this Project's copy claims either exists.
   cleanup. Not confirmed whether Task 10/R1 folded this in while `.env.example`/`.env`/`.env.local`
   were already open — worth checking once Task 10's report is available.
 - **L2 verification item — confirm the real Cloud Console quota numbers match the assumed defaults**
-  — a real, quick check only the founder can do (their own Google login). See
-  `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+  — **closed 2026-10-11 (Task 12 F7): the founder is not pursuing it.** The quota figures were not
+  recorded. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
 - **Performance Analytics' unbounded polling design (found during Task 4's L2)** — grows in real
   quota cost with cumulative published-video count, not daily upload volume; not urgent today, worth
   a real fix before it is. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
-- **The new-tenant default `AgentQuota.budgetCeilingUsd` ($2.00) is still unconfirmed by you** — same
-  status as the founder's own original figure it reuses. See `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
-- **A real founder action needed to close out Task 5's own core verification claim** — the founder's
-  existing YouTube refresh token is expired/revoked at Google's end (confirmed live, independent of
-  this project's code — see Task 5's row above). A fresh consent via the new in-app connect flow is
-  needed before a real publish/stats-poll can be proven to succeed through the new `AgentCredential`
-  path. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
-- **The YouTube OAuth client's registered redirect URI needs a Console update once a real deployed
-  callback URL exists** — a real, live-blocking instance of this hit 2026-09-28 (a private-IP
-  `redirect_uri` rejected by Google); tracked now as Bugs Task 5, not just a someday item. **A real
-  candidate URL now exists** — the preview VPS's own `YOUTUBE_REDIRECT_URI=https://7aistudio.tech/oauth2callback`
-  (`docs/server/deployment/preview/detail.md` §6) — Bugs Task 5's remaining blocker (migrating the
-  OAuth client from "Desktop app" to "Web application" type) is what would actually let this URL be
-  registered. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1 and `docs/execution/bugs/tasks/task5.md`.
+- **The new-tenant default `AgentQuota.budgetCeilingUsd` ($2.00) — superseded 2026-10-11 (Task 12 R7):**
+  the founder set $10 a week, split equally across YouTube-connected channels. See
+  `KNOWN_ISSUES_AND_BLOCKERS.md` §4.
+- **Task 5's own core verification (founder action) — closed 2026-10-11 (Task 12 F7):** YouTube connect
+  works through the in-app flow. Testing-mode tokens expire every 7 days; the founder accepts reconnecting
+  each channel weekly, and Google production verification is out of scope. See `KNOWN_ISSUES_AND_BLOCKERS.md` §1.
+- **The YouTube OAuth client's redirect URI — closed 2026-10-11 (Task 12 F7):** `YOUTUBE_REDIRECT_URI=https://7aistudio.tech/oauth2callback`
+  (`docs/server/deployment/preview/detail.md` §6) is registered in the Google Console and the connect flow
+  works (Bugs Task 5, `docs/execution/bugs/Sprint3/tasks/task5.md`).
 - **A real founder action needed to verify Task 7/O1** — real push delivery has to be checked against
   a real physical device (simulators don't deliver real push); tracked as a founder-action item the
   same way Task 4/L2 and Task 5's own remaining item are.
@@ -301,11 +308,9 @@ content before this Project's copy claims either exists.
 - **Task 11's PR #42 is open, ready for review, awaiting founder review/merge** — all five R-items
   (R1-R5) code-complete and live-verified against isolated sandbox DBs. See the Task 11 row above and
   `tasks/task11.md`.
-- **Neither Task 10's nor Task 11's report doc (`reports/task10.md`, `reports/task11.md`) has been
-  synced to this Project yet**, even though the local checkout's own STATUS.md references them as
-  already written — flagged for the founder/hot-fixer session to share, not fabricated here.
-- **Task 12 (Cloudflare R2 integration for generated media storage) is filed and not yet started** —
-  see the Task 12 row above and `tasks/task12.md`.
+- **Task 10's and Task 11's reports** (`reports/task10.md`, `reports/task11.md`) exist in the repo and are synced (2026-10-11).
+- **Task 12 (Cloudflare R2 media storage) is complete** — all six R-items (R1-R6) code-complete and live-verified, including real upload/download/delete round trips against the founder's real `7ai-preview` bucket; PR #45 merged before PR #47 (Task 13) built on it. Known residual items, none blocking: no R2 lifecycle/retention policy (a Cloudflare-dashboard setting, not this task's code); presigned URLs are unauthenticated once minted (24h validity); watermarks uploaded before this task have no R2 mirror (backfill is Bugs Task 12 R10.8); R4's full raw-pixel render verification was not re-run (relied on code-path isolation, a disclosed scoping choice). See the Task 12 row above and `tasks/task12.md` / `reports/task12.md`.
+- **Task 13's VPS checks** (deploy, `R2_*` keys present, `NODE_ENV=production`, one real run) are a founder action, tracked as F4 in Bugs Task 12.
 
 ## Frontend tasks (`SPRINT3_FE`, `app/` — separate repo, `D:\Study Material\7AI-frontend`)
 

@@ -171,5 +171,5 @@ would make `expo-updates` correctly refuse the update, not a bug), or the `previ
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - [KNOWN_ISSUES_AND_BLOCKERS.md](../../KNOWN_ISSUES_AND_BLOCKERS.md)
-- `docs/execution/bugs/tasks/task1.md` and `docs/execution/bugs/reports/task1.md`
+- `docs/execution/bugs/Sprint3/tasks/task1.md` and `docs/execution/bugs/Sprint3/reports/task1.md`
 - `docs/execution/bugs/STATUS.md`
