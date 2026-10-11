@@ -1,5 +1,5 @@
 import type { NotificationChannel } from './channel';
-import { insertNotification } from '../models/repositories/notification.repository';
+import { insertNotification, insertOrReuseApprovalNotification } from '../models/repositories/notification.repository';
 import {
   getOrCreatePendingApproval,
   resolvePendingApproval as resolvePendingApprovalShared,
@@ -33,7 +33,7 @@ export class InAppChannel implements NotificationChannel {
   }
 
   async requestApproval(params: { threadKey: string; message: string }): Promise<ApprovalReply> {
-    await insertNotification({
+    await insertOrReuseApprovalNotification({
       tenantId: this.params.tenantId,
       channelId: this.params.channelId,
       userId: this.params.userId,

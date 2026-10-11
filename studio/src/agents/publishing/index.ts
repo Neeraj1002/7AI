@@ -1,8 +1,9 @@
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import { uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
 import { stubUploadVideo, stubSetThumbnail } from './stub';
 import { env } from '../../config/env';
@@ -59,14 +60,15 @@ export async function generatePublishingMetadata(
     parsedJson = JSON.parse(extractJsonText(llm.text));
   } catch (error) {
     throw new NonTransientStageError(
-      `Metadata generation did not return valid JSON: ${llm.text.slice(0, 200)}`,
+      `Metadata generation did not return valid JSON (${describeJsonError(error)})`,
       error,
+      llmUsageContext(llm),
     );
   }
 
   const result = PublishingMetadataSchema.safeParse(parsedJson);
   if (!result.success) {
-    throw new NonTransientStageError(`Metadata generation output failed schema validation: ${result.error.message}`);
+    throw new NonTransientStageError(`Metadata generation output failed schema validation: ${result.error.message}`, undefined, llmUsageContext(llm));
   }
 
   // Whatever the model wrote, a placeholder never reaches YouTube.

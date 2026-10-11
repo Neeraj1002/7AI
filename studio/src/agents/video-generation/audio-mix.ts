@@ -49,21 +49,33 @@ export function buildAudioFilterGraph(params: {
   // Pass 1 stops before the final loudnorm so the measurement sees the mix.
   measureOnly?: boolean;
   outLabel?: string;
+  // Bugs Closure 2 (P8) — silence appended after the voice (the picture is held
+  // for the same time by the caller) and, with a bed, the bed faded out across
+  // it. voiceDurationSeconds is where that fade starts. 0/absent = no tail.
+  tailSeconds?: number;
+  voiceDurationSeconds?: number;
 }): string {
   const out = params.outLabel ?? 'outa';
   const { bed } = QUALITY_SPEC;
+  const tail = params.tailSeconds && params.tailSeconds > 0 ? params.tailSeconds : 0;
+  const voicePad = tail > 0 ? `,apad=pad_dur=${tail.toFixed(3)}` : '';
+  const bedFade =
+    tail > 0 && params.voiceDurationSeconds !== undefined
+      ? `[ducked]afade=t=out:st=${params.voiceDurationSeconds.toFixed(3)}:d=${tail.toFixed(3)}[duckedf]`
+      : undefined;
   const finalStage = params.measureOnly
     ? `loudnorm=I=${QUALITY_SPEC.loudness.targetLufs}:TP=${QUALITY_SPEC.loudness.normalizeTruePeakDb}:LRA=${QUALITY_SPEC.loudness.normalizeLra}:print_format=json`
     : `${loudnormFilter(params.measured)},aresample=${QUALITY_SPEC.audio.sampleRate}`;
 
   if (params.bedInputIndex === undefined) {
-    return `[${params.voiceInputIndex}:a]${STEREO},${finalStage}[${out}]`;
+    return `[${params.voiceInputIndex}:a]${STEREO}${voicePad},${finalStage}[${out}]`;
   }
   return [
-    `[${params.voiceInputIndex}:a]${STEREO},asplit=2[voice][key]`,
+    `[${params.voiceInputIndex}:a]${STEREO}${voicePad},asplit=2[voice][key]`,
     `[${params.bedInputIndex}:a]${STEREO},volume=${(params.bedGainDb ?? 0).toFixed(1)}dB[bedq]`,
     `[bedq][key]sidechaincompress=threshold=${bed.sidechainThreshold}:ratio=${bed.sidechainRatio}:attack=${bed.sidechainAttackMs}:release=${bed.sidechainReleaseMs}[ducked]`,
-    `[voice][ducked]amix=inputs=2:duration=first:normalize=0[mix]`,
+    ...(bedFade ? [bedFade] : []),
+    `[voice][${bedFade ? 'duckedf' : 'ducked'}]amix=inputs=2:duration=first:normalize=0[mix]`,
     `[mix]${finalStage}[${out}]`,
   ].join(';');
 }

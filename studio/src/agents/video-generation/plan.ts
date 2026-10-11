@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import { MOOD_TAGS } from '../../audio-bed';
 import { QUALITY_SPEC } from './quality-spec';
 
@@ -238,14 +239,15 @@ export async function planVideoProduction(params: {
     parsedJson = JSON.parse(extractJsonText(llm.text));
   } catch (error) {
     throw new NonTransientStageError(
-      `Video production planning did not return valid JSON: ${llm.text.slice(0, 200)}`,
+      `Video production planning did not return valid JSON (${describeJsonError(error)})`,
       error,
+      llmUsageContext(llm),
     );
   }
 
   const result = ProductionPlanSchema.safeParse(normalizeShotList(parsedJson));
   if (!result.success) {
-    throw new NonTransientStageError(`Production plan failed schema validation: ${result.error.message}`);
+    throw new NonTransientStageError(`Production plan failed schema validation: ${result.error.message}`, undefined, llmUsageContext(llm));
   }
 
   let plan = result.data;
@@ -263,6 +265,8 @@ export async function planVideoProduction(params: {
       // fabricated prompts this function has no real basis for.
       throw new NonTransientStageError(
         `Video production planning ignored the requested visualSource override ('ai-stills') and provided no stillScenePrompts to recover with`,
+        undefined,
+        llmUsageContext(llm),
       );
     }
     plan = { ...plan, visualSource: params.visualSourceOverride };

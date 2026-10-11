@@ -10,6 +10,7 @@
 //   npx tsx scripts/set-channel-budget-override.ts <channelId> <usdAmount>
 //   npx tsx scripts/set-channel-budget-override.ts <channelId> clear
 import { prisma } from '../src/models/prisma-client';
+import { loadChannelBudgetView, validateBudgetOverride } from '../src/run-pipeline/budget-gate';
 
 async function main(): Promise<void> {
   const channelId = process.argv[2];
@@ -24,6 +25,18 @@ async function main(): Promise<void> {
   }
 
   const value = amountArg === 'clear' ? null : amountArg;
+  // Bugs Closure R1 (D4) — same write-time rule as channels.update: not above the weekly budget,
+  // and not leaving another active channel below the minimum share.
+  if (value !== null) {
+    const view = await loadChannelBudgetView(existing.tenantId, existing.platform as 'youtube');
+    const verdict = validateBudgetOverride({
+      poolCeilingUsd: view.poolCeilingUsd,
+      channelId,
+      newOverrideUsd: Number(value),
+      channels: view.channels,
+    });
+    if (!verdict.ok) throw new Error(verdict.message);
+  }
   const updated = await prisma.channel.update({
     where: { id: channelId },
     data: { budgetOverrideUsd: value },

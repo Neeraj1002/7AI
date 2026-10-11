@@ -20,4 +20,23 @@ module.exports = tseslint.config(
       'no-console': 'off',
     },
   },
+  // Bugs Task 12 (R10.2): src/llm/ and src/media/ expose one public surface (index.ts); everything
+  // outside those folders imports from there, never from client.ts / registry.ts directly.
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['src/llm/**', 'src/media/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(^|/)(llm|media)/(client|registry)$',
+              message: 'Import from the layer index (../llm or ../media), not client.ts / registry.ts.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

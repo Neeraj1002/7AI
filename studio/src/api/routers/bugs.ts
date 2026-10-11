@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
+import { requirePlatformAdmin } from '../admin-auth';
+import { BUG_TRIAGE_NOTE_MAX } from '../../models/repositories/bug-report.repository';
 import {
   listBugReports,
-  updateBugReportTriage,
+  triageBugReportWithAudit,
   BUG_REPORT_STATUSES,
   BUG_REPORT_PRIORITIES,
   BUG_REPORT_AREAS,
@@ -18,14 +20,9 @@ import {
 // every report to anyone. Routing through tRPC instead reuses the same
 // real session/ops-token auth every other founder-only surface already
 // goes through (createContext), no hand-rolled auth needed.
-function assertOwner(role: string): void {
-  // The API_AUTH_TOKEN ops fallback already resolves to role 'owner'
-  // (api/trpc.ts's createContext) — one check covers both a real
-  // owner-role session and a script/curl caller using the ops token.
-  if (role !== 'owner') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Only an owner-role session (or the ops token) can view/triage bug reports' });
-  }
-}
+// Admin Sprint 1 (R3) - was `assertOwner(role)`, which let ANY tenant's owner (every invited
+// tester is the owner of their own tenant) list and triage every tenant's reports. Now Admin
+// only: the ops token (hot-fixer, curl) is unchanged; a tenant owner session is FORBIDDEN.
 
 export const bugsRouter = router({
   // GET /bugs — the actual list, gated (not to be confused with the
@@ -46,7 +43,7 @@ export const bugsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      assertOwner(ctx.role);
+      await requirePlatformAdmin(ctx);
       const reports = await listBugReports(input.status);
       if (!input.idPrefix) return reports;
       const prefix = input.idPrefix.toLowerCase();
@@ -64,15 +61,22 @@ export const bugsRouter = router({
         status: z.enum(BUG_REPORT_STATUSES).optional(),
         area: z.enum(BUG_REPORT_AREAS).nullable().optional(),
         priority: z.enum(BUG_REPORT_PRIORITIES).nullable().optional(),
+        // Admin Sprint 1 (R3) - trimmed; empty string clears; replaces the previous note.
+        note: z.string().trim().max(BUG_TRIAGE_NOTE_MAX).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      assertOwner(ctx.role);
-      await updateBugReportTriage(input.id, {
+      const actor = await requirePlatformAdmin(ctx);
+      // Admin Sprint 1 (R3) - audited like admin.bugs.updateTriage (same repository function).
+      const updated = await triageBugReportWithAudit(actor, input.id, {
         status: input.status,
         area: input.area,
         priority: input.priority,
+        note: input.note,
       });
+      if (!updated) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Bug report ${input.id} not found` });
+      }
       return { updated: true };
     }),
 });

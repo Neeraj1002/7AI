@@ -7,16 +7,17 @@
 
 import { callProviderModel } from './client';
 import { resolvePurpose } from './registry';
-import type { LLMMessage, LLMResponse, Purpose } from './types';
+import type { LLMMessage, LLMRequest, LLMResponse, Purpose } from './types';
 
 export type { Purpose, LLMMessage, LLMResponse, LLMUsage, LLMRequest } from './types';
-export { extractJsonText } from './extract-json';
+export { extractJsonText, extractJsonObjectText, describeJsonError } from './extract-json';
 
 export async function callLLM(req: {
   purpose: Purpose;
   system: string;
   messages: LLMMessage[];
   maxTokens: number;
+  outputSchema?: LLMRequest['outputSchema'];
 }): Promise<LLMResponse> {
   const { provider, model } = resolvePurpose(req.purpose);
   const result = await callProviderModel({
@@ -25,6 +26,7 @@ export async function callLLM(req: {
     system: req.system,
     messages: req.messages,
     maxTokens: req.maxTokens,
+    outputSchema: req.outputSchema,
   });
   return { ...result, provider, model };
 }

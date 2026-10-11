@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, SectionList, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -9,17 +9,21 @@ import { Screen } from '../../../components/Screen';
 import { Card } from '../../../components/Card';
 import { StatusChip } from '../../../components/StatusChip';
 import { SecondaryButton } from '../../../components/Buttons';
-import { humanizeRunError, queueChip, relativeTime, statusLabel, stepperIndexForStage, STEPPER_STEPS } from '../../../lib/run-labels';
-import { channelColors, color, font, radius, space, type } from '../../../lib/theme';
+import { endedChip, humanizeRunError, queueChip, relativeTime, runTopic, startedLabel, statusLabel, stepperIndexForStage, STEPPER_STEPS } from '../../../lib/run-labels';
+import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 
 // Task 4/E1 — 'running'/'pending' added so an in-progress run is visible
 // somewhere in the Queue (it used to appear nowhere between creation and
 // reaching Gate 1).
 const QUEUE_STATUSES = ['paused_gate1', 'paused_gate2', 'needs_attention', 'running', 'pending'] as const;
 const FAB_HEIGHT = 52;
+// Bugs Closure 2 (P9) - runs that have ended (completed, failed, cancelled, rejected).
+const ENDED_STATUSES = ['completed', 'failed'] as const;
+const ENDED_PAGE_SIZE = 20;
 
+// U14: short wording so three counts fit on the one subtitle line.
 function waitingLabel(n: number): string {
-  return `${n} ${n === 1 ? 'is' : 'are'} waiting on you`;
+  return `${n} waiting`;
 }
 function attentionLabel(n: number): string {
   return `${n} need${n === 1 ? 's' : ''} attention`;
@@ -34,10 +38,24 @@ function stageLabelFor(stage: string | null): string {
 export default function QueueScreen() {
   const trpc = useTRPC();
   const { channelById, channelIndex } = useChannels();
+  const channelDot = (channelId: string) => {
+    const idx = channelIndex(channelId);
+    return idx >= 0 ? channelDotColor(idx) : color.future;
+  };
   const { data, isLoading, isFetching, refetch } = useQuery(
     // Bugs Task 7 (R4) — a freshly started run only lands here once it reaches
     // Gate 1 (seconds to minutes later), and nothing refetched in the meantime.
     trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }, { refetchInterval: 15_000 }),
+  );
+
+  // Bugs Closure 2 (P9) - ended runs were reachable from no screen (only from an Inbox
+  // card). Fetched only once the section is opened, newest first, 20 at a time.
+  const [showEnded, setShowEnded] = useState(false);
+  const [endedShown, setEndedShown] = useState(ENDED_PAGE_SIZE);
+  const ended = useQuery(trpc.runs.list.queryOptions({ statuses: [...ENDED_STATUSES] }, { enabled: showEnded }));
+  const endedRows = useMemo(
+    () => [...(ended.data ?? [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [ended.data],
   );
 
   const { waiting, attention, inProgress } = useMemo(() => {
@@ -59,7 +77,7 @@ export default function QueueScreen() {
     <Screen
       variant="tabRoot"
       title="Queue"
-      subtitle={`${waitingLabel(waiting.length)} · ${attentionLabel(attention.length)}${inProgress.length ? ` · ${inProgress.length} in progress` : ''}`}
+      subtitle={`${waitingLabel(waiting.length)} · ${attentionLabel(attention.length)}${inProgress.length ? ` · ${inProgress.length} running` : ''}`}
     >
       <SectionList
         sections={sections}
@@ -67,6 +85,55 @@ export default function QueueScreen() {
         contentContainerStyle={styles.list}
         stickySectionHeadersEnabled={false}
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} />}
+        ListFooterComponent={
+          <View style={styles.endedBlock}>
+            <Pressable
+              onPress={() => setShowEnded((v) => !v)}
+              style={styles.endedToggle}
+              accessibilityRole="button"
+              accessibilityLabel="Ended runs"
+            >
+              <Text style={styles.sectionTitle}>Ended runs</Text>
+              <Feather name={showEnded ? 'chevron-up' : 'chevron-down'} size={18} color={color.muted} />
+            </Pressable>
+            {showEnded ? (
+              ended.isLoading ? (
+                <Text style={styles.meta}>Loading…</Text>
+              ) : endedRows.length === 0 ? (
+                <Text style={styles.meta}>No ended runs yet.</Text>
+              ) : (
+                <>
+                  {endedRows.slice(0, endedShown).map((run) => {
+                    const chip = endedChip(run);
+                    return (
+                      <Pressable key={run.id} onPress={() => router.push(`/run/${run.id}`)} style={styles.rowWrap}>
+                        <Card>
+                          <View style={styles.topLine}>
+                            <StatusChip kind={chip.kind} label={chip.label} />
+                            <Text style={styles.time}>{relativeTime(run.createdAt)}</Text>
+                          </View>
+                          <Text style={styles.brief} numberOfLines={2}>
+                            {runTopic(run)}
+                          </Text>
+                          <View style={styles.metaLine}>
+                            <View style={[styles.dot, { backgroundColor: channelDot(run.channelId) }]} />
+                            <Text style={styles.meta} numberOfLines={1}>
+                              {channelById(run.channelId)?.name ?? 'Deleted channel'} · {startedLabel(run.createdAt)}
+                            </Text>
+                            <Feather name="chevron-right" size={18} color={color.muted} style={styles.chevron} />
+                          </View>
+                        </Card>
+                      </Pressable>
+                    );
+                  })}
+                  {endedRows.length > endedShown ? (
+                    <SecondaryButton label="Show more" onPress={() => setEndedShown((n) => n + ENDED_PAGE_SIZE)} />
+                  ) : null}
+                </>
+              )
+            ) : null}
+          </View>
+        }
         ListEmptyComponent={
           !isLoading ? (
             <View style={styles.empty}>
@@ -109,7 +176,7 @@ export default function QueueScreen() {
         renderItem={({ item, section }) => {
           const channel = channelById(item.channelId);
           const idx = channelIndex(item.channelId);
-          const dot = idx >= 0 ? channelColors[idx % channelColors.length][1] : color.future;
+          const dot = idx >= 0 ? channelDotColor(idx) : color.future;
 
           if (section.key === 'inProgress') {
             const stepIndex = stepperIndexForStage(item.currentStage ?? undefined);
@@ -117,15 +184,19 @@ export default function QueueScreen() {
               <Pressable onPress={() => router.push(`/run/${item.id}`)} style={[styles.rowWrap, styles.progressRow]}>
                 <View style={styles.topLine}>
                   <Text style={styles.progressBrief} numberOfLines={1}>
-                    {item.briefText}
+                    {runTopic(item)}
                   </Text>
-                  <Text style={styles.time}>{relativeTime(item.updatedAt)}</Text>
+                  {item.cancelRequested ? (
+                    <StatusChip kind="neutral" label="Cancelling…" />
+                  ) : (
+                    <Text style={styles.time}>{relativeTime(item.updatedAt)}</Text>
+                  )}
                 </View>
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: `${(stepIndex / 7) * 100}%` }]} />
                 </View>
                 <Text style={styles.meta} numberOfLines={1}>
-                  {stageLabelFor(item.currentStage)} · {channel?.name ?? 'Deleted channel'}
+                  {stageLabelFor(item.currentStage)} · {channel?.name ?? 'Deleted channel'} · {startedLabel(item.createdAt)}
                 </Text>
               </Pressable>
             );
@@ -141,7 +212,7 @@ export default function QueueScreen() {
                   ) : (
                     <View style={styles.attention}>
                       <Feather name="alert-triangle" size={14} color={color.warnText} />
-                      <Text style={styles.attentionText} numberOfLines={1}>
+                      <Text style={styles.attentionText} numberOfLines={2}>
                         {humanizeRunError(item.lastError) || 'Needs attention'}
                       </Text>
                     </View>
@@ -149,12 +220,12 @@ export default function QueueScreen() {
                   <Text style={styles.time}>{relativeTime(item.updatedAt)}</Text>
                 </View>
                 <Text style={styles.brief} numberOfLines={2}>
-                  {item.briefText}
+                  {runTopic(item)}
                 </Text>
                 <View style={styles.metaLine}>
                   <View style={[styles.dot, { backgroundColor: dot }]} />
                   <Text style={styles.meta} numberOfLines={1}>
-                    {channel?.name ?? 'Deleted channel'}
+                    {channel?.name ?? 'Deleted channel'} · {startedLabel(item.createdAt)}
                     {isWaiting ? '' : ' · tap to retry or cancel'}
                   </Text>
                   <Feather name="chevron-right" size={18} color={color.muted} style={styles.chevron} />
@@ -173,7 +244,8 @@ export default function QueueScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: space.lg, paddingBottom: FAB_HEIGHT + 32, flexGrow: 1 },
+  // U2: the button's height plus its bottom margin plus breathing room, so the last card is never covered.
+  list: { paddingHorizontal: space.lg, paddingBottom: FAB_HEIGHT + space.lg + 48, flexGrow: 1 },
   empty: { alignItems: 'center', gap: space.lg, paddingVertical: 48 },
   emptyText: { ...type.body, color: color.muted },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.lg, paddingBottom: space.sm },
@@ -202,6 +274,8 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   meta: { ...type.meta, flexShrink: 1 },
   chevron: { marginLeft: 'auto' },
+  endedBlock: { paddingTop: space.lg, gap: space.md },
+  endedToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fab: {
     position: 'absolute',
     right: space.lg,

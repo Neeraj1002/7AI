@@ -1,53 +1,163 @@
-import { describe, it, expect } from 'vitest';
-import { buildSystemPrompt, buildUserMessage } from './index';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const base = { topic: 'T', constraints: [] as string[] };
+const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
+vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mocks.callLLM }));
 
-describe('script-generation prompt', () => {
-  it('no longer hardcodes a 30-60 second range', () => {
-    expect(buildSystemPrompt()).not.toContain('30-60');
-  });
+import { generateScript, SCRIPT_MAX_TOKENS } from './index';
+import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { failureUsageEvents } from '../../run-pipeline/stage-failure';
 
-  it('brief-plus-common (default) leaves the system prompt without the authoritative-facts rule', () => {
-    expect(buildSystemPrompt('brief-plus-common')).toBe(buildSystemPrompt());
-    expect(buildSystemPrompt()).not.toContain('authoritative');
-  });
+const reply = (text: string, extra: Record<string, unknown> = {}) => ({
+  text,
+  usage: { inputTokens: 100, outputTokens: 50 },
+  stopReason: 'stop',
+  costUsd: '0.001000',
+  provider: 'anthropic',
+  model: 'claude-sonnet-5',
+  ...extra,
+});
+const GOOD = '{"scriptText":"Hello there.","captions":"Hello there.","hashtags":["a","b"]}';
+const params = { topic: 't', constraints: [] as string[] };
+const QUOTE_BUG = '{"scriptText":"He said "no" to salt. ' + 'x'.repeat(500) + '","captions":"c","hashtags":[]}';
 
-  it('brief-only adds the authoritative-facts rule', () => {
-    expect(buildSystemPrompt('brief-only')).toContain('Facts and figures stated in the brief are authoritative');
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+});
 
-  it('passes the raw brief alongside topic and constraints', () => {
-    const msg = buildUserMessage({ ...base, constraints: ['calm'], briefText: 'In 1969, 4 men, 238,900 miles' });
-    expect(msg).toContain('Topic: T');
-    expect(msg).toContain('Constraints: calm');
-    expect(msg).toContain('238,900 miles');
-  });
-
-  it('states the resolved target with an equivalent word count', () => {
-    expect(buildUserMessage({ ...base, targetSeconds: 30 })).toContain('approximately 30 seconds');
-    expect(buildUserMessage({ ...base, targetSeconds: 30 })).toContain('around 75 words');
-  });
-
-  it('adds banned opener / ending lines only when the lists are non-empty', () => {
-    const none = buildUserMessage({ ...base, bannedOpeners: [], bannedEndings: [] });
-    expect(none).not.toContain('Do not open');
-    expect(none).not.toContain('Do not end');
-    const some = buildUserMessage({ ...base, bannedOpeners: ['Did you know', 'Imagine'], bannedEndings: ['Follow for more'] });
-    expect(some).toContain('Do not open with any of: Did you know; Imagine');
-    expect(some).toContain('Do not end with any of: Follow for more');
-  });
-
-  it('a call with none of the Task 2 params produces the same message shape as before', () => {
-    expect(buildUserMessage({ topic: 'T', constraints: ['a', 'b'], styleGuide: 'g' })).toBe(
-      'Topic: T\nConstraints: a; b\nStyle guide: g',
-    );
+describe('generateScript — first call', () => {
+  it('parses a clean reply with one call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(GOOD));
+    const { output, calls } = await generateScript(params);
+    expect(output.scriptText).toBe('Hello there.');
+    expect(calls).toHaveLength(1);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(SCRIPT_MAX_TOKENS);
   });
 });
 
-describe('script-generation format structure (Sprint 4 Task 6)', () => {
-  it('adds the format structure line only when set', () => {
-    expect(buildUserMessage({ topic: 'T', constraints: [], scriptStructure: 'Exactly 3 items.' })).toContain('Format structure: Exactly 3 items.');
-    expect(buildUserMessage({ topic: 'T', constraints: [], scriptStructure: null })).toBe('Topic: T');
+describe('generateScript — Bugs Task 11 R5 mechanical repair needs no retry', () => {
+  it('raw newlines inside scriptText are repaired on the first call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(
+      reply('{"scriptText":"Line one.\nLine two.\tTabbed.","captions":"c","hashtags":[]}'),
+    );
+    const { output, calls } = await generateScript(params);
+    expect(output.scriptText).toBe('Line one.\nLine two.\tTabbed.');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a code-fenced reply with prose around it is parsed on the first call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply('Here you go:\n```json\n' + GOOD + '\n```\nEnjoy.'));
+    const { calls } = await generateScript(params);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe('generateScript — Bugs Task 11 R5 fallback retry', () => {
+  it('an unescaped quote fails the first call, the parse error is fed back, and the corrected reply is used', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(QUOTE_BUG)).mockResolvedValueOnce(reply(GOOD, { costUsd: '0.002000' }));
+    const { output, calls, llm } = await generateScript(params);
+    expect(output.scriptText).toBe('Hello there.');
+    expect(mocks.callLLM).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
+    expect(llm.costUsd).toBe('0.002000');
+    const retry = mocks.callLLM.mock.calls[1][0];
+    expect(retry.maxTokens).toBe(SCRIPT_MAX_TOKENS);
+    expect(retry.messages).toHaveLength(3);
+    expect(retry.messages[1]).toEqual({ role: 'assistant', content: QUOTE_BUG });
+    expect(retry.messages[2].content).toMatch(/could not be parsed as JSON \(.*position \d+/);
+  });
+
+  it('a schema failure is retried with the validation message fed back', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply('{"scriptText":""}')).mockResolvedValueOnce(reply(GOOD));
+    await generateScript(params);
+    expect(mocks.callLLM.mock.calls[1][0].messages[2].content).toContain('did not match the required shape');
+  });
+
+  it('R4: a reply cut off at the output cap fails with a clear cut-off message, not a parse error, and is not retried', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply('{"scriptText":"cut off mid', { stopReason: 'length', usage: { inputTokens: 100, outputTokens: 4096 } }));
+    const error = await generateScript(params).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NonTransientStageError);
+    const message = (error as Error).message;
+    expect(message).toContain('cut off at the output cap');
+    expect(message).toContain('stopReason=length');
+    expect(message).not.toContain('valid JSON');
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    const context = getStageErrorContext(error)!;
+    expect(context.rawReply).toBe('{"scriptText":"cut off mid');
+    expect(context.stopReason).toBe('length');
+    // the call's real spend is still booked
+    expect(failureUsageEvents(error)).toEqual([expect.objectContaining({ outputTokens: 4096 })]);
+  });
+
+  it('R4: the output cap was raised from 2048 and the prompt tells the model to use curly quotes', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(GOOD));
+    await generateScript(params);
+    const request = mocks.callLLM.mock.calls[0][0];
+    expect(SCRIPT_MAX_TOKENS).toBeGreaterThan(2048);
+    expect(request.maxTokens).toBe(SCRIPT_MAX_TOKENS);
+    expect(request.system).toContain('Never use the straight double-quote character');
+    expect(request.system).toContain('curly quotes');
+  });
+
+  it('fails with the non-transient error only after the second call also fails, and never makes a third', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(QUOTE_BUG)).mockResolvedValueOnce(reply('still not json'));
+    const error = await generateScript(params).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NonTransientStageError);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(2);
+    const message = (error as Error).message;
+    expect(message).toContain('did not return valid JSON');
+    expect(message).toContain('Retried once after');
+    const context = getStageErrorContext(error)!;
+    expect(context.attempts).toBe(2);
+    expect(context.rawReply).toBe('still not json');
+    expect(context.firstRawReply).toBe(QUOTE_BUG);
+    // both calls are listed so each is booked as spend
+    expect(failureUsageEvents(error)).toHaveLength(2);
+    expect(failureUsageEvents(error)[0]).toMatchObject({ provider: 'anthropic', inputTokens: 100, outputTokens: 50, costUsd: '0.001000' });
+  });
+
+  it('a provider error on the retry call keeps the first call in the error so its spend is still booked', async () => {
+    mocks.callLLM
+      .mockResolvedValueOnce(reply(QUOTE_BUG))
+      .mockRejectedValueOnce(new TransientStageError('overloaded', undefined, { provider: 'anthropic', model: 'claude-sonnet-5' }));
+    const error = await generateScript(params).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TransientStageError);
+    expect((error as Error).message).toBe('overloaded');
+    expect(failureUsageEvents(error)).toHaveLength(1);
+  });
+
+  it('a provider error on the first call is passed through untouched', async () => {
+    const original = new NonTransientStageError('bad key', undefined, { provider: 'anthropic', model: 'm' });
+    mocks.callLLM.mockRejectedValueOnce(original);
+    const error = await generateScript(params).catch((e: unknown) => e);
+    expect(error).toBe(original);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('generateScript — Bugs Task 11 R1 diagnostics', () => {
+  it('the final error carries the parser message with position, stopReason, length and the raw reply', async () => {
+    mocks.callLLM.mockResolvedValue(reply(QUOTE_BUG));
+    const error = await generateScript(params).catch((e: unknown) => e);
+    const message = (error as Error).message;
+    expect(message).toContain('stopReason=stop');
+    expect(message).toContain(`replyLength=${QUOTE_BUG.length}`);
+    expect(message).toMatch(/position \d+/);
+    const context = getStageErrorContext(error)!;
+    expect(context.rawReply).toBe(QUOTE_BUG);
+    expect(context.stopReason).toBe('stop');
+    expect(context.replyLength).toBe(QUOTE_BUG.length);
+    expect(typeof context.parseError).toBe('string');
+  });
+
+  it('logs the first and last 300 characters of an unusable reply', async () => {
+    const bad = 'A'.repeat(300) + 'MIDDLE'.repeat(100) + 'Z'.repeat(300) + ' not json';
+    mocks.callLLM.mockResolvedValue(reply(bad));
+    await generateScript(params).catch(() => undefined);
+    const logged = (console.error as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0])).join('\n');
+    expect(logged).toContain('A'.repeat(300));
+    expect(logged).toContain('Z'.repeat(290));
+    expect(logged).not.toContain('MIDDLE'.repeat(100));
   });
 });

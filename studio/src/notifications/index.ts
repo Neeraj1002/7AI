@@ -14,6 +14,9 @@ import { ExpoPushChannel } from './push-channel';
 import { InAppChannel } from './in-app-channel';
 import { resolvePendingApproval, type ApprovalReply } from './pending-approvals';
 import { findUserById } from '../models/repositories/user.repository';
+import { findResendState, insertNotification } from '../models/repositories/notification.repository';
+import { decideApprovalPush, type PushDecision } from './resend-policy';
+import { env } from '../config/env';
 import type { NotificationChannel } from './channel';
 import type { User } from '../types';
 
@@ -28,7 +31,11 @@ export { hasPendingApproval } from './pending-approvals';
 // getOrCreatePendingApproval is idempotent per threadKey) — "first reply
 // wins" falls out of that sharing for free, not a new race-handling design.
 class MultiNotificationChannel implements NotificationChannel {
-  constructor(private readonly channels: NotificationChannel[]) {}
+  constructor(
+    private readonly channels: NotificationChannel[],
+    private readonly tenantId: string | null = null,
+    private readonly channelId: string | null = null,
+  ) {}
 
   async notify(message: string, meta?: { threadKey?: string }): Promise<void> {
     const results = await Promise.allSettled(this.channels.map((channel) => channel.notify(message, meta)));
@@ -47,7 +54,17 @@ class MultiNotificationChannel implements NotificationChannel {
     if (this.channels.length === 0) {
       throw new Error(`composeNotificationChannel: no real recipients resolved for threadKey ${params.threadKey}`);
     }
-    const results = await Promise.allSettled(this.channels.map((channel) => channel.requestApproval(params)));
+    // Bugs Task 12 (R6): decide per recipient, BEFORE the in-app channel inserts/reuses its row,
+    // whether this prompt should push (a re-sent gate must not stack identical pushes).
+    const decisions = await this.decidePushes(params.threadKey, params.message);
+    const results = await Promise.allSettled(
+      this.channels.map((channel) =>
+        channel.requestApproval({
+          ...params,
+          pushDecision: channel.recipientUserId ? decisions.get(channel.recipientUserId) : undefined,
+        }),
+      ),
+    );
     const fulfilled = results.find(
       (result): result is PromiseFulfilledResult<ApprovalReply> => result.status === 'fulfilled',
     );
@@ -60,6 +77,40 @@ class MultiNotificationChannel implements NotificationChannel {
       throw new Error(`composeNotificationChannel: every channel failed to send for threadKey ${params.threadKey}`);
     }
     return fulfilled.value;
+  }
+
+  private async decidePushes(threadKey: string, message: string): Promise<Map<string, PushDecision>> {
+    const out = new Map<string, PushDecision>();
+    const userIds = [...new Set(this.channels.map((c) => c.recipientUserId).filter((id): id is string => !!id))];
+    for (const userId of userIds) {
+      try {
+        const state = await findResendState(userId, threadKey);
+        const decision = decideApprovalPush({
+          now: Date.now(),
+          ...state,
+          windowMs: env.GATE_RESEND_PUSH_WINDOW_MS,
+          staleDays: env.GATE_RESEND_STALE_DAYS,
+        });
+        out.set(userId, decision);
+        // A reminder leaves a row behind so the next restart inside the window sees it.
+        if (decision === 'reminder') {
+          const tenantId = this.tenantId;
+          if (tenantId) {
+            await insertNotification({
+              tenantId,
+              channelId: this.channelId,
+              userId,
+              kind: 'notify',
+              message: `Reminder: ${message.split('\n')[0]}`,
+              threadKey,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[notifications] could not read re-send state - sending normally:', error);
+      }
+    }
+    return out;
   }
 
   resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
@@ -98,7 +149,7 @@ export async function composeNotificationChannel(params: {
       );
     }
   }
-  return new MultiNotificationChannel(channels);
+  return new MultiNotificationChannel(channels, params.tenantId, params.channelId);
 }
 
 // Sprint 3 Task 3 (K2) — channel-agnostic: works regardless of which

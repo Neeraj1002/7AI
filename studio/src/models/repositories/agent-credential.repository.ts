@@ -63,3 +63,14 @@ export async function findDecryptedRefreshTokenForChannel(channelId: string): Pr
   if (!credential) return null;
   return decryptRefreshToken(credential.refreshTokenEncrypted);
 }
+
+// Bugs Task 12 (R7) - which of these channels have a connected YouTube credential (the same
+// "connected" test as assertChannelCanRun), in one query.
+export async function listChannelIdsWithCredential(channelIds: string[]): Promise<Set<string>> {
+  if (channelIds.length === 0) return new Set();
+  const rows = await prisma.agentCredential.findMany({
+    where: { channelId: { in: channelIds } },
+    select: { channelId: true },
+  });
+  return new Set(rows.map((r) => r.channelId).filter((id): id is string => id !== null));
+}

@@ -1,5 +1,6 @@
 import { prisma } from '../prisma-client';
 import { Prisma } from '@prisma/client';
+import { markNotificationsResolvedByThreadKey } from './notification.repository';
 import type { PipelineRun as PrismaPipelineRun } from '@prisma/client';
 import type { DbClient } from './pipeline-stage.repository';
 import type {
@@ -115,6 +116,9 @@ export async function listRecentRunTopicsForChannel(
   });
 }
 
+// The exact text runs.cancel writes; runs.ts's deriveEndReason string-matches it.
+export const CANCELLED_BY_USER = 'Cancelled by user';
+
 export type PipelineRunPatch = Partial<{
   status: PipelineRunStatus;
   currentStage: StageName | null;
@@ -123,6 +127,8 @@ export type PipelineRunPatch = Partial<{
   lastError: string | null;
   startedAt: Date;
   completedAt: Date;
+  // Bugs Task 12 - shallow-merged into the stored creationOptions (never replaces user picks).
+  creationOptionsMerge: Partial<CreationOptions>;
 }>;
 
 export async function updatePipelineRun(
@@ -142,6 +148,41 @@ export async function updatePipelineRun(
     ...(patch.startedAt !== undefined && { startedAt: patch.startedAt }),
     ...(patch.completedAt !== undefined && { completedAt: patch.completedAt }),
   };
-  const row = await client.pipelineRun.update({ where: { id }, data });
-  return toDomainRun(row);
+  if (patch.creationOptionsMerge) {
+    const current = await client.pipelineRun.findUnique({ where: { id }, select: { creationOptions: true } });
+    data.creationOptions = {
+      ...((current?.creationOptions as Record<string, unknown> | null) ?? {}),
+      ...patch.creationOptionsMerge,
+    } as Prisma.InputJsonValue;
+  }
+  // Bugs Task 10 (R1) — a cancelled run is final: a stage that was mid-flight
+  // when the cancel landed must not resurrect it (a status/currentStage write
+  // after its own long await). The cancel's own write passes, so re-cancelling
+  // is idempotent; every other write to a cancelled run is dropped and the
+  // stored (cancelled) row is returned instead.
+  try {
+    const row = await client.pipelineRun.update({
+      where: {
+        id,
+        ...(patch.lastError !== CANCELLED_BY_USER && {
+          NOT: { status: 'failed', lastError: CANCELLED_BY_USER },
+        }),
+      },
+      data,
+    });
+    // Bugs Task 12 (R5f) - an ended run closes its open Inbox cards (a cancelled run's Gate 2 card
+    // used to stay under "needs action"). Fire-and-forget: never blocks or fails the run write.
+    if (patch.status === 'failed' || patch.status === 'completed') {
+      void markNotificationsResolvedByThreadKey(id, new Date()).catch((error) => {
+        console.error(`[pipeline-run] could not resolve notifications for ended run ${id}:`, error);
+      });
+    }
+    return toDomainRun(row);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      const existing = await client.pipelineRun.findUnique({ where: { id } });
+      if (existing) return toDomainRun(existing);
+    }
+    throw error;
+  }
 }

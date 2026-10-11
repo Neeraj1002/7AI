@@ -31,6 +31,21 @@ function gateLabelFor(status: 'paused_gate1' | 'paused_gate2'): string {
   return status === 'paused_gate1' ? 'Gate 1' : 'Gate 2';
 }
 
+// Bugs Closure follow-up - a reminder names the channel and the brief's first line,
+// never the raw run id.
+export function formatGateReminder(params: {
+  channelName: string;
+  briefText: string;
+  gateLabel: string;
+  openHours: string;
+}): string {
+  // Bugs Task 12 (U1): a brief often starts with its own "Topic:" label; the reminder reads better without it.
+  const firstLine = (params.briefText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() ?? '').replace(/^topic:\s*/i, '');
+  const brief = firstLine.length > 80 ? firstLine.slice(0, 77) + '...' : firstLine;
+  const what = brief ? '"' + brief + '" on ' + params.channelName : params.channelName;
+  return 'Reminder: ' + what + ' has been waiting at ' + params.gateLabel + ' for about ' + params.openHours + 'h. Open the app to respond.';
+}
+
 export async function runGateReminderCheck(): Promise<{ reminded: number }> {
   if (reminderCheckInFlight) {
     console.log('[gate-reminder] check already in flight — skipping this tick');
@@ -77,7 +92,7 @@ export async function runGateReminderCheck(): Promise<{ reminded: number }> {
         // the run id for deep-linking (Task 7/O1), same as requestApproval's
         // own threadKey.
         await notificationChannel.notify(
-          `Reminder: run ${run.id} has been waiting at ${label} for about ${openHours}h. Open the app to respond.`,
+          formatGateReminder({ channelName: channel.name, briefText: run.briefText, gateLabel: label, openHours }),
           { threadKey: run.id },
         );
         remindedRunIds.add(run.id);

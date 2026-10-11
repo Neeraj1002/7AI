@@ -59,6 +59,13 @@ async function probeSeconds(filePath: string): Promise<number> {
   return parseFloat(stdout.trim());
 }
 
+// Bugs Closure R6 — Task 8 skips clips already used *within* one attempt; a Gate 2 revise is a new
+// attempt, so the clips earlier attempts of the run used are excluded too (otherwise the same
+// Pexels first result comes back and the revision looks identical).
+export function excludedSourceIds(previousAttemptIds: string[] | undefined, thisAttemptIds: string[]): string[] {
+  return [...new Set([...(previousAttemptIds ?? []), ...thisAttemptIds])];
+}
+
 export type StockShotListResult = {
   sourceIds: string[];
   queries: string[];
@@ -70,6 +77,8 @@ export async function buildStockShotList(params: {
   windows: Array<{ startMs: number; endMs: number }>;
   totalDurationMs: number;
   outputPath: string;
+  // Clips earlier attempts of this run used (omit for a first attempt).
+  previouslyUsedSourceIds?: string[];
 }): Promise<StockShotListResult> {
   const { queries, windows } = params;
   const usedIds: string[] = [];
@@ -87,7 +96,7 @@ export async function buildStockShotList(params: {
         // Ask Pexels for clips long enough to cover this beat, so no clip needs
         // freezing to fill its window.
         minDurationSeconds: windowSeconds,
-        excludeSourceIds: usedIds,
+        excludeSourceIds: excludedSourceIds(params.previouslyUsedSourceIds, usedIds),
       });
       usedIds.push(clip.sourceId);
 

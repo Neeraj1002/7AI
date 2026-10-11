@@ -6,6 +6,8 @@ import {
   type ApprovalReply,
 } from './pending-approvals';
 import { env } from '../config/env';
+import { handleTicket, startReceiptChecker } from './push-receipts';
+import { buildPushBody, PUSH_BODY_MAX_CHARS, type PushDecision } from './resend-policy';
 
 // Sprint 3 Task 7 (O1) — the only file allowed to touch expo-server-sdk
 // directly, same provider-boundary pattern every external-integration
@@ -52,30 +54,49 @@ export class ExpoPushChannel implements NotificationChannel {
     // Sprint 3 frontend Task 1's existing Expo deep-link mechanism (the
     // app's own `sevenai://` scheme), not a second deep-link scheme.
     const [ticket] = await expo.sendPushNotificationsAsync([message]);
-    if (ticket.status === 'error') {
-      console.error(
-        `[push-channel] Expo push send failed for user ${this.params.userId}: ${ticket.message}`,
-        ticket.details,
-      );
-    }
+    // Bugs Task 10 (R3) — error tickets are logged (without the token) and a
+    // DeviceNotRegistered one clears the stored token; accepted tickets are
+    // kept so their delivery receipts can be read later. Never throws.
+    // Bugs Task 12 (R6): one line per push so a missing one can be traced (token: last 6 chars only).
+    console.log(
+      `[push] user=${this.params.userId} token=...${this.params.expoPushToken.slice(-7, -1)} kind=${String(data.kind)} bodyChars=${body.length} ticket=${ticket.status === 'ok' ? ticket.id : 'error'}`,
+    );
+    await handleTicket(ticket, { userId: this.params.userId, token: this.params.expoPushToken });
   }
 
   async notify(message: string, meta?: { threadKey?: string }): Promise<void> {
-    await this.sendPush('7AI', message, {
+    await this.sendPush('7AI', message.length > PUSH_BODY_MAX_CHARS ? `${message.slice(0, PUSH_BODY_MAX_CHARS - 1)}…` : message, {
       kind: 'notify',
       ...(meta?.threadKey && { runId: meta.threadKey }),
     });
   }
 
-  async requestApproval(params: { threadKey: string; message: string }): Promise<ApprovalReply> {
-    await this.sendPush('7AI — action needed', params.message, {
-      kind: 'approval_request',
-      runId: params.threadKey,
-    });
+  get recipientUserId(): string {
+    return this.params.userId;
+  }
+
+  async requestApproval(params: { threadKey: string; message: string; pushDecision?: PushDecision }): Promise<ApprovalReply> {
+    const decision = params.pushDecision ?? 'send';
+    if (decision === 'skip-recent' || decision === 'skip-stale') {
+      console.log(`[push-channel] user ${this.params.userId}: not re-pushing gate ${params.threadKey} (${decision})`);
+    } else {
+      // The full text stays in the in-app Notification row; the push carries a short summary
+      // (Gate 1's whole brief + script + review notes is what Expo rejected as malformed).
+      await this.sendPush('7AI — action needed', buildPushBody(params.message, decision === 'reminder'), {
+        kind: 'approval_request',
+        runId: params.threadKey,
+      });
+    }
     return getOrCreatePendingApproval(params.threadKey);
   }
 
   resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean } {
     return resolvePendingApprovalShared(threadKey, value);
   }
+}
+
+// Bugs Task 10 (R3) — boot hook (studio/src/index.ts): reads Expo's delivery
+// receipts every few minutes. Returns the stop function.
+export function startPushReceiptChecker(): () => void {
+  return startReceiptChecker(expo);
 }

@@ -50,6 +50,10 @@ export const CreationOptionsSchema = z.object({
   sources: z.array(z.string()).optional(),
   // Sprint 4 Task 6: a key from formats/manifest.ts. Validated at the API edge.
   formatKey: z.string().optional(),
+  // Bugs Task 12 - run-owned bookkeeping, NOT user choices (stripped by runs.rerun):
+  // manual Retry/Revise count per stage (R2) and the one-shot AI-stills fallback marker (R1).
+  manualRetries: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  videoFallbackUsed: z.boolean().optional(),
 });
 export type CreationOptions = z.infer<typeof CreationOptionsSchema>;
 

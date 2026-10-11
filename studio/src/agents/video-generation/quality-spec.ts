@@ -4,6 +4,13 @@
 // gate can never drift apart. Mirrors the "Quality spec" table in
 // docs/execution/sprint4/tasks/task8.md.
 
+// Bugs Closure 2 (P8) — seconds the picture (last image and last caption) and
+// a fading music bed are held after the last spoken word, so a video does not
+// cut on the final syllable. Kept well under a second on purpose: a Short must
+// not hold a still for long, and there is deliberately no fade to black or end
+// card (Shorts loop). 0 restores the old hard cut exactly.
+export const END_TAIL_SECONDS = 0.7;
+
 export const QUALITY_SPEC = {
   video: {
     width: 1080,

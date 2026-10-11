@@ -78,6 +78,43 @@ export async function resumeOnStartup(): Promise<void> {
   await reopenPausedGates();
 }
 
+// Bugs Task 12 (R5d) - how many boots may start a resume for the same run before it is parked. The
+// count lives in the (otherwise unused) PipelineRun.retryCount column: incremented when a resume
+// starts, reset to 0 when the resumed stage returns. A process that dies mid-resume (the
+// 2026-10-10 restart storm) therefore leaves the count behind and the third boot parks the run.
+// The one resume rule: a resume that THROWS parks the run at once (resumeInBackground); a resume that
+// HANGS or whose process dies is parked on the third boot (this constant). Neither is retried again.
+export const MAX_RESUME_ATTEMPTS = 2;
+
+function isGateStage(stage: string | null | undefined): stage is 'gate1' | 'gate2' {
+  return stage === 'gate1' || stage === 'gate2';
+}
+
+async function parkRun(runId: string, message: string): Promise<void> {
+  console.error(`[resume] run ${runId}: ${message}`);
+  await updatePipelineRun(runId, { status: 'needs_attention', lastError: message });
+}
+
+// Resumed stages are NOT awaited by boot: a render takes minutes and a gate blocks on a human
+// reply for hours, and index.ts only starts the API server and the pollers after resumeOnStartup
+// returns. (Awaiting a gate here left nothing alive on the event loop, so the process exited
+// silently and PM2 restarted it, over and over.) Errors are contained per run.
+function resumeInBackground(runId: string, resumer: (runId: string) => Promise<PipelineRun>): void {
+  void (async () => {
+    try {
+      const result = await resumer(runId);
+      await updatePipelineRun(runId, { retryCount: 0 });
+      continueAfterResume(result);
+    } catch (error) {
+      console.error(`[resume] run ${runId}: resume threw:`, error);
+      await parkRun(
+        runId,
+        `Could not resume after a restart: ${error instanceof Error ? error.message : String(error)}`,
+      ).catch((parkError) => console.error(`[resume] run ${runId}: could not park the run:`, parkError));
+    }
+  })();
+}
+
 async function resumeRunningRuns(): Promise<void> {
   const runningRuns = await listRunsByStatus('running');
   if (runningRuns.length === 0) {
@@ -86,70 +123,109 @@ async function resumeRunningRuns(): Promise<void> {
   }
 
   for (const run of runningRuns) {
-    const latestStage = await findLatestStageForRun(run.id);
-
-    if (!latestStage) {
-      // Shouldn't happen given persist-before-advance, but recover rather than
-      // leave the run stuck forever.
-      console.log(`[resume] run ${run.id}: status=running but no stage rows exist — starting intake`);
-      await runIntakeStage(run.id);
-      continue;
-    }
-
-    // B2 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2) — a run whose latest stage
-    // hasn't moved in longer than RESUME_STALE_WINDOW_MS is not
-    // auto-resumed. This is exactly the scenario that bit Week 4 Task 4 for
-    // real: two genuine leftover Week 3 test runs sitting at
-    // currentStage='publishing' since before any resumer existed for that
-    // stage got swept up and completed for real the moment one was wired
-    // in. A distinctly-prefixed lastError (not a budget/circuit-breaker/
-    // quality escalation message) makes this reachable by log grep and by a
-    // human deciding whether the run is actually abandoned or worth a
-    // manual `resumer(run.id)` call.
-    const ageMs = staleAgeMs(latestStage);
-    if (ageMs > env.RESUME_STALE_WINDOW_MS) {
-      const ageMinutes = Math.round(ageMs / 60_000);
-      const windowMinutes = Math.round(env.RESUME_STALE_WINDOW_MS / 60_000);
-      const message = `[stale-resume-skip] latest stage '${latestStage.stageName}' (${latestStage.status}) last changed ${ageMinutes}m ago, past the ${windowMinutes}m staleness window — not re-executed automatically`;
-      console.log(`[resume] run ${run.id}: ${message}`);
-      await updatePipelineRun(run.id, { status: 'needs_attention', lastError: message });
-      continue;
-    }
-
-    if (latestStage.status === 'running') {
-      console.log(
-        `[resume] run ${run.id}: stage '${latestStage.stageName}' (attempt ${latestStage.attemptNumber}) was mid-flight when the process stopped — re-running it from its persisted input`,
+    try {
+      await resumeOneRun(run);
+    } catch (error) {
+      console.error(`[resume] run ${run.id}: error while resuming (other runs and the server continue):`, error);
+      await parkRun(run.id, `Could not resume after a restart: ${error instanceof Error ? error.message : String(error)}`).catch(
+        () => undefined,
       );
-      const resumer = STAGE_RESUMERS[latestStage.stageName];
-      if (resumer) {
-        continueAfterResume(await resumer(run.id));
-      } else {
-        console.log(
-          `[resume] run ${run.id}: no processor wired up for stage '${latestStage.stageName}' yet — leaving as-is`,
-        );
-      }
-      continue;
     }
-
-    if (latestStage.status === 'completed') {
-      const nextResumer = run.currentStage ? STAGE_RESUMERS[run.currentStage] : undefined;
-      if (nextResumer) {
-        console.log(
-          `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — resuming at '${run.currentStage}'`,
-        );
-        continueAfterResume(await nextResumer(run.id));
-      } else {
-        console.log(
-          `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — currentStage='${run.currentStage}' has no processor wired up yet`,
-        );
-      }
-      continue;
-    }
-
-    console.log(
-      `[resume] run ${run.id}: latest stage '${latestStage.stageName}' is '${latestStage.status}' — no automatic resume action defined for this state`,
-    );
   }
+}
+
+async function resumeOneRun(run: PipelineRun): Promise<void> {
+  const latestStage = await findLatestStageForRun(run.id);
+
+  if (!latestStage) {
+    // Shouldn't happen given persist-before-advance, but recover rather than
+    // leave the run stuck forever.
+    console.log(`[resume] run ${run.id}: status=running but no stage rows exist — starting intake`);
+    resumeInBackground(run.id, runIntakeStage);
+    return;
+  }
+
+  // B2 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2) — a run whose latest stage
+  // hasn't moved in longer than RESUME_STALE_WINDOW_MS is not
+  // auto-resumed. This is exactly the scenario that bit Week 4 Task 4 for
+  // real: two genuine leftover Week 3 test runs sitting at
+  // currentStage='publishing' since before any resumer existed for that
+  // stage got swept up and completed for real the moment one was wired
+  // in. A distinctly-prefixed lastError (not a budget/circuit-breaker/
+  // quality escalation message) makes this reachable by log grep and by a
+  // human deciding whether the run is actually abandoned or worth a
+  // manual `resumer(run.id)` call.
+  const ageMs = staleAgeMs(latestStage);
+  if (ageMs > env.RESUME_STALE_WINDOW_MS) {
+    const ageMinutes = Math.round(ageMs / 60_000);
+    const windowMinutes = Math.round(env.RESUME_STALE_WINDOW_MS / 60_000);
+    const message = `[stale-resume-skip] latest stage '${latestStage.stageName}' (${latestStage.status}) last changed ${ageMinutes}m ago, past the ${windowMinutes}m staleness window — not re-executed automatically`;
+    console.log(`[resume] run ${run.id}: ${message}`);
+    await updatePipelineRun(run.id, { status: 'needs_attention', lastError: message });
+    return;
+  }
+
+  // Bugs Task 12 (R5c) - orphan gate: 'running' at a gate means no pending approval exists (the
+  // 2026-10-10 state: Retry re-ran gate2 as a stage). Never re-run it; put the run back to its
+  // paused status and let reopenPausedGates register the approval and re-send the card.
+  const orphanGate = isGateStage(latestStage.stageName) && latestStage.status === 'running'
+    ? latestStage.stageName
+    : isGateStage(run.currentStage)
+      ? run.currentStage
+      : null;
+  if (orphanGate) {
+    console.warn(
+      `[resume-repair] run ${run.id}: status=running at ${orphanGate} with no pending approval - repairing to paused_${orphanGate} (not re-running the stage)`,
+    );
+    await updatePipelineRun(run.id, { status: orphanGate === 'gate1' ? 'paused_gate1' : 'paused_gate2', currentStage: orphanGate });
+    return;
+  }
+
+  // Bugs Task 12 (R5d) - a run that keeps being "resumed" across boots without ever finishing the
+  // resumed stage is parked instead of retried again.
+  if (run.retryCount >= MAX_RESUME_ATTEMPTS) {
+    await parkRun(
+      run.id,
+      `Resume gave up: the server restarted ${run.retryCount} times while resuming '${latestStage.stageName}'. Retry it from the app when ready.`,
+    );
+    await updatePipelineRun(run.id, { retryCount: 0 });
+    return;
+  }
+  await updatePipelineRun(run.id, { retryCount: run.retryCount + 1 });
+
+  if (latestStage.status === 'running') {
+    console.log(
+      `[resume] run ${run.id}: stage '${latestStage.stageName}' (attempt ${latestStage.attemptNumber}) was mid-flight when the process stopped — re-running it from its persisted input`,
+    );
+    const resumer = STAGE_RESUMERS[latestStage.stageName];
+    if (resumer) {
+      resumeInBackground(run.id, resumer);
+    } else {
+      console.log(
+        `[resume] run ${run.id}: no processor wired up for stage '${latestStage.stageName}' yet — leaving as-is`,
+      );
+    }
+    return;
+  }
+
+  if (latestStage.status === 'completed') {
+    const nextResumer = run.currentStage ? STAGE_RESUMERS[run.currentStage] : undefined;
+    if (nextResumer) {
+      console.log(
+        `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — resuming at '${run.currentStage}'`,
+      );
+      resumeInBackground(run.id, nextResumer);
+    } else {
+      console.log(
+        `[resume] run ${run.id}: latest stage '${latestStage.stageName}' already completed — currentStage='${run.currentStage}' has no processor wired up yet`,
+      );
+    }
+    return;
+  }
+
+  console.log(
+    `[resume] run ${run.id}: latest stage '${latestStage.stageName}' is '${latestStage.status}' — no automatic resume action defined for this state`,
+  );
 }
 
 // Week 5 Task 3 — the fix this task adds. Re-invokes the matching gate

@@ -6,6 +6,7 @@ import {
   getContentPerformanceDashboard,
   getQualityDashboard,
   getChannelComparisonDashboard,
+  getGateAnalytics,
 } from '../../models/repositories/dashboard.repository';
 
 const dashboardInput = z.object({ channelId: z.string().uuid().optional() });
@@ -28,6 +29,10 @@ export const dashboardRouter = router({
   content: publicProcedure
     .input(dashboardInput)
     .query(async ({ input, ctx }) => getContentPerformanceDashboard(ctx.tenantId, input.channelId)),
+  // Bugs Closure R3 (D3) — per-gate approve/revise/reject counts and time to decision.
+  gates: publicProcedure
+    .input(dashboardInput)
+    .query(async ({ input, ctx }) => getGateAnalytics(ctx.tenantId, input.channelId)),
   quality: publicProcedure
     .input(dashboardInput)
     .query(async ({ input, ctx }) => getQualityDashboard(ctx.tenantId, input.channelId)),

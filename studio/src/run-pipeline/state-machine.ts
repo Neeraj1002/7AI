@@ -18,11 +18,15 @@ import {
 import { findChannelById } from '../models/repositories/channel.repository';
 import { isR2Configured, uploadToR2 } from '../storage/r2-client';
 import { uploadAttemptBundle } from '../storage/attempt-bundle';
-import { insertUsageEvent } from '../models/repositories/usage-event.repository';
+import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
+import { isCancellationRequested } from './cancellation-registry';
+import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
-import { isBudgetAvailable } from './budget-gate';
+import { checkBudget, describeBudgetRefusal } from './budget-gate';
+import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
+import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -101,10 +105,17 @@ function describeStageError(error: unknown): string {
 }
 
 async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
-  const message = describeStageError(error);
+  let message = describeStageError(error);
+  // Bugs Task 12 (R13) - an expired YouTube token says so in plain words (technical text kept after it)
+  // and flags the channel "Reconnect needed".
+  if (isInvalidGrant(error)) {
+    const failedRun = await findPipelineRunById(runId).catch(() => null);
+    if (failedRun) await noteYoutubeAuthFailure(failedRun.channelId, error);
+    message = `${YOUTUBE_RECONNECT_MESSAGE} (${message})`;
+  }
   console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
-    await failStage(stageId, message, tx);
+    await failStage(stageId, message, tx, failureOutputFromError(error));
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);
   });
 }
@@ -183,18 +194,13 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'intake',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -291,14 +297,15 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
   // attempt exists at all. A refused call is recorded as `skipped`, never
   // silently dropped and never a `failed` attempt (nothing actually ran).
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'script_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     // Bugs Task 6 (R2) — a budget refusal on a genuine first attempt is
     // unchanged (needs_attention: no partial progress or review history
@@ -329,7 +336,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     }
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Script Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Script Generation refused: ${budgetText}`,
     });
   }
 
@@ -346,8 +353,23 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // than once around the whole withRetryAndCircuitBreaker call) is what makes
   // that true instead of undercounting retried spend.
   const attemptOnce = async (): Promise<ScriptGenerationOutput> => {
+    // Bugs Task 11 (R2/R3) — one UsageEvent per model call, success or failure:
+    // a generation that retried inside this attempt made two real calls, and a
+    // reply rejected after its call completed still cost what the call cost.
+    const bookCalls = async (spent: FailureUsageFields[]): Promise<void> => {
+      for (const call of spent) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'script-generation',
+          ...call,
+        });
+      }
+    };
     try {
-      const { output, llm } = await generateScript({
+      const { output, calls } = await generateScript({
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
@@ -359,33 +381,18 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         bannedEndings: stageInput.bannedEndings,
         scriptStructure: stageInput.scriptStructure,
       });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      await bookCalls(
+        calls.map((llm) => ({
+          provider: llm.provider,
+          model: llm.model,
+          inputTokens: llm.usage.inputTokens,
+          outputTokens: llm.usage.outputTokens,
+          costUsd: llm.costUsd,
+        })),
+      );
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
-      });
+      await bookCalls(failureUsageEvents(error));
       throw error;
     }
   };
@@ -481,18 +488,13 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-review',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -687,6 +689,11 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     );
   }
 
+  // Bugs Task 12 (R5c) - same invariant as Gate 2: never 'running' at a gate.
+  if (run.status !== 'paused_gate1' || run.currentStage !== 'gate1') {
+    await updatePipelineRun(runId, { status: 'paused_gate1', currentStage: 'gate1' });
+  }
+
   // Blocks here until a reply arrives (or, per Task 6's founder-availability
   // note, a simulated one is fed in for testing) — this is the "pause" that
   // PipelineRun.status = 'paused_gate1' represents.
@@ -876,18 +883,19 @@ export async function runVideoGenerationStage(
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
   // Script Generation, now also covering the pipeline's most expensive stage.
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'video_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Video Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Video Generation refused: ${budgetText}`,
     });
   }
 
@@ -949,18 +957,13 @@ export async function runVideoGenerationStage(
       });
       return plan;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-production-planning',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -975,6 +978,13 @@ export async function runVideoGenerationStage(
   let lastArtifacts: VideoArtifacts | undefined;
   let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
+    // Bugs Closure 2 (P5): a fresh tally per attempt (each retry pays again),
+    // read by the failure path below.
+    const spend = emptyVideoSpend({
+      media: env.MEDIA_STUB === '1',
+      stockFootage: env.STOCK_FOOTAGE_STUB === '1',
+      aiVisuals: env.AI_VISUALS_STUB === '1',
+    });
     try {
       const { output, usage, artifacts } = await generateVideo({
         pipelineRunId: runId,
@@ -988,6 +998,8 @@ export async function runVideoGenerationStage(
           negativePrompt: config.visualNegativePrompt,
           safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
         },
+        excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
+        spend,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -1007,15 +1019,20 @@ export async function runVideoGenerationStage(
       return output;
     } catch (error) {
       const context = getStageErrorContext(error);
+      // Real spend (TTS, transcription, stills) when the render got that far;
+      // otherwise the previous provider/model-or-unknown row at $0.
+      const realUsage = failedRenderUsage(spend, error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        costUsd: '0.000000',
+        ...(realUsage ?? {
+          provider: (context?.provider as string | undefined) ?? 'unknown',
+          model: (context?.model as string | undefined) ?? 'unknown',
+          costUsd: '0.000000',
+        }),
       });
       throw error;
     }
@@ -1212,8 +1229,29 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // Regen-cap decision computed once, up front, so every branch inside the
     // transaction below applies the exact same patch it would have applied
     // outside one — the transaction only changes atomicity, not the logic.
-    const runPatch: Parameters<typeof updatePipelineRun>[1] =
-      outcome.verdict === 'pass'
+    // Bugs Task 12 (R1) - a stock-footage run that reached the regeneration cap and was still rejected
+    // gets ONE extra attempt with AI stills. Once per run (persisted marker, so a restart, a resume or a
+    // manual Retry can't trigger a second), only if the budget gate would allow the render, and it does
+    // not count against the cap. Otherwise the run parks exactly as before.
+    const atRegenCap = outcome.verdict !== 'pass' && videoGenStage.attemptNumber > MAX_VIDEO_REGEN_ATTEMPTS;
+    const stockFallback =
+      atRegenCap &&
+      visualSource === 'stock-footage' &&
+      !run.creationOptions?.videoFallbackUsed &&
+      (await checkBudget(run.tenantId, channel.id, channel.platform)).ok;
+    if (stockFallback) {
+      console.log(
+        `[video-fallback] run ${runId}: stock footage failed review after ${videoGenStage.attemptNumber} attempts - one AI-stills attempt`,
+      );
+    }
+
+    const runPatch: Parameters<typeof updatePipelineRun>[1] = stockFallback
+      ? {
+          status: 'running',
+          currentStage: 'video_generation',
+          creationOptionsMerge: { visualSource: 'ai-stills', videoFallbackUsed: true },
+        }
+      : outcome.verdict === 'pass'
         ? gate2AutoApproveStage
           ? { status: 'running', currentStage: nextStageAfter('gate2') }
           : { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
@@ -1255,6 +1293,21 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       // path writes (outcome/privacyStatus), plus a separate agent:'system'
       // ReviewLog row so the run's history plainly shows Gate 2 was skipped,
       // not silently absent.
+      if (stockFallback) {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'system',
+            verdict: 'video-fallback',
+            rationale: 'Switched to AI stills after stock footage failed review',
+          },
+          tx,
+        );
+      }
+
       if (gate2AutoApproveStage) {
         const privacyStatus = channel.defaultPrivacyStatus;
         await completeStage(gate2AutoApproveStage.id, { outcome: 'approve', privacyStatus }, tx);
@@ -1275,6 +1328,20 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       return await updatePipelineRun(runId, runPatch, tx);
     });
   } catch (error) {
+    // Bugs Task 11 (R2) — a multimodal pass whose reply was rejected after the
+    // call completed still cost real money; the success path above is the only
+    // place this stage wrote a UsageEvent, so that spend was never booked.
+    const spent = failureUsageFields(error);
+    if (spent.provider !== 'unknown') {
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-intelligence-own-draft',
+        ...spent,
+      });
+    }
     return await failStageAndEscalate(stage.id, runId, error);
   }
 }
@@ -1335,6 +1402,13 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     console.log(
       `[gate2] run ${runId}: re-opening an already-pending gate2 attempt ${stage.attemptNumber} after a restart — re-sending the prompt`,
     );
+  }
+
+  // Bugs Task 12 (R5c) - invariant: a run is never 'running' at a gate. Whoever got us here (the
+  // pipeline moving forward, a resume, a stray Retry) the run is parked at the gate, so the app shows
+  // Approve/Reject/Revise for the pending approval registered just below.
+  if (run.status !== 'paused_gate2' || run.currentStage !== 'gate2') {
+    await updatePipelineRun(runId, { status: 'paused_gate2', currentStage: 'gate2' });
   }
 
   // Blocks here until a reply arrives (or, per Task 6/Week 2's
@@ -1413,15 +1487,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
       });
     }
 
-    // Revise — a founder-requested regen respects the same attempt cap as
-    // Task 3's automatic regen loop; it doesn't bypass it.
-    const revisePatch: Parameters<typeof updatePipelineRun>[1] =
-      videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
-        ? { status: 'running', currentStage: 'video_generation' }
-        : {
-            status: 'needs_attention',
-            lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
-          };
+    // Revise - Bugs Task 12 (R5a): a human Revise is a different request from Task 3's automatic regen
+    // loop and is no longer refused by that cap (it ended at "Video retry limit reached" with no way
+    // forward). Its own limit is the manual cap (R2), enforced up front in runs.gate2 before the
+    // reply is accepted, so by here the new attempt is always allowed.
+    const revisePatch: Parameters<typeof updatePipelineRun>[1] = { status: 'running', currentStage: 'video_generation' };
 
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(
@@ -1462,6 +1532,12 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
 // redo on any resume) and the YouTube upload itself — the pipeline's first
 // stage with a real, non-repeatable external side effect. See
 // docs/execution/week4/BUSINESS_LOGIC.md Sections 1-2.
+// Bugs Task 12 (R1) - read from the plan of the LATEST completed video_generation attempt, so the
+// stock -> ai-stills fallback attempt is disclosed as synthetic with no separate flag to keep in sync.
+export function deriveContainsSyntheticMedia(videoGenOutput: { plan?: { visualSource?: string } }): boolean {
+  return videoGenOutput.plan?.visualSource === 'ai-stills';
+}
+
 export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
@@ -1480,6 +1556,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // uploadVideo completes is not closed here (see reports/task8.md).
   if (!channel.isActive) {
     throw new Error(`Channel ${channel.id} is archived — refusing to publish PipelineRun ${runId}`);
+  }
+
+  // Bugs Task 10 (R1) — a cancel is final: never reach the upload for a run
+  // that was cancelled (or is no longer running) while this stage's caller
+  // was between steps. Returns the run untouched; the driver loop then ends.
+  if (run.status !== 'running' || isCancellationRequested(runId)) {
+    return run;
   }
 
   const gate2Stage = await findLatestAttempt(runId, 'gate2');
@@ -1517,7 +1600,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // separately-set flag that could disagree with it. Falls back to `false`
   // for a pre-Sprint-2 stage row (every such video really was stock
   // footage, since 'ai-stills' didn't exist yet).
-  const containsSyntheticMedia = videoGenOutput.plan?.visualSource === 'ai-stills';
+  const containsSyntheticMedia = deriveContainsSyntheticMedia(videoGenOutput);
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
@@ -1600,18 +1683,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       });
       return metadata;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'metadata-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }

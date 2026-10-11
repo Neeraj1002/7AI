@@ -4,7 +4,11 @@ import { stubFetchVideoStats, stubFetchRetentionCurve } from './stub';
 import {
   insertPerformanceSnapshot,
   listCompletedRunsWithPublishedVideo,
+  latestSnapshotAtByRun,
 } from '../../models/repositories/performance-snapshot.repository';
+import { findChannelById } from '../../models/repositories/channel.repository';
+import { isInvalidGrant, noteYoutubeAuthFailure } from '../../manage-channels/youtube-auth-health';
+import { decidePoll } from './poll-policy';
 import { env } from '../../config/env';
 import type { PerformanceSnapshot, RetentionCurvePoint } from '../../types';
 import type { VideoStats } from './types';
@@ -104,7 +108,19 @@ export async function runPeriodicPoll(): Promise<{ polled: number; skipped: bool
   try {
     const targets = await listCompletedRunsWithPublishedVideo();
     let polled = 0;
+    const lastSnapshots = await latestSnapshotAtByRun(targets.map((t) => t.pipelineRunId));
+    // Bugs Task 12 (R10.7): a channel whose YouTube token is known-bad (invalid_grant) is skipped for
+    // the tick instead of erroring once per video; it is logged once, when first detected.
+    const channelBad = new Map<string, boolean>();
     for (const target of targets) {
+      if (!channelBad.has(target.channelId)) {
+        const ch = await findChannelById(target.channelId);
+        channelBad.set(target.channelId, Boolean(ch?.brandAssets.youtubeAuthError));
+      }
+      if (channelBad.get(target.channelId)) continue;
+      if (decidePoll({ now: Date.now(), publishedAt: target.publishedAt, lastSnapshotAt: lastSnapshots.get(target.pipelineRunId) ?? null }) === 'skip') {
+        continue;
+      }
       // One bad target (e.g. a run completed under YOUTUBE_STUB=1 whose
       // youtubeVideoId was never real — a real, live finding from Week 5
       // Task 1's first genuinely real poll, which otherwise aborted the
@@ -115,6 +131,11 @@ export async function runPeriodicPoll(): Promise<{ polled: number; skipped: bool
         await recordSnapshot(target);
         polled += 1;
       } catch (error) {
+        if (isInvalidGrant(error)) {
+          await noteYoutubeAuthFailure(target.channelId, error);
+          channelBad.set(target.channelId, true);
+          continue;
+        }
         console.error(
           `[performance-analytics] poll failed for run ${target.pipelineRunId} (youtubeVideoId=${target.youtubeVideoId}):`,
           error,
