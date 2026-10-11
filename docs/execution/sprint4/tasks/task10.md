@@ -7,7 +7,7 @@
 **Objective**: Make a long-form video reviewable and publishable: a review rubric for chapters, a long-form quality profile, a small preview copy for the phone at Gate 2, chapter timestamps and the right metadata on upload, and long-form numbers in analytics.
 **Duration**: 1.5 to 2 days.
 **Design rule (founder, 2026-10-11): every long-form video is published publicly on a real channel.** Metadata, credits, licences and the synthetic-media flag must be right on every upload.
-**Depends On**: Sprint 4 Task 9 merged (it provides `videoKind`, `chapters`, `chapterTimings`, `captions.srt`, the 1920x1080 render). The per-row warning flag change for quality checks (separate small PR) should be merged first or at least agreed, because R2 extends the same data.
+**Depends On**: nothing to wait for. Build against the shapes defined in Task 9 PR A (`videoKind`, `chapters`, `chapterTimings`, the `runs.get` fields, the `captions.srt` artifact), which merges first, usually the same day; until it lands, develop and test with fixtures that follow those shapes, then merge `main` and wire them in. This task merges after Task 9 PR B. The quality-check row flags (PR #64) are already on `main`.
 **Owning Component**: Script Review, `quality-spec.ts` / `quality-metrics.ts`, Gate 2, YouTube upload, analytics, `runs.get`.
 **Success Criteria**: (1) the 2-minute test video from Task 9 gets a long-form review and a quality result with no caption check; (2) `runs.get` returns a preview URL, a subtitle download link and the subtitle upload result for a long run; (3) the upload description starts its chapter list at `00:00` and the subtitles are uploaded (or the run records why not); (4) Shorts reviews, quality checks and uploads are unchanged.
 

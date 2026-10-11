@@ -26,19 +26,20 @@ Task 12 server (PR #58) and app (PR #59) are merged and live on preview. The App
 
 | Item | State |
 |---|---|
-| Frontend PR #53 (branch `SPRINT4_FE_E1`) | Gate 2 quality card built, awaiting device check. The agent finishes the remaining Sprint 4 screens (E2 to E6) in this same PR now that PR #49 is merged. |
+| Frontend PR #53 (branch `SPRINT4_FE_E1`) | E1 to E6 built and aligned to the row-6 boards; report written; ready to merge. Not seen on a device yet (to-do #4 and #5). Five small differences from the boards accepted (see `execution/sprint4/PENDING.md`). |
 | Docs PR (this page, `PENDING.md`, tasks 9 and 10) | Waiting for the docs agent. |
 | Archive of old doc folders (DOCS_ARCHIVE) | Separate PR by another agent; status unknown. |
 
 ## Next work (Sprint 4, in order)
 
 1. Sprint 4 backend Tasks 1 to 8: merged (PR #49 and PR #46); deploy and verification pending (to-do #3).
-2. Frontend: finish E1 to E6 in PR #53, now including the "formats each channel offers" change (see `execution/sprint4/PENDING.md`).
-3. Long-form video (16:9, 2 to 15 minutes, published publicly on real channels):
-   1. Image-model spike (R1 of `execution/bugs/Sprint3/tasks/hardening-gpt-image-migration.md`): landscape size, price, rate limit.
-   2. Task 9, Long-Form Foundation (`execution/sprint4/tasks/task9.md`): `videoKind`, chaptered script, narration, landscape stills with disk cache, 1920x1080 render, cost estimate and per-video spend limit, formats each channel offers. Ends with a 2-minute test render.
-   3. Task 10, Quality, Preview and Publishing (`execution/sprint4/tasks/task10.md`): long-form review and quality profile, 720p preview copy, chapter timestamps, subtitle upload, long-form analytics.
-   4. App screens: the UI designer's boards first ("under review"), then the build.
+2. Frontend, strictly in this order: PR #53 (E1 to E6, ready to merge); Frontend Task 2, Run / Inbox / Queue redesign (`execution/sprint4/tasks/frontend-task2.md`); Frontend Task 3, formats per channel (`frontend-task3.md`, needs Task 9 PR A); Frontend Task 4, long-form video in the app (`frontend-task4.md`, after Tasks 9 and 10 merge). Details: `execution/sprint4/PENDING.md`.
+3. Long-form video (16:9, 2 to 15 minutes, published publicly on real channels), in parallel lanes that do not wait for each other:
+   1. Task 9, Long-Form Foundation (`execution/sprint4/tasks/task9.md`): PR A is the small API contract and ships first; PR B is the pipeline (chaptered script, narration, landscape stills with disk cache, 1920x1080 render, budget). Ends with a 2-minute test render.
+   2. Task 11, Image Model Move (`execution/sprint4/tasks/task11.md`, moved here from Sprint 3): spike, contact sheets for your approval, then the switch. Deadline 2026-12-01, target 2026-11-15.
+   3. Task 10, Quality, Preview and Publishing (`execution/sprint4/tasks/task10.md`): builds on Task 9's shapes, merges after Task 9 PR B.
+   4. Task 12, Run Screen Data (`execution/sprint4/tasks/task12.md`): small backend fields the new app screens want (settings a run used, every gate's decision, spend per run, image count, chapter warning, quality targets). Independent; the app has a fallback for each.
+   5. App screens: boards are locked on the canvas; the builds are the Frontend tasks in Next work 2.
 4. Script Review rules SR-1 to SR-9 (no claims outside the brief, no stronger hedges, no 9 or 10 with a fact issue): small separate task, to be written.
 5. Moved here from Task 12: tester-facing bug type and priority chips; per-channel colour setting; two small items (R10.3, R10.10); the YouTube thumbnail 403; add the app tests to CI.
 
@@ -48,7 +49,7 @@ Details: `execution/sprint4/STATUS.md`.
 
 | Decision | Note |
 |---|---|
-| Move the image model before it shuts down (`gpt-image-1.5`, shuts down 2026-12-01) | Target: merged and deployed by 2026-11-15. The spike (Next work 3.1) comes first; contact sheets need your approval of the new look. |
+| Move the image model before it shuts down (`gpt-image-1.5`, shuts down 2026-12-01) | Target: merged and deployed by 2026-11-15. Task 11 (Next work 3.2) runs in parallel with everything else; the contact sheets need your approval of the new look. |
 | Add a search-based fact check to Script Review | Open. Long-form does not use web search: facts come from your brief. |
 | An "abandon this run" button for stuck gates | Not built. Only if stuck gates become a real problem. |
 
