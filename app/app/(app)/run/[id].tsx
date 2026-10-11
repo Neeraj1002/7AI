@@ -11,7 +11,7 @@ import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
 import { manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
-import { ageHours, humanizeRunError, relativeTime, stageLabel, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, runStatusLabel, humanizeRunError, relativeTime, stageLabel, statusChipKind, stepperIndexForStage } from '../../../lib/run-labels';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -263,7 +263,8 @@ export default function RunDetailScreen() {
   const videoRationale = videoReviewStage?.output?.rationale as string | undefined;
   const videoPassed = videoVerdict === 'pass' ? true : videoVerdict === 'fail' ? false : undefined;
   const videoAttempts = stages.filter((s) => s.stageName === 'video_generation').length;
-  const regensUsed = videoAttempts > 0 ? videoAttempts - 1 : undefined;
+  // Automatic regenerations only (failed video reviews, max 2); manual Revise presses are not counted.
+  const regensUsed = videoAttempts > 0 ? automaticRegensUsed(stages) : undefined;
 
   const isGate1 = run.status === 'paused_gate1';
   const isGate2 = run.status === 'paused_gate2';
@@ -289,7 +290,10 @@ export default function RunDetailScreen() {
   // straight to publishing on the live server now, no restart needed.
   const { lastGateDecision, endReason } = data;
   const isEnded = run.status === 'failed';
-  const isPublishing = run.status === 'running' && run.currentStage === 'publishing';
+  // Publishing phase = the upload AND the stats snapshot right after it (currentStage 'analytics'); the
+  // video is live by then, so Cancel is not offered.
+  const isPublishing = isPublishingPhase(run);
+  const isUploading = run.status === 'running' && run.currentStage === 'publishing';
   const isRevising =
     run.status === 'running' &&
     run.currentStage === 'video_generation' &&
@@ -411,7 +415,7 @@ export default function RunDetailScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: barHeight + space.xl }]}
       footer={footer}
     >
-      <StatusChip kind={statusChipKind(run.status)} label={statusLabel(run.status)} />
+      <StatusChip kind={statusChipKind(run.status)} label={runStatusLabel(run)} />
 
       <View style={styles.brief}>
         <Text style={styles.briefLabel}>Brief</Text>
@@ -559,7 +563,7 @@ export default function RunDetailScreen() {
 
       {isPublishing ? (
         <Card style={styles.darkCard}>
-          <Text style={styles.darkTitle}>Uploading to YouTube</Text>
+          <Text style={styles.darkTitle}>{isUploading ? 'Uploading to YouTube' : 'Uploaded — saving the first stats'}</Text>
           {lastGateDecision?.gate === 2 && lastGateDecision.outcome === 'approve' ? (
             <Text style={styles.darkBody}>
               You approved this video as {lastGateDecision.privacyStatus ?? 'private'}{' '}
@@ -567,9 +571,11 @@ export default function RunDetailScreen() {
             </Text>
           ) : null}
           <IndeterminateBar />
-          <Text style={styles.darkMeta}>
-            Taking longer than 10 minutes moves this run to Needs attention automatically.
-          </Text>
+          {isUploading ? (
+            <Text style={styles.darkMeta}>
+              Taking longer than 10 minutes moves this run to Needs attention automatically.
+            </Text>
+          ) : null}
         </Card>
       ) : null}
 
@@ -580,7 +586,7 @@ export default function RunDetailScreen() {
             <Text style={styles.darkBody}>&quot;{lastGateDecision.notes}&quot;</Text>
           ) : null}
           {regensUsed !== undefined ? (
-            <Text style={styles.darkMeta}>Regenerations used: {regensUsed} of 2</Text>
+            <Text style={styles.darkMeta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
           ) : null}
         </Card>
       ) : null}
@@ -661,7 +667,7 @@ export default function RunDetailScreen() {
               ) : null}
               {videoRationale ? <ClampedText lines={3} style={styles.meta} text={videoRationale} /> : null}
               {regensUsed !== undefined ? (
-                <Text style={styles.meta}>Regenerations used: {regensUsed} of 2</Text>
+                <Text style={styles.meta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
               ) : null}
             </View>
           </View>

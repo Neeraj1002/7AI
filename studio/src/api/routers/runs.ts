@@ -648,6 +648,14 @@ export const runsRouter = router({
     if (run.status === 'completed' || run.status === 'failed') {
       return { cancelled: deriveEndReason(run) === 'cancelled', immediate: false, alreadyEnded: true };
     }
+    // Bugs Task 13: once approved, a run at publishing (the upload) or analytics (the stats snapshot right
+    // after it) has a video that is live or about to be; ending it as "Cancelled" would misreport it.
+    if (run.status === 'running' && (run.currentStage === 'publishing' || run.currentStage === 'analytics')) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This run is publishing - the video is already on its way to YouTube, so it can no longer be cancelled.',
+      });
+    }
     if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
       if (resolvePendingApproval(run.id, `reject ${CANCELLED_BY_USER}`).resolved) {
         return { cancelled: true, immediate: true, alreadyEnded: false };
