@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { color, font, space } from '../lib/theme';
 import { Card } from './Card';
@@ -18,8 +17,10 @@ export function RepeatTopicBanner({ review }: { review: ScriptReview }) {
       accessibilityRole="link"
       accessibilityLabel={banner.text}
     >
-      <Text style={styles.bannerText}>{banner.text}</Text>
-      <Feather name="chevron-right" size={18} color={color.warnText} />
+      <View style={styles.bannerBody}>
+        <Text style={styles.bannerText}>{banner.text}</Text>
+        <Text style={styles.bannerLink}>Open that run ›</Text>
+      </View>
     </Pressable>
   );
 }
@@ -60,12 +61,15 @@ const styles = StyleSheet.create({
     gap: space.sm,
     backgroundColor: color.warnBg,
     borderRadius: 14,
+    minHeight: 44,
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  bannerText: { flex: 1, fontFamily: font.bold, fontSize: 13, lineHeight: 18, color: color.warnText },
+  bannerBody: { flex: 1, gap: 4 },
+  bannerText: { fontFamily: font.bold, fontSize: 13, lineHeight: 18, color: color.warnText },
+  bannerLink: { fontFamily: font.black, fontSize: 13, lineHeight: 18, color: color.warnText },
   // Board "Gate 1": the Factual concerns card is a lighter amber (#FFFBEF) with amber text.
-  tint: { backgroundColor: '#FFFBEF' },
+  tint: { backgroundColor: color.warnSoft },
   title: { fontFamily: font.black, fontSize: 15, color: color.ink },
   item: { flexDirection: 'row', gap: space.xs },
   bullet: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, color: color.ink },

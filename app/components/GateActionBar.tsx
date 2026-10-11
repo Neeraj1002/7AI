@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { BottomSheet } from './BottomSheet';
 import { ConfirmSheet } from './ConfirmSheet';
-import { DangerTextButton, PrimaryButton, SecondaryButton } from './Buttons';
+import { PrimaryButton, SecondaryButton } from './Buttons';
 import { flags } from '../lib/feature-flags';
 import { color, font, radius, space, type } from '../lib/theme';
 
@@ -51,7 +51,7 @@ export function GateActionBar(props: {
 
   const approveLabel =
     props.gate === 1
-      ? 'Approve' // U6: 'Approve script' broke mid-word beside Reject and Edit on the Inbox card
+      ? 'Approve script'
       : effective === 'public'
         ? 'Approve & publish publicly'
         : `Approve & upload as ${effective}`;
@@ -83,28 +83,19 @@ export function GateActionBar(props: {
         </View>
       ) : null}
 
-      {props.gate === 1 ? (
-        <View style={styles.row}>
-          <DangerTextButton label="Reject" icon="x" onPress={() => setMode('reject')} />
-          <SecondaryButton label="Edit" icon="edit-2" onPress={() => setMode('edit')} />
-          <PrimaryButton label={approveLabel} icon="check" onPress={handleApprove} style={styles.flex} />
-        </View>
-      ) : (
-        <>
-          <View style={styles.row}>
-            <SecondaryButton label="Reject" icon="x" onPress={() => setMode('reject')} style={styles.flex} />
-            <SecondaryButton
-              label="Revise"
-              icon="rotate-cw"
-              disabled={Boolean(props.reviseDisabledReason)}
-              onPress={() => setMode('edit')}
-              style={styles.flex}
-            />
-          </View>
-          {props.reviseDisabledReason ? <Text style={styles.hint}>{props.reviseDisabledReason}</Text> : null}
-          <PrimaryButton label={approveLabel} icon="arrow-up" onPress={handleApprove} />
-        </>
-      )}
+      {/* Standard action bar (NEXT 1 Gate 1 board): Reject and Edit/Revise side by side, Approve full width below. */}
+      <View style={styles.row}>
+        <SecondaryButton label="Reject" icon="x" onPress={() => setMode('reject')} style={styles.flex} />
+        <SecondaryButton
+          label={props.gate === 1 ? 'Edit' : 'Revise'}
+          icon={props.gate === 1 ? 'edit-2' : 'rotate-cw'}
+          disabled={props.gate === 2 && Boolean(props.reviseDisabledReason)}
+          onPress={() => setMode('edit')}
+          style={styles.flex}
+        />
+      </View>
+      {props.gate === 2 && props.reviseDisabledReason ? <Text style={styles.hint}>{props.reviseDisabledReason}</Text> : null}
+      <PrimaryButton label={approveLabel} icon={props.gate === 1 ? 'check' : 'arrow-up'} onPress={handleApprove} />
 
       <TextEntrySheet
         visible={mode !== null}
