@@ -1,7 +1,8 @@
 # Bugs Task 6: Script Review Auto-Retry Loop Has No Feedback
 
 **Date**: 2026-09-27
-**Status**: Complete. Both items live-verified against a real, isolated sandbox database.
+**Status**: Complete. Both items live-verified against a real, isolated sandbox database. **Merged to
+`main` via `BUGS_TASK6` / PR [#31](https://github.com/Neeraj1002/7AI/pull/31) (2026-09-27).**
 **Files Created**: `tasks/task6.md`, this report; a new function in `review-log.repository.ts`.
 **Files Modified**: `studio/src/agents/script-generation/index.ts`, `studio/src/run-pipeline/state-machine.ts`,
 `studio/src/models/repositories/review-log.repository.ts`, `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md`
@@ -67,11 +68,12 @@ this task's bounded retry loop. Not fixed, per the task's own scoping call.
 None — confirmed. `fixNotes` is resolved from an existing `ReviewLog` row; R2 updates an existing row's
 `rationale` column, no new column.
 
-## Sequencing note for whoever merges this
-**Sprint 3 Task 9/R2 (Gate 1/Gate 2 toggles) is waiting on this branch merging to `main` first** — it
+## Sequencing note — resolved
+**Sprint 3 Task 9/R2 (Gate 1/Gate 2 toggles) was waiting on this branch merging to `main` first** — it
 touches this exact same code region (the `fixNotes` lookup and the budget-routing fix both sit right next
-to where its own `gate1Enabled` branch will land). This branch is code-complete, tested, and both items are
-live-verified — please prioritize review/merge accordingly.
+to where its own `gate1Enabled` branch will land). **This branch has now merged (PR #31, 2026-09-27) — Task
+9/R2 is unblocked and can proceed**, building directly on top of this code rather than reintroducing a
+parallel branch.
 
 ## Test Results
 ```
@@ -82,10 +84,10 @@ Plus the real console output reproduced in full above for R1 and R2.
 ## Sign-Off
 - R1: confirmed live — the actual constructed prompt, not just the parameter, carries the real rationale.
 - R2: confirmed live — both the retry-refusal and first-attempt-refusal cases behave as specified.
-- Ready for Integration: yes.
+- Ready for Integration: yes. **Merged.**
 
 ## Links & References
-- `docs/execution/bugs/tasks/task6.md`, `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task3.md` — R3, the mechanism this task extends
-- `docs/execution/sprint3/tasks/task9.md` — blocked on this branch merging first
+- `docs/execution/bugs/Sprint3/tasks/task6.md`, `docs/execution/bugs/STATUS.md`
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R3, the mechanism this task extends
+- `docs/execution/sprint3/tasks/task9.md` — was blocked on this branch merging first, now unblocked
 - `docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md` — the `fixNotes` pattern mirrored here

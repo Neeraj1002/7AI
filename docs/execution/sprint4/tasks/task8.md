@@ -2,6 +2,10 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** Branch: `SPRINT4_BE`.
 
+**Status (updated 2026-10-07)**: code merged to `main` as **PR #46**. The founder action (real music beds)
+is done: **PR #54**, merged (see "Founder action" below). Still open: the real verification run on the
+preview VPS and `docs/execution/sprint4/reports/task8.md`.
+
 **Build order note**: this task is numbered 8 (so the cross-references between existing Sprint 4 tasks stay
 valid), but it is **built first** in Sprint 4. See `STATUS.md` → "Build order". It has no dependency on
 Task 1's profile model. Everything here is a platform-wide default that later tasks (notably Task 3) build
@@ -35,7 +39,7 @@ plus the generation code, all read directly:
 | AI-stills videos look good but are slow | One still every ~5–6s (genre norm ~2–3s) | `plan.ts` asks for a fixed 3–6 stills |
 | Frame rate varies between 25 and 30 fps | `ffprobe` | Output inherits the stock clip's fps; no `-r` |
 | Caption text can drift from the script | — | Captions use Whisper's words, which lack punctuation, so `sentence-grouped` never detects a sentence end and silently falls back to 8-word chunks; names can be misspelled |
-| Music bed sounds synthetic | — | `data/audio-beds/*.mp3` were generated from FFmpeg `sine`/`tremolo` (Sprint 2 Task 3) |
+| Music bed sounds synthetic | — | `data/audio-beds/*.mp3` were generated from FFmpeg `sine`/`tremolo` (Sprint 2 Task 3). **Resolved 2026-10-07 by PR #54** (real YouTube Audio Library tracks). |
 | `pacingNotes` has no effect | — | The planner produces it, but no code reads it |
 
 ---
@@ -188,13 +192,27 @@ normal render passes and its `qualityMetrics` appears in the stage output and th
 
 ---
 
-## Founder action (in parallel, not blocking code)
+## Founder action (in parallel, not blocking code) — ✅ DONE 2026-10-07 (PR #54, merged)
 
 **Replace the synthetic music beds.** Source 1–2 real tracks per existing mood tag. Recommended source:
 YouTube Audio Library tracks marked as not requiring attribution, recorded in `audio-bed/manifest.ts`
 with `license: 'youtube-audio-library'` and the track's name. Avoid tracks from sources known to trigger
 Content ID claims. The code path (manifest + licence gate) already exists; this is only a content swap,
 and R1's ducking makes a real track sit correctly under the voice.
+
+**What was done (PR #54, merged 2026-10-07):**
+- One YouTube Audio Library track ("no attribution required") per mood tag: `upbeat`, `calm`, `mysterious`,
+  `inspirational`, `tense`, replacing the synthetic files in `studio/data/audio-beds/`.
+- All five normalised to −18.0 LUFS integrated (two-pass `loudnorm`), true peaks −1.5 to −7.0 dBTP.
+- `audio-bed/manifest.ts`: `license` = `'YouTube Audio Library (no attribution required)'`, `label` = track
+  name. (The licence string differs from the `'youtube-audio-library'` suggested above; the licence gate only
+  checks that the field is present.)
+- Test render with `audioLayer: calm`: −14.1 LUFS output, true peak −1.5 dBTP, no hard failure; music set
+  15 dB under the voice before ducking.
+- `scripts/generate-audio-beds.ts` now warns that running it would overwrite the real tracks; Sprint 2
+  `BUSINESS_LOGIC.md` notes the old CC0 claim covered only the synthetic beds.
+- **Founder to confirm on the server:** the five files are present in the server's `DATA_DIR/audio-beds`
+  after deploy, and `sevenai` was restarted.
 
 ## Schema Impact
 
