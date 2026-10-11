@@ -9,29 +9,27 @@
 // scripts/set-channel-default-voice.ts.
 //
 // Usage:
-//   npx tsx scripts/invite-tenant.ts "<tenant name>" <ownerEmail> ["<owner name>"]
+//   npx tsx scripts/invite-tenant.ts "<tenant name>" <ownerEmail> "<owner name>" --weekly-budget <usd>
+//   (owner name may be ""; --weekly-budget is required — the tenant's weekly budget is a stored number
+//   the founder chooses, never derived from a channel count; $20 per active channel is the guide.)
 
 import { prisma } from '../src/models/prisma-client';
 import { insertTenant } from '../src/models/repositories/tenant.repository';
 import { insertUser, findUserByEmail } from '../src/models/repositories/user.repository';
 import { insertAgentQuota } from '../src/models/repositories/agent-quota.repository';
 
-// MVP_PART2 §0's own deliberate testing-phase default: "AI costs on us."
-// Not the permanent model — the same real dollar figure Week 2 Task 4 chose
-// for the founder's own original AgentQuota row (never explicitly confirmed
-// by the founder then, either) — reused here rather than inventing a
-// different number, but flagged again: **this needs real founder
-// confirmation**, same "don't pick a real dollar figure silently"
-// discipline that task's own report applied.
-const DEFAULT_NEW_TENANT_BUDGET_USD = 2.0;
-
 async function main(): Promise<void> {
-  const tenantName = process.argv[2];
-  const ownerEmail = process.argv[3];
-  const ownerName = process.argv[4];
+  // Bugs Closure R1 (D4) — no default budget: the founder states the weekly amount explicitly.
+  const args = process.argv.slice(2);
+  const flagAt = args.indexOf('--weekly-budget');
+  const weeklyBudgetUsd = flagAt >= 0 ? Number(args[flagAt + 1]) : NaN;
+  const positional = args.filter((_, i) => i !== flagAt && i !== flagAt + 1);
+  const [tenantName, ownerEmail, ownerName] = positional;
 
-  if (!tenantName || !ownerEmail) {
-    throw new Error('usage: invite-tenant.ts "<tenant name>" <ownerEmail> ["<owner name>"]');
+  if (!tenantName || !ownerEmail || !Number.isFinite(weeklyBudgetUsd) || weeklyBudgetUsd <= 0) {
+    throw new Error(
+      'usage: invite-tenant.ts "<tenant name>" <ownerEmail> ["<owner name>"] --weekly-budget <usd>  (weekly budget is required)',
+    );
   }
 
   const existing = await findUserByEmail(ownerEmail);
@@ -42,12 +40,12 @@ async function main(): Promise<void> {
   const { tenant, user, quota } = await prisma.$transaction(async (tx) => {
     const tenant = await insertTenant(tenantName, tx);
     const user = await insertUser({ tenantId: tenant.id, email: ownerEmail, name: ownerName, role: 'owner' }, tx);
-    const quota = await insertAgentQuota(tenant.id, 'youtube', DEFAULT_NEW_TENANT_BUDGET_USD, tx);
+    const quota = await insertAgentQuota(tenant.id, 'youtube', weeklyBudgetUsd, tx);
     return { tenant, user, quota };
   });
 
   console.log(
-    `[invite-tenant] created tenant ${tenant.id} (${tenant.name}), owner ${user.id} (${user.email}), AgentQuota $${quota.budgetCeilingUsd}/day (youtube). They can log in via POST /auth/request-link with email "${ownerEmail}".`,
+    `[invite-tenant] created tenant ${tenant.id} (${tenant.name}), owner ${user.id} (${user.email}), AgentQuota $${quota.budgetCeilingUsd}/week (youtube). They can log in via POST /auth/request-link with email "${ownerEmail}".`,
   );
 }
 

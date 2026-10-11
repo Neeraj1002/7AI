@@ -13,6 +13,8 @@ export type User = {
   expoPushToken: string | null;
   // Bugs Task 3 (R5) — see schema.prisma's User.telegramChatId comment.
   telegramChatId: string | null;
+  // Admin Sprint 1 (R1) - see schema.prisma's User.isPlatformAdmin comment.
+  isPlatformAdmin: boolean;
   createdAt: Date;
   updatedAt: Date;
 };

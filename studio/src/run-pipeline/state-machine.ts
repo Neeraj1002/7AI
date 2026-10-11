@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { prisma } from '../models/prisma-client';
 import {
   createPipelineRun,
@@ -16,11 +17,15 @@ import {
 } from '../models/repositories/pipeline-stage.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { isR2Configured, uploadToR2 } from '../storage/r2-client';
-import { insertUsageEvent } from '../models/repositories/usage-event.repository';
+import { uploadAttemptBundle } from '../storage/attempt-bundle';
+import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
+import { isCancellationRequested } from './cancellation-registry';
+import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
-import { isBudgetAvailable } from './budget-gate';
+import { checkBudget, describeBudgetRefusal } from './budget-gate';
+import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -29,10 +34,13 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
-import { generateVideo, type VideoGenerationOutput } from '../agents/video-generation';
+import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
+import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
+import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
+import type { QualityMetrics } from '../agents/video-generation/quality-spec';
 import {
   generatePublishingMetadata,
   uploadVideo,
@@ -93,7 +101,7 @@ async function failStageAndEscalate(stageId: string, runId: string, error: unkno
   const message = describeStageError(error);
   console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
-    await failStage(stageId, message, tx);
+    await failStage(stageId, message, tx, failureOutputFromError(error));
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);
   });
 }
@@ -147,18 +155,13 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'intake',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -245,14 +248,15 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
   // attempt exists at all. A refused call is recorded as `skipped`, never
   // silently dropped and never a `failed` attempt (nothing actually ran).
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'script_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     // Bugs Task 6 (R2) — a budget refusal on a genuine first attempt is
     // unchanged (needs_attention: no partial progress or review history
@@ -283,7 +287,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     }
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Script Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Script Generation refused: ${budgetText}`,
     });
   }
 
@@ -300,41 +304,41 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // than once around the whole withRetryAndCircuitBreaker call) is what makes
   // that true instead of undercounting retried spend.
   const attemptOnce = async (): Promise<ScriptGenerationOutput> => {
+    // Bugs Task 11 (R2/R3) — one UsageEvent per model call, success or failure:
+    // a generation that retried inside this attempt made two real calls, and a
+    // reply rejected after its call completed still cost what the call cost.
+    const bookCalls = async (spent: FailureUsageFields[]): Promise<void> => {
+      for (const call of spent) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'script-generation',
+          ...call,
+        });
+      }
+    };
     try {
-      const { output, llm } = await generateScript({
+      const { output, calls } = await generateScript({
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
         targetDurationSec: stageInput.targetDurationSec,
         fixNotes: fixNotes ?? undefined,
       });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      await bookCalls(
+        calls.map((llm) => ({
+          provider: llm.provider,
+          model: llm.model,
+          inputTokens: llm.usage.inputTokens,
+          outputTokens: llm.usage.outputTokens,
+          costUsd: llm.costUsd,
+        })),
+      );
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
-      });
+      await bookCalls(failureUsageEvents(error));
       throw error;
     }
   };
@@ -425,18 +429,13 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-review',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -810,18 +809,19 @@ export async function runVideoGenerationStage(
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
   // Script Generation, now also covering the pipeline's most expensive stage.
-  const budgetOk = await isBudgetAvailable(run.tenantId, channel.id, channel.platform);
-  if (!budgetOk) {
+  const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+  if (!budget.ok) {
+    const budgetText = describeBudgetRefusal(budget);
     await createSkippedStageAttempt({
       pipelineRunId: runId,
       stageName: 'video_generation',
       attemptNumber,
       input: stageInput,
-      reason: 'the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      reason: budgetText,
     });
     return await updatePipelineRun(runId, {
       status: 'needs_attention',
-      lastError: 'Video Generation refused: the pooled budget ceiling or this channel\'s own effective ceiling would be exceeded',
+      lastError: `Video Generation refused: ${budgetText}`,
     });
   }
 
@@ -880,18 +880,13 @@ export async function runVideoGenerationStage(
       });
       return plan;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-production-planning',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -900,15 +895,29 @@ export async function runVideoGenerationStage(
   // Same per-attempt metering pattern as Script Generation/Review — every
   // real attempt, including retries, writes its own (aggregated) UsageEvent
   // row.
+  // Task 13 (R3) — the artifacts of the attempt that actually succeeded (a
+  // retried attempt overwrites an earlier one's), for the post-transaction
+  // bundle upload below.
+  let lastArtifacts: VideoArtifacts | undefined;
+  let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
+    // Bugs Closure 2 (P5): a fresh tally per attempt (each retry pays again),
+    // read by the failure path below.
+    const spend = emptyVideoSpend({
+      media: env.MEDIA_STUB === '1',
+      stockFootage: env.STOCK_FOOTAGE_STUB === '1',
+      aiVisuals: env.AI_VISUALS_STUB === '1',
+    });
     try {
-      const { output, usage } = await generateVideo({
+      const { output, usage, artifacts } = await generateVideo({
         pipelineRunId: runId,
         attemptNumber,
         scriptText: sanctionedScriptText,
         brandAssets: channel.brandAssets,
         plan,
         voice: resolvedVoice,
+        excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
+        spend,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -923,18 +932,25 @@ export async function runVideoGenerationStage(
         costUsd: usage.costUsd,
         metadata: usage.metadata,
       });
+      lastArtifacts = artifacts;
+      lastUsage = usage;
       return output;
     } catch (error) {
       const context = getStageErrorContext(error);
+      // Real spend (TTS, transcription, stills) when the render got that far;
+      // otherwise the previous provider/model-or-unknown row at $0.
+      const realUsage = failedRenderUsage(spend, error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        costUsd: '0.000000',
+        ...(realUsage ?? {
+          provider: (context?.provider as string | undefined) ?? 'unknown',
+          model: (context?.model as string | undefined) ?? 'unknown',
+          costUsd: '0.000000',
+        }),
       });
       throw error;
     }
@@ -968,6 +984,51 @@ export async function runVideoGenerationStage(
             error instanceof Error ? error.message : String(error)
           }`,
         );
+      }
+
+      // Sprint 3 Task 13 (R3) — additive debug bundle under a sibling prefix;
+      // the .mp4 key above is unchanged so r2DraftKey/getVideoUrl keep working.
+      if (lastArtifacts && lastUsage) {
+        try {
+          const prefix = `videos/${env.NODE_ENV}/drafts/${run.tenantId}/${runId}/${attemptNumber}/`;
+          const meta = lastUsage.metadata;
+          // Sprint 4 Task 8 — same instrument the Video Intelligence gate uses; best-effort.
+          const qualityMetrics = await measureQualityMetrics({
+            videoPath: output.videoPath,
+            captionsEnabled: meta.captionsEnabled,
+            visualSource: meta.visualSource,
+          }).catch(() => null);
+          const bundle = await uploadAttemptBundle({
+            prefix,
+            artifacts: lastArtifacts,
+            scriptText: sanctionedScriptText,
+            scratchDir: path.dirname(output.videoPath),
+            context: {
+              runId,
+              attemptNumber,
+              channelId: run.channelId,
+              ttsModel: meta.ttsModel,
+              voice: resolvedVoice ?? null,
+              transcriptionModel: meta.transcriptionModel,
+              visualSource: meta.visualSource,
+              captionStyle: meta.captionStyle,
+              audioLayer: meta.audioLayer,
+              captionFont: meta.captionsEnabled ? { family: CAPTION_FONT_FAMILY, file: CAPTION_FONT_FILE } : null,
+              qualityMetrics,
+            },
+          });
+          await patchStageOutput(stage.id, {
+            r2BundlePrefix: prefix,
+            r2ManifestKey: bundle.manifestKey,
+            r2BundleUploadedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error(
+            `[video_generation] run ${runId} attempt ${attemptNumber}: R2 bundle upload failed (non-blocking) — ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
       }
     }
 
@@ -1040,6 +1101,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       topic: run.intakeParsed.topic,
       scriptText: sanctionedScriptText,
       visualSource,
+      // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
+      captionsEnabled: channel.brandAssets.captionsEnabled !== false,
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -1109,7 +1172,17 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         tx,
       );
 
-      await completeStage(stage.id, { verdict: outcome.verdict, rationale: outcome.rationale }, tx);
+      // Sprint 4 Task 8 (R7) — qualityMetrics is optional on the stage output, so
+      // pre-existing video_review rows without it stay valid.
+      await completeStage(
+        stage.id,
+        {
+          verdict: outcome.verdict,
+          rationale: outcome.rationale,
+          ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
+        },
+        tx,
+      );
 
       // Sprint 3 Task 9 (R2) — completes the synthetic gate2 row created
       // above with the exact same output shape runGate2Stage's own approve
@@ -1136,6 +1209,20 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       return await updatePipelineRun(runId, runPatch, tx);
     });
   } catch (error) {
+    // Bugs Task 11 (R2) — a multimodal pass whose reply was rejected after the
+    // call completed still cost real money; the success path above is the only
+    // place this stage wrote a UsageEvent, so that spend was never booked.
+    const spent = failureUsageFields(error);
+    if (spent.provider !== 'unknown') {
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-intelligence-own-draft',
+        ...spent,
+      });
+    }
     return await failStageAndEscalate(stage.id, runId, error);
   }
 }
@@ -1169,7 +1256,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   if (!videoReviewStage || videoReviewStage.status !== 'completed' || !videoReviewStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_review output — cannot open Gate 2`);
   }
-  const reviewOutput = videoReviewStage.output as { verdict?: string; rationale?: string };
+  const reviewOutput = videoReviewStage.output as {
+    verdict?: string;
+    rationale?: string;
+    qualityMetrics?: QualityMetrics;
+  };
   if (!reviewOutput.verdict || !reviewOutput.rationale) {
     throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
   }
@@ -1202,6 +1293,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     channelName: channel.name,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
+    qualityMetrics: reviewOutput.qualityMetrics,
     restarted: isRestartReopen,
   });
 
@@ -1335,6 +1427,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     throw new Error(`Channel ${channel.id} is archived — refusing to publish PipelineRun ${runId}`);
   }
 
+  // Bugs Task 10 (R1) — a cancel is final: never reach the upload for a run
+  // that was cancelled (or is no longer running) while this stage's caller
+  // was between steps. Returns the run untouched; the driver loop then ends.
+  if (run.status !== 'running' || isCancellationRequested(runId)) {
+    return run;
+  }
+
   const gate2Stage = await findLatestAttempt(runId, 'gate2');
   if (!gate2Stage || gate2Stage.status !== 'completed' || !gate2Stage.output) {
     throw new Error(`PipelineRun ${runId} has no completed gate2 output — cannot run publishing`);
@@ -1433,18 +1532,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       });
       return metadata;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'metadata-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }

@@ -2,20 +2,21 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
-import { findPipelineRunById, listRuns, updatePipelineRun } from '../../models/repositories/pipeline-run.repository';
+import { findPipelineRunById, listRuns, updatePipelineRun, CANCELLED_BY_USER } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import {
   listStagesForRun,
   findLatestAttempt,
   findLatestCompletedAttempt,
 } from '../../models/repositories/pipeline-stage.repository';
-import { isR2Configured, getPresignedDownloadUrl } from '../../storage/r2-client';
+import { isR2Configured, getPresignedDownloadUrl, getObjectText } from '../../storage/r2-client';
 import { listReviewLogsForRun } from '../../models/repositories/review-log.repository';
 import { findChannelById } from '../../models/repositories/channel.repository';
 import { findByChannel } from '../../models/repositories/agent-credential.repository';
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
-import { requestCancellation } from '../../run-pipeline/cancellation-registry';
+import { requestCancellation, isCancellationRequested, isActivelyDriven } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
+import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import { TTS_VOICE_KEYS } from '../../media';
@@ -80,9 +81,28 @@ function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' 
   if (run.status !== 'failed') return null;
   const err = run.lastError ?? '';
   if (err.startsWith('Rejected at Gate 1') || err.startsWith('Rejected at Gate 2')) return 'rejected';
-  if (err === 'Cancelled by user') return 'cancelled';
+  if (err === CANCELLED_BY_USER) return 'cancelled';
   if (err === 'Channel deleted') return 'channel_deleted';
   return 'failed';
+}
+
+// Bugs Task 10 (R1) — true while a cancel request is recorded in this process
+// and the run has not ended yet (memory only; false after a restart, which is
+// correct: the request was lost and the user can cancel again).
+function deriveCancelRequested(run: PipelineRun): boolean {
+  return isCancellationRequested(run.id) && run.status !== 'completed' && run.status !== 'failed';
+}
+
+// Bugs Task 10 (R1) — newest sign of life for a run. Neither updatedAt column
+// is maintained on writes (both are @default(now()) only, never @updatedAt), so
+// progress is read from the timestamps that really are written: every stage
+// attempt's createdAt/startedAt/completedAt, plus the run's own startedAt.
+// A single long stage therefore looks quiet from its start until it finishes;
+// that is what CANCEL_STALE_AFTER_MS bounds (see cancellation-registry.ts).
+function lastProgressAt(run: PipelineRun, stages: PipelineStage[]): Date {
+  const stamps = [run.createdAt, run.startedAt, run.updatedAt];
+  for (const s of stages) stamps.push(s.createdAt, s.startedAt, s.completedAt, s.updatedAt);
+  return stamps.reduce<Date>((newest, d) => (d && d > newest ? d : newest), run.createdAt);
 }
 
 // Bugs Task 3 (R1) — this run's own tenant check, same FORBIDDEN shape as
@@ -117,8 +137,12 @@ async function getRunDetail(id: string, ctx: Context) {
     reviewLogs,
     lastGateDecision: deriveLastGateDecision(stages),
     endReason: deriveEndReason(run),
+    cancelRequested: deriveCancelRequested(run),
     hasR2Draft: stages.some(
       (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
+    ),
+    hasR2Bundle: stages.some(
+      (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2ManifestKey?: string } | null)?.r2ManifestKey),
     ),
     hasR2Final: stages.some(
       (s) => s.stageName === 'publishing' && Boolean((s.output as { r2FinalKey?: string } | null)?.r2FinalKey),
@@ -256,7 +280,8 @@ export const runsRouter = router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return listRuns({ ...input, tenantId: ctx.tenantId });
+      const runs = await listRuns({ ...input, tenantId: ctx.tenantId });
+      return runs.map((run) => ({ ...run, cancelRequested: deriveCancelRequested(run) }));
     }),
 
   // GET /runs/:id — full detail: run + channel + full stage history +
@@ -351,6 +376,54 @@ export const runsRouter = router({
       const url = await getPresignedDownloadUrl({ key, expiresInSeconds });
       const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
       return { available: true as const, variant, url, expiresAt };
+    }),
+
+  // Sprint 3 Task 13 (R4) — presigned URLs for every file in an attempt's
+  // debug bundle (see storage/attempt-bundle.ts). Same tenant scoping as
+  // getVideoUrl. Defaults to the latest video_generation attempt that has a
+  // manifest; "no manifest" (never uploaded, or upload interrupted) is
+  // { available: false }, not an error.
+  getAttemptBundle: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), attemptNumber: z.number().int().positive().optional() }))
+    .query(async ({ input, ctx }) => {
+      const run = await findPipelineRunById(input.runId);
+      if (!run) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+      }
+      if (run.tenantId !== ctx.tenantId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+      }
+      if (!isR2Configured()) {
+        return { available: false as const };
+      }
+
+      const stages = await listStagesForRun(input.runId);
+      type BundleOutput = { r2ManifestKey?: string; r2BundlePrefix?: string };
+      const withManifest = stages.filter(
+        (s) => s.stageName === 'video_generation' && Boolean((s.output as BundleOutput | null)?.r2ManifestKey),
+      );
+      const stage = input.attemptNumber
+        ? withManifest.find((s) => s.attemptNumber === input.attemptNumber)
+        : withManifest[withManifest.length - 1];
+      const manifestKey = (stage?.output as BundleOutput | undefined)?.r2ManifestKey;
+      if (!stage || !manifestKey) {
+        return { available: false as const };
+      }
+
+      const manifest = JSON.parse(await getObjectText(manifestKey)) as {
+        files: Array<{ name: string; key: string; contentType: string; bytes: number }>;
+      };
+      const expiresInSeconds = 24 * 60 * 60;
+      const files = await Promise.all(
+        manifest.files.map(async (f) => ({
+          name: f.name,
+          contentType: f.contentType,
+          bytes: f.bytes,
+          url: await getPresignedDownloadUrl({ key: f.key, expiresInSeconds }),
+        })),
+      );
+      const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+      return { available: true as const, attemptNumber: stage.attemptNumber, manifest, files, expiresAt };
     }),
 
   // POST /runs/:id/gate1 — resolves a pending Gate 1 through the same
@@ -457,6 +530,16 @@ export const runsRouter = router({
     // (18a5e2f5). Retry means "make one more video": step back to
     // video_generation, which feeds the latest review's fix notes forward.
     const regenCapped = run.currentStage === 'video_review' && (run.lastError ?? '').includes('regen cap');
+    // Bugs Closure R1 — a Retry that would be refused by the budget gate at
+    // once only creates another skipped attempt and bounces back to Needs
+    // attention (reports "I retried 10 times"). Say why instead, with the numbers.
+    const retryStage = regenCapped ? 'video_generation' : run.currentStage;
+    if (retryStage === 'script_generation' || retryStage === 'video_generation') {
+      const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+      if (!budget.ok) {
+        throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
+      }
+    }
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,
@@ -507,23 +590,36 @@ export const runsRouter = router({
     if (!run) {
       throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
     }
+    // Bugs Task 10 (R1) — already ended: idempotent, never an error. Only a run
+    // that really ended as a cancel is reported as cancelled, so the app
+    // never shows a false "Run cancelled" for a completed/otherwise failed run.
+    if (run.status === 'completed' || run.status === 'failed') {
+      return { cancelled: deriveEndReason(run) === 'cancelled', immediate: false, alreadyEnded: true };
+    }
     if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
-      if (resolvePendingApproval(run.id, 'reject Cancelled by user').resolved) {
-        return { cancelled: true };
+      if (resolvePendingApproval(run.id, `reject ${CANCELLED_BY_USER}`).resolved) {
+        return { cancelled: true, immediate: true, alreadyEnded: false };
       }
       // Gate not registered in this process (e.g. mid-restart) — fall through
       // to the direct write; the stale gate attempt is harmless once failed.
-    } else if (run.status === 'running') {
+    } else if (run.status === 'running' || run.status === 'pending') {
       requestCancellation(run.id);
-      return { cancelled: true };
-    } else if (run.status !== 'needs_attention' && run.status !== 'pending') {
+      // A loop that is genuinely driving the run reads the registry at its
+      // next step. If none is (stalled, died, hung past the stale threshold,
+      // server restarted), nobody will — end the run now. The registry entry
+      // stays so a stalled loop that wakes later stops at its next check.
+      const stages = await listStagesForRun(run.id);
+      if (isActivelyDriven(run.id, lastProgressAt(run, stages))) {
+        return { cancelled: true, immediate: false, alreadyEnded: false };
+      }
+    } else if (run.status !== 'needs_attention') {
       throw new TRPCError({
         code: 'CONFLICT',
         message: `Run ${input.runId} can't be cancelled while '${run.status}'`,
       });
     }
-    await updatePipelineRun(run.id, { status: 'failed', lastError: 'Cancelled by user' });
-    return { cancelled: true };
+    await updatePipelineRun(run.id, { status: 'failed', lastError: CANCELLED_BY_USER });
+    return { cancelled: true, immediate: true, alreadyEnded: false };
   }),
 
   // POST /runs/:id/tag-post-hoc — Sprint 3 Task 7 (O4). Replaces the old

@@ -10,7 +10,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { humanizeRunError, relativeTime, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { humanizeRunError, relativeTime, stageLabel, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -58,6 +58,16 @@ type Stage = {
   output: Record<string, unknown> | null;
 };
 
+// Bugs Closure R5 — the raw status read "completed" next to a failed attempt in the list;
+// say plainly what each row is, and make a failed one visibly failed.
+const STAGE_STATUS_LABEL: Record<string, string> = {
+  completed: 'done',
+  failed: 'FAILED',
+  skipped: 'skipped (not run)',
+  running: 'in progress',
+  pending: 'waiting',
+};
+
 function latestStage(stages: Stage[], name: string): Stage | undefined {
   for (let i = stages.length - 1; i >= 0; i -= 1) {
     if (stages[i].stageName === name) return stages[i];
@@ -83,16 +93,20 @@ export default function RunDetailScreen() {
   const [sentSummary, setSentSummary] = useState<string | null>(null);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [confirmCancelRunning, setConfirmCancelRunning] = useState(false);
-  // The 60s "couldn't cancel yet" window (E5's in-memory-registry caveat: a
-  // cancel request can be lost to a server restart before the run actually
-  // stops) is a timer started fresh each time cancel is (re-)requested, not a
-  // Date.now() comparison read during render — render must stay pure.
-  const [cancelState, setCancelState] = useState<'idle' | 'pending' | 'timedOut'>('idle');
+  // Bugs Task 10 (R2) — whether a cancel is in flight comes from the server
+  // (`cancelRequested` on runs.get), so it survives leaving the screen,
+  // switching tabs and an app restart. Local state only covers the moment
+  // between the tap and the first refetch, and the "Run cancelled" confirmation.
+  const [cancelTimedOut, setCancelTimedOut] = useState(false);
+  // Bumped on each (re-)request so the 60s window restarts even when the
+  // server's cancelRequested was already true.
+  const [cancelAttempt, setCancelAttempt] = useState(0);
+  const [showCancelledNotice, setShowCancelledNotice] = useState(false);
   useEffect(() => {
-    if (cancelState !== 'pending') return;
-    const t = setTimeout(() => setCancelState('timedOut'), CANCEL_TIMEOUT_MS);
+    if (!showCancelledNotice) return;
+    const t = setTimeout(() => setShowCancelledNotice(false), 5_000);
     return () => clearTimeout(t);
-  }, [cancelState]);
+  }, [showCancelledNotice]);
 
   // Bugs Task 7 (R4) — poll while the pipeline is working, so the screen moves
   // to the gate / needs-attention state on its own instead of looking frozen.
@@ -102,11 +116,23 @@ export default function RunDetailScreen() {
       {
         refetchInterval: (query) => {
           const status = query.state.data?.run.status;
+          // R2 — poll faster while a cancel is waiting for the loop's next step.
+          if (query.state.data?.cancelRequested) return 3_000;
           return status === 'running' || status === 'pending' || decisionSentFor ? 5_000 : false;
         },
       },
     ),
   );
+
+  // R2 — if the run is still not ended 60s after a cancel was requested (the
+  // request can be lost to a server restart, E5's in-memory-registry caveat),
+  // say so and let the user try again. Set only from inside the timer callback.
+  const cancelRequestedNow = data?.cancelRequested ?? false;
+  useEffect(() => {
+    if (!cancelRequestedNow) return;
+    const t = setTimeout(() => setCancelTimedOut(true), CANCEL_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [cancelRequestedNow, cancelAttempt]);
 
   // Fix 2 — never leave an endless spinner: if the run hasn't loaded within
   // 10s, fall back to the same "couldn't load" screen an outright error
@@ -152,11 +178,19 @@ export default function RunDetailScreen() {
   const retryMutation = useMutation(trpc.runs.retry.mutationOptions({ onSuccess: () => invalidate() }));
   const cancelMutation = useMutation(
     trpc.runs.cancel.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (res) => {
         setConfirmCancel(false);
         setConfirmCancelRunning(false);
-        setCancelState('pending');
+        setCancelTimedOut(false);
+        setCancelAttempt((n) => n + 1);
+        // Only a run that really ended as a cancel earns the confirmation; an
+        // already-ended run just refreshes into its real ended screen.
+        if (res.immediate && res.cancelled) setShowCancelledNotice(true);
         return invalidate();
+      },
+      onError: () => {
+        setConfirmCancel(false);
+        setConfirmCancelRunning(false);
       },
     }),
   );
@@ -258,8 +292,8 @@ export default function RunDetailScreen() {
   const isRunningOrPending = (run.status === 'running' || run.status === 'pending') && !isPublishing;
   const isPublished = run.status === 'completed' && !!publishOutput?.youtubeVideoId;
 
-  const cancelling = cancelMutation.isPending || cancelState === 'pending';
-  const cancelTimedOut = cancelState === 'timedOut';
+  const cancelRequested = data.cancelRequested;
+  const cancelling = cancelMutation.isPending || (cancelRequested && !cancelTimedOut);
 
   const footer =
     (isGate1 || isGate2) && !decisionSent ? (
@@ -340,12 +374,13 @@ export default function RunDetailScreen() {
     ) : isRunningOrPending ? (
       <BottomActionBar onHeight={setBarHeight}>
         <DangerOutlineButton
-          label={cancelMutation.isPending ? 'Cancelling…' : cancelTimedOut ? "Couldn't cancel yet — try again" : 'Cancel run'}
+          label={cancelling ? 'Cancelling…' : cancelTimedOut ? "Couldn't cancel yet — try again" : 'Cancel run'}
           icon="x"
-          loading={cancelMutation.isPending}
-          disabled={cancelling && !cancelTimedOut}
+          loading={cancelling}
+          disabled={cancelling}
           onPress={() => setConfirmCancelRunning(true)}
         />
+        {cancelMutation.error ? <Text style={styles.errorText}>{cancelMutation.error.message}</Text> : null}
       </BottomActionBar>
     ) : null;
 
@@ -354,7 +389,7 @@ export default function RunDetailScreen() {
       ? gate1Mutation.error
       : isGate2
         ? gate2Mutation.error
-        : (retryMutation.error ?? cancelMutation.error)
+        : (retryMutation.error ?? (isRunningOrPending ? null : cancelMutation.error))
   )?.message;
 
   return (
@@ -539,6 +574,12 @@ export default function RunDetailScreen() {
         </Card>
       ) : null}
 
+      {showCancelledNotice ? (
+        <Card>
+          <StatusChip kind="ok" label="Run cancelled" />
+        </Card>
+      ) : null}
+
       {isEnded ? (
         <Card>
           {endReason === 'rejected' ? (
@@ -621,8 +662,8 @@ export default function RunDetailScreen() {
         <Card>
           {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
           {stages.map((s) => (
-            <Text key={s.id} style={styles.raw}>
-              {s.stageName} · attempt {s.attemptNumber} · {s.status}
+            <Text key={s.id} style={[styles.raw, s.status === 'failed' && styles.rawFailed]}>
+              {stageLabel(s.stageName)} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
             </Text>
           ))}
         </Card>
@@ -734,6 +775,7 @@ const styles = StyleSheet.create({
   detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
   detailsToggleText: { ...type.sectionTitle, color: color.muted },
   raw: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  rawFailed: { color: color.danger },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { backgroundColor: color.surface2, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
   chipText: { fontFamily: font.semibold, fontSize: 12, color: color.ink },

@@ -10,8 +10,8 @@ import {
   runAnalyticsStage,
 } from './state-machine';
 import { findChannelById } from '../models/repositories/channel.repository';
-import { findPipelineRunById, updatePipelineRun } from '../models/repositories/pipeline-run.repository';
-import { isCancellationRequested, clearCancellation } from './cancellation-registry';
+import { findPipelineRunById, updatePipelineRun, CANCELLED_BY_USER } from '../models/repositories/pipeline-run.repository';
+import { isCancellationRequested, clearCancellation, markDriven, unmarkDriven } from './cancellation-registry';
 import type { PipelineRun } from '../types';
 
 // Sprint 3 Task 11 (B14) — the founder's own stall guard: runPublishingStage
@@ -110,7 +110,18 @@ export async function runPipelineFromCurrentStage(runId: string): Promise<Pipeli
   return driveFromCurrentStage(run);
 }
 
+// Bugs Task 10 (R1) — registers this loop as the run's driver for exactly as
+// long as it runs (see cancellation-registry.ts's markDriven).
 async function driveFromCurrentStage(initial: PipelineRun): Promise<PipelineRun> {
+  markDriven(initial.id);
+  try {
+    return await driveLoop(initial);
+  } finally {
+    unmarkDriven(initial.id);
+  }
+}
+
+async function driveLoop(initial: PipelineRun): Promise<PipelineRun> {
   const runId = initial.id;
   let run = initial;
 
@@ -126,7 +137,7 @@ async function driveFromCurrentStage(initial: PipelineRun): Promise<PipelineRun>
     // through any stage's real LLM/TTS/video call today).
     if (isCancellationRequested(runId)) {
       clearCancellation(runId);
-      return await updatePipelineRun(runId, { status: 'failed', lastError: 'Cancelled by user' });
+      return await updatePipelineRun(runId, { status: 'failed', lastError: CANCELLED_BY_USER });
     }
     const archivedRun = await failRunIfChannelArchived(run);
     if (archivedRun) return archivedRun;

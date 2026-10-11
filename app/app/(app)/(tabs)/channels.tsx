@@ -8,6 +8,8 @@ import { Feather } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
+import { useIsAdmin } from '../../../lib/use-admin';
+import { usePushStatus } from '../../../lib/push';
 import { useChannels, type Channel } from '../../../lib/channel-context';
 import { deleteSecureItem, getSecureItem } from '../../../lib/storage';
 import { EMAIL_KEY } from '../../../lib/session-keys';
@@ -28,6 +30,8 @@ export default function ChannelsScreen() {
   const queryClient = useQueryClient();
   const { apiUrl, signOut } = useAuth();
   const { channels, isLoading } = useChannels();
+  const { isAdmin } = useIsAdmin();
+  const pushStatus = usePushStatus();
 
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -150,6 +154,30 @@ export default function ChannelsScreen() {
               {Application.nativeApplicationVersion ?? '—'} · {Updates.updateId?.slice(0, 8) ?? 'built-in'}
             </Text>
           </View>
+          <View style={styles.accountRow}>
+            <Text style={styles.meta}>Push</Text>
+            <Text style={styles.accountValue} numberOfLines={1}>
+              {pushStatus.state === 'on'
+                ? 'on'
+                : pushStatus.state === 'off'
+                  ? 'off (permission denied)'
+                  : pushStatus.state === 'error'
+                    ? `error: ${pushStatus.reason}`
+                    : 'checking…'}
+            </Text>
+          </View>
+          {isAdmin ? (
+            <Pressable
+              style={styles.adminRow}
+              onPress={() => router.push('/admin')}
+              accessibilityRole="button"
+              accessibilityLabel="Admin"
+            >
+              <Feather name="shield" size={18} color={color.ink} />
+              <Text style={styles.adminText}>Admin</Text>
+              <Feather name="chevron-right" size={18} color={color.muted} />
+            </Pressable>
+          ) : null}
           <Pressable style={styles.signOut} onPress={() => setSignOutOpen(true)} accessibilityRole="button">
             <Feather name="log-out" size={18} color={color.danger} />
             <Text style={styles.signOutText}>Sign out</Text>
@@ -260,6 +288,8 @@ const styles = StyleSheet.create({
   account: { gap: space.md },
   accountRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
   accountValue: { fontFamily: font.semibold, fontSize: 14, color: color.ink, flexShrink: 1 },
+  adminRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  adminText: { fontFamily: font.bold, fontSize: 15, color: color.ink, flex: 1 },
   signOut: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingTop: space.xs },
   signOutText: { fontFamily: font.bold, fontSize: 15, color: color.danger },
   sheetTitle: { ...type.stackTitle, color: color.ink },

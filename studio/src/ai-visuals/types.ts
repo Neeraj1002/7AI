@@ -17,7 +17,11 @@ export type GenerateStillsParams = {
 };
 
 export type GeneratedStillsResult = {
-  imagePaths: string[]; // same order as scenePrompts
+  imagePaths: string[]; // same order as scenePrompts (minus any prompt skipped below)
+  // Sprint 4 Task 8 (R6) — prompts the provider's safety system refused
+  // (`moderation_blocked`); skipped rather than failing the whole attempt, since
+  // the faster default pacing now sends 6-20 prompts per attempt, not 3-6.
+  skippedPromptCount?: number;
   provider: AiVisualsProvider;
   model: string;
   costUsd: string; // NUMERIC as string, matching UsageEvent.costUsd's DB representation — summed across every still generated

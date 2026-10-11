@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "946090373865",
+    "project_id": "ai-studio-9ef0c",
+    "storage_bucket": "ai-studio-9ef0c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:946090373865:android:df3d0088feb45a0a9c7678",
+        "android_client_info": {
+          "package_name": "com.sevenai.studio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAq3NxbZbb8JNrFyxM1sDXtlMY6b4uFouE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

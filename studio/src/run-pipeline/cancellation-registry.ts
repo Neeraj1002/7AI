@@ -29,3 +29,32 @@ export function isCancellationRequested(runId: string): boolean {
 export function clearCancellation(runId: string): void {
   cancellationRequested.delete(runId);
 }
+
+// Bugs Task 10 (R1) — which run ids a `driveFromCurrentStage` loop is
+// *currently* driving in this process. Without it `runs.cancel` cannot tell a
+// live loop (which will notice the registry above at its next iteration) from
+// a stalled/dead one (a server restart, a crashed or hung loop) whose cancel
+// flag nobody will ever read. Added on loop entry, removed in a `finally`, so
+// a thrown stage can never leave a ghost entry.
+const activelyDriven = new Set<string>();
+
+export function markDriven(runId: string): void {
+  activelyDriven.add(runId);
+}
+
+export function unmarkDriven(runId: string): void {
+  activelyDriven.delete(runId);
+}
+
+// A loop that has made no progress (no run or stage-row write) for this long
+// counts as not driving the run: an await that never returns is
+// indistinguishable from a dead loop, and a force-ended run is safe either way
+// (updatePipelineRun refuses late writes to a cancelled run, and publishing
+// refuses it, so the worst case is the in-flight stage finishing its own
+// spend). Ten minutes matches PUBLISHING_STALL_TIMEOUT_MS in
+// pipeline-runner.ts, the longest stall this codebase already tolerates.
+export const CANCEL_STALE_AFTER_MS = 10 * 60 * 1000;
+
+export function isActivelyDriven(runId: string, lastProgressAt: Date, now: number = Date.now()): boolean {
+  return activelyDriven.has(runId) && now - lastProgressAt.getTime() < CANCEL_STALE_AFTER_MS;
+}

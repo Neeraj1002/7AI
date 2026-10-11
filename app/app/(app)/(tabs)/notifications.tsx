@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { useTRPC } from '../../../lib/trpc';
 import { flags } from '../../../lib/feature-flags';
-import { relativeTime } from '../../../lib/run-labels';
+import { relativeTime, runTopic } from '../../../lib/run-labels';
 import { color, font, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
 import { Card } from '../../../components/Card';
@@ -37,20 +37,100 @@ export default function NotificationsScreen() {
   );
 }
 
+// Bugs Closure R4 — each gate raises its own inbox entry; which one is read off the
+// message the gate itself wrote ("Gate 1 — <channel>" / "Gate 2 — <channel>"), so no
+// payload change is needed.
+function gateOf(message: string): 1 | 2 | null {
+  const m = /^\s*Gate ([12])(?!\d)/.exec(message);
+  return m ? (Number(m[1]) as 1 | 2) : null;
+}
+
+const GATE_NAME = { 1: 'Script approval', 2: 'Video approval' } as const;
+const DECISION_LABEL: Record<string, string> = {
+  approve: 'Approved',
+  edit: 'Script edited',
+  revise: 'Revision requested',
+  reject: 'Rejected',
+};
+
+// The one stage-specific line: for gate 1 the script's first line and review score; for
+// gate 2 the Video Intelligence review result.
+function gateSummary(message: string, gate: 1 | 2 | null): string | null {
+  if (gate === 1) {
+    const lines = message.split(/\r?\n/);
+    const at = lines.findIndex((l) => l.startsWith('Script:'));
+    const first = at >= 0 ? lines.slice(at + 1).find((l) => l.trim().length > 0) : undefined;
+    const score = /^Review score: (.+)$/m.exec(message)?.[1];
+    return [first ? `"${first.trim()}"` : null, score ? `Review score ${score}` : null].filter(Boolean).join(' · ') || null;
+  }
+  if (gate === 2) {
+    const verdict = /^Video Intelligence verdict: (.+)$/m.exec(message)?.[1];
+    return verdict ? `Video review: ${verdict}` : null;
+  }
+  return null;
+}
+
+// A resolved gate shows what was decided, read from the run's own human review log for
+// that gate (first one written after this notification was raised).
+function useResolvedDecision(notification: NotificationRow, gate: 1 | 2 | null): string | null {
+  const trpc = useTRPC();
+  const enabled = Boolean(notification.resolvedAt && notification.threadKey && gate);
+  const { data } = useQuery({
+    ...trpc.runs.get.queryOptions({ id: notification.threadKey ?? '' }),
+    enabled,
+  });
+  if (!enabled || !data) return null;
+  const gateStageIds = new Set(data.stages.filter((st) => st.stageName === `gate${gate}`).map((st) => st.id));
+  const log = data.reviewLogs
+    .filter((l) => l.agent === 'human' && l.stageId && gateStageIds.has(l.stageId))
+    .filter((l) => new Date(l.timestamp).getTime() >= new Date(notification.createdAt).getTime() - 1000)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
+  return log ? (DECISION_LABEL[log.verdict] ?? null) : null;
+}
+
+// Bugs Closure 2 (P9) - the run's topic line, so two cards on the same channel can be
+// told apart. Lazy per visible card; the run is cached by id and shared with the
+// other lookups on this screen.
+function useRunTopicLine(threadKey: string | null): string | null {
+  const trpc = useTRPC();
+  const { data } = useQuery({
+    ...trpc.runs.get.queryOptions({ id: threadKey ?? '' }),
+    enabled: Boolean(threadKey),
+  });
+  return data ? runTopic(data.run) : null;
+}
+
 function NotificationCard({ notification }: { notification: NotificationRow }) {
+  const topic = useRunTopicLine(notification.threadKey);
   const isPendingApproval = notification.kind === 'approval_request' && !notification.resolvedAt;
+  const gate = notification.kind === 'approval_request' ? gateOf(notification.message) : null;
+  const decision = useResolvedDecision(notification, gate);
+  const summary = gateSummary(notification.message, gate);
+  const chipLabel =
+    notification.kind !== 'approval_request'
+      ? 'Notice'
+      : gate
+        ? notification.resolvedAt
+          ? `${GATE_NAME[gate]} · ${decision ?? 'Resolved'}`
+          : GATE_NAME[gate]
+        : 'Approval needed';
 
   return (
     <Card style={styles.card}>
       <View style={styles.cardHeader}>
         <StatusChip
           kind={isPendingApproval ? 'waiting' : 'neutral'}
-          label={notification.kind === 'approval_request' ? 'Approval needed' : 'Notice'}
+          label={chipLabel}
         />
         <Text style={styles.time}>{relativeTime(notification.createdAt)}</Text>
       </View>
+      {topic ? (
+        <Text style={styles.topic} numberOfLines={2}>
+          {topic}
+        </Text>
+      ) : null}
       <Text style={styles.message} numberOfLines={3}>
-        {notification.message}
+        {summary ?? notification.message}
       </Text>
       {notification.resolvedAt ? (
         <Text style={styles.resolved}>Resolved {relativeTime(notification.resolvedAt)}</Text>
@@ -136,6 +216,7 @@ const styles = StyleSheet.create({
   card: { gap: space.sm },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   time: { ...type.meta, fontSize: 12 },
+  topic: { ...type.bodyStrong, color: color.ink },
   message: { ...type.body, color: color.ink },
   resolved: { ...type.meta, color: color.okText },
   openRun: { fontFamily: font.bold, fontSize: 13, color: color.accentText },

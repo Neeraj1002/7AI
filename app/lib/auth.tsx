@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { getSecureItem, setSecureItem, deleteSecureItem } from './storage';
 import { isServerReachable, type Session } from './auth-api';
 import type { UserRole } from './auth-types';
-import { registerForPushNotificationsAsync } from './push';
+import { registerForPushNotificationsAsync, clearPushRegistrationMemory } from './push';
 
 const SESSION_TOKEN_KEY = 'sevenai.sessionToken';
 const API_URL_KEY = 'sevenai.apiBaseUrl';
@@ -82,6 +82,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isLoading, token, apiUrl]);
 
+  // Bugs Task 10 (R4) — register for push whenever the app starts (or a user
+  // signs in) with a session, not only inside completeSignIn: a user who was
+  // already signed in before push existed never registered. Waits out a down
+  // server (the token send would only fail) and runs again when it recovers;
+  // registerForPushNotificationsAsync de-duplicates concurrent calls and skips
+  // the send when the token is unchanged. A failure never blocks anything.
+  useEffect(() => {
+    if (isLoading || !token || !apiUrl || !userId || serverStatus === 'down') return;
+    void registerForPushNotificationsAsync(apiUrl, token, userId);
+  }, [isLoading, token, apiUrl, userId, serverStatus]);
+
   useEffect(() => {
     void (async () => {
       const [storedToken, storedApiUrl, storedUserId, storedTenantId, storedRole] = await Promise.all([
@@ -134,10 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserId(session.userId);
         setTenantId(session.tenantId);
         setRole(session.role);
-        // Sprint 3 Task 3 (FE11') — fire-and-forget: a push-registration
-        // failure (denied permission, no EAS project configured, web
-        // platform, ...) must never block sign-in itself.
-        void registerForPushNotificationsAsync(signInApiUrl, sessionToken);
+        // Push registration is no longer fired from here: the effect above
+        // registers on every launch with a signed-in user, which also covers
+        // this fresh sign-in once the state set here has rendered.
       },
       signOut: async () => {
         await Promise.all([
@@ -150,6 +160,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserId(null);
         setTenantId(null);
         setRole(null);
+        // Bugs Task 10 (R4) — forget the last-registered token so the next
+        // sign-in (maybe another user) registers it again.
+        await clearPushRegistrationMemory();
       },
       serverStatus,
       checkServer,

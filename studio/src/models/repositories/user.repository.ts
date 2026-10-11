@@ -12,6 +12,7 @@ function toDomainUser(row: PrismaUser): User {
     role: row.role as UserRole,
     expoPushToken: row.expoPushToken,
     telegramChatId: row.telegramChatId,
+    isPlatformAdmin: row.isPlatformAdmin,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

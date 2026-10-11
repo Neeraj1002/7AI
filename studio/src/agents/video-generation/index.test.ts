@@ -59,3 +59,46 @@ describe('distributeStillWindows', () => {
     expect(windows.length).toBeGreaterThan(0);
   });
 });
+
+describe('distributeStillWindows — time-aware boundaries (Sprint 4 Task 8, R6)', () => {
+  it('does not let a slow stretch of speech hold one still far past the equal-time slice', () => {
+    // 10 cues: 8 quick ones (1s each) then 2 very slow ones (6s each) = 20s total.
+    const quick = Array.from({ length: 8 }, (_, i) => cue(i * 1000, (i + 1) * 1000));
+    const slow = [cue(8000, 14000), cue(14000, 20000)];
+    const windows = distributeStillWindows({ captionCues: [...quick, ...slow], stillCount: 4, totalDurationMs: 20000 });
+    expect(windows).toHaveLength(4);
+    // An equal-cue-count split would hand the two slow cues to one still (12s);
+    // time-aware boundaries keep every still near the 5s slice.
+    const lengths = windows.map((w) => (w.endMs - w.startMs) / 1000);
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(8);
+    // Still contiguous coverage of the whole audio.
+    expect(windows[0].startMs).toBe(0);
+    expect(windows[3].endMs).toBe(20000);
+  });
+
+  it('every window keeps at least one whole cue and windows never overlap or reorder', () => {
+    const cues = Array.from({ length: 12 }, (_, i) => cue(i * 700, (i + 1) * 700));
+    const windows = distributeStillWindows({ captionCues: cues, stillCount: 12, totalDurationMs: 8400 });
+    expect(windows).toHaveLength(12);
+    windows.forEach((w, i) => {
+      expect(w.endMs).toBeGreaterThan(w.startMs);
+      if (i > 0) expect(w.startMs).toBeGreaterThanOrEqual(windows[i - 1].endMs);
+    });
+  });
+});
+
+describe('distributeStillWindows — contiguous coverage (Sprint 4 Task 8)', () => {
+  it('windows tile [0, total] with no gaps, so pauses between cues never shorten the stills video', () => {
+    // Word-flash-like cues with a 150ms pause after each word.
+    const cues = Array.from({ length: 20 }, (_, i) => cue(i * 650, i * 650 + 500));
+    const total = 20 * 650;
+    const windows = distributeStillWindows({ captionCues: cues, stillCount: 6, totalDurationMs: total });
+    expect(windows[0].startMs).toBe(0);
+    expect(windows[windows.length - 1].endMs).toBe(total);
+    windows.forEach((w, i) => {
+      if (i > 0) expect(w.startMs).toBe(windows[i - 1].endMs);
+    });
+    const sum = windows.reduce((acc, w) => acc + (w.endMs - w.startMs), 0);
+    expect(sum).toBe(total);
+  });
+});

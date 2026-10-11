@@ -12,6 +12,9 @@ export type SearchClipParams = {
   query: string;
   orientation?: 'portrait' | 'landscape' | 'square';
   minDurationSeconds?: number;
+  // Sprint 4 Task 8 (R5) — provider video IDs already used earlier in this
+  // render; a shot list must never show the same clip twice.
+  excludeSourceIds?: string[];
 };
 
 export type StockClip = {

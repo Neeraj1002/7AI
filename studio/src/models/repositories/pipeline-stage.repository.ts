@@ -139,10 +139,19 @@ export async function failStage(
   id: string,
   error: string,
   client: DbClient = prisma,
+  // Bugs Task 11 (R1) — optional diagnostic payload for the failures that
+  // have one (the raw reply of an unparseable script). Omitted for every
+  // other failure, which leaves `output` untouched exactly as before.
+  output?: Record<string, unknown>,
 ): Promise<PipelineStage> {
   const row = await client.pipelineStage.update({
     where: { id },
-    data: { status: 'failed', error, completedAt: new Date() },
+    data: {
+      status: 'failed',
+      error,
+      completedAt: new Date(),
+      ...(output ? { output: output as Prisma.InputJsonValue } : {}),
+    },
   });
   return toDomainStage(row);
 }
