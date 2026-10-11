@@ -12,6 +12,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { flags } from '../../../lib/feature-flags';
 import { useOptionLists } from '../../../lib/pipeline-options';
+import { profileSummary } from '../../../lib/profile-form';
 import { useAuthedImageSource } from '../../../lib/use-authed-image-source';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
@@ -51,6 +52,9 @@ export default function ChannelSettingsScreen() {
 
   const operational = useQuery(trpc.dashboard.operational.queryOptions({ channelId: id }));
   const cost = useQuery(trpc.dashboard.cost.queryOptions({ channelId: id }));
+  // Sprint 4 FE E5 — a profile owns the default voice and style guide once it exists.
+  const profile = useQuery(trpc.channels.getActiveProfile.queryOptions({ channelId: id }));
+  const hasProfile = Boolean(profile.data);
 
   // U16: the delete warning lists only what really applies to this channel.
   const activeRuns = useQuery(
@@ -352,7 +356,7 @@ export default function ChannelSettingsScreen() {
         ) : (
           <Text style={styles.body}>{channel.nicheDescription}</Text>
         )}
-        {flags.channelSettings ? (
+        {flags.channelSettings && !hasProfile ? (
           <>
             <Text style={styles.label}>Style guide</Text>
             <TextInput
@@ -370,17 +374,48 @@ export default function ChannelSettingsScreen() {
         ) : null}
       </Card>
 
+      <Card>
+        <Text style={styles.cardTitle}>Content profile</Text>
+        <Pressable
+          style={styles.row}
+          onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
+          accessibilityRole="button"
+        >
+          <Feather name="sliders" size={20} color={color.muted} />
+          <View style={styles.rowText}>
+            <Text style={styles.rowCaption}>Content profile</Text>
+            <Text style={styles.rowValue}>
+              {profile.data
+                ? profileSummary(profile.data.version, profile.data.data)
+                : profile.isLoading
+                  ? '…'
+                  : 'Not set up — uses channel defaults'}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={color.muted} />
+        </Pressable>
+        {hasProfile ? (
+          <View style={styles.profileNote}>
+            <Text style={styles.profileNoteText}>
+              Default voice and style guide now live in the Content profile. Edit them there.
+            </Text>
+          </View>
+        ) : null}
+      </Card>
+
       {showVoiceLook ? (
         <Card>
           <Text style={styles.cardTitle}>Voice &amp; look</Text>
-          <Pressable style={styles.row} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
-            <Feather name="mic" size={20} color={color.muted} />
-            <View style={styles.rowText}>
-              <Text style={styles.rowCaption}>Default voice</Text>
-              <Text style={styles.rowValue}>{liveVoices.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={color.muted} />
-          </Pressable>
+          {!hasProfile ? (
+            <Pressable style={styles.row} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
+              <Feather name="mic" size={20} color={color.muted} />
+              <View style={styles.rowText}>
+                <Text style={styles.rowCaption}>Default voice</Text>
+                <Text style={styles.rowValue}>{liveVoices.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={color.muted} />
+            </Pressable>
+          ) : null}
           <View style={styles.switchRow}>
             <Text style={styles.rowValue}>Captions</Text>
             <Switch
@@ -621,6 +656,8 @@ const styles = StyleSheet.create({
   inputInvalid: { borderColor: color.danger },
   multiline: { minHeight: 90, maxHeight: 200, textAlignVertical: 'top' },
   styleGuide: { minHeight: 120, maxHeight: 240 },
+  profileNote: { backgroundColor: color.warnBg, borderRadius: radius.sm, padding: space.sm },
+  profileNoteText: { ...type.meta, color: color.warnText },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

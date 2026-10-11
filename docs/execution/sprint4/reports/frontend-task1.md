@@ -28,3 +28,27 @@
 
 **Open difference from the board (founder decision needed)**
 The board shows the "Longest single shot 6.8 s" row amber, i.e. coloured from the soft warning. The founder decision for this build was to NOT colour individual rows from `softWarnings` (strings are not parsed), so that row stays green here and the warning text appears in an amber note under the rows, which the board does not show. To match the board exactly, either (a) the backend returns a structured per-row flag, or (b) the app maps "Longest single shot" warnings to that row by string match. Not done; waiting on a decision.
+
+## E2–E6 (same PR #53; backend PR #49 merged)
+
+All status "Built, awaiting founder device verification". The only board I could see is Gate 1 / Gate 2 (E1, E3 cards, E6). E2, E4 and E5 were built from the `frontend-task1.md` text with existing styling; no new visual language. Compare against their boards when you review.
+
+| Item | Built | Data source |
+|---|---|---|
+| E2 Compare | `app/(app)/compare.tsx`, "Compare channels ›" link at the top of Dashboard | `dashboard.comparison`, format labels from `channels.listFormats`; `formatKey: null` reads Freeform; zero-video channels shown |
+| E3 Gate 1 cards | Factual concerns (amber), Style guide violations, Sources you gave; each hidden when empty; `ClampedText` 3 lines | `runs.get().scriptReview` |
+| E3 Sources on New brief | "+ Add a source link", removable rows, URL-validated, sent only when non-empty | `runs.create` `sources` |
+| E4 Format picker | Freeform + two most-used chips + "More formats ▾" sheet (label + seconds); placeholder = `briefTemplate`; helper = `scriptStructure`; "Length: {n}s (from format)"; `formatKey` sent only when not Freeform | `channels.listFormats`; most-used from `dashboard.comparison.byFormat` of the selected channel |
+| E5 Content profile | `channel/[id]/profile.tsx`: Script / Visuals / Audio / Packaging, "Save as v{n+1}", Zod errors inline, Platform limits, version history, discard confirm; Channel settings row "Content profile ›", hides Default voice + Style guide and shows the amber note when a profile exists | `getActiveProfile`, `listProfileVersions`, `createProfileVersion` |
+| E6 Repeat-topic | Amber banner at top of Gate 1, tap opens that run | `scriptReview.repeatTopic` (B16) |
+
+**API gaps (nothing faked)**
+- Version history: `listProfileVersions` returns `createdByUserId` only, no name. The app shows "system" / "you" / "a teammate".
+- Platform limits: the app has no resolved-visual-source value. The safety-negative line shows only when the profile's own Default visual source is `ai-stills`; with it blank, the line is hidden.
+- E4 "recent formats" uses the selected channel's own most-used formats (from `dashboard.comparison`) topped up from the library order. No dedicated "recent" API.
+
+**Not exercised:** device rendering; a real `runs.create` with `formatKey`/`sources` and a real `createProfileVersion` (needs the paid pipeline / preview); E4 Freeform-sends-no-`formatKey` is by code (`...(format ? { formatKey } : {})`), not yet observed on the wire.
+
+**Checks:** `cd studio && npx vitest run --root ../app` → 6 files, 25 tests pass (new: quality-checks, gate1-review, compare, brief-extras, profile-form). `cd app && npx tsc --noEmit` → no errors in `app/` (22 pre-existing under `studio/` in this worktree). `npx expo lint` → clean. No `package.json` / lockfile / `app.json` / native changes.
+
+**Still open:** the "Longest single shot" row stays green until the backend flag exists; send the field name and I'll wire it.

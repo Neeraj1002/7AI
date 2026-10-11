@@ -1,20 +1,19 @@
-// Run: node --test lib/compare.test.ts
-import test from 'node:test';
-import assert from 'node:assert/strict';
-// @ts-expect-error node's type stripping needs the .ts extension; the app tsconfig does not allow it
-import { formatLabel, compactNumber } from './compare.ts';
+// App tests have no runner of their own; run with the server's vitest:
+//   cd studio && npx vitest run --root ../app
+import { test, assert } from 'vitest';
+import { formatLabel, compactNumber } from './compare';
 
 test('formatKey null reads Freeform; unknown key falls back to the key', () => {
-  assert.equal(formatLabel(null, {}), 'Freeform');
-  assert.equal(formatLabel('countdown', { countdown: 'Countdown' }), 'Countdown');
-  assert.equal(formatLabel('gone', {}), 'gone');
+  assert.strictEqual(formatLabel(null, {}), 'Freeform');
+  assert.strictEqual(formatLabel('countdown', { countdown: 'Countdown' }), 'Countdown');
+  assert.strictEqual(formatLabel('gone', {}), 'gone');
 });
 
 test('compactNumber', () => {
-  assert.equal(compactNumber(null), '—');
-  assert.equal(compactNumber(0), '0');
-  assert.equal(compactNumber(842.4), '842');
-  assert.equal(compactNumber(1250), '1.3K');
-  assert.equal(compactNumber(48000), '48K');
-  assert.equal(compactNumber(2_400_000), '2.4M');
+  assert.strictEqual(compactNumber(null), '—');
+  assert.strictEqual(compactNumber(0), '0');
+  assert.strictEqual(compactNumber(842.4), '842');
+  assert.strictEqual(compactNumber(1250), '1.3K');
+  assert.strictEqual(compactNumber(48000), '48K');
+  assert.strictEqual(compactNumber(2_400_000), '2.4M');
 });

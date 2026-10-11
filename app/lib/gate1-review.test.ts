@@ -1,8 +1,7 @@
-// Run: node --test lib/gate1-review.test.ts
-import test from 'node:test';
-import assert from 'node:assert/strict';
-// @ts-expect-error node's type stripping needs the .ts extension; the app tsconfig does not allow it
-import { gate1Lists, repeatTopicBanner } from './gate1-review.ts';
+// App tests have no runner of their own; run with the server's vitest:
+//   cd studio && npx vitest run --root ../app
+import { test, assert } from 'vitest';
+import { gate1Lists, repeatTopicBanner } from './gate1-review';
 
 test('lists: empty/missing/malformed become empty arrays', () => {
   assert.deepEqual(gate1Lists(null), { factualConcerns: [], styleGuideViolations: [], sources: [] });
@@ -16,12 +15,12 @@ test('lists: empty/missing/malformed become empty arrays', () => {
 test('banner: days ago, topic, runId', () => {
   const now = new Date('2026-10-11T00:00:00Z');
   const b = repeatTopicBanner({ repeatTopic: { runId: 'r1', topic: '30 sec shorts', createdAt: '2026-10-08T00:00:00Z' } }, now);
-  assert.equal(b?.runId, 'r1');
-  assert.equal(b?.text, 'Similar to a run from 3 days ago: “30 sec shorts”. Approve only if the angle is different.');
+  assert.strictEqual(b?.runId, 'r1');
+  assert.strictEqual(b?.text, 'Similar to a run from 3 days ago: “30 sec shorts”. Approve only if the angle is different.');
 });
 
 test('banner: absent, null or malformed returns null', () => {
-  assert.equal(repeatTopicBanner(null), null);
-  assert.equal(repeatTopicBanner({ repeatTopic: null }), null);
-  assert.equal(repeatTopicBanner({ repeatTopic: { runId: 5, topic: 'x' } }), null);
+  assert.strictEqual(repeatTopicBanner(null), null);
+  assert.strictEqual(repeatTopicBanner({ repeatTopic: null }), null);
+  assert.strictEqual(repeatTopicBanner({ repeatTopic: { runId: 5, topic: 'x' } }), null);
 });

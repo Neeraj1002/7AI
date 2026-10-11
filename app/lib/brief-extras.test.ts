@@ -1,8 +1,7 @@
-// Run: node --test lib/brief-extras.test.ts
-import test from 'node:test';
-import assert from 'node:assert/strict';
-// @ts-expect-error node's type stripping needs the .ts extension; the app tsconfig does not allow it
-import { validateSources, chipFormatKeys } from './brief-extras.ts';
+// App tests have no runner of their own; run with the server's vitest:
+//   cd studio && npx vitest run --root ../app
+import { test, assert } from 'vitest';
+import { validateSources, chipFormatKeys } from './brief-extras';
 
 test('sources: empty rows ignored, valid links kept, order preserved', () => {
   assert.deepEqual(validateSources(['', ' https://nvidia.com/annual-report-2025 ', 'http://a.org/x']), {
@@ -16,7 +15,7 @@ test('sources: bad rows are named and nothing is returned', () => {
   assert.match(validateSources(['https://ok.com', 'nvidia.com/report']).error!, /Source 2/);
   assert.match(validateSources(['ftp://x.com/a']).error!, /Source 1/);
   assert.match(validateSources(['https://localhost']).error!, /Source 1/);
-  assert.equal(validateSources(['https://x.com/' + 'a'.repeat(500)]).sources.length, 0);
+  assert.strictEqual(validateSources(['https://x.com/' + 'a'.repeat(500)]).sources.length, 0);
   assert.match(validateSources(Array.from({ length: 21 }, (_, i) => `https://s${i}.com`)).error!, /At most 20/);
 });
 
