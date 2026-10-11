@@ -306,7 +306,14 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.container}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} />}
       >
-        {channels.length > 0 ? pill : null}
+        {channels.length > 0 ? (
+          <View style={styles.topRow}>
+            {pill}
+            <Pressable onPress={() => router.push('/compare')} accessibilityRole="link" hitSlop={8}>
+              <Text style={styles.compareLink}>Compare channels ›</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {body}
       </ScrollView>
       <ChannelPickerSheet
@@ -323,6 +330,8 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.md },
   loading: { marginTop: space.xxl },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  compareLink: { ...type.sectionTitle, fontSize: 14, color: color.accentText },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

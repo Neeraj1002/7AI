@@ -20,6 +20,8 @@ import { Stepper } from '../../../components/Stepper';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { GateActionBar, type Privacy } from '../../../components/GateActionBar';
 import { ClampedText } from '../../../components/ClampedText';
+import { QualityChecksCard } from '../../../components/QualityChecksCard';
+import { Gate1ReviewCards, RepeatTopicBanner } from '../../../components/Gate1ReviewCards';
 import { PrimaryButton, SecondaryButton, DangerOutlineButton } from '../../../components/Buttons';
 import { ConfirmSheet } from '../../../components/ConfirmSheet';
 import { IndeterminateBar } from '../../../components/IndeterminateBar';
@@ -488,6 +490,7 @@ export default function RunDetailScreen() {
 
       {isGate1 ? (
         <>
+          <RepeatTopicBanner review={data.scriptReview} />
           <Card>
             <Text style={styles.cardTitle}>Script review</Text>
             {reviewScore !== undefined ? (
@@ -519,6 +522,7 @@ export default function RunDetailScreen() {
               />
             ) : null}
           </Card>
+          <Gate1ReviewCards review={data.scriptReview} />
           <Card>
             <View style={styles.scriptHeader}>
               <Text style={styles.cardTitle}>Script</Text>
@@ -673,6 +677,7 @@ export default function RunDetailScreen() {
           </View>
         </Card>
       ) : null}
+      {isGate2 ? <QualityChecksCard qualityMetrics={data.qualityMetrics} /> : null}
 
       <Pressable style={styles.detailsToggle} onPress={() => setShowDetails((v) => !v)} accessibilityRole="button">
         <Text style={styles.detailsToggleText}>Details</Text>
