@@ -192,6 +192,7 @@ function PendingGateActions({ runId }: { runId: string }) {
         <GateActionBar
           gate={2}
           isSubmitting={gate2Mutation.isPending}
+          defaultPrivacy={runDetail.channel?.defaultPrivacyStatus}
           onApprove={(privacy) => {
             const payload: Gate2Input = {
               runId,

@@ -24,6 +24,24 @@ export function statusLabel(status: string): string {
   }
 }
 
+// A running run that has reached publishing (or the stats snapshot right after the upload) reads
+// "Publishing", not the generic "In progress".
+export function isPublishingPhase(run: { status: string; currentStage?: string | null }): boolean {
+  return run.status === 'running' && (run.currentStage === 'publishing' || run.currentStage === 'analytics');
+}
+
+export function runStatusLabel(run: { status: string; currentStage?: string | null }): string {
+  return isPublishingPhase(run) ? 'Publishing' : statusLabel(run.status);
+}
+
+// "Regenerations used: N of 2" counts AUTOMATIC regenerations only: each failed video review triggers one,
+// capped at 2. A manual Revise adds a video attempt but is not an automatic regeneration.
+export const AUTO_REGEN_CAP = 2;
+export function automaticRegensUsed(stages: { stageName: string; output?: Record<string, unknown> | null }[]): number {
+  const fails = stages.filter((s) => s.stageName === 'video_review' && s.output?.verdict === 'fail').length;
+  return Math.min(fails, AUTO_REGEN_CAP);
+}
+
 export function statusChipKind(status: string): StatusChipKind {
   switch (status) {
     case 'paused_gate1':
@@ -100,6 +118,9 @@ export function stepperIndexForStage(stageName: string | null | undefined): numb
     case 'gate2':
       return 5;
     case 'publishing':
+    // After the upload the run sits at 'analytics' (first stats snapshot) while still status 'running'. The
+    // video is already live, so it belongs to the Publish step; unmapped it fell back to 0 (Brief).
+    case 'analytics':
       return 6;
     default:
       return 0;
