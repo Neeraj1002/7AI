@@ -92,23 +92,33 @@ export function mapGoogleError(error: unknown, context: Record<string, unknown>)
   );
 }
 
+// Sprint 4 Task 5 (R18): the videos.insert metadata part, pure so its exact JSON is
+// testable. selfDeclaredMadeForKids is always present; categoryId/defaultLanguage
+// are omitted (not sent empty) when unset.
+export function buildUploadMetadataPart(params: UploadParams) {
+  return {
+    snippet: {
+      title: params.metadata.title,
+      description: params.metadata.description,
+      tags: params.metadata.tags,
+      ...(params.categoryId && { categoryId: params.categoryId }),
+      ...(params.defaultLanguage && { defaultLanguage: params.defaultLanguage }),
+    },
+    status: {
+      privacyStatus: params.privacyStatus,
+      containsSyntheticMedia: params.containsSyntheticMedia,
+      selfDeclaredMadeForKids: params.selfDeclaredMadeForKids,
+    },
+  };
+}
+
 export async function uploadVideoViaProvider(params: UploadParams): Promise<UploadResult> {
   const context = { provider: 'youtube' };
   try {
     const client = await getOAuthClient(params.channelId);
     const videoBuffer = await fs.readFile(params.videoPath);
 
-    const metadataPart = {
-      snippet: {
-        title: params.metadata.title,
-        description: params.metadata.description,
-        tags: params.metadata.tags,
-      },
-      status: {
-        privacyStatus: params.privacyStatus,
-        containsSyntheticMedia: params.containsSyntheticMedia,
-      },
-    };
+    const metadataPart = buildUploadMetadataPart(params);
 
     const body = Buffer.concat([
       Buffer.from(
@@ -130,7 +140,12 @@ export async function uploadVideoViaProvider(params: UploadParams): Promise<Uplo
       throw new NonTransientStageError('YouTube upload succeeded but returned no video id', undefined, context);
     }
 
-    return { youtubeVideoId: response.data.id, privacyStatus: params.privacyStatus, containsSyntheticMedia: params.containsSyntheticMedia };
+    return {
+      youtubeVideoId: response.data.id,
+      privacyStatus: params.privacyStatus,
+      containsSyntheticMedia: params.containsSyntheticMedia,
+      selfDeclaredMadeForKids: params.selfDeclaredMadeForKids,
+    };
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapGoogleError(error, context);

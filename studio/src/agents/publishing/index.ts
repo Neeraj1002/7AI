@@ -1,11 +1,13 @@
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import { uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
 import { stubUploadVideo, stubSetThumbnail } from './stub';
 import { env } from '../../config/env';
+import { buildMetadataUserMessage, scrubDescription, type PackagingParams } from './packaging';
 import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, type UploadResult } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -41,14 +43,15 @@ transition is more likely). This matters wherever the Short surfaces outside the
 (search results, channel page, embeds).
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
-export async function generatePublishingMetadata(params: {
-  scriptText: string;
-  hashtags: string[];
-}): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {
+export async function generatePublishingMetadata(
+  params: { scriptText: string; hashtags: string[] } & PackagingParams,
+): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {
   const llm = await callLLM({
     purpose: 'metadata-generation',
     system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: `Script: ${params.scriptText}\nHashtags: ${params.hashtags.join(', ')}` }],
+    // Sprint 4 Task 5 (R17): packaging guidance is appended only when the channel
+    // set it; with none, this is exactly the old message.
+    messages: [{ role: 'user', content: buildMetadataUserMessage(params) }],
     maxTokens: 512,
   });
 
@@ -57,17 +60,20 @@ export async function generatePublishingMetadata(params: {
     parsedJson = JSON.parse(extractJsonText(llm.text));
   } catch (error) {
     throw new NonTransientStageError(
-      `Metadata generation did not return valid JSON: ${llm.text.slice(0, 200)}`,
+      `Metadata generation did not return valid JSON (${describeJsonError(error)})`,
       error,
+      llmUsageContext(llm),
     );
   }
 
   const result = PublishingMetadataSchema.safeParse(parsedJson);
   if (!result.success) {
-    throw new NonTransientStageError(`Metadata generation output failed schema validation: ${result.error.message}`);
+    throw new NonTransientStageError(`Metadata generation output failed schema validation: ${result.error.message}`, undefined, llmUsageContext(llm));
   }
 
-  return { metadata: result.data, llm };
+  // Whatever the model wrote, a placeholder never reaches YouTube.
+  const description = scrubDescription(result.data.description, params);
+  return { metadata: { ...result.data, description: description || result.data.description }, llm };
 }
 
 // YOUTUBE_STUB=1 swaps the real upload for the stub in ./stub.ts — no

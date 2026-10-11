@@ -89,7 +89,9 @@ export async function checkReceipts(client: ReceiptClient, now: number = Date.no
         pending.delete(id);
         if (receipt.status !== 'error') continue;
         const code = errorCode(receipt.details);
-        console.error(`[push-receipts] receipt error for user ${t.userId}: ${redact(receipt.message)} (${code ?? 'no code'})`);
+        console.error(
+          `[push-receipts] receipt error for user ${t.userId} ticket ${id}: ${redact(receipt.message)} (${code ?? 'no code'}) details=${redact(JSON.stringify(receipt.details ?? {}))}`,
+        );
         if (code === 'DeviceNotRegistered') await clearTokenIfUnchanged(t.userId, t.token);
       }
     }

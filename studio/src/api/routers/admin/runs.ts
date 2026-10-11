@@ -4,6 +4,7 @@ import { router, adminProcedure } from '../../trpc';
 import { prisma } from '../../../models/prisma-client';
 import { redact, writeAdminAudit } from '../../../models/repositories/admin-audit.repository';
 import {
+  failedStageDiagnostics,
   findRunIdentity,
   getRunStructureForAdmin,
   readRunBrief,
@@ -97,7 +98,10 @@ export const adminRunsRouter = router({
         if (!stage) {
           throw new TRPCError({ code: 'NOT_FOUND', message: `No ${input.stageName} stage attempt found for run ${input.runId}` });
         }
-        return { kind: input.kind, stageName: stage.stageName, attemptNumber: stage.attemptNumber, ...shapeContent(stage.output) };
+        // A failed stage's output is the raw model reply kept for debugging; it never
+        // leaves through an admin route (only its diagnostic keys do).
+        const output = stage.status === 'failed' ? failedStageDiagnostics(stage.output) : stage.output;
+        return { kind: input.kind, stageName: stage.stageName, attemptNumber: stage.attemptNumber, ...shapeContent(output) };
       }
 
       // bundle_manifest / bundle_file: same lookup runs.getAttemptBundle uses (latest

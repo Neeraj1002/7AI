@@ -9,26 +9,26 @@
 // scripts/set-channel-default-voice.ts.
 //
 // Usage:
-//   npx tsx scripts/invite-tenant.ts "<tenant name>" <ownerEmail> "<owner name>" --weekly-budget <usd>
-//   (owner name may be ""; --weekly-budget is required — the tenant's weekly budget is a stored number
-//   the founder chooses, never derived from a channel count; $20 per active channel is the guide.)
+//   npx tsx scripts/invite-tenant.ts "<tenant name>" <ownerEmail> "<owner name>" [--weekly-budget <usd>]
+//   (owner name may be ""; the weekly budget defaults to $10 (Bugs Task 12 R7), shared equally by the
+//   tenant's channels that have a connected YouTube account; pass --weekly-budget to choose another.)
 
 import { prisma } from '../src/models/prisma-client';
 import { insertTenant } from '../src/models/repositories/tenant.repository';
 import { insertUser, findUserByEmail } from '../src/models/repositories/user.repository';
+import { DEFAULT_WEEKLY_BUDGET_USD } from '../src/run-pipeline/budget-gate';
 import { insertAgentQuota } from '../src/models/repositories/agent-quota.repository';
 
 async function main(): Promise<void> {
-  // Bugs Closure R1 (D4) — no default budget: the founder states the weekly amount explicitly.
   const args = process.argv.slice(2);
   const flagAt = args.indexOf('--weekly-budget');
-  const weeklyBudgetUsd = flagAt >= 0 ? Number(args[flagAt + 1]) : NaN;
+  const weeklyBudgetUsd = flagAt >= 0 ? Number(args[flagAt + 1]) : DEFAULT_WEEKLY_BUDGET_USD;
   const positional = args.filter((_, i) => i !== flagAt && i !== flagAt + 1);
   const [tenantName, ownerEmail, ownerName] = positional;
 
   if (!tenantName || !ownerEmail || !Number.isFinite(weeklyBudgetUsd) || weeklyBudgetUsd <= 0) {
     throw new Error(
-      'usage: invite-tenant.ts "<tenant name>" <ownerEmail> ["<owner name>"] --weekly-budget <usd>  (weekly budget is required)',
+      'usage: invite-tenant.ts "<tenant name>" <ownerEmail> ["<owner name>"] [--weekly-budget <usd>]  (default $10)',
     );
   }
 

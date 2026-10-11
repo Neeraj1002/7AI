@@ -1,5 +1,7 @@
 # Sprint 4 Task 7: Channel × Format Comparison Dashboard
 
+> **Updated 2026-10-06 (founder instruction):** this task ships the API only (`dashboard.comparison`, types, tests). `compare.tsx` is built by the frontend agent (UI/UX Task 8, E2), not here. Branch is `sprint4_be`. See `reports/task7.md`.
+
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** Branch: `SPRINT4_BE`
 (backend query + API) — a small frontend addition is folded into this task's own scope (see
 Implementation) rather than a separate `_FE` task, since it's one new screen reusing the existing

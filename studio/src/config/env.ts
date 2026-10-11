@@ -55,6 +55,8 @@ const EnvSchema = z.object({
   // real public origin once this is actually deployed somewhere testers can
   // reach.
   PUBLIC_API_BASE_URL: z.string().optional(),
+  // Bugs Task 12 (R10.12) - comma-separated browser origins allowed by CORS (the native app sends none).
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
   // Sprint 3 Task 5 (M1) — 32 raw bytes, base64-encoded, the AES-256-GCM key
   // encrypting every AgentCredential.refreshTokenEncrypted at rest. No
   // insecure default, same posture as JWT_SECRET — a real per-channel OAuth
@@ -77,6 +79,11 @@ const EnvSchema = z.object({
   // stub instead of a real OpenAI image-generation call. Reuses
   // OPENAI_API_KEY (same as media/), no separate credential.
   AI_VISUALS_STUB: z.string().optional().default(''),
+  // Sprint 4 Task 3 (R11): when '1', a fixed platform negative clause (no logos,
+  // no baked-in text, no photoreal identifiable people, no gore) is appended to
+  // every AI-stills scene prompt, and Video Intelligence checks AI stills for
+  // it. Off by default until a real regression run clears it.
+  AI_VISUALS_SAFETY_NEGATIVES_ENABLED: z.string().optional().default(''),
   // Week 4 Task 2/3 — YouTube Data API v3 (upload + statistics). Stopgap env-var
   // credentials per docs/execution/week1/SCHEMA.md Section 2 (still one channel).
   YOUTUBE_CLIENT_ID: z.string().optional().default(''),
@@ -119,6 +126,10 @@ const EnvSchema = z.object({
   // ~16x that, comfortable headroom for a slow network or retry backoff
   // without leaving a genuinely abandoned run sitting silently for hours.
   RESUME_STALE_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
+  // Bugs Task 12 (R6/R5g) - a re-sent gate prompt (after a restart) is pushed at most once per this window,
+  // and never for a gate older than GATE_RESEND_STALE_DAYS (it is reopened silently).
+  GATE_RESEND_PUSH_WINDOW_MS: z.coerce.number().optional().default(30 * 60 * 1000),
+  GATE_RESEND_STALE_DAYS: z.coerce.number().optional().default(7),
   // Week 5 Task 3 — a "you haven't answered in a while" nudge, independent
   // of a restart. Deliberately much longer than RESUME_STALE_WINDOW_MS: an
   // automated stage stuck for 30 minutes is suspicious, but a human approval

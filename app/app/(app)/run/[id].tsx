@@ -10,7 +10,8 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { humanizeRunError, relativeTime, statusChipKind, statusLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
+import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, runStatusLabel, humanizeRunError, relativeTime, stageLabel, statusChipKind, stepperIndexForStage } from '../../../lib/run-labels';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
@@ -263,7 +264,8 @@ export default function RunDetailScreen() {
   const videoRationale = videoReviewStage?.output?.rationale as string | undefined;
   const videoPassed = videoVerdict === 'pass' ? true : videoVerdict === 'fail' ? false : undefined;
   const videoAttempts = stages.filter((s) => s.stageName === 'video_generation').length;
-  const regensUsed = videoAttempts > 0 ? videoAttempts - 1 : undefined;
+  // Automatic regenerations only (failed video reviews, max 2); manual Revise presses are not counted.
+  const regensUsed = videoAttempts > 0 ? automaticRegensUsed(stages) : undefined;
 
   const isGate1 = run.status === 'paused_gate1';
   const isGate2 = run.status === 'paused_gate2';
@@ -272,6 +274,14 @@ export default function RunDetailScreen() {
   const stepIndex = run.status === 'completed' ? 7 : stepperIndexForStage(currentStage);
 
   const defaultPrivacy: Privacy | undefined = channel?.defaultPrivacyStatus;
+  // Bugs Task 12 (R2): the manual Retry / Revise cap, from the server (absent on an older server).
+  const manualRetry = manualRetryOf(data);
+  // U13: what the 'retry limit' stop means for THIS run (stock footage vs AI stills).
+  const lastVideoPlan = latestStage(stages, 'video_generation')?.output as { plan?: { visualSource?: string } } | undefined;
+  const capNextStep =
+    run.lastError?.startsWith('Video Intelligence regen cap') || run.lastError?.startsWith('Gate 2 regen cap')
+      ? `${lastVideoPlan?.plan?.visualSource === 'ai-stills' ? 'The video did not pass review' : 'Stock footage did not match your topic'} after ${videoAttempts} ${videoAttempts === 1 ? 'try' : 'tries'}. Retry, edit the brief, or cancel.`
+      : null;
 
   const openGateStage = isGate1 ? latestStage(stages, 'gate1') : isGate2 ? latestStage(stages, 'gate2') : undefined;
   const decisionSent = decisionSentFor !== null && decisionSentFor === openGateStage?.id;
@@ -281,7 +291,10 @@ export default function RunDetailScreen() {
   // straight to publishing on the live server now, no restart needed.
   const { lastGateDecision, endReason } = data;
   const isEnded = run.status === 'failed';
-  const isPublishing = run.status === 'running' && run.currentStage === 'publishing';
+  // Publishing phase = the upload AND the stats snapshot right after it (currentStage 'analytics'); the
+  // video is live by then, so Cancel is not offered.
+  const isPublishing = isPublishingPhase(run);
+  const isUploading = run.status === 'running' && run.currentStage === 'publishing';
   const isRevising =
     run.status === 'running' &&
     run.currentStage === 'video_generation' &&
@@ -320,6 +333,7 @@ export default function RunDetailScreen() {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'reject', reason });
             else gate2Mutation.mutate({ runId: run.id, action: 'reject', reason });
           }}
+          reviseDisabledReason={isGate2 && manualRetry?.reviseCapReached ? manualRetry.message : undefined}
           onEditOrRevise={(text) => {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'edit', editedScriptText: text });
             else gate2Mutation.mutate({ runId: run.id, action: 'revise', notes: text });
@@ -332,9 +346,10 @@ export default function RunDetailScreen() {
           label="Retry this step"
           icon="rotate-cw"
           loading={retryMutation.isPending}
-          disabled={cancelMutation.isPending}
+          disabled={cancelMutation.isPending || Boolean(manualRetry?.retryCapReached)}
           onPress={() => retryMutation.mutate({ runId: run.id })}
         />
+        {manualRetry?.retryCapReached ? <Text style={styles.meta}>{manualRetry.message}</Text> : null}
         <DangerOutlineButton
           label="Cancel run"
           icon="x"
@@ -401,15 +416,15 @@ export default function RunDetailScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: barHeight + space.xl }]}
       footer={footer}
     >
-      <StatusChip kind={statusChipKind(run.status)} label={statusLabel(run.status)} />
+      <StatusChip kind={statusChipKind(run.status)} label={runStatusLabel(run)} />
 
       <View style={styles.brief}>
         <Text style={styles.briefLabel}>Brief</Text>
-        <Text style={styles.briefText}>{run.briefText}</Text>
+        <ClampedText lines={3} style={styles.briefText} text={run.briefText} moreLabel="Show more" lessLabel="Show less" />
       </View>
 
       <Card>
-        <Stepper currentIndex={stepIndex} attention={isNeedsAttention} />
+        <Stepper currentIndex={stepIndex} attention={isNeedsAttention} ended={isEnded} />
       </Card>
 
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
@@ -427,7 +442,7 @@ export default function RunDetailScreen() {
             {run.currentStage ? <Text style={styles.meta}> (at {run.currentStage.replace(/_/g, ' ')})</Text> : null}
           </Text>
           <Text style={styles.meta}>
-            Retry runs this step again from scratch. Cancel stops the run for good — nothing is published.
+            {capNextStep ?? 'Retry runs this step again from scratch. Cancel stops the run for good — nothing is published.'}
           </Text>
           {run.lastError ? (
             <>
@@ -549,7 +564,7 @@ export default function RunDetailScreen() {
 
       {isPublishing ? (
         <Card style={styles.darkCard}>
-          <Text style={styles.darkTitle}>Uploading to YouTube</Text>
+          <Text style={styles.darkTitle}>{isUploading ? 'Uploading to YouTube' : 'Uploaded — saving the first stats'}</Text>
           {lastGateDecision?.gate === 2 && lastGateDecision.outcome === 'approve' ? (
             <Text style={styles.darkBody}>
               You approved this video as {lastGateDecision.privacyStatus ?? 'private'}{' '}
@@ -557,9 +572,11 @@ export default function RunDetailScreen() {
             </Text>
           ) : null}
           <IndeterminateBar />
-          <Text style={styles.darkMeta}>
-            Taking longer than 10 minutes moves this run to Needs attention automatically.
-          </Text>
+          {isUploading ? (
+            <Text style={styles.darkMeta}>
+              Taking longer than 10 minutes moves this run to Needs attention automatically.
+            </Text>
+          ) : null}
         </Card>
       ) : null}
 
@@ -570,7 +587,7 @@ export default function RunDetailScreen() {
             <Text style={styles.darkBody}>&quot;{lastGateDecision.notes}&quot;</Text>
           ) : null}
           {regensUsed !== undefined ? (
-            <Text style={styles.darkMeta}>Regenerations used: {regensUsed} of 2</Text>
+            <Text style={styles.darkMeta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
           ) : null}
         </Card>
       ) : null}
@@ -627,7 +644,10 @@ export default function RunDetailScreen() {
           >
             <Text style={styles.openYoutubeText}>Open on YouTube ↗</Text>
           </Pressable>
-          <Text style={styles.meta}>Views and likes show up on the Dashboard once the first poll runs.</Text>
+          {/* U10: the hint only makes sense until the first analytics poll (every 6h); after that it would be stale. */}
+          {ageHours(run.completedAt ?? run.createdAt) < 6 ? (
+            <Text style={styles.meta}>Views and likes show up on the Dashboard once the first poll runs.</Text>
+          ) : null}
         </Card>
       ) : null}
 
@@ -648,7 +668,7 @@ export default function RunDetailScreen() {
               ) : null}
               {videoRationale ? <ClampedText lines={3} style={styles.meta} text={videoRationale} /> : null}
               {regensUsed !== undefined ? (
-                <Text style={styles.meta}>Regenerations used: {regensUsed} of 2</Text>
+                <Text style={styles.meta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
               ) : null}
             </View>
           </View>
@@ -662,11 +682,17 @@ export default function RunDetailScreen() {
       </Pressable>
       {showDetails ? (
         <Card>
-          {run.lastError ? <Text style={styles.raw}>{run.lastError}</Text> : null}
+          {run.lastError ? (
+            <>
+              <Text style={styles.rawHeading}>{run.lastError.includes('regen cap') ? "Reviewer's reason" : 'Last error'}</Text>
+              <Text style={styles.raw}>{run.lastError}</Text>
+            </>
+          ) : null}
+          {videoFallbackUsed(data) ? (
+            <Text style={styles.raw}>Switched to AI stills after stock footage failed review</Text>
+          ) : null}
           {stages.map((s) => (
-            <Text key={s.id} style={[styles.raw, s.status === 'failed' && styles.rawFailed]}>
-              {s.stageName.replace(/_/g, ' ')} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
-            </Text>
+            <StageRow key={s.id} stage={s as Stage & { error?: string | null }} />
           ))}
         </Card>
       ) : null}
@@ -675,6 +701,32 @@ export default function RunDetailScreen() {
         <PostHocTagForm runId={run.id} reviewLogs={data.reviewLogs} />
       ) : null}
     </FormScreen>
+  );
+}
+
+// U9: a FAILED attempt shows its reason in plain words when tapped, the technical text below it.
+function StageRow({ stage: s }: { stage: Stage & { error?: string | null } }) {
+  const [open, setOpen] = useState(false);
+  const failed = s.status === 'failed';
+  const line = (
+    <Text style={[styles.raw, failed && styles.rawFailed]}>
+      {stageLabel(s.stageName)} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
+      {failed ? (open ? '  ▾' : '  ▸ tap for why') : ''}
+    </Text>
+  );
+  if (!failed) return line;
+  return (
+    <View>
+      <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button">
+        {line}
+      </Pressable>
+      {open ? (
+        <View style={styles.failedWhy}>
+          <Text style={styles.body}>{humanizeRunError(s.error) || 'This attempt failed.'}</Text>
+          {s.error ? <Text style={styles.raw}>{s.error}</Text> : null}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -778,6 +830,8 @@ const styles = StyleSheet.create({
   detailsToggleText: { ...type.sectionTitle, color: color.muted },
   raw: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   rawFailed: { color: color.danger },
+  rawHeading: { fontFamily: font.bold, fontSize: 12, color: color.ink },
+  failedWhy: { gap: 2, paddingLeft: space.sm, paddingVertical: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { backgroundColor: color.surface2, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
   chipText: { fontFamily: font.semibold, fontSize: 12, color: color.ink },

@@ -1,6 +1,7 @@
-import { callLLM, extractJsonText, type LLMResponse } from '../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
+import { llmUsageContext } from './stage-failure';
 
 // Intake parsing — BUSINESS_LOGIC.md Section 2. Owned directly by the
 // Orchestrator, not a separate agent. A single LLM call: extraction only, no
@@ -39,8 +40,9 @@ export async function parseBrief(briefText: string): Promise<{ output: IntakePar
     parsedJson = JSON.parse(extractJsonText(raw));
   } catch (error) {
     throw new NonTransientStageError(
-      `Brief too vague/unparseable — model did not return valid JSON: ${raw.slice(0, 200)}`,
+      `Brief too vague/unparseable — model did not return valid JSON (${describeJsonError(error)})`,
       error,
+      llmUsageContext(llm),
     );
   }
 
@@ -50,12 +52,12 @@ export async function parseBrief(briefText: string): Promise<{ output: IntakePar
     'error' in parsedJson &&
     (parsedJson as { error: unknown }).error === 'unparseable'
   ) {
-    throw new NonTransientStageError('Brief too vague to extract a topic from');
+    throw new NonTransientStageError('Brief too vague to extract a topic from', undefined, llmUsageContext(llm));
   }
 
   const result = IntakeParsedSchema.safeParse(parsedJson);
   if (!result.success) {
-    throw new NonTransientStageError(`Intake output failed schema validation: ${result.error.message}`);
+    throw new NonTransientStageError(`Intake output failed schema validation: ${result.error.message}`, undefined, llmUsageContext(llm));
   }
 
   return { output: result.data, llm };

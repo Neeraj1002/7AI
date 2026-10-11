@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { youtubeNeedsReconnect } from '../../../lib/server-extras';
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -102,10 +103,16 @@ export default function ChannelsScreen() {
             </Pressable>
             <View style={styles.channelBottom}>
               <StatusChip
-                kind={c.hasYoutubeCredential ? 'ok' : 'attention'}
-                label={c.hasYoutubeCredential ? 'YouTube connected' : 'YouTube not connected'}
+                kind={c.hasYoutubeCredential && !youtubeNeedsReconnect(c) ? 'ok' : 'attention'}
+                label={
+                  !c.hasYoutubeCredential
+                    ? 'YouTube not connected'
+                    : youtubeNeedsReconnect(c)
+                      ? 'Reconnect needed'
+                      : 'YouTube connected'
+                }
               />
-              {!c.hasYoutubeCredential ? (
+              {!c.hasYoutubeCredential || youtubeNeedsReconnect(c) ? (
                 <Pressable
                   style={styles.connect}
                   onPress={() => handleConnect(c)}
@@ -113,7 +120,7 @@ export default function ChannelsScreen() {
                   accessibilityRole="button"
                 >
                   <Feather name="play" size={14} color={color.accentText} />
-                  <Text style={styles.connectText}>{connectingId === c.id ? 'Opening…' : 'Connect'}</Text>
+                  <Text style={styles.connectText}>{connectingId === c.id ? 'Opening…' : youtubeNeedsReconnect(c) ? 'Reconnect' : 'Connect'}</Text>
                 </Pressable>
               ) : null}
             </View>

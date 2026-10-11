@@ -287,6 +287,7 @@ describe('D4 budget model', () => {
     };
     expect(budgetDilutionWarning(view(40, 2))).toBeNull();
     expect(budgetDilutionWarning(view(40, 3))).toContain('$13.33');
-    expect(budgetDilutionWarning(view(10, 3))).toContain('below the $5.00 minimum');
+    expect(budgetDilutionWarning(view(10, 3))).toContain('below the $5.00 suggested minimum');
+    expect(budgetDilutionWarning(view(10, 3))).not.toContain('refused');
   });
 });

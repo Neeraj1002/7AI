@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
+import { llmUsageContext } from '../../run-pipeline/stage-failure';
 
 // Script Review agent — AGENT_FLEET_DESIGN.md Section 4.5. A lightweight
 // rubric score + notes over Script Generation's output, including the
@@ -46,6 +47,9 @@ export const ScriptReviewOutputSchema = z.object({
   // (a distinct purpose once studio/src/llm/ supports tool use) is deferred,
   // not built here.
   factualConcerns: z.array(z.string()),
+  // Sprint 4 Task 2 (R8): same shape as factualConcerns. Defaulted so stage
+  // outputs stored before this field existed still parse.
+  styleGuideViolations: z.array(z.string()).default([]),
 });
 export type ScriptReviewOutput = z.infer<typeof ScriptReviewOutputSchema>;
 
@@ -54,9 +58,9 @@ export type ScriptReviewResult = {
   llm: LLMResponse;
 };
 
-const SYSTEM_PROMPT = `You review a short-form vertical video script (YouTube Shorts, 30-60 seconds)
+export const SYSTEM_PROMPT = `You review a short-form vertical video script (YouTube Shorts)
 before it goes to production. Respond with ONLY a JSON object of the shape:
-{"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[]}
+{"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[]}
 
 "score" is 0-10, scoring quality, engagement, clarity, and brand alignment together.
 "notes" explains the score — what works, what doesn't, in a few sentences.
@@ -78,7 +82,8 @@ the overall "notes" field above.
 
 "videoGenFit" checks whether the script is actually producible by a simple video-generation
 toolchain (TTS voiceover + auto-captions + template/stock visuals — no generative AI video):
-- "fitsLengthLimit": would the narration, read aloud at a natural pace, fit a 60-second Short?
+- "fitsLengthLimit": would the narration, read aloud at a natural pace, land within about 20% of the
+  target length given in the user message, and never exceed 60 seconds?
 - "pacingRealistic": are scene/beat changes implied by the script realistic for that toolchain
   (not too many rapid cuts or complex staged shots)?
 - "visualsProducible": are any described visuals things stock footage or simple templates can
@@ -92,33 +97,52 @@ about a specific study or event you're not confident is accurate) — an empty a
 stands out. Be specific (quote or closely paraphrase the claim), not vague ("some facts may be
 wrong"). Don't flag stylistic simplification or rounding that's normal for short-form content.
 
+"styleGuideViolations" lists any specific way the script breaks the channel style guide or the banned
+opening/ending phrases given in the user message — quote or closely paraphrase the offending text, be
+specific rather than vague. An empty array if no style guide or banned list was given, or if nothing
+violates them.
+
 A low score or failed fit checks are still a valid review outcome, not an error — always
 respond with a complete, well-formed review. Respond with raw JSON only — no markdown code
 fences, no commentary.`;
 
-function buildUserMessage(params: {
+export type ReviewScriptParams = {
   scriptText: string;
   captions: string;
   nicheDescription: string;
   styleGuide?: string | null;
-}): string {
+  // Sprint 4 Task 2 (R4/R6/R8)
+  briefText?: string;
+  targetSeconds?: number;
+  bannedOpeners?: string[];
+  bannedEndings?: string[];
+};
+
+export function buildUserMessage(params: ReviewScriptParams): string {
   const lines = [
     `Script:\n${params.scriptText}`,
     `Captions:\n${params.captions}`,
     `Channel niche: ${params.nicheDescription}`,
   ];
+  if (params.briefText) {
+    lines.push(`Original brief:\n${params.briefText}`);
+  }
   if (params.styleGuide) {
     lines.push(`Style guide: ${params.styleGuide}`);
+  }
+  if (params.bannedOpeners && params.bannedOpeners.length > 0) {
+    lines.push(`Banned openings: ${params.bannedOpeners.join('; ')}`);
+  }
+  if (params.bannedEndings && params.bannedEndings.length > 0) {
+    lines.push(`Banned endings: ${params.bannedEndings.join('; ')}`);
+  }
+  if (params.targetSeconds) {
+    lines.push(`Target length: approximately ${params.targetSeconds} seconds when read aloud (never more than 60).`);
   }
   return lines.join('\n\n');
 }
 
-export async function reviewScript(params: {
-  scriptText: string;
-  captions: string;
-  nicheDescription: string;
-  styleGuide?: string | null;
-}): Promise<ScriptReviewResult> {
+export async function reviewScript(params: ReviewScriptParams): Promise<ScriptReviewResult> {
   const llm = await callLLM({
     purpose: 'script-review',
     system: SYSTEM_PROMPT,
@@ -131,8 +155,9 @@ export async function reviewScript(params: {
     parsedJson = JSON.parse(extractJsonText(llm.text));
   } catch (error) {
     throw new NonTransientStageError(
-      `Script Review did not return valid JSON: ${llm.text.slice(0, 200)}`,
+      `Script Review did not return valid JSON (${describeJsonError(error)})`,
       error,
+      llmUsageContext(llm),
     );
   }
 
@@ -140,6 +165,8 @@ export async function reviewScript(params: {
   if (!result.success) {
     throw new NonTransientStageError(
       `Script Review output failed schema validation: ${result.error.message}`,
+      undefined,
+      llmUsageContext(llm),
     );
   }
 

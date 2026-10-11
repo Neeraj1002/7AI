@@ -2,14 +2,29 @@
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
-**Last updated**: 2026-09-22, after the Sprint 3 Hardening fix (run creation-time tenant ownership
-check). See `docs/execution/sprint3/reports/hardening-tenant-check.md`.
+**Last updated**: 2026-10-11 (status block at the top of Section 1, new findings at the top of Section 4, the P5 item in Section 5, and the new Section 7). Before that: 2026-09-22, after the Sprint 3 Hardening fix (run creation-time tenant ownership
+check). See `docs/execution/sprint3/reports/hardening-tenant-check.md`. **Sprint 3 is being closed by one task, `docs/execution/bugs/Sprint3/tasks/task12.md` (Bugs Task 12); the "Task 12" notes below name the item that handles each entry.**
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
 ---
 
 ## 1. Founder action required (external, blocking)
+
+### Status update, 2026-10-11 (read this first; the older items below are kept as history)
+
+| Item | State on 2026-10-11 | Handled by |
+|---|---|---|
+| O1: real push delivery on a physical device | **Partly verified.** Gate 2 pushes reach the founder's OnePlus. Gate 1 pushes do not arrive for the tenant user, and Expo's receipts for that user show `DeveloperError` ("malformed or contained invalid parameters"). A server restart loop on 2026-10-10 also re-sent a Gate 2 push on every boot (about 8 stacked in a minute). | Bugs Task 12 R5, R6; founder check F8 |
+| M2/M3: a fresh Google consent for a per-channel token | **Done in practice.** Channels connected through the in-app flow publish on preview (real publishes on 2026-10-10 went through the per-channel credential). What remains is the weekly expiry below. | R13, F7 |
+| Redirect URI and the OAuth client type (found 2026-09-27/28) | **Closed.** The old client was a *Desktop app* client, which Google restricts to loopback redirects, so no registration could ever work for a phone or the VPS. A *Web application* client was created on 2026-09-28 and the env was switched; connect now works through `https://7aistudio.tech/oauth2callback`. Every channel connected before the switch had to re-consent. | - |
+| **Consent screen still in Testing: tokens expire 7 days after consent** (found 2026-09-28) | **Open, not fixable by code.** Google's own documentation: in Testing, every authorisation expires exactly 7 days after consent (refresh token included), and the project is capped at 100 listed test users. This is why `invalid_grant` appears in the PM2 error log, why the analytics poll snapshots only some published runs, and why "YouTube connected" can be wrong. The earlier note that Testing apps can only upload privately is **retracted**: a public video was uploaded while in Testing. Moving to Production needs Google's "sensitive scope" verification for `youtube.upload` / `youtube.readonly` (domain ownership, a privacy policy, accurate consent-screen details, and a demo video of the consent flow; a few business days to a few weeks once submitted). Until then the app can only *say* the access has expired. | **Accepted 2026-10-11 (founder, F7 done):** reconnect each channel weekly; Google production verification is out of scope. Bugs Task 12 R13 ("Reconnect needed") |
+| L2: Console quota numbers | **Open (small).** On 2026-10-11 the founder confirmed "100 accounts for testing", which is the Testing-mode test-user cap. The YouTube API quota page itself (`videos.insert` bucket, Data API units) has still not been read. | Founder F7 |
+| H1: custom-thumbnail permission (403) | **Moved to Sprint 4.** Needs YouTube phone verification of each channel (founder action outside the code); `Sprint4/tasks/hardening-thumbnail-phone-verification.md`. | Sprint 4; Section 7 |
+| G1: YouTube Analytics API (watch time, retention) | **Not built.** Needs the `yt-analytics.readonly` scope and a fresh consent. | Sprint 4 |
+| **New 2026-10-08: `gpt-image-1.5` shuts down 2026-12-01** | **Open.** The default `ai-stills` path calls it. Replacements: `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare`. Blockers: the new per-image price at 1024x1536 is not published (token billing), supported sizes and the `sunburst` / `flare` difference are undocumented, the OpenAI key's access is untested, and the stills will look different, so the founder must approve contact sheets for each channel. Plan and blocker table: `Sprint3/tasks/hardening-gpt-image-migration.md`. Target: deployed by 2026-11-15. Not part of Bugs Task 12. | Own task |
+| **New 2026-10-11: restart loop after Revise then Retry at Gate 2** | **Open.** A normal founder action (Revise, Retry, then `pm2 restart`) put the preview server into a restart loop with no stack trace in the error log; closed by hand in SQL. The Task 3 "resume-loop edge case" in `sprint3/STATUS.md` is the same failure class and has now recurred. | Bugs Task 12 R5 (first item) |
+| `PUBLIC_API_BASE_URL` not set on the VPS | **Open (one line).** Production logs `[boot] PUBLIC_API_BASE_URL not set` on every start and magic-link text points at localhost. Set `PUBLIC_API_BASE_URL=https://7aistudio.tech` in `/var/www/7AI/studio/.env`, then restart. | Founder F1; R10.11 |
 
 ### Open — O1: confirm real push delivery on a real physical device (Sprint 3 Task 7)
 Every backend piece of real push notification infrastructure is built and verified as far as this
@@ -299,7 +314,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   ~$0.0025 per existing usage-row evidence) before the next check catches it. Not fixed: the maximum
   possible overshoot across Bugs Task 3/R3's own bounded retry loop (at most ~4 review calls per run) is
   on the order of a cent — not worth a third `isBudgetAvailable` call site at current scale. Revisit if
-  review-call volume or cost per call ever changes materially. — *`bugs/reports/task6.md`*
+  review-call volume or cost per call ever changes materially. — *`bugs/Sprint3/reports/task6.md`*
 
 - **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Correctly applied on the first attempt in Week 5 Task 1's real re-run of this same test. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`, `week5/reports/task1.md`*
 
@@ -372,11 +387,39 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 ---
 
+## 3a. Where the open items in Section 3 are handled (added 2026-10-11)
+
+| Item | Handled by |
+|---|---|
+| `script_review` has no budget check of its own | Bugs Task 12 R10.3 |
+| Restart-safe gate reopening has no staleness filter (old paused gates re-send on every boot) | R6.2 and R6.4 (R10.9) |
+| `pipeline_runs.retryCount` is dead schema | R10.6 (comment and note; no migration) |
+| No lint rule for the `client.ts` / `registry.ts` import boundary | R10.2 |
+| 7-channel cap has no automated test | R10.12 |
+| API boot gates on `API_AUTH_TOKEN` alone | R10.5 |
+| `.env.example` is stale | R10.1 |
+| Watermarks uploaded before Task 12 have no R2 mirror | R10.8 |
+| Intake parsing is on the premium tier (the repo's C1 note in Section 2 says it was moved; re-check the registry) | R10.4 |
+| `videos.delete` needs a broader scope; publishing upload idempotency window | Section 7 (not fixable by code) |
+
+---
+
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
 
+**Found 2026-10-10 and 2026-10-11 on the preview server and the phone** (evidence: `docs/execution/bugs/Sprint3/reports/closure2-phone-verification.md`; all handled by Bugs Task 12, `Sprint3/tasks/task12.md`):
+
+- **Stock footage cannot cover abstract topics, and the run just stops (F1).** A Lego brief on Underdogs (stock footage) had its middle frame rejected by video review on all three attempts as generic business footage; the regeneration cap (2) was reached and the run parked as "Video retry limit reached". **Decided**: one extra attempt with AI stills after the cap (Task 12 R1). Other directions (feed the reviewer's replacement text into the next search, concrete search terms for stock channels, plain-language reason on the Run screen) stay candidates. Whether the clips changed between attempts is answered from the Task 13 attempt bundle (F4, C2).
+- **Manual Retry has no cap (F2).** A cancelled 29 Sept run has 11 failed `video generation` attempts. **Decided**: cap manual Retry and Revise at 3 per stage per run (Task 12 R2).
+- **Cancelled runs and rejections were counted as failed on the Dashboard (F4, confirmed 2026-10-11).** 42 runs: 18 completed, 21 failed (16 cancelled, 5 rejected), 2 needs_attention, 1 paused. **Decided**: cancelled out of the count; rejections kept and labelled "rejected" (Task 12 R3).
+- **Revise then Retry at Gate 2 after the regeneration cap leaves a zombie run and can crash-loop the server (2026-10-11).** Task 12 R5.
+- **Push: Gate 1 never arrives, Gate 2 repeats on every boot, Expo receipts show `DeveloperError`.** Task 12 R6.
+- **The stock path raises no longest-shot warning (F5).** Exempt on purpose or a bug; Task 12 R8 answers it.
+- **Underdogs rendered without captions (F6): intended**, nothing to fix.
+- **"YouTube connected" only means a credential exists.** It stays true after the token expires. Task 12 R13.
+
 - **The aggregated Video Generation `UsageEvent` row's `provider`/`model` fields are a judgment call, not a confirmed convention.** One row covers two different (provider, model) pairs (TTS + transcription), so `provider` is hardcoded `'openai'` and `model` becomes a composite string (`"tts-1-hd+whisper-1"`), with the real breakdown in `metadata`. Flagged for confirmation the same way the $2.00 budget ceiling was — never explicitly confirmed by you. — *`week3/reports/task2.md`*
-- **Performance Analytics polls every historical published video, forever — a real, unbounded quota-cost growth pattern (Sprint 3 Task 4, L2).** `runPeriodicPoll` (`performance-analytics/index.ts`) queries every completed run with a published video on each tick (default every 6h), not just recently-published ones. Each poll is cheap (`videos.list`, 1 unit) and today's volume is a non-issue, but the cost grows with the *cumulative* count of ever-published videos, not daily upload volume — at a real ~10-tester cadence, a few months of sustained use could put this in the thousands-of-units/day range purely from polling old videos whose metrics have long since stabilized. Not urgent (real near-term headroom is comfortable against the 10,000-unit/day shared pool), but worth a real fix before it becomes one — e.g. stop polling a video N days/weeks after publish. — *`sprint3/reports/task4.md`*
-- **The default new-tenant `AgentQuota.budgetCeilingUsd` ($2.00, Sprint 3 Task 4, L1) reuses the founder's own original, never-explicitly-confirmed figure** rather than a fresh number — a deliberate choice (consistency over guessing a new one), but still genuinely unconfirmed by you, same as the original. — *`sprint3/reports/task4.md`*
+- **Handled by Task 12 R10.7 (cap the window, skip channels that need reconnecting).** **Performance Analytics polls every historical published video, forever — a real, unbounded quota-cost growth pattern (Sprint 3 Task 4, L2).** `runPeriodicPoll` (`performance-analytics/index.ts`) queries every completed run with a published video on each tick (default every 6h), not just recently-published ones. Each poll is cheap (`videos.list`, 1 unit) and today's volume is a non-issue, but the cost grows with the *cumulative* count of ever-published videos, not daily upload volume — at a real ~10-tester cadence, a few months of sustained use could put this in the thousands-of-units/day range purely from polling old videos whose metrics have long since stabilized. Not urgent (real near-term headroom is comfortable against the 10,000-unit/day shared pool), but worth a real fix before it becomes one — e.g. stop polling a video N days/weeks after publish. — *`sprint3/reports/task4.md`*
+- **Superseded 2026-10-11 (Task 12 R7): the new-tenant default is now $10 a week, split equally across the channels that have YouTube connected.** (Closure part 1 had already removed the $2.00 default; `invite-tenant.ts` required `--weekly-budget` until R7.) Original item: **The default new-tenant `AgentQuota.budgetCeilingUsd` ($2.00, Sprint 3 Task 4, L1) reuses the founder's own original, never-explicitly-confirmed figure** rather than a fresh number — a deliberate choice (consistency over guessing a new one), but still genuinely unconfirmed by you, same as the original. — *`sprint3/reports/task4.md`*
 - **CLOSED, not viable as scoped — Title/thumbnail A/B testing (H2, Sprint 2 Task 5).**
   `MVP_PART3_CONTENT_QUALITY_AND_GROWTH_LOOP.md` §2 proposed Publishing drive YouTube's native
   title/thumbnail "Test and Compare" feature directly. Live research against Google's own current
@@ -395,11 +438,13 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 ## 5. Verified-but-not-exercised (built and reviewed, but never actually hit by a real test)
 
-- **Gate 2's too-large-video fallback** (link/local-path notice instead of attaching the file when a video exceeds Telegram's ~50MB bot-upload limit) — implemented, code-reviewed, never exercised, since every real test video so far is ~1.3MB. — *`week3/reports/task4.md`*
-- **Video Generation's watermark/brand overlay** — wired into the FFmpeg filter graph, untested, since no channel in the dev DB has `brandAssets.watermarkUrl` set. — *`week3/reports/task2.md`*
+- **Obsolete since Sprint 3 Task 7 (Telegram was retired; Gate 2 now lives in the app).** **Gate 2's too-large-video fallback** (link/local-path notice instead of attaching the file when a video exceeds Telegram's ~50MB bot-upload limit) — implemented, code-reviewed, never exercised, since every real test video so far is ~1.3MB. — *`week3/reports/task4.md`*
+- **Closed by Sprint 3 Task 9 R3 (a real PNG was rendered and seen by raw-pixel inspection, then removed).** **Video Generation's watermark/brand overlay** — wired into the FFmpeg filter graph, untested, since no channel in the dev DB has `brandAssets.watermarkUrl` set. — *`week3/reports/task2.md`*
 - **The LLM/media layers' transient-error retry path** (rate limits, 5xx) — both `studio/src/llm/` and `studio/src/media/` have only had their *non-transient* (auth failure) error mapping verified against a real API error. The transient path inherits from the SDKs' own retryability flags rather than custom logic, so risk is judged low, but it's genuinely untested. — *`week2/reports/task1.md`, `week3/reports/task1.md`*
 
 ---
+
+- **Failed-render usage booking (Bugs Closure part 2, P5)** — merged in PR #57 with mock tests (a failure after narration, one after image generation); never hit by a real render failure. When one happens, check `usage_events` for a `video-generation` row with the real provider, model and cost instead of `unknown`. — *`bugs/Sprint3/closureTask2.md`, `bugs/Sprint3/reports/closure2-phone-verification.md`* (Task 12 C4)
 
 ## 6. Not yet built
 
@@ -440,3 +485,23 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   against whatever that source's own platform offers becomes worth building — not attempted here,
   per the design doc's own "expensive way to learn this" framing for why it's worth getting ahead
   of, not urgent to solve immediately. — *`sprint2/reports/task3.md`*
+
+---
+
+---
+
+## 7. Not fixable by code (and why) — added 2026-10-11
+
+These need something outside the codebase: a Google review, a provider's published information, another account's settings, or the founder. Each says what is needed and who does it.
+
+| Item | Why code cannot fix it | What would close it |
+|---|---|---|
+| **OAuth consent screen in Testing: 7-day token expiry, 100 test-user cap** | Google enforces both on projects in Testing. Code can only detect the expiry and say "Reconnect needed" (Bugs Task 12 R13). | Accepted 2026-10-11 (founder, F7): weekly reconnect. Google's production (sensitive-scope) verification is out of scope; it would need domain ownership, a privacy policy, consent-screen details and a demo video. |
+| **Free stock libraries hold no concrete footage for abstract topics** (the Lego example) | A library cannot return clips it does not have. R1 limits the damage with one AI-stills attempt. | Use `ai-stills` for such channels, or a paid or curated library. A founder product choice. |
+| **`videos.delete` and other broader YouTube scopes** | The granted scope is `youtube.upload` / `youtube.readonly`; Google requires a fresh consent for more. | Re-consent with a broader scope, only if programmatic video deletion becomes worth having. |
+| **Upload-in-flight idempotency window** | `videos.insert` takes no client idempotency key, so a process death while the request is in flight cannot be detected on resume. | Nothing short of YouTube adding an idempotency key. Accepted narrow risk. |
+| **Custom thumbnails return 403 (H1)** | YouTube grants custom thumbnails only to channels that pass its own phone verification. | The founder verifies each channel's phone with YouTube (Sprint 4 hardening note). |
+| **`gpt-image-1.5` shutdown (2026-12-01): new price unpublished, look must be approved** | OpenAI has not published the new per-image price or size support; the founder must approve the new look of the stills. | OpenAI's publication, then the migration task and the founder's contact-sheet approval. |
+| **Expo push delivery** | Delivery depends on Expo's and Google's services; receipts arrive after the send and cannot be forced. Code can send correct payloads and read the receipts (Task 12 R6). | Nothing further; verify on the device (F8). |
+| **Windows kills only the outer shell of a test process** | A methodology note for live kill tests (`npx` spawns a process tree), not a code defect. | Check `tasklist` for the real PIDs before a kill test. |
+

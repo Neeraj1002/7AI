@@ -1,5 +1,6 @@
 import { prisma } from '../prisma-client';
 import { Prisma } from '@prisma/client';
+import { markNotificationsResolvedByThreadKey } from './notification.repository';
 import type { PipelineRun as PrismaPipelineRun } from '@prisma/client';
 import type { DbClient } from './pipeline-stage.repository';
 import type {
@@ -21,6 +22,7 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
     briefText: row.briefText,
     intakeParsed: (row.intakeParsed as IntakeParsed | null) ?? null,
     creationOptions: (row.creationOptions as CreationOptions | null) ?? null,
+    profileVersionId: row.profileVersionId,
     retryCount: row.retryCount,
     lastError: row.lastError,
     startedAt: row.startedAt,
@@ -30,13 +32,17 @@ function toDomainRun(row: PrismaPipelineRun): PipelineRun {
   };
 }
 
-export async function createPipelineRun(input: CreatePipelineRunInput): Promise<PipelineRun> {
+export async function createPipelineRun(
+  input: CreatePipelineRunInput,
+  profileVersionId: string | null = null,
+): Promise<PipelineRun> {
   const row = await prisma.pipelineRun.create({
     data: {
       tenantId: input.tenantId,
       channelId: input.channelId,
       briefText: input.briefText,
       creationOptions: input.creationOptions as Prisma.InputJsonValue | undefined,
+      profileVersionId,
       status: 'pending',
     },
   });
@@ -85,10 +91,35 @@ export async function listRuns(params: {
   return rows.map(toDomainRun);
 }
 
+// Sprint 4 Task 5 (R20): the channel's most recent runs that got as far as an
+// Intake topic, newest first, excluding the current run. Failed and pending runs
+// are skipped (nothing was really made), everything else counts.
+export async function listRecentRunTopicsForChannel(
+  channelId: string,
+  limit: number,
+  excludeRunId: string,
+): Promise<{ runId: string; topic: string; createdAt: Date }[]> {
+  const rows = await prisma.pipelineRun.findMany({
+    where: {
+      channelId,
+      id: { not: excludeRunId },
+      status: { notIn: ['failed', 'pending'] },
+      intakeParsed: { not: Prisma.DbNull },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: { id: true, intakeParsed: true, createdAt: true },
+  });
+  return rows.flatMap((row) => {
+    const topic = (row.intakeParsed as { topic?: unknown } | null)?.topic;
+    return typeof topic === 'string' && topic.length > 0 ? [{ runId: row.id, topic, createdAt: row.createdAt }] : [];
+  });
+}
+
 // The exact text runs.cancel writes; runs.ts's deriveEndReason string-matches it.
 export const CANCELLED_BY_USER = 'Cancelled by user';
 
-export type PipelineRunPatch =Partial<{
+export type PipelineRunPatch = Partial<{
   status: PipelineRunStatus;
   currentStage: StageName | null;
   intakeParsed: IntakeParsed | null;
@@ -96,6 +127,8 @@ export type PipelineRunPatch =Partial<{
   lastError: string | null;
   startedAt: Date;
   completedAt: Date;
+  // Bugs Task 12 - shallow-merged into the stored creationOptions (never replaces user picks).
+  creationOptionsMerge: Partial<CreationOptions>;
 }>;
 
 export async function updatePipelineRun(
@@ -115,6 +148,13 @@ export async function updatePipelineRun(
     ...(patch.startedAt !== undefined && { startedAt: patch.startedAt }),
     ...(patch.completedAt !== undefined && { completedAt: patch.completedAt }),
   };
+  if (patch.creationOptionsMerge) {
+    const current = await client.pipelineRun.findUnique({ where: { id }, select: { creationOptions: true } });
+    data.creationOptions = {
+      ...((current?.creationOptions as Record<string, unknown> | null) ?? {}),
+      ...patch.creationOptionsMerge,
+    } as Prisma.InputJsonValue;
+  }
   // Bugs Task 10 (R1) — a cancelled run is final: a stage that was mid-flight
   // when the cancel landed must not resurrect it (a status/currentStage write
   // after its own long await). The cancel's own write passes, so re-cancelling
@@ -130,6 +170,13 @@ export async function updatePipelineRun(
       },
       data,
     });
+    // Bugs Task 12 (R5f) - an ended run closes its open Inbox cards (a cancelled run's Gate 2 card
+    // used to stay under "needs action"). Fire-and-forget: never blocks or fails the run write.
+    if (patch.status === 'failed' || patch.status === 'completed') {
+      void markNotificationsResolvedByThreadKey(id, new Date()).catch((error) => {
+        console.error(`[pipeline-run] could not resolve notifications for ended run ${id}:`, error);
+      });
+    }
     return toDomainRun(row);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { youtubeNeedsReconnect } from '../../lib/server-extras';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -71,6 +72,8 @@ export default function NewBriefScreen() {
   const selected = channelById(selectedChannelId);
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
   const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
+  // R13: the credential exists but Google rejected it; the run would fail at upload, so say so up front (not blocked).
+  const needsReconnect = selected !== undefined && selected.hasYoutubeCredential && youtubeNeedsReconnect(selected);
   const channelVoice = selected?.defaultVoice;
   const channelVoiceLabel = VOICES.find((v) => v.value === channelVoice)?.label ?? 'Alloy';
   const voiceLabel = voice ? VOICES.find((v) => v.value === voice)!.label : `Channel default (${channelVoiceLabel})`;
@@ -246,6 +249,9 @@ export default function NewBriefScreen() {
       />
       {needsYoutube ? (
         <Text style={styles.tip}>Connect YouTube or pick another channel to continue.</Text>
+      ) : null}
+      {needsReconnect ? (
+        <Text style={styles.tip}>This channel&apos;s YouTube connection expired. Reconnect it in Channel settings before the run reaches upload.</Text>
       ) : null}
 
       <OptionSheet

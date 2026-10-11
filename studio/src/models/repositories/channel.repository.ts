@@ -17,6 +17,7 @@ function toDomainChannel(row: PrismaChannel): Channel {
     priorsScope: row.priorsScope as PriorsScope,
     budgetOverrideUsd: row.budgetOverrideUsd ? row.budgetOverrideUsd.toString() : null,
     defaultVoice: row.defaultVoice,
+    activeProfileVersionId: row.activeProfileVersionId,
     defaultPrivacyStatus: row.defaultPrivacyStatus as Channel['defaultPrivacyStatus'],
     ownerUserId: row.ownerUserId,
     isActive: row.isActive,

@@ -26,6 +26,9 @@
 // notification can't carry a video attachment either). Keeping an unused
 // field on this interface once its one real consumer is deleted would be
 // dead, misleading surface area, not a harmless leftover.
+import type { ApprovalReply } from './pending-approvals';
+import type { PushDecision } from './resend-policy';
+
 export interface NotificationChannel {
   // `meta.threadKey`, when given, is the same per-run id `requestApproval`
   // uses — lets a plain notify() (e.g. a gate reminder) still carry enough
@@ -33,7 +36,11 @@ export interface NotificationChannel {
   // though notify() itself isn't an approval request. Digest notify() calls
   // (tenant-wide, no single run) simply omit it.
   notify(message: string, meta?: { threadKey?: string }): Promise<void>;
-  requestApproval(params: { threadKey: string; message: string }): Promise<{ reply: string }>;
+  // Bugs Task 12 (R6): `pushDecision` is computed once by the multi-channel before dispatch (a gate
+  // re-sent after a restart must not stack identical pushes); absent means a normal first send.
+  requestApproval(params: { threadKey: string; message: string; pushDecision?: PushDecision }): Promise<ApprovalReply>;
+  // Set by per-recipient channels so the multi-channel can compute that recipient's decision.
+  readonly recipientUserId?: string;
   // Frontend track Task 1: a second caller (the API) resolving the same
   // pending gate. Fulfills the same underlying promise `requestApproval` is
   // blocked on — whichever caller arrives first wins; the other gets
@@ -41,5 +48,5 @@ export interface NotificationChannel {
   // the first decision. Synchronous by design: the resolution itself is an
   // in-memory map check-and-delete with no I/O, so there's no `await` gap
   // for a race to land in between the check and the delete.
-  resolvePendingApproval(threadKey: string, reply: string): { resolved: boolean };
+  resolvePendingApproval(threadKey: string, value: ApprovalReply): { resolved: boolean };
 }

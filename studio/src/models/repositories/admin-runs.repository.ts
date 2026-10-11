@@ -175,3 +175,30 @@ export async function readStageAttempts(
     select: { stageName: true, attemptNumber: true, status: true, output: true },
   });
 }
+
+// Bugs Task 11 (PR #55) - a failed stage's output holds the raw model reply
+// (stage-failure.ts keeps it for debugging). That is tenant content that failed
+// to parse and may be partial or malformed, and the admin app must not return
+// it: this keeps only the numeric/short diagnostic keys. The reply itself is
+// read with SQL on the VPS, not through any admin route.
+const FAILED_STAGE_SAFE_KEYS = [
+  'stopReason',
+  'replyLength',
+  'parseError',
+  'rawReplyTruncated',
+  'attempts',
+  'firstParseError',
+  'firstStopReason',
+] as const;
+
+export function failedStageDiagnostics(output: unknown): Record<string, unknown> | null {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return null;
+  const source = output as Record<string, unknown>;
+  const kept: Record<string, unknown> = {};
+  for (const key of FAILED_STAGE_SAFE_KEYS) {
+    const value = source[key];
+    if (typeof value === 'number' || typeof value === 'boolean') kept[key] = value;
+    else if (typeof value === 'string') kept[key] = truncate(value, STAGE_REASON_MAX);
+  }
+  return kept;
+}

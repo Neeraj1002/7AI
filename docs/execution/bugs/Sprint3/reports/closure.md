@@ -113,3 +113,38 @@ Answers: **report 16** ("bug or limitation?") — a limitation of the stock path
 ## Deviations
 - `isBudgetAvailable` kept as a wrapper; `loadChannelBudgetView` added so the gate and the Dashboard share the same ceilings. Dashboard `totalSpendUsd` stays lifetime; the weekly figure is a new field. No schema change.
 - `closureTask.md` is the task as handed over with a short repo note at the top and the confirmed `MIN_CHANNEL_SHARE_USD` wording; `closureTask2.md` is a draft (no file was attached).
+
+## Follow-up: Inbox labels, reminder text, restart duplicates, cost-card label (branch `BUGS_CLOSURE_INBOX`)
+
+The founder tested PR #48 after the OTA: Dashboard correct, but every Inbox gate card still said "Approval needed" and a resolved card never showed the decision.
+
+### 1. Why R4's labels did not render (root cause: an app bug, not the payload)
+
+- **What the app expects:** `gateOf(message)` in `app/app/(app)/(tabs)/notifications.tsx` reads the gate number from the first line of the notification message (`Gate 1 — <channel>` / `Gate 2 — <channel>`). Any other result falls back to the generic "Approval needed" chip, and the decision lookup is skipped for a card whose gate is unknown.
+- **What the payload contains:** exactly that. The server writes the message from `formatGateMessage` / `formatGate2Message` (and also on a restart re-send, with a second line). It is the only code path that creates an `approval_request`. The payload was fine.
+- **The bug:** R4's regex was meant to be `/^Gate ([12])\b/`, but the file held a literal backspace character (0x08) in place of the `\b` escape, so the pattern required a backspace after the digit and never matched. Every gate card therefore fell back to "Approval needed", and with `gate === null` the resolved-decision lookup never ran, so a resolved card showed only "Resolved 5m ago". Checked by running the old and new regex from the actual source files against the real server messages: main gives `NO MATCH` for both gates, the fix gives `1` and `2`. A scan of `app/`, `studio/src` and `studio/scripts` found no other control characters.
+- **Fix (app only, no payload change):** `/^\s*Gate ([12])(?!\d)/`. Not an OTA-not-delivered problem (the Dashboard cards come from the server, so they could not show whether the OTA had arrived; the Inbox could not render the new labels with this regex whichever bundle was running).
+- **Guard:** a server-side test (`inbox-closure.test.ts`) asserts that the real Gate 1 and Gate 2 messages, fresh and re-sent, all match the same pattern, so the message format and the app's reader cannot drift apart silently.
+- Not verified on a device (typecheck/lint only).
+
+### 2. Reminder text
+
+`gate-reminder.ts`: the reminder is now `Reminder: "<first line of the brief>" on <channel name> has been waiting at Gate N for about Xh. Open the app to respond.` (brief line trimmed to 80 characters; if the brief is empty only the channel name is used). No run id in the text. `threadKey` is unchanged, so the push still deep-links.
+
+### 3. Restart re-send duplicates
+
+`notification.repository.ts` gains `insertOrReuseApprovalNotification`: if the recipient already has an unresolved `approval_request` for that run (`threadKey`), the existing card is reused and nothing is inserted; otherwise a new row is created. `InAppChannel.requestApproval` uses it, so a restart re-send no longer adds a card. Gate 1 then Gate 2 of the same run still get separate cards, because the earlier card is resolved first. The reused card keeps its original text and time, so the "Re-sending after a restart" line is not shown on the inbox card (the push and any other channel still send it). Unit-tested with a mocked Prisma client. Cards that were duplicated before this deploy stay until they are resolved (a gate decision resolves every open card for the run). No schema change.
+
+### 4. Cost card
+
+`dashboard.tsx`: the per-video line now reads `$X per published video (all time, not this week)`. The number itself is unchanged.
+
+### Verification
+
+- studio: `npm run typecheck`, `npm run lint` clean; `npx vitest run`: 335 passed, 49 skipped (54 files passed, 9 skipped). New tests in `src/notifications/inbox-closure.test.ts` (5).
+- app: `npx tsc --noEmit` clean; `eslint` on the two changed screens clean.
+- No sandbox database run (the dedupe is a single find-then-insert covered by the mocked test). `sevenai_preview` and `sevenai_dev` were not touched.
+
+### Founder re-test
+
+Server deploy first (items 2 and 3 are server-side), then `eas update --branch preview` for the app (items 1 and 4, JS only, no APK). Then: a new Gate 1 card reads "Script approval", a Gate 2 card "Video approval"; after deciding, the card reads e.g. "Script approval · Approved". Restart the server with a gate open and confirm the Inbox keeps one card for it.

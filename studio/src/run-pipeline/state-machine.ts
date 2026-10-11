@@ -21,9 +21,12 @@ import { uploadAttemptBundle } from '../storage/attempt-bundle';
 import { insertUsageEvent, listStockSourceIdsUsedByRun } from '../models/repositories/usage-event.repository';
 import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from '../models/repositories/review-log.repository';
 import { isCancellationRequested } from './cancellation-registry';
+import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
+import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
+import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import {
   reviewScript,
@@ -32,8 +35,12 @@ import {
   type ScriptReviewOutput,
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
+import { loadResolvedConfig } from './resolved-config';
+import { findLikelyRepeatTopic } from './repeat-topic';
+import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
+import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
-import { planVideoProduction, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
+import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
@@ -50,7 +57,6 @@ import {
   type PrivacyStatus,
 } from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
-import { resolveVoice } from '../media';
 import { env } from '../config/env';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
@@ -61,7 +67,10 @@ import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } fro
 // comes online.
 
 export async function createRun(input: CreatePipelineRunInput): Promise<PipelineRun> {
-  return createPipelineRun(input);
+  // Sprint 4 Task 1: snapshot the channel active profile version onto the run;
+  // it is never re-read from the channel later in the run life.
+  const channel = await findChannelById(input.channelId);
+  return createPipelineRun(input, channel?.activeProfileVersionId ?? null);
 }
 
 function nextStageAfter(stage: StageName): StageName | null {
@@ -96,10 +105,17 @@ function describeStageError(error: unknown): string {
 }
 
 async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
-  const message = describeStageError(error);
+  let message = describeStageError(error);
+  // Bugs Task 12 (R13) - an expired YouTube token says so in plain words (technical text kept after it)
+  // and flags the channel "Reconnect needed".
+  if (isInvalidGrant(error)) {
+    const failedRun = await findPipelineRunById(runId).catch(() => null);
+    if (failedRun) await noteYoutubeAuthFailure(failedRun.channelId, error);
+    message = `${YOUTUBE_RECONNECT_MESSAGE} (${message})`;
+  }
   console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
-    await failStage(stageId, message, tx);
+    await failStage(stageId, message, tx, failureOutputFromError(error));
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);
   });
 }
@@ -108,6 +124,31 @@ async function failStageAndEscalate(stageId: string, runId: string, error: unkno
 // the same run: it always reads `run.briefText` fresh and starts a new stage
 // attempt, so a crash-and-retry never assumes partial work happened
 // (BUSINESS_LOGIC.md's "idempotent resume" rule).
+// Sprint 4 Task 5 (R20, B16): compares the new topic with the channel's recent runs
+// and, on a likely repeat, stores it on the intake stage's own output as
+// `repeatTopic` (additive Json, no migration). Gate 1's message and runs.get both
+// read it from there, so the warning survives a restart and is no longer only a
+// line in one notification. It must never fail the run: any error is logged and
+// treated as "no warning".
+async function recordRepeatTopicWarning(
+  runId: string,
+  channelId: string,
+  intakeStageId: string,
+  topic: string,
+): Promise<void> {
+  try {
+    const recent = await listRecentRunTopicsForChannel(channelId, 20, runId);
+    const match = findLikelyRepeatTopic(topic, recent);
+    if (match) {
+      await patchStageOutput(intakeStageId, {
+        repeatTopic: { runId: match.runId, topic: match.topic, createdAt: match.createdAt.toISOString() },
+      });
+    }
+  } catch (error) {
+    console.error(`[intake] run ${runId}: repeat-topic check failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
@@ -153,18 +194,13 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'intake',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -177,7 +213,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     // written together, in one transaction — this is what makes resumability
     // possible after a restart, without a window where currentStage lags what
     // pipeline_stages actually shows (B1 fix).
-    return await prisma.$transaction(async (tx) => {
+    const advanced = await prisma.$transaction(async (tx) => {
       await completeStage(stage.id, output, tx);
       return await updatePipelineRun(
         runId,
@@ -190,6 +226,9 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
         tx,
       );
     });
+    // Sprint 4 Task 5 (R20/B16): best-effort, after the stage is already durable.
+    await recordRepeatTopicWarning(runId, run.channelId, stage.id, output.topic);
+    return advanced;
   } catch (error) {
     // A bad/unparseable brief, or an exhausted circuit breaker, is a
     // human-fixable input problem — needs_attention, not failed.
@@ -238,14 +277,21 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     fixNotes = latestAutoReject?.rationale;
   }
 
+  // Sprint 4 Task 2: guide, length, fact policy and banned lists come from the
+  // resolved config of the profile this run was created against.
+  const config = await loadResolvedConfig(run, channel);
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: run.intakeParsed.constraints,
-    styleGuide: channel.styleGuide,
-    // Sprint 3 Task 9 (R4) — additive per-run creation option; unset for a
-    // run that never set it, same as before this field existed.
-    targetDurationSec: run.creationOptions?.targetDurationSec,
+    styleGuide: config.scriptGuide,
+    // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
+    targetSeconds: config.targetSeconds,
     fixNotes: fixNotes ?? null,
+    briefText: run.briefText,
+    factPolicy: config.factPolicy,
+    bannedOpeners: config.bannedOpeners,
+    bannedEndings: config.bannedEndings,
+    scriptStructure: config.formatScriptStructure,
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -307,41 +353,46 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // than once around the whole withRetryAndCircuitBreaker call) is what makes
   // that true instead of undercounting retried spend.
   const attemptOnce = async (): Promise<ScriptGenerationOutput> => {
+    // Bugs Task 11 (R2/R3) — one UsageEvent per model call, success or failure:
+    // a generation that retried inside this attempt made two real calls, and a
+    // reply rejected after its call completed still cost what the call cost.
+    const bookCalls = async (spent: FailureUsageFields[]): Promise<void> => {
+      for (const call of spent) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'script-generation',
+          ...call,
+        });
+      }
+    };
     try {
-      const { output, llm } = await generateScript({
+      const { output, calls } = await generateScript({
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
-        targetDurationSec: stageInput.targetDurationSec,
+        targetSeconds: stageInput.targetSeconds,
         fixNotes: fixNotes ?? undefined,
+        briefText: stageInput.briefText,
+        factPolicy: stageInput.factPolicy,
+        bannedOpeners: stageInput.bannedOpeners,
+        bannedEndings: stageInput.bannedEndings,
+        scriptStructure: stageInput.scriptStructure,
       });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      await bookCalls(
+        calls.map((llm) => ({
+          provider: llm.provider,
+          model: llm.model,
+          inputTokens: llm.usage.inputTokens,
+          outputTokens: llm.usage.outputTokens,
+          costUsd: llm.costUsd,
+        })),
+      );
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'script-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
-      });
+      await bookCalls(failureUsageEvents(error));
       throw error;
     }
   };
@@ -399,11 +450,16 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
 
   const previousAttempt = await findLatestAttempt(runId, 'script_review');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const config = await loadResolvedConfig(run, channel);
   const stageInput = {
     scriptText: scriptOutput.scriptText,
     captions: scriptOutput.captions,
     nicheDescription: channel.nicheDescription,
-    styleGuide: channel.styleGuide,
+    styleGuide: config.scriptGuide,
+    briefText: run.briefText,
+    targetSeconds: config.targetSeconds,
+    bannedOpeners: config.bannedOpeners,
+    bannedEndings: config.bannedEndings,
   };
 
   const stage = await createStageAttempt({
@@ -432,18 +488,13 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       });
       return output;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-review',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -504,13 +555,10 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         output.videoGenFit.flags.length > 0
           ? ` Video-gen-fit flags: ${output.videoGenFit.flags.join('; ')}.`
           : '';
-      // C3 (Week 5 Task 4): surfaced in the same ReviewLog rationale gate1
-      // reads from, so a plausibility concern actually reaches the founder
-      // at Gate 1, not just the raw stage output.
-      const factualConcernsNote =
-        output.factualConcerns.length > 0
-          ? ` Factual concerns (plausibility check, not verified): ${output.factualConcerns.join('; ')}.`
-          : '';
+      // Sprint 4 Task 2: factualConcerns and styleGuideViolations are no longer
+      // folded into this rationale. Gate 1 renders them as their own labelled
+      // blocks from the stage output, and runs.get returns them as
+      // `scriptReview`; keeping them here too would show each twice.
       // G3 (Sprint 2 Task 4): same reasoning — the hook score/notes reach
       // the founder at Gate 1 in the same rationale text, not just the raw
       // stage output only a direct DB query would surface.
@@ -529,7 +577,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
           stageId: stage.id,
           agent: 'script-review',
           verdict: String(output.score),
-          rationale: `${output.notes}${flagsNote}${factualConcernsNote}${hookNote}${autoRetryCapNote}`,
+          rationale: `${output.notes}${flagsNote}${hookNote}${autoRetryCapNote}`,
         },
         tx,
       );
@@ -641,9 +689,20 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     );
   }
 
+  // Bugs Task 12 (R5c) - same invariant as Gate 2: never 'running' at a gate.
+  if (run.status !== 'paused_gate1' || run.currentStage !== 'gate1') {
+    await updatePipelineRun(runId, { status: 'paused_gate1', currentStage: 'gate1' });
+  }
+
   // Blocks here until a reply arrives (or, per Task 6's founder-availability
   // note, a simulated one is fed in for testing) — this is the "pause" that
   // PipelineRun.status = 'paused_gate1' represents.
+  // Sprint 4 Task 2 (R8): concerns/violations from the latest completed review,
+  // sources from the run's explicit creationOptions.
+  const reviewStage = await findLatestCompletedAttempt(runId, 'script_review');
+  const reviewOut = (reviewStage?.output ?? {}) as { factualConcerns?: string[]; styleGuideViolations?: string[] };
+  const intakeStage = await findLatestCompletedAttempt(runId, 'intake');
+  const repeatTopic = (intakeStage?.output as { repeatTopic?: { topic: string; createdAt: string } } | null | undefined)?.repeatTopic ?? null;
   const outcome = await requestGate1Decision({
     runId,
     channel,
@@ -653,6 +712,10 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     reviewScore: latestReview.verdict,
     reviewNotes: latestReview.rationale,
     restarted: isRestartReopen,
+    factualConcerns: reviewOut.factualConcerns,
+    styleGuideViolations: reviewOut.styleGuideViolations,
+    sources: run.creationOptions?.sources,
+    repeatTopic,
   });
 
   const recordGate1Outcome = async (): Promise<PipelineRun> => {
@@ -665,6 +728,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'human',
+            approvedByUserId: outcome.approvedByUserId,
             verdict: 'reject',
             rationale: outcome.reason,
           },
@@ -695,6 +759,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
           pipelineRunId: runId,
           stageId: stage.id,
           agent: 'human',
+          approvedByUserId: outcome.approvedByUserId,
           verdict: outcome.type,
           rationale: outcome.type === 'edit' ? 'Founder submitted an edited script' : 'Approved as-is',
           editedOutput: outcome.type === 'edit' ? { scriptText: outcome.editedScriptText } : undefined,
@@ -796,10 +861,11 @@ export async function runVideoGenerationStage(
   // Resolved to a concrete value here (never left as an unresolved override
   // or null) so generateVideo/synthesizeSpeech always receive something
   // real, regardless of which of the three cases applied.
-  const resolvedVoice = resolveVoice({
-    overrideVoice: run.creationOptions?.voice,
-    channelDefaultVoice: channel.defaultVoice,
-  });
+  // Sprint 4 Task 3: the resolved config adds the profile level between the run
+  // override and the channel default; a profile-less channel resolves exactly as
+  // resolveVoice did before.
+  const config = await loadResolvedConfig(run, channel);
+  const resolvedVoice = config.audioDefaultVoice;
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -863,16 +929,19 @@ export async function runVideoGenerationStage(
         // here), but this drives a real disclosure-policy flag downstream,
         // so an unrecognized value is treated as "no override" rather than
         // trusted blindly.
+        // Sprint 4 Task 3: run override, else the profile's visual.defaultSource.
         visualSourceOverride:
-          run.creationOptions?.visualSource === 'stock-footage' || run.creationOptions?.visualSource === 'ai-stills'
-            ? run.creationOptions.visualSource
+          config.visualDefaultSource === 'stock-footage' || config.visualDefaultSource === 'ai-stills'
+            ? config.visualDefaultSource
             : undefined,
         // Sprint 2 Task 3 (F1) — same narrowing posture as visualSource
         // above: creationOptions.audioLayer is a plain string (validated at
         // the API edge before it gets here), narrowed against the real
         // AUDIO_LAYERS list rather than cast, so an unrecognized value is
         // "no override," not trusted blindly.
-        audioLayerOverride: resolveAudioLayerOverride(run.creationOptions?.audioLayer),
+        audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
+        // Sprint 4 Task 3 (R10): only when the profile sets secondsPerStill.
+        desiredStillCount: computeDesiredStillCount(config.targetSeconds, config.visualSecondsPerStill),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -888,18 +957,13 @@ export async function runVideoGenerationStage(
       });
       return plan;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-production-planning',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -914,6 +978,13 @@ export async function runVideoGenerationStage(
   let lastArtifacts: VideoArtifacts | undefined;
   let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
+    // Bugs Closure 2 (P5): a fresh tally per attempt (each retry pays again),
+    // read by the failure path below.
+    const spend = emptyVideoSpend({
+      media: env.MEDIA_STUB === '1',
+      stockFootage: env.STOCK_FOOTAGE_STUB === '1',
+      aiVisuals: env.AI_VISUALS_STUB === '1',
+    });
     try {
       const { output, usage, artifacts } = await generateVideo({
         pipelineRunId: runId,
@@ -922,7 +993,13 @@ export async function runVideoGenerationStage(
         brandAssets: channel.brandAssets,
         plan,
         voice: resolvedVoice,
+        sceneStyle: {
+          stylePrompt: config.visualStylePrompt,
+          negativePrompt: config.visualNegativePrompt,
+          safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
+        },
         excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
+        spend,
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -942,15 +1019,20 @@ export async function runVideoGenerationStage(
       return output;
     } catch (error) {
       const context = getStageErrorContext(error);
+      // Real spend (TTS, transcription, stills) when the render got that far;
+      // otherwise the previous provider/model-or-unknown row at $0.
+      const realUsage = failedRenderUsage(spend, error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        costUsd: '0.000000',
+        ...(realUsage ?? {
+          provider: (context?.provider as string | undefined) ?? 'unknown',
+          model: (context?.model as string | undefined) ?? 'unknown',
+          costUsd: '0.000000',
+        }),
       });
       throw error;
     }
@@ -1103,6 +1185,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       visualSource,
       // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
       captionsEnabled: channel.brandAssets.captionsEnabled !== false,
+      safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
     });
 
     // A UsageEvent row only when the multimodal pass actually ran — a
@@ -1146,8 +1229,29 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // Regen-cap decision computed once, up front, so every branch inside the
     // transaction below applies the exact same patch it would have applied
     // outside one — the transaction only changes atomicity, not the logic.
-    const runPatch: Parameters<typeof updatePipelineRun>[1] =
-      outcome.verdict === 'pass'
+    // Bugs Task 12 (R1) - a stock-footage run that reached the regeneration cap and was still rejected
+    // gets ONE extra attempt with AI stills. Once per run (persisted marker, so a restart, a resume or a
+    // manual Retry can't trigger a second), only if the budget gate would allow the render, and it does
+    // not count against the cap. Otherwise the run parks exactly as before.
+    const atRegenCap = outcome.verdict !== 'pass' && videoGenStage.attemptNumber > MAX_VIDEO_REGEN_ATTEMPTS;
+    const stockFallback =
+      atRegenCap &&
+      visualSource === 'stock-footage' &&
+      !run.creationOptions?.videoFallbackUsed &&
+      (await checkBudget(run.tenantId, channel.id, channel.platform)).ok;
+    if (stockFallback) {
+      console.log(
+        `[video-fallback] run ${runId}: stock footage failed review after ${videoGenStage.attemptNumber} attempts - one AI-stills attempt`,
+      );
+    }
+
+    const runPatch: Parameters<typeof updatePipelineRun>[1] = stockFallback
+      ? {
+          status: 'running',
+          currentStage: 'video_generation',
+          creationOptionsMerge: { visualSource: 'ai-stills', videoFallbackUsed: true },
+        }
+      : outcome.verdict === 'pass'
         ? gate2AutoApproveStage
           ? { status: 'running', currentStage: nextStageAfter('gate2') }
           : { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
@@ -1189,6 +1293,21 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       // path writes (outcome/privacyStatus), plus a separate agent:'system'
       // ReviewLog row so the run's history plainly shows Gate 2 was skipped,
       // not silently absent.
+      if (stockFallback) {
+        await insertReviewLog(
+          {
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'system',
+            verdict: 'video-fallback',
+            rationale: 'Switched to AI stills after stock footage failed review',
+          },
+          tx,
+        );
+      }
+
       if (gate2AutoApproveStage) {
         const privacyStatus = channel.defaultPrivacyStatus;
         await completeStage(gate2AutoApproveStage.id, { outcome: 'approve', privacyStatus }, tx);
@@ -1209,6 +1328,20 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       return await updatePipelineRun(runId, runPatch, tx);
     });
   } catch (error) {
+    // Bugs Task 11 (R2) — a multimodal pass whose reply was rejected after the
+    // call completed still cost real money; the success path above is the only
+    // place this stage wrote a UsageEvent, so that spend was never booked.
+    const spent = failureUsageFields(error);
+    if (spent.provider !== 'unknown') {
+      await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'video-intelligence-own-draft',
+        ...spent,
+      });
+    }
     return await failStageAndEscalate(stage.id, runId, error);
   }
 }
@@ -1271,6 +1404,13 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     );
   }
 
+  // Bugs Task 12 (R5c) - invariant: a run is never 'running' at a gate. Whoever got us here (the
+  // pipeline moving forward, a resume, a stray Retry) the run is parked at the gate, so the app shows
+  // Approve/Reject/Revise for the pending approval registered just below.
+  if (run.status !== 'paused_gate2' || run.currentStage !== 'gate2') {
+    await updatePipelineRun(runId, { status: 'paused_gate2', currentStage: 'gate2' });
+  }
+
   // Blocks here until a reply arrives (or, per Task 6/Week 2's
   // founder-availability convention, a simulated one for testing).
   const outcome = await requestGate2Decision({
@@ -1293,6 +1433,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'human',
+            approvedByUserId: outcome.approvedByUserId,
             verdict: 'reject',
             rationale: outcome.reason,
           },
@@ -1327,6 +1468,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'human',
+            approvedByUserId: outcome.approvedByUserId,
             verdict: 'approve',
             rationale: 'Approved as-is',
             editedOutput: privacyStatus !== DEFAULT_PRIVACY_STATUS ? { privacyStatus } : undefined,
@@ -1345,15 +1487,11 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
       });
     }
 
-    // Revise — a founder-requested regen respects the same attempt cap as
-    // Task 3's automatic regen loop; it doesn't bypass it.
-    const revisePatch: Parameters<typeof updatePipelineRun>[1] =
-      videoGenStage.attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS
-        ? { status: 'running', currentStage: 'video_generation' }
-        : {
-            status: 'needs_attention',
-            lastError: `Gate 2 regen cap (${MAX_VIDEO_REGEN_ATTEMPTS}) reached: ${outcome.notes}`,
-          };
+    // Revise - Bugs Task 12 (R5a): a human Revise is a different request from Task 3's automatic regen
+    // loop and is no longer refused by that cap (it ended at "Video retry limit reached" with no way
+    // forward). Its own limit is the manual cap (R2), enforced up front in runs.gate2 before the
+    // reply is accepted, so by here the new attempt is always allowed.
+    const revisePatch: Parameters<typeof updatePipelineRun>[1] = { status: 'running', currentStage: 'video_generation' };
 
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(
@@ -1363,6 +1501,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           pipelineRunId: runId,
           stageId: stage.id,
           agent: 'human',
+          approvedByUserId: outcome.approvedByUserId,
           verdict: 'revise',
           rationale: outcome.notes,
         },
@@ -1393,6 +1532,12 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
 // redo on any resume) and the YouTube upload itself — the pipeline's first
 // stage with a real, non-repeatable external side effect. See
 // docs/execution/week4/BUSINESS_LOGIC.md Sections 1-2.
+// Bugs Task 12 (R1) - read from the plan of the LATEST completed video_generation attempt, so the
+// stock -> ai-stills fallback attempt is disclosed as synthetic with no separate flag to keep in sync.
+export function deriveContainsSyntheticMedia(videoGenOutput: { plan?: { visualSource?: string } }): boolean {
+  return videoGenOutput.plan?.visualSource === 'ai-stills';
+}
+
 export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   const run = await findPipelineRunById(runId);
   if (!run) {
@@ -1455,7 +1600,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // separately-set flag that could disagree with it. Falls back to `false`
   // for a pre-Sprint-2 stage row (every such video really was stock
   // footage, since 'ai-stills' didn't exist yet).
-  const containsSyntheticMedia = videoGenOutput.plan?.visualSource === 'ai-stills';
+  const containsSyntheticMedia = deriveContainsSyntheticMedia(videoGenOutput);
 
   const gate1Stage = await findLatestAttempt(runId, 'gate1');
   const sanctionedScriptText = (gate1Stage?.output as { sanctionedScriptText?: string } | undefined)
@@ -1493,6 +1638,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   }
 
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
+  // Sprint 4 Task 5: packaging from the run's own snapshotted profile.
+  const config = await loadResolvedConfig(run, channel);
+  // {editor}: the real Gate 1 approver (Task 4), or null (ops path / lookup failure)
+  // which packaging.ts turns into "the team". A failed lookup must not block a publish.
+  let editorName: string | null = null;
+  try {
+    const approver = await findGate1ApproverForRun(runId);
+    editorName = approver ? (approver.name?.trim() || approver.email) : null;
+  } catch (error) {
+    console.error(`[publishing] run ${runId}: approver lookup failed, using the fallback credit: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const stageInput = { videoPath, scriptText: sanctionedScriptText, hashtags };
   const stage = await createStageAttempt({
     pipelineRunId: runId,
@@ -1503,7 +1659,16 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
   const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
     try {
-      const { metadata, llm } = await generatePublishingMetadata({ scriptText: sanctionedScriptText, hashtags });
+      const { metadata, llm } = await generatePublishingMetadata({
+        scriptText: sanctionedScriptText,
+        hashtags,
+        titleGuidance: config.titleGuidance,
+        descriptionTemplate: config.descriptionTemplate,
+        hashtagsBase: config.hashtagsBase,
+        editorCredit: config.editorCredit,
+        editorName,
+        sources: run.creationOptions?.sources,
+      });
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
@@ -1518,18 +1683,13 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       });
       return metadata;
     } catch (error) {
-      const context = getStageErrorContext(error);
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'metadata-generation',
-        provider: (context?.provider as string | undefined) ?? 'unknown',
-        model: (context?.model as string | undefined) ?? 'unknown',
-        inputTokens: 0,
-        outputTokens: 0,
-        costUsd: '0.000000',
+        ...failureUsageFields(error),
       });
       throw error;
     }
@@ -1539,7 +1699,17 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
     const attemptUploadOnce = async (): Promise<UploadResult> =>
-      uploadVideo({ channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia });
+      uploadVideo({
+        channelId: channel.id,
+        videoPath,
+        metadata,
+        privacyStatus,
+        containsSyntheticMedia,
+        // Sprint 4 Task 5 (R18): always explicit, never left to the channel's Studio defaults.
+        selfDeclaredMadeForKids: config.selfDeclaredMadeForKids,
+        ...(config.categoryId && { categoryId: config.categoryId }),
+        ...(config.defaultLanguage && { defaultLanguage: config.defaultLanguage }),
+      });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
 
     // Sprint 3 Task 12 (R3) — best-effort, same isolation posture as the
@@ -1607,6 +1777,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       youtubeVideoId: uploadResult.youtubeVideoId,
       privacyStatus: uploadResult.privacyStatus,
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids,
       coverFrameSet,
       metadata,
       // Sprint 3 Task 12 (R3) — included directly in this same fullOutput

@@ -30,6 +30,8 @@ export type BrandAssets = {
   // explicitly opts out. No migration needed; brandAssets is an existing
   // Json column.
   captionsEnabled?: boolean;
+  // Bugs Task 12 (R13) - last invalid_grant seen for this channel's YouTube token; cleared on reconnect.
+  youtubeAuthError?: { at: string; code: 'invalid_grant' };
 };
 
 export type Channel = {
@@ -58,6 +60,9 @@ export type Channel = {
   // null to use its DEFAULT_TTS_VOICE fallback. See
   // studio/src/run-pipeline/state-machine.ts's voice-resolution order.
   defaultVoice: string | null;
+
+  // Sprint 4 Task 1: the channel active profile version; null = no profile.
+  activeProfileVersionId: string | null;
 
   // Sprint 3 Task 8 (R1) — 'private' | 'unlisted' | 'public'; applied at Gate 2
   // approval when no explicit choice is made.

@@ -18,10 +18,20 @@ import { requestCancellation, isCancellationRequested, isActivelyDriven } from '
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
+import { classifyEndError, type EndReason } from '../../run-pipeline/end-reason';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
+import {
+  MAX_MANUAL_RETRIES_PER_STAGE,
+  MANUAL_RETRY_CAP_MESSAGE,
+  isManualRetryCapReached,
+  manualRetriesUsed,
+  recordManualRetry,
+  retryTargetStage,
+} from '../../run-pipeline/manual-retries';
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
+import { FORMAT_KEYS } from '../../formats/manifest';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
 
@@ -77,13 +87,9 @@ function deriveLastGateDecision(stages: PipelineStage[]): LastGateDecision | nul
 // `runs.cancel` (R3/B11 below) — both cancel's own gate-paused and `'running'`
 // paths use this identical string, confirmed by direct read/coordinated in
 // this same PR.
-function deriveEndReason(run: PipelineRun): 'rejected' | 'cancelled' | 'failed' | 'channel_deleted' | null {
+function deriveEndReason(run: PipelineRun): EndReason | null {
   if (run.status !== 'failed') return null;
-  const err = run.lastError ?? '';
-  if (err.startsWith('Rejected at Gate 1') || err.startsWith('Rejected at Gate 2')) return 'rejected';
-  if (err === CANCELLED_BY_USER) return 'cancelled';
-  if (err === 'Channel deleted') return 'channel_deleted';
-  return 'failed';
+  return classifyEndError(run.lastError);
 }
 
 // Bugs Task 10 (R1) — true while a cancel request is recorded in this process
@@ -109,6 +115,38 @@ function lastProgressAt(run: PipelineRun, stages: PipelineStage[]): Date {
 // `create`'s (Sprint 3 Hardening) and assertGateOwnership's own convention
 // below. `list`/`get` were both missed by that hardening pass — this closes
 // the second of the two.
+function intakeRepeatTopic(
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+): { runId: string; topic: string; createdAt: string } | null {
+  const intake = stages
+    .filter((s) => s.stageName === 'intake' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const value = (intake?.output as { repeatTopic?: { runId: string; topic: string; createdAt: string } } | null | undefined)
+    ?.repeatTopic;
+  return value ?? null;
+}
+
+// Sprint 4 Task 2: the latest completed script_review attempt's concerns and
+// violations plus the run's explicit sources. null before any review exists.
+export function deriveScriptReview(
+  run: Pick<PipelineRun, 'creationOptions'>,
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+) {
+  const latest = stages
+    .filter((s) => s.stageName === 'script_review' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  if (!latest) return null;
+  const out = latest.output as { factualConcerns?: string[]; styleGuideViolations?: string[] };
+  return {
+    factualConcerns: out.factualConcerns ?? [],
+    styleGuideViolations: out.styleGuideViolations ?? [],
+    sources: run.creationOptions?.sources ?? [],
+    // Sprint 4 Task 5 (B16): the non-blocking repeat-topic warning, stored on the
+    // intake stage output (not only in the Gate 1 message). null when none.
+    repeatTopic: intakeRepeatTopic(stages),
+  };
+}
+
 async function getRunDetail(id: string, ctx: Context) {
   const run = await findPipelineRunById(id);
   if (!run) {
@@ -136,8 +174,25 @@ async function getRunDetail(id: string, ctx: Context) {
     stages,
     reviewLogs,
     lastGateDecision: deriveLastGateDecision(stages),
+    // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
+    // stable place (derived from stage output and creationOptions, not stored).
+    scriptReview: deriveScriptReview(run, stages),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
+    // Bugs Task 12 (R1) - the app adds a Details line ("Switched to AI stills after stock footage failed review").
+    videoFallbackUsed: run.creationOptions?.videoFallbackUsed === true,
+    // Bugs Task 12 (R2) - the app disables Retry / Revise (with the reason under them) at the cap.
+    manualRetry: {
+      max: MAX_MANUAL_RETRIES_PER_STAGE,
+      retryStage: retryTargetStage(run),
+      retryUsed: run.currentStage ? manualRetriesUsed(run, retryTargetStage(run) ?? run.currentStage) : 0,
+      retryCapReached: (() => {
+        const stage = retryTargetStage(run);
+        return stage ? isManualRetryCapReached(run, stage) : false;
+      })(),
+      reviseCapReached: isManualRetryCapReached(run, 'video_generation'),
+      message: MANUAL_RETRY_CAP_MESSAGE,
+    },
     hasR2Draft: stages.some(
       (s) => s.stageName === 'video_generation' && Boolean((s.output as { r2DraftKey?: string } | null)?.r2DraftKey),
     ),
@@ -223,6 +278,10 @@ export const runsRouter = router({
         // Sprint 3 Task 9 (R4) — same edge-validation posture as
         // voice/visualSource/audioLayer above.
         targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+        // Sprint 4 Task 2 (R5): explicit sources only, folded into creationOptions.
+        sources: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
+        // Sprint 4 Task 6: validated against the format manifest at the edge.
+        formatKey: z.enum(FORMAT_KEYS).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -246,12 +305,14 @@ export const runsRouter = router({
       }
       await assertChannelCanRun(channel);
       const creationOptions =
-        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec
+        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length || input.formatKey
           ? {
               ...(input.voice && { voice: input.voice }),
               ...(input.visualSource && { visualSource: input.visualSource }),
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
               ...(input.targetDurationSec && { targetDurationSec: input.targetDurationSec }),
+              ...(input.sources?.length && { sources: input.sources }),
+              ...(input.formatKey && { formatKey: input.formatKey }),
             }
           : undefined;
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
@@ -450,7 +511,7 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.editedScriptText;
 
-      const { resolved } = resolvePendingApproval(input.runId, replyText);
+      const { resolved } = resolvePendingApproval(input.runId, { reply: replyText, userId: ctx.userId });
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -490,13 +551,30 @@ export const runsRouter = router({
             ? `reject ${input.reason}`
             : input.notes;
 
-      const { resolved } = resolvePendingApproval(input.runId, replyText);
+      // Bugs Task 12 (R2/R5a) - a Revise starts a new video attempt: it is counted by the manual cap
+      // (not the automatic regeneration cap) and refused up front, with the reason, at that cap or
+      // when the budget gate would refuse the render. A refused Revise creates no attempt and does
+      // not count.
+      let reviseRun: PipelineRun | null = null;
+      if (input.action === 'revise') {
+        reviseRun = await findPipelineRunById(input.runId);
+        if (reviseRun && isManualRetryCapReached(reviseRun, 'video_generation')) {
+          throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
+        }
+        const budget = await checkBudget(channel.tenantId, channel.id, channel.platform);
+        if (!budget.ok) {
+          throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
+        }
+      }
+
+      const { resolved } = resolvePendingApproval(input.runId, { reply: replyText, userId: ctx.userId });
       if (!resolved) {
         throw new TRPCError({
           code: 'CONFLICT',
           message: `Gate 2 for run ${input.runId} is not currently pending (already resolved, or not open yet)`,
         });
       }
+      if (reviseRun) await recordManualRetry(reviseRun, 'video_generation');
       return { resolved: true };
     }),
 
@@ -529,21 +607,34 @@ export const runsRouter = router({
     // 'video_review'; re-reviewing the same video just hits the cap again
     // (18a5e2f5). Retry means "make one more video": step back to
     // video_generation, which feeds the latest review's fix notes forward.
-    const regenCapped = run.currentStage === 'video_review' && (run.lastError ?? '').includes('regen cap');
+    // Bugs Task 12 (R5b) - Retry restarts the stage that actually failed and never re-runs a gate: a
+    // run parked at gate2 retries video_generation, at gate1 script_generation. (Re-running gate2
+    // here is what created the orphan 'running' gate attempt of 2026-10-10.)
+    const target = retryTargetStage(run);
+    if (!target) {
+      throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
+    }
+    // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
+    if (isManualRetryCapReached(run, target)) {
+      throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
+    }
+    const regenCapped = target !== run.currentStage;
     // Bugs Closure R1 — a Retry that would be refused by the budget gate at
     // once only creates another skipped attempt and bounces back to Needs
     // attention (reports "I retried 10 times"). Say why instead, with the numbers.
-    const retryStage = regenCapped ? 'video_generation' : run.currentStage;
+    const retryStage = target;
     if (retryStage === 'script_generation' || retryStage === 'video_generation') {
       const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
       if (!budget.ok) {
         throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
       }
     }
+    // Only a Retry that really starts a new attempt counts (budget refusal threw above).
+    await recordManualRetry(run, target);
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,
-      ...(regenCapped && { currentStage: 'video_generation' as const }),
+      ...(regenCapped && { currentStage: target }),
     });
     continuePipelineInBackground(run.id);
     return updated;
@@ -569,7 +660,10 @@ export const runsRouter = router({
       tenantId: ctx.tenantId,
       channelId: sourceRun.channelId,
       briefText: sourceRun.briefText,
-      creationOptions: sourceRun.creationOptions ?? undefined,
+      // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
+      creationOptions: sourceRun.creationOptions
+        ? (({ manualRetries: _m, videoFallbackUsed: _v, ...picks }) => picks)(sourceRun.creationOptions)
+        : undefined,
     });
     startPipelineInBackground(run.id);
     return run;
@@ -596,8 +690,16 @@ export const runsRouter = router({
     if (run.status === 'completed' || run.status === 'failed') {
       return { cancelled: deriveEndReason(run) === 'cancelled', immediate: false, alreadyEnded: true };
     }
+    // Bugs Task 13: once approved, a run at publishing (the upload) or analytics (the stats snapshot right
+    // after it) has a video that is live or about to be; ending it as "Cancelled" would misreport it.
+    if (run.status === 'running' && (run.currentStage === 'publishing' || run.currentStage === 'analytics')) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This run is publishing - the video is already on its way to YouTube, so it can no longer be cancelled.',
+      });
+    }
     if (run.status === 'paused_gate1' || run.status === 'paused_gate2') {
-      if (resolvePendingApproval(run.id, `reject ${CANCELLED_BY_USER}`).resolved) {
+      if (resolvePendingApproval(run.id, { reply: `reject ${CANCELLED_BY_USER}`, userId: ctx.userId }).resolved) {
         return { cancelled: true, immediate: true, alreadyEnded: false };
       }
       // Gate not registered in this process (e.g. mid-restart) — fall through

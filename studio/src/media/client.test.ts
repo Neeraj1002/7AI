@@ -42,3 +42,19 @@ describe('synthesizeSpeechViaProvider (Sprint 2 Task 1, D1)', () => {
     expect(speechCreateMock).toHaveBeenCalledWith(expect.objectContaining({ voice: DEFAULT_TTS_VOICE }));
   });
 });
+
+// Bugs Task 12 (R10.9) - the transient path (429 / 5xx) classification had never been exercised here.
+import OpenAI from 'openai';
+import { TransientStageError, NonTransientStageError } from '../run-pipeline/retry-with-backoff';
+
+describe('synthesizeSpeechViaProvider error classification', () => {
+  const apiError = (status: number) => Object.assign(new OpenAI.APIError(status as never, {} as never, `HTTP ${status}`, {} as never), { status });
+  it.each([429, 500, 503])('a %i is transient (retryable)', async (status) => {
+    speechCreateMock.mockRejectedValue(apiError(status));
+    await expect(synthesizeSpeechViaProvider({ text: 'x', voiceConfig: {}, model: 'tts-1-hd' })).rejects.toBeInstanceOf(TransientStageError);
+  });
+  it('a 400 is not retried', async () => {
+    speechCreateMock.mockRejectedValue(apiError(400));
+    await expect(synthesizeSpeechViaProvider({ text: 'x', voiceConfig: {}, model: 'tts-1-hd' })).rejects.toBeInstanceOf(NonTransientStageError);
+  });
+});

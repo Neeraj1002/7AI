@@ -1,7 +1,10 @@
 import { prisma } from '../prisma-client';
 import { currentBudgetWindowStart, loadChannelBudgetView, NoBudgetConfiguredError, nextBudgetWindowStart } from '../../run-pipeline/budget-gate';
 import { Prisma } from '@prisma/client';
+import { tallyEndedRuns } from '../../run-pipeline/end-reason';
 import type {
+  ChannelComparisonDashboard,
+  ComparisonTotals,
   ContentPerformanceDashboard,
   CostDashboard,
   GateAnalyticsDashboard,
@@ -34,7 +37,7 @@ function channelFilterSql(channelId: string | undefined, column: Prisma.Sql): Pr
 
 export async function getOperationalDashboard(tenantId: string, channelId?: string): Promise<OperationalDashboard> {
   const channelWhere = channelId ? { channelId } : {};
-  const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedCount, needsAttentionCount, publishedCount] =
+  const [funnelRows, needsAttentionRows, recentCompletedRows, completedCount, failedGroups, needsAttentionCount, publishedCount] =
     await Promise.all([
       prisma.pipelineRun.groupBy({
         by: ['currentStage'],
@@ -53,7 +56,12 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
         select: { id: true, channelId: true, briefText: true, completedAt: true },
       }),
       prisma.pipelineRun.count({ where: { tenantId, status: 'completed', ...channelWhere } }),
-      prisma.pipelineRun.count({ where: { tenantId, status: 'failed', ...channelWhere } }),
+      // Bugs Task 12 (R3) - grouped by lastError so cancelled / rejected / failed are told apart.
+      prisma.pipelineRun.groupBy({
+        by: ['lastError'],
+        where: { tenantId, status: 'failed', ...channelWhere },
+        _count: { _all: true },
+      }),
       prisma.pipelineRun.count({ where: { tenantId, status: 'needs_attention', ...channelWhere } }),
       // A run counts as published only when it is completed AND its publishing stage completed.
       prisma.pipelineRun.count({
@@ -66,8 +74,13 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
       }),
     ]);
 
-  // Bugs Closure R3 (D2) — a run stuck in needs_attention is a stopped run, not a missing one.
-  const terminalCount = completedCount + failedCount + needsAttentionCount;
+  // Bugs Task 12 (R3) - published / failed / rejected / cancelled. Cancelled runs leave the success
+  // rate; rejections stay in it but are labelled "rejected", not "failed".
+  const ended = tallyEndedRuns(
+    publishedCount,
+    failedGroups.map((g) => ({ lastError: g.lastError, count: g._count._all })),
+  );
+  const denominator = ended.published + ended.failed + ended.rejected;
 
   return {
     stageFunnel: funnelRows.map((row) => ({
@@ -79,14 +92,17 @@ export async function getOperationalDashboard(tenantId: string, channelId?: stri
     successRate: {
       completed: completedCount,
       needsAttention: needsAttentionCount,
-      failed: failedCount,
-      rate: terminalCount > 0 ? completedCount / terminalCount : null,
+      published: ended.published,
+      failed: ended.failed,
+      rejected: ended.rejected,
+      cancelled: ended.cancelled,
+      rate: ended.rate,
     },
     // Bugs Closure R3 (D3) — published videos / runs that have stopped.
     publishedRate: {
       published: publishedCount,
-      stopped: terminalCount,
-      rate: terminalCount > 0 ? publishedCount / terminalCount : null,
+      stopped: denominator,
+      rate: denominator > 0 ? publishedCount / denominator : null,
     },
   };
 }
@@ -354,6 +370,135 @@ export async function getQualityDashboard(tenantId: string, channelId?: string):
     gate1Rates,
     gate2Rates,
   };
+}
+
+// Sprint 4 Task 7: pure aggregation, split out so it is unit-testable without
+// a database. `videos` are the latest snapshot per YouTube video; `runFormats`
+// is every run's (channelId, formatKey), so a format a channel has used but
+// has no tracked video for yet still appears, with zeros.
+export type ComparisonVideoRow = {
+  channelId: string;
+  formatKey: string | null;
+  views: number;
+  likes: number;
+  comments: number;
+};
+
+export function buildChannelComparison(
+  channels: { id: string; name: string }[],
+  videos: ComparisonVideoRow[],
+  runFormats: { channelId: string; formatKey: string | null }[],
+): ChannelComparisonDashboard {
+  const avg = (views: number, count: number) => (count > 0 ? views / count : null);
+  const zero = (): ComparisonTotals => ({ views: 0, likes: 0, comments: 0 });
+
+  return {
+    channels: channels.map((channel) => {
+      const total = zero();
+      let count = 0;
+      const formats = new Map<string | null, { count: number; totals: ComparisonTotals }>();
+      const bucket = (key: string | null) => {
+        let b = formats.get(key);
+        if (!b) {
+          b = { count: 0, totals: zero() };
+          formats.set(key, b);
+        }
+        return b;
+      };
+
+      for (const run of runFormats) {
+        if (run.channelId === channel.id) bucket(run.formatKey);
+      }
+      for (const video of videos) {
+        if (video.channelId !== channel.id) continue;
+        const b = bucket(video.formatKey);
+        for (const t of [b.totals, total]) {
+          t.views += video.views;
+          t.likes += video.likes;
+          t.comments += video.comments;
+        }
+        b.count += 1;
+        count += 1;
+      }
+      if (formats.size === 0) bucket(null);
+
+      return {
+        channelId: channel.id,
+        channelName: channel.name,
+        videoCount: count,
+        totals: total,
+        avgViewsPerVideo: avg(total.views, count),
+        byFormat: [...formats.entries()]
+          .map(([formatKey, b]) => ({
+            formatKey,
+            videoCount: b.count,
+            totals: b.totals,
+            avgViewsPerVideo: avg(b.totals.views, b.count),
+          }))
+          // Named formats by views desc, Freeform (null) last.
+          .sort((a, b) =>
+            a.formatKey === null ? 1 : b.formatKey === null ? -1 : b.totals.views - a.totals.views,
+          ),
+      };
+    }),
+  };
+}
+
+export async function getChannelComparisonDashboard(tenantId: string): Promise<ChannelComparisonDashboard> {
+  const channels = await prisma.channel.findMany({
+    where: { tenantId, isActive: true },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true },
+  });
+
+  const runFormats = await prisma.$queryRaw<{ channelId: string; formatKey: string | null }[]>(
+    Prisma.sql`
+      SELECT DISTINCT pr."channelId" AS "channelId", pr."creationOptions"->>'formatKey' AS "formatKey"
+      FROM pipeline_runs pr
+      WHERE pr."tenantId" = ${tenantId}::uuid
+    `,
+  );
+
+  let videos: ComparisonVideoRow[] = [];
+  try {
+    // Same "most recent snapshot per video wins" selection as
+    // getContentPerformanceDashboard, plus the run's channel and formatKey.
+    const rows = await prisma.$queryRaw<
+      { channelId: string; formatKey: string | null; views: bigint; likes: bigint; comments: bigint }[]
+    >(
+      Prisma.sql`
+        SELECT DISTINCT ON (ps."youtubeVideoId")
+          pr."channelId" AS "channelId",
+          pr."creationOptions"->>'formatKey' AS "formatKey",
+          ps.views, ps.likes, ps.comments
+        FROM performance_snapshots ps
+        JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
+        WHERE pr."tenantId" = ${tenantId}::uuid
+        ORDER BY ps."youtubeVideoId", ps."snapshotAt" DESC
+      `,
+    );
+    videos = rows.map((r) => ({
+      channelId: r.channelId,
+      formatKey: r.formatKey,
+      views: Number(r.views),
+      likes: Number(r.likes),
+      comments: Number(r.comments),
+    }));
+  } catch (error) {
+    // Missing performance_snapshots table means "no data yet", as in
+    // getContentPerformanceDashboard.
+    if (
+      !(
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2010' &&
+        error.meta?.code === '42P01'
+      )
+    ) {
+      throw error;
+    }
+  }
+
+  return buildChannelComparison(channels, videos, runFormats);
 }
 
 // Bugs Closure R3 (D3) — per-gate resolution analytics, kept apart from the success rate.

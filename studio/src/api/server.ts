@@ -17,6 +17,7 @@ import {
   type BugReportPriority,
 } from '../models/repositories/bug-report.repository';
 import { BUG_REPORT_PAGE_HTML } from './bug-report-page';
+import { isOriginAllowed, parseAllowedOrigins } from './cors-origin';
 
 // Frontend track Task 1 — studio/src/api/. The orchestrator process's HTTP
 // surface, not a separate service (task1.md's own "Owning Component" note):
@@ -25,9 +26,18 @@ import { BUG_REPORT_PAGE_HTML } from './bug-report-page';
 // founder digest).
 
 export async function startApiServer(): Promise<void> {
-  if (!env.API_AUTH_TOKEN) {
-    console.log('[api] API_AUTH_TOKEN not set — skipping API server startup');
+  // Bugs Task 12 (R10.5) - the app signs in with a JWT, so a production boot without JWT_SECRET is a
+  // misconfiguration (it used to start and answer every login with 503). The API_AUTH_TOKEN ops
+  // fallback keeps working: the server starts if either credential exists.
+  if (!env.JWT_SECRET && env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is not set - the app cannot sign in. Set JWT_SECRET (32+ characters) and restart.');
+  }
+  if (!env.API_AUTH_TOKEN && !env.JWT_SECRET) {
+    console.log('[api] neither API_AUTH_TOKEN nor JWT_SECRET set — skipping API server startup');
     return;
+  }
+  if (!env.JWT_SECRET) {
+    console.warn('[api] JWT_SECRET not set - only the API_AUTH_TOKEN ops fallback works; app sign-in is disabled');
   }
 
   const fastify = Fastify({ logger: false });
@@ -43,8 +53,10 @@ export async function startApiServer(): Promise<void> {
   // a public one. Sprint 3 Task 1: stays permissive for this task — a real
   // allow-list is a natural follow-on once a real deployed frontend origin
   // exists, tracked in KNOWN_ISSUES_AND_BLOCKERS.md, not blocking here.
+  const allowedOrigins = parseAllowedOrigins(env.CORS_ALLOWED_ORIGINS, env.PUBLIC_API_BASE_URL);
   await fastify.register(cors, {
-    origin: true,
+    // Bugs Task 12 (R10.12): an allow-list now (see cors-origin.ts), not `true`.
+    origin: (origin, cb) => cb(null, isOriginAllowed(origin, allowedOrigins, env.NODE_ENV)),
     // Sprint 3 Task 9 (R3) — DELETE added for the watermark-remove route;
     // no prior route in this project needed it.
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],

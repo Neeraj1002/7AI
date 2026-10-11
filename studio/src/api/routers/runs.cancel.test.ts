@@ -83,6 +83,13 @@ describe('runs.cancel', () => {
     expect(out.immediate).toBe(false);
   });
 
+  it.each(['publishing', 'analytics'])('refuses to cancel a run that is %s (the video is live or about to be)', async (stage) => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ currentStage: stage }));
+    await expect(caller().cancel({ runId: RUN_ID })).rejects.toThrow(/can no longer be cancelled/);
+    expect(mocks.updatePipelineRun).not.toHaveBeenCalled();
+    expect(isCancellationRequested(RUN_ID)).toBe(false);
+  });
+
   it('needs_attention is cancelled immediately', async () => {
     mocks.findPipelineRunById.mockResolvedValue(run({ status: 'needs_attention' }));
     expect(await caller().cancel({ runId: RUN_ID })).toEqual({ cancelled: true, immediate: true, alreadyEnded: false });
@@ -92,7 +99,7 @@ describe('runs.cancel', () => {
     mocks.findPipelineRunById.mockResolvedValue(run({ status: 'paused_gate1' }));
     mocks.resolvePendingApproval.mockReturnValue({ resolved: true });
     expect(await caller().cancel({ runId: RUN_ID })).toEqual({ cancelled: true, immediate: true, alreadyEnded: false });
-    expect(mocks.resolvePendingApproval).toHaveBeenCalledWith(RUN_ID, 'reject Cancelled by user');
+    expect(mocks.resolvePendingApproval).toHaveBeenCalledWith(RUN_ID, { reply: 'reject Cancelled by user', userId: 'u1' });
   });
 
   it('is idempotent on a run already ended as a cancel', async () => {

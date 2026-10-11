@@ -14,6 +14,7 @@ function toDomainReviewLog(row: PrismaReviewLog): ReviewLog {
     verdict: row.verdict,
     rationale: row.rationale,
     editedOutput: (row.editedOutput as Record<string, unknown> | null) ?? null,
+    approvedByUserId: row.approvedByUserId,
     timestamp: row.timestamp,
   };
 }
@@ -29,9 +30,32 @@ export async function insertReviewLog(input: CreateReviewLogInput, client: DbCli
       verdict: input.verdict,
       rationale: input.rationale,
       editedOutput: input.editedOutput as Prisma.InputJsonValue | undefined,
+      approvedByUserId: input.approvedByUserId ?? null,
     },
   });
   return toDomainReviewLog(row);
+}
+
+// Sprint 4 Task 4 (consumed by Task 5's {editor} credit): the real user who
+// approved (or edited and approved) Gate 1 for this run, or null when Gate 1 was
+// resolved without a user (ops/script path, auto-approve, no gate yet).
+export async function findGate1ApproverForRun(
+  pipelineRunId: string,
+): Promise<{ userId: string; name: string | null; email: string } | null> {
+  const row = await prisma.reviewLog.findFirst({
+    where: {
+      pipelineRunId,
+      agent: 'human',
+      verdict: { in: ['approve', 'edit'] },
+      approvedByUserId: { not: null },
+      stage: { stageName: 'gate1' },
+    },
+    orderBy: { timestamp: 'desc' },
+    include: { approvedByUser: { select: { id: true, name: true, email: true } } },
+  });
+  return row?.approvedByUser
+    ? { userId: row.approvedByUser.id, name: row.approvedByUser.name, email: row.approvedByUser.email }
+    : null;
 }
 
 export async function listReviewLogsForRun(pipelineRunId: string): Promise<ReviewLog[]> {

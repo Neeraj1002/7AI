@@ -1,5 +1,7 @@
 # Bugs Task 7: Bug-Report Triage Fields (Type, Priority, Area) + a Real List/Update Endpoint
 
+> **Status note, 2026-10-11**: this task was never dispatched. `bugs.updateTriage` (built for the closure work) already covers the admin half. Founder decision: R1 and R3 are closed: `\d bug_reports` on `sevenai_preview` (pasted 2026-10-11) shows `area`, `priority`, `reportType` and `triageNote`, and move R2, the tester-facing type and priority chips, to Sprint 4. Handled by Bugs Task 12 R9; do not build this task as written.
+
 **Read `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` before starting.** This task needs a schema
 migration — founder decision already made (see below), treat as approved to build.
 
@@ -70,6 +72,6 @@ task here.
 
 ## Links & References
 - `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`, `docs/execution/templates/TASK_TEMPLATE.md`
-- `docs/execution/bugs/tasks/task3.md` — R2, the original submission flow this extends
-- `docs/execution/bugs/tasks/task4.md` — R1, the fallback route this must not regress
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R2, the original submission flow this extends
+- `docs/execution/bugs/Sprint3/tasks/task4.md` — R1, the fallback route this must not regress
 - `docs/execution/bugs/STATUS.md`
