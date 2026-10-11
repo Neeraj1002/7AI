@@ -159,7 +159,7 @@ task's row, add a section headed **"Device review fixes"** listing R1–R9 with 
 
 ## Links & References
 - `docs/execution/ui-ux/tasks/task2.md` (Enhancement 2 spec) and `reports/task2.md`
-- `docs/execution/bugs/reports/task8.md`, `task9.md` (PRs #33, #36, #37 — the app changes this task
+- `docs/execution/bugs/Sprint3/reports/task8.md`, `task9.md` (PRs #33, #36, #37 — the app changes this task
   builds on)
 - `docs/execution/sprint3/tasks/task9.md` / `reports/task9.md` (backend B5/B6/B7/B9/B10 as built)
 - Next: `docs/execution/ui-ux/tasks/task4.md` (UIEnhancement-3) — starts only after this merges

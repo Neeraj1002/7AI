@@ -30,7 +30,7 @@ was never merged — no report from that session was ever committed anywhere dur
    this note.
 2. R3 remains process-only — confirm the next `eas build` really is taken from 7fe on the intended
    commit; no code change.
-3. **Write the real report** at `docs/execution/bugs/reports/task1.md` — this has never actually been
+3. **Write the real report** at `docs/execution/bugs/Sprint3/reports/task1.md` — this has never actually been
    written to this repo or the Project; only a draft existed on the abandoned, unmerged
    `7AI-bugs-fe`/`BUGS_FE` worktree from the first hot-fixer session. Use the Report Template below,
    reflecting what's actually true now: all 4 items done, R1/R2/R4 all landed via direct founder pushes
@@ -216,7 +216,7 @@ npm run typecheck
 
 ## Report Template
 
-Generate at: `docs/execution/bugs/reports/task1.md` — **this file does not exist yet anywhere durable;
+Generate at: `docs/execution/bugs/Sprint3/reports/task1.md` — **this file does not exist yet anywhere durable;
 write it for real this time**, following this repo's standard report shape (see any sprint task's report
 for the pattern), including an explicit per-item role/status table (R1 `APP`/done-on-main,
 R2 `FE`/done-on-main, R3 process/no-code, R4 `FE`/done-on-main — note all three code items landed via
@@ -240,5 +240,5 @@ verification is still founder-action-pending.
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md) — Track Roles section
 - [KNOWN_ISSUES_AND_BLOCKERS.md](../../KNOWN_ISSUES_AND_BLOCKERS.md)
-- `docs/execution/bugs/tasks/task2.md` — the bundled native rebuild this task's R1 should ship with
+- `docs/execution/bugs/Sprint3/tasks/task2.md` — the bundled native rebuild this task's R1 should ship with
 - `docs/execution/bugs/STATUS.md`

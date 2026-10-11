@@ -39,7 +39,7 @@ about to ship — same instruction the task doc already gives, just reconfirmed 
 given 7fe's now-clean state.
 
 ## Files Created/Modified
-- Created (this commit): `docs/execution/bugs/reports/task1.md`
+- Created (this commit): `docs/execution/bugs/Sprint3/reports/task1.md`
 - Modified (this commit): `docs/execution/bugs/STATUS.md` (final status/branch update)
 - All actual code changes (`app/app.json`, `app/app/login.tsx`, `app/app/(app)/new-brief.tsx`,
   `app/package.json`, `app/package-lock.json`) are **already on `main`**, landed outside this commit —
@@ -115,4 +115,4 @@ report never made it into git.
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task1.md`
+- `docs/execution/bugs/Sprint3/tasks/task1.md`

@@ -104,4 +104,4 @@ studio/: tsc --noEmit PASS, lint PASS
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task3.md`, `docs/execution/bugs/reports/task3.md`
+- `docs/execution/bugs/Sprint3/tasks/task3.md`, `docs/execution/bugs/Sprint3/reports/task3.md`

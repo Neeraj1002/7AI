@@ -185,7 +185,7 @@ from the video_generation stage until that is fixed.** This task does not fix it
    closureTask F10 listed 33 `unknown/unknown` rows (video-generation and intake) and 6 `gpt-image-1.5` rows
    at $0. This task explains only the **intake** `unknown/unknown` rows whose cause was a rejected reply. It
    does not explain the video-generation rows (see R2) or the `gpt-image-1.5` $0 rows, which are a separate
-   pricing/stub question. **Result: pending, to be recorded here once pasted.**
+   pricing/stub question. **Result (founder SQL, 2026-10-11):** 36 `unknown/unknown` $0 rows, all dated 2026-09-28 (31), 09-29, 09-30 and 10-07 (3), and 6 `gpt-image-1.5` $0 rows on 09-28. No such row is dated after this report (2026-10-08), so there is no recurrence since the fix; the video-generation share of these rows is addressed by closure part 2.
 3. Press Retry on run `248fae8a` (straight-quote brief). Expected: succeeds on the first call. If it fails, the
    failed `script_generation` row's `output` holds the raw reply and parse position.
 4. Once deployed and confirmed, remove the interim "no straight quotes" rule from the playbook.

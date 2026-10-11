@@ -1,5 +1,7 @@
 # Week 2 Task 1: LLM / Text-Completion Layer
 
+**Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow (branch/commit/PR steps for this task), the `STATUS.md` update this task must make, and the section structure this file follows. This file states only this task's specifics — the template governs everything else, so don't skip it.
+
 **Objective**: Build the provider-agnostic, purpose-keyed LLM/text-completion layer decided in `docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md`, so every future LLM call goes through one internal contract instead of a provider's SDK directly.
 **Duration**: 4–6 hours
 **Depends On**: None (Week 1 complete — reuses `TransientStageError`/`NonTransientStageError` from `studio/src/run-pipeline/retry-with-backoff.ts`)
