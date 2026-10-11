@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, BackHandler, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, BackHandler, ActivityIndicator, Switch } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,13 +21,18 @@ import { Card } from '../../../../components/Card';
 import { BottomActionBar } from '../../../../components/BottomActionBar';
 import { ConfirmSheet } from '../../../../components/ConfirmSheet';
 import { OptionSheet } from '../../../../components/OptionSheet';
-import { SegmentedControl } from '../../../../components/SegmentedControl';
 import { PrimaryButton } from '../../../../components/Buttons';
 
-const DEFAULT_HINT = 'Leave blank to use the default.';
+const FACT_POLICIES = [
+  { value: 'brief-only', label: 'Brief only' },
+  { value: 'brief-plus-common', label: 'Brief plus common knowledge' },
+];
 
-// Sprint 4 FE E5 — the channel's Content profile. Fields are exactly `ChannelProfileDataSchema`; saving always
-// creates a new version (`channels.createProfileVersion`), runs already started keep theirs.
+type SheetName = 'voice' | 'mood' | 'source' | 'fact' | null;
+
+// Sprint 4 FE E5 — the channel's Content profile (board "Content profile — full screen"). Fields are exactly
+// `ChannelProfileDataSchema`; saving always creates a new version (`channels.createProfileVersion`), and runs
+// already started keep theirs. Blank = "leave blank to use the default".
 export default function ContentProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const trpc = useTRPC();
@@ -39,6 +44,7 @@ export default function ContentProfileScreen() {
 
   const active = useQuery(trpc.channels.getActiveProfile.queryOptions({ channelId: id }));
   const versions = useQuery(trpc.channels.listProfileVersions.queryOptions({ channelId: id }));
+  const createVersion = useMutation(trpc.channels.createProfileVersion.mutationOptions());
 
   // The form is the server's active version until the user edits; `edits` holds the working copy.
   const baseline = useMemo(() => profileToForm(active.data?.data ?? null), [active.data]);
@@ -49,8 +55,7 @@ export default function ContentProfileScreen() {
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [barHeight, setBarHeight] = useState(0);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
-  const [moodOpen, setMoodOpen] = useState(false);
+  const [sheet, setSheet] = useState<SheetName>(null);
 
   const dirty = edits !== null && !formsEqual(edits, baseline);
   const nextVersion = (versions.data?.[0]?.version ?? 0) + 1;
@@ -68,8 +73,8 @@ export default function ContentProfileScreen() {
         (err as Error & { local?: typeof built.localErrors }).local = built.localErrors;
         throw err;
       }
-      // createProfileVersion takes `data: unknown` and validates it server-side.
-      return trpcClientCreate(built.data);
+      // `data` is validated server-side (Zod); its message comes back per field.
+      return createVersion.mutateAsync({ channelId: id, data: built.data });
     },
     onSuccess: async (row) => {
       setError(null);
@@ -94,8 +99,6 @@ export default function ContentProfileScreen() {
       setError(parsed.general ?? (Object.keys(parsed.fields).length > 0 ? 'Fix the highlighted fields.' : 'Failed to save.'));
     },
   });
-  const createMutation = useMutation(trpc.channels.createProfileVersion.mutationOptions());
-  const trpcClientCreate = (data: unknown) => createMutation.mutateAsync({ channelId: id, data });
 
   const goBack = () => {
     if (dirty) setDiscardOpen(true);
@@ -112,16 +115,6 @@ export default function ContentProfileScreen() {
     return () => sub.remove();
   }, [dirty]);
 
-  // Platform limits (read-only). The safety-negative line depends on the *resolved* visual source; the app only
-  // knows the profile's own pick, so it is shown when that pick is ai-stills (blank = resolved server-side, not shown).
-  const limits = useMemo(() => {
-    const rows = ['Videos are 60 seconds at most.', 'AI-generated visuals are flagged as synthetic content on upload.'];
-    if (form.defaultSource === 'ai-stills') {
-      rows.push('Image prompts get a built-in safety negative prompt.');
-    }
-    return rows;
-  }, [form.defaultSource]);
-
   if (!channel) {
     return (
       <FormScreen variant="stack" title="Content profile">
@@ -131,20 +124,16 @@ export default function ContentProfileScreen() {
   }
 
   const loading = active.isLoading;
-  const voiceLabel = voices.find((v) => v.value === form.defaultVoice)?.label ?? 'Channel default';
-  const moodLabel = moodTags.find((m) => m.value === form.defaultMoodTag)?.label ?? 'Auto';
+  const subtitle = active.data ? `${channel.name} · v${active.data.version} active` : channel.name;
+  const labelOf = (list: { value: string; label: string }[], v: string, fallback: string) =>
+    list.find((o) => o.value === v)?.label ?? fallback;
 
   const footer = (
     <BottomActionBar onHeight={setBarHeight}>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {savedNote ? <Text style={styles.saved}>{savedNote}</Text> : null}
+      <PrimaryButton label={`Save as v${nextVersion}`} onPress={() => save.mutate()} disabled={!dirty} loading={save.isPending} />
       <Text style={styles.helper}>Saving creates a new version; runs already started keep theirs.</Text>
-      <PrimaryButton
-        label={`Save as v${nextVersion}`}
-        onPress={() => save.mutate()}
-        disabled={!dirty}
-        loading={save.isPending}
-      />
     </BottomActionBar>
   );
 
@@ -152,7 +141,7 @@ export default function ContentProfileScreen() {
     <FormScreen
       variant="stack"
       title="Content profile"
-      subtitle={channel.name}
+      subtitle={subtitle}
       onBack={goBack}
       footer={footer}
       contentContainerStyle={[styles.content, { paddingBottom: barHeight + space.xl }]}
@@ -163,90 +152,64 @@ export default function ContentProfileScreen() {
         <Text style={styles.error}>Couldn&apos;t load the profile. Go back and try again.</Text>
       ) : (
         <>
+          <Text style={styles.intro}>Applies to new runs on {channel.name}. Every field is optional.</Text>
+
           <Card>
             <Text style={styles.cardTitle}>Script</Text>
-            <TextField label="Guide" hint={DEFAULT_HINT} value={form.guide} error={fieldErrors.guide} multiline
-              placeholder="Tone, hooks, audience…" onChange={(v) => set('guide', v)} />
-            <TextField label="Target length (seconds, 15–60)" hint={DEFAULT_HINT} value={form.targetSeconds}
-              error={fieldErrors.targetSeconds} numeric onChange={(v) => set('targetSeconds', v)} />
-            <TextField label="Banned openers (one per line)" hint={DEFAULT_HINT} value={form.bannedOpeners}
-              error={fieldErrors.bannedOpeners} multiline onChange={(v) => set('bannedOpeners', v)} />
-            <TextField label="Banned endings (one per line)" hint={DEFAULT_HINT} value={form.bannedEndings}
-              error={fieldErrors.bannedEndings} multiline onChange={(v) => set('bannedEndings', v)} />
-            <Text style={styles.label}>Fact policy</Text>
-            <SegmentedControl
-              options={[
-                { value: '', label: 'Default' },
-                { value: 'brief-only', label: 'Brief only' },
-                { value: 'brief-plus-common', label: '+ Common' },
-              ]}
-              value={form.factPolicy}
-              onChange={(v) => set('factPolicy', v)}
-            />
-            <FieldNote error={fieldErrors.factPolicy} hint={DEFAULT_HINT} />
+            <TextField label="Script guide" value={form.guide} error={fieldErrors.guide} multiline
+              placeholder="Tone, audience, how hooks should sound…" onChange={(v) => set('guide', v)} />
+            <TextField label="Target length (15–60 s)" value={form.targetSeconds} error={fieldErrors.targetSeconds}
+              numeric onChange={(v) => set('targetSeconds', v)} />
+            <TextField label="Banned openers" note="one per line" value={form.bannedOpeners} error={fieldErrors.bannedOpeners}
+              multiline onChange={(v) => set('bannedOpeners', v)} />
+            <TextField label="Banned endings" note="one per line" value={form.bannedEndings} error={fieldErrors.bannedEndings}
+              multiline onChange={(v) => set('bannedEndings', v)} />
+            <SelectField label="Fact policy" value={labelOf(FACT_POLICIES, form.factPolicy, '')} error={fieldErrors.factPolicy}
+              onPress={() => setSheet('fact')} />
           </Card>
 
           <Card>
             <Text style={styles.cardTitle}>Visuals</Text>
-            <Text style={styles.label}>Default visual source</Text>
-            <SegmentedControl
-              options={[{ value: '', label: 'Default' }, ...visualSources]}
-              value={form.defaultSource}
-              onChange={(v) => set('defaultSource', v)}
-            />
-            <FieldNote error={fieldErrors.defaultSource} hint={DEFAULT_HINT} />
-            <TextField label="Style prompt" hint={DEFAULT_HINT} value={form.stylePrompt} error={fieldErrors.stylePrompt}
-              multiline onChange={(v) => set('stylePrompt', v)} />
-            <TextField label="Negative prompt" hint={DEFAULT_HINT} value={form.negativePrompt}
-              error={fieldErrors.negativePrompt} multiline onChange={(v) => set('negativePrompt', v)} />
-            <TextField label="Seconds per still (1–10)" hint={DEFAULT_HINT} value={form.secondsPerStill}
-              error={fieldErrors.secondsPerStill} numeric onChange={(v) => set('secondsPerStill', v)} />
+            <SelectField label="Default visual source" value={labelOf(visualSources, form.defaultSource, '')}
+              error={fieldErrors.defaultSource} onPress={() => setSheet('source')} />
+            <TextField label="Style prompt" value={form.stylePrompt} error={fieldErrors.stylePrompt} multiline
+              onChange={(v) => set('stylePrompt', v)} />
+            <TextField label="Negative prompt" value={form.negativePrompt} error={fieldErrors.negativePrompt} multiline
+              onChange={(v) => set('negativePrompt', v)} />
+            <TextField label="Seconds per still (1–10)" value={form.secondsPerStill} error={fieldErrors.secondsPerStill}
+              numeric onChange={(v) => set('secondsPerStill', v)} />
           </Card>
 
           <Card>
             <Text style={styles.cardTitle}>Audio</Text>
-            <PickerRow icon="mic" caption="Default voice" value={voiceLabel} onPress={() => setVoiceOpen(true)} />
-            <FieldNote error={fieldErrors.defaultVoice} hint={DEFAULT_HINT} />
-            <PickerRow icon="music" caption="Default music mood" value={moodLabel} onPress={() => setMoodOpen(true)} />
-            <FieldNote error={fieldErrors.defaultMoodTag} hint={DEFAULT_HINT} />
+            <SelectField label="Default voice" value={labelOf(voices, form.defaultVoice, '')} error={fieldErrors.defaultVoice}
+              onPress={() => setSheet('voice')} />
+            <SelectField label="Music mood" value={labelOf(moodTags, form.defaultMoodTag, '')} error={fieldErrors.defaultMoodTag}
+              onPress={() => setSheet('mood')} />
           </Card>
 
           <Card>
             <Text style={styles.cardTitle}>Packaging</Text>
-            <TextField label="Title guidance" hint={DEFAULT_HINT} value={form.titleGuidance}
-              error={fieldErrors.titleGuidance} multiline onChange={(v) => set('titleGuidance', v)} />
-            <TextField label="Description template" value={form.descriptionTemplate}
-              hint="Leave blank to use the default. Supports {summary} {sources} {editor} {hashtags}."
-              error={fieldErrors.descriptionTemplate} multiline onChange={(v) => set('descriptionTemplate', v)} />
-            <TextField label="Base hashtags" hint={DEFAULT_HINT} value={form.hashtagsBase}
-              error={fieldErrors.hashtagsBase} onChange={(v) => set('hashtagsBase', v)} />
-            <Text style={styles.label}>Credit the editor</Text>
-            <SegmentedControl
-              options={[{ value: '', label: 'Default' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]}
-              value={form.editorCredit}
-              onChange={(v) => set('editorCredit', v)}
-            />
-            <FieldNote error={fieldErrors.editorCredit} hint={DEFAULT_HINT} />
-            <Text style={styles.label}>Made for kids</Text>
-            <SegmentedControl
-              options={[{ value: '', label: 'Default' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]}
-              value={form.selfDeclaredMadeForKids}
-              onChange={(v) => set('selfDeclaredMadeForKids', v)}
-            />
-            <FieldNote error={fieldErrors.selfDeclaredMadeForKids} hint="Leave blank — defaults to No." />
-            <TextField label="YouTube category id" hint={DEFAULT_HINT} value={form.categoryId}
-              error={fieldErrors.categoryId} onChange={(v) => set('categoryId', v)} />
-            <TextField label="Language (e.g. en)" hint={DEFAULT_HINT} value={form.defaultLanguage}
-              error={fieldErrors.defaultLanguage} onChange={(v) => set('defaultLanguage', v)} />
+            <TextField label="Title guidance" value={form.titleGuidance} error={fieldErrors.titleGuidance} multiline
+              onChange={(v) => set('titleGuidance', v)} />
+            <TextField label="Description template" value={form.descriptionTemplate} error={fieldErrors.descriptionTemplate}
+              multiline placeholder="Supports {summary} {sources} {editor} {hashtags}" onChange={(v) => set('descriptionTemplate', v)} />
+            <TextField label="Base hashtags" value={form.hashtagsBase} error={fieldErrors.hashtagsBase}
+              onChange={(v) => set('hashtagsBase', v)} />
+            <SwitchRow label="Editor credit in description" value={form.editorCredit === 'yes'} error={fieldErrors.editorCredit}
+              onChange={(on) => set('editorCredit', on ? 'yes' : 'no')} />
+            <SwitchRow label="Made for kids" note="defaults to No" value={form.selfDeclaredMadeForKids === 'yes'}
+              error={fieldErrors.selfDeclaredMadeForKids} onChange={(on) => set('selfDeclaredMadeForKids', on ? 'yes' : 'no')} />
+            <TextField label="Category (YouTube id, e.g. 27)" value={form.categoryId} error={fieldErrors.categoryId}
+              onChange={(v) => set('categoryId', v)} />
+            <TextField label="Default language (e.g. en)" value={form.defaultLanguage} error={fieldErrors.defaultLanguage}
+              onChange={(v) => set('defaultLanguage', v)} />
           </Card>
 
           <Card style={styles.limits}>
-            <Text style={styles.cardTitle}>Platform limits</Text>
-            {limits.map((row) => (
-              <Text key={row} style={styles.limitRow}>
-                {row}
-              </Text>
-            ))}
+            <Text style={styles.cardTitle}>🔒 Platform limits (not editable)</Text>
+            <Text style={styles.limitRow}>• Max length 60 s</Text>
+            <Text style={styles.limitRow}>• AI-generated visuals are flagged as synthetic content on upload</Text>
           </Card>
 
           <Card>
@@ -257,10 +220,9 @@ export default function ContentProfileScreen() {
               <View key={v.id} style={styles.versionRow}>
                 <Text style={styles.versionNum}>v{v.version}</Text>
                 <Text style={styles.versionMeta}>
-                  {new Date(v.createdAt).toLocaleDateString()} ·{' '}
+                  {new Date(v.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ·{' '}
                   {v.createdByUserId === null ? 'system' : v.createdByUserId === userId ? 'you' : 'a teammate'}
                 </Text>
-                {active.data?.id === v.id ? <Text style={styles.activeTag}>Active</Text> : null}
               </View>
             ))}
           </Card>
@@ -268,20 +230,36 @@ export default function ContentProfileScreen() {
       )}
 
       <OptionSheet
-        visible={voiceOpen}
-        onClose={() => setVoiceOpen(false)}
+        visible={sheet === 'voice'}
+        onClose={() => setSheet(null)}
         title="Default voice"
-        options={[{ value: '', label: 'Channel default' }, ...voices]}
+        options={[{ value: '', label: 'Leave blank (channel default)' }, ...voices]}
         selected={form.defaultVoice}
         onSelect={(v) => set('defaultVoice', v ?? '')}
       />
       <OptionSheet
-        visible={moodOpen}
-        onClose={() => setMoodOpen(false)}
-        title="Default music mood"
-        options={[{ value: '', label: 'Auto' }, ...moodTags]}
+        visible={sheet === 'mood'}
+        onClose={() => setSheet(null)}
+        title="Music mood"
+        options={[{ value: '', label: 'Leave blank (auto)' }, ...moodTags]}
         selected={form.defaultMoodTag}
         onSelect={(v) => set('defaultMoodTag', v ?? '')}
+      />
+      <OptionSheet
+        visible={sheet === 'source'}
+        onClose={() => setSheet(null)}
+        title="Default visual source"
+        options={[{ value: '', label: 'Leave blank (auto)' }, ...visualSources]}
+        selected={form.defaultSource}
+        onSelect={(v) => set('defaultSource', v ?? '')}
+      />
+      <OptionSheet
+        visible={sheet === 'fact'}
+        onClose={() => setSheet(null)}
+        title="Fact policy"
+        options={[{ value: '', label: 'Leave blank (default)' }, ...FACT_POLICIES]}
+        selected={form.factPolicy}
+        onSelect={(v) => set('factPolicy', v ?? '')}
       />
       <ConfirmSheet
         visible={discardOpen}
@@ -300,13 +278,22 @@ export default function ContentProfileScreen() {
   );
 }
 
-function FieldNote({ error, hint }: { error?: string; hint: string }) {
-  return <Text style={error ? styles.fieldError : styles.hint}>{error ?? hint}</Text>;
+// "Label · leave blank to use the default" — the board's inline hint.
+function FieldLabel({ label, note }: { label: string; note?: string }) {
+  return (
+    <Text style={styles.label}>
+      {label} <Text style={styles.labelNote}>· {note ? `${note} · ` : ''}leave blank to use the default</Text>
+    </Text>
+  );
+}
+
+function ErrorLine({ error }: { error?: string }) {
+  return error ? <Text style={styles.fieldError}>{error}</Text> : null;
 }
 
 function TextField({
   label,
-  hint,
+  note,
   value,
   error,
   onChange,
@@ -315,7 +302,7 @@ function TextField({
   placeholder,
 }: {
   label: string;
-  hint: string;
+  note?: string;
   value: string;
   error?: string;
   onChange: (v: string) => void;
@@ -324,8 +311,8 @@ function TextField({
   placeholder?: string;
 }) {
   return (
-    <View>
-      <Text style={styles.label}>{label}</Text>
+    <View style={styles.field}>
+      <FieldLabel label={label} note={note} />
       <TextInput
         selectionColor={color.accent}
         cursorColor={color.accent}
@@ -339,31 +326,50 @@ function TextField({
         placeholder={placeholder}
         placeholderTextColor={color.muted}
       />
-      <FieldNote error={error} hint={hint} />
+      <ErrorLine error={error} />
     </View>
   );
 }
 
-function PickerRow({
-  icon,
-  caption,
+function SelectField({ label, value, error, onPress }: { label: string; value: string; error?: string; onPress: () => void }) {
+  return (
+    <View style={styles.field}>
+      <FieldLabel label={label} />
+      <Pressable style={[styles.input, styles.select, error ? styles.inputError : null]} onPress={onPress} accessibilityRole="button">
+        <Text style={[styles.selectText, !value && styles.selectEmpty]} numberOfLines={1}>
+          {value || 'Not set'}
+        </Text>
+        <Feather name="chevron-down" size={18} color={color.muted} />
+      </Pressable>
+      <ErrorLine error={error} />
+    </View>
+  );
+}
+
+function SwitchRow({
+  label,
+  note,
   value,
-  onPress,
+  error,
+  onChange,
 }: {
-  icon: keyof typeof Feather.glyphMap;
-  caption: string;
-  value: string;
-  onPress: () => void;
+  label: string;
+  note?: string;
+  value: boolean;
+  error?: string;
+  onChange: (on: boolean) => void;
 }) {
   return (
-    <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
-      <Feather name={icon} size={20} color={color.muted} />
-      <View style={styles.rowText}>
-        <Text style={styles.hint}>{caption}</Text>
-        <Text style={styles.rowValue}>{value}</Text>
+    <View>
+      <View style={styles.switchRow}>
+        <Text style={styles.switchLabel}>
+          {label}
+          {note ? <Text style={styles.labelNote}> · {note}</Text> : null}
+        </Text>
+        <Switch value={value} onValueChange={onChange} trackColor={{ true: color.okText, false: color.future }} thumbColor={color.bg} />
       </View>
-      <Feather name="chevron-right" size={20} color={color.muted} />
-    </Pressable>
+      <ErrorLine error={error} />
+    </View>
   );
 }
 
@@ -371,40 +377,42 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, gap: space.md },
   loading: { marginTop: space.xxl },
   body: { ...type.body, color: color.ink },
-  cardTitle: { ...type.sectionTitle, color: color.ink },
-  label: { fontFamily: font.bold, fontSize: 14, color: color.ink, marginTop: space.sm },
-  hint: { ...type.meta, fontSize: 12 },
+  intro: { ...type.meta, fontSize: 13 },
+  cardTitle: { fontFamily: font.black, fontSize: 15, color: color.ink },
+  field: { gap: 4 },
+  label: { fontFamily: font.bold, fontSize: 13, color: color.ink },
+  labelNote: { fontFamily: font.regular, color: color.muted },
+  helper: { ...type.meta, fontSize: 13, lineHeight: 19 },
   fieldError: { ...type.meta, fontSize: 12, color: color.danger },
-  helper: { ...type.meta, fontSize: 12 },
   input: {
+    minHeight: 44,
     borderWidth: 1.5,
     borderColor: color.inputBorder,
-    borderRadius: radius.lg,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    marginTop: space.xs,
-    ...type.body,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontFamily: font.regular,
+    fontSize: 14,
     color: color.ink,
   },
   inputError: { borderColor: color.danger },
-  multiline: { minHeight: 84, maxHeight: 200, textAlignVertical: 'top' },
-  row: {
+  multiline: { minHeight: 72, maxHeight: 200, textAlignVertical: 'top' },
+  select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
+  selectText: { flex: 1, fontFamily: font.regular, fontSize: 14, color: color.ink },
+  selectEmpty: { color: color.muted },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  switchLabel: { flex: 1, fontFamily: font.semibold, fontSize: 14, color: color.ink },
+  limits: { backgroundColor: color.surface2, borderWidth: 0 },
+  limitRow: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, color: color.muted },
+  versionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    padding: space.md,
-    borderWidth: 1.5,
-    borderColor: color.future,
-    borderRadius: radius.lg,
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: color.border,
   },
-  rowText: { flex: 1 },
-  rowValue: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
-  limits: { backgroundColor: color.surface2 },
-  limitRow: { ...type.meta, color: color.muted },
-  versionRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.xs },
-  versionNum: { fontFamily: font.bold, fontSize: 14, color: color.ink, width: 36 },
-  versionMeta: { ...type.meta, flex: 1 },
-  activeTag: { ...type.meta, fontFamily: font.bold, color: color.okText },
+  versionNum: { fontFamily: font.bold, fontSize: 14, color: color.ink },
+  versionMeta: { fontFamily: font.regular, fontSize: 14, color: color.muted },
   error: { ...type.body, color: color.danger },
   saved: { ...type.meta, color: color.okText },
 });

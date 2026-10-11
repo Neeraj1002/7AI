@@ -13,7 +13,8 @@ test('compactNumber', () => {
   assert.strictEqual(compactNumber(null), '—');
   assert.strictEqual(compactNumber(0), '0');
   assert.strictEqual(compactNumber(842.4), '842');
-  assert.strictEqual(compactNumber(1250), '1.3K');
-  assert.strictEqual(compactNumber(48000), '48K');
-  assert.strictEqual(compactNumber(2_400_000), '2.4M');
+  assert.strictEqual(compactNumber(1250), '1.3k');
+  assert.strictEqual(compactNumber(1000), '1.0k');
+  assert.strictEqual(compactNumber(18400), '18.4k');
+  assert.strictEqual(compactNumber(2_400_000), '2.4m');
 });

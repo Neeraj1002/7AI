@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { color, radius, space, type } from '../lib/theme';
+import { color, font, space } from '../lib/theme';
 import { Card } from './Card';
 import { ClampedText } from './ClampedText';
 import { gate1Lists, repeatTopicBanner, type ScriptReview } from '../lib/gate1-review';
@@ -33,8 +33,8 @@ function ListCard({ title, items, tint }: { title: string; items: string[]; tint
       </Text>
       {items.map((item, i) => (
         <View key={i} style={styles.item}>
-          <Text style={styles.bullet}>•</Text>
-          <ClampedText lines={3} style={styles.itemText} text={item} />
+          <Text style={[styles.bullet, tint && styles.bulletWarn]}>•</Text>
+          <ClampedText lines={3} style={[styles.itemText, tint && styles.itemTextWarn]} text={item} />
         </View>
       ))}
     </Card>
@@ -59,13 +59,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
     backgroundColor: color.warnBg,
-    borderRadius: radius.lg,
-    padding: space.lg,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  bannerText: { ...type.body, flex: 1, color: color.warnText },
-  tint: { backgroundColor: color.warnBg },
-  title: { ...type.sectionTitle, color: color.ink },
-  item: { flexDirection: 'row', gap: space.sm },
-  bullet: { ...type.body, color: color.ink },
-  itemText: { ...type.meta, flex: 1, color: color.ink },
+  bannerText: { flex: 1, fontFamily: font.bold, fontSize: 13, lineHeight: 18, color: color.warnText },
+  // Board "Gate 1": the Factual concerns card is a lighter amber (#FFFBEF) with amber text.
+  tint: { backgroundColor: '#FFFBEF' },
+  title: { fontFamily: font.black, fontSize: 15, color: color.ink },
+  item: { flexDirection: 'row', gap: space.xs },
+  bullet: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, color: color.ink },
+  itemText: { flex: 1, fontFamily: font.regular, fontSize: 14, lineHeight: 20, color: color.ink },
+  itemTextWarn: { color: color.warnText },
+  bulletWarn: { color: color.warnText },
 });

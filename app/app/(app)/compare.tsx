@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl }
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
 import { useChannels } from '../../lib/channel-context';
-import { color, space, type } from '../../lib/theme';
+import { color, font, space, type } from '../../lib/theme';
 import { compactNumber, formatLabel } from '../../lib/compare';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
@@ -50,25 +50,25 @@ export default function CompareScreen() {
               <Text style={styles.meta}>No published videos yet</Text>
             ) : (
               <View style={styles.stats}>
-                <Stat label="Views" value={compactNumber(ch.totals.views)} />
-                <Stat label="Avg / video" value={compactNumber(ch.avgViewsPerVideo)} />
-                <Stat label="Videos" value={String(ch.videoCount)} />
+                <Stat label="views" value={compactNumber(ch.totals.views)} />
+                <Stat label="avg / video" value={compactNumber(ch.avgViewsPerVideo)} />
+                <Stat label="videos" value={String(ch.videoCount)} />
               </View>
             )}
             {ch.byFormat.length > 0 ? (
               <View style={styles.table}>
                 <View style={styles.tr}>
-                  <Text style={[styles.th, styles.colFormat]}>Format</Text>
-                  <Text style={[styles.th, styles.colNum]}>Videos</Text>
-                  <Text style={[styles.th, styles.colNum]}>Avg views</Text>
+                  <Text style={[styles.th, styles.colFormat]}>FORMAT</Text>
+                  <Text style={[styles.th, styles.colVideos]}>VIDEOS</Text>
+                  <Text style={[styles.th, styles.colAvg]}>AVG VIEWS</Text>
                 </View>
                 {ch.byFormat.map((row) => (
                   <View key={row.formatKey ?? 'freeform'} style={styles.tr}>
                     <Text style={[styles.td, styles.colFormat]} numberOfLines={2}>
                       {formatLabel(row.formatKey, labels)}
                     </Text>
-                    <Text style={[styles.td, styles.colNum]}>{row.videoCount}</Text>
-                    <Text style={[styles.td, styles.colNum]}>{compactNumber(row.avgViewsPerVideo)}</Text>
+                    <Text style={[styles.td, styles.colVideos, styles.tdMuted]}>{row.videoCount}</Text>
+                    <Text style={[styles.td, styles.colAvg, styles.tdBold]}>{compactNumber(row.avgViewsPerVideo)}</Text>
                   </View>
                 ))}
               </View>
@@ -81,7 +81,7 @@ export default function CompareScreen() {
   }
 
   return (
-    <Screen variant="stack" title="Compare channels">
+    <Screen variant="stack" title="Compare channels" subtitle="Views, likes, comments — not revenue">
       <ScrollView
         contentContainerStyle={styles.container}
         refreshControl={
@@ -111,14 +111,17 @@ const styles = StyleSheet.create({
   loading: { marginTop: space.xxl },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   title: { ...type.sectionTitle, color: color.ink, flexShrink: 1 },
-  meta: { ...type.meta },
+  meta: { ...type.meta, fontSize: 11 },
   stats: { flexDirection: 'row', gap: space.lg },
   stat: { gap: 2 },
-  statValue: { ...type.sectionTitle, fontSize: 20, color: color.ink },
-  table: { gap: space.xs, marginTop: space.xs },
-  tr: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  th: { ...type.meta, fontWeight: '700' },
-  td: { ...type.body, fontSize: 14, color: color.ink },
+  statValue: { fontFamily: font.black, fontSize: 20, color: color.ink },
+  table: { marginTop: space.xs },
+  tr: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderTopWidth: 1, borderTopColor: color.border },
+  th: { ...type.meta, fontSize: 11, fontWeight: '700' },
+  td: { fontFamily: font.regular, fontSize: 13, color: color.ink },
+  tdMuted: { color: color.muted },
+  tdBold: { fontFamily: font.bold },
   colFormat: { flex: 1 },
-  colNum: { width: 78, textAlign: 'right' },
+  colVideos: { width: 44, textAlign: 'right' },
+  colAvg: { width: 70, textAlign: 'right' },
 });

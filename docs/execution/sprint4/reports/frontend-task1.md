@@ -30,7 +30,7 @@
 
 ## E2–E6 (same PR #53; backend PR #49 merged)
 
-All status "Built, awaiting founder device verification". The only board I could see is Gate 1 / Gate 2 (E1, E3 cards, E6). E2, E4 and E5 were built from the `frontend-task1.md` text with existing styling; no new visual language. Compare against their boards when you review.
+All status "Built, awaiting founder device verification". After the first build the boards were read from the canvas (artifact `WUXyvHqAfazmsDNEBMnagG`, files `S4*.dc.html`) and every screen was aligned to them (labels, colours, sizes, wording, order).
 
 | Item | Built | Data source |
 |---|---|---|
@@ -50,3 +50,15 @@ All status "Built, awaiting founder device verification". The only board I could
 
 **Checks:** `cd studio && npx vitest run --root ../app` → 6 files, 25 tests pass (new: quality-checks, gate1-review, compare, brief-extras, profile-form). `cd app && npx tsc --noEmit` → no errors in `app/` (22 pre-existing under `studio/` in this worktree). `npx expo lint` → clean. No `package.json` / lockfile / `app.json` / native changes.
 
+
+### Board alignment (2026-10-11) and remaining differences from the boards
+
+Aligned to the `S4*.dc.html` boards: Quality checks (filled-circle badges, row dividers, intro line), Compare (subtitle, lowercase stat labels, uppercase table header, `18.4k`/`1.0k` numbers), Gate 1 (banner, lighter amber Factual card), New brief (chip size, note under chips, link-prefixed source rows, "Shown to you at Gate 1…" helper, `Length: {n}s (from format)` beside Options, dedicated Format sheet with seconds pills), Content profile (inline "leave blank to use the default", select fields, switches, intro line, 🔒 Platform limits, Save button above helper, `6 Oct · you` history), Channel settings (single "Content profile ›" card, amber note inside Voice & look, Style guide hidden).
+
+Differences kept on purpose, need a founder decision:
+1. **Seconds per still:** the board says 2–6; the schema (`ChannelProfileVisualSchema`) allows 1–10. The label shows 1–10 (the server is the validator).
+2. **Category / Language:** the board shows names ("Education", "English (en)"); the schema stores a YouTube id string and a BCP-47 code. They are text fields (id / code); a name picker needs an id↔name list that does not exist in the API.
+3. **Safety negative prompt line** in Platform limits is not shown. The board always shows it; the earlier spec said only when the resolved source is `ai-stills`; and `AI_VISUALS_SAFETY_NEGATIVES_ENABLED` is off, so the line would be untrue.
+4. **Fact policy** is a picker with the two schema values ("Brief only", "Brief plus common knowledge"); the board shows free text, which the schema does not allow.
+5. **Format chips** wrap onto a second line instead of clipping, because format names are long.
+6. **Compare avatar** uses the app's existing numbered channel tile; the board's colours per channel come from the same palette.

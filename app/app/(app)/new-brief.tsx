@@ -13,6 +13,7 @@ import { ChannelAvatar } from '../../components/ChannelAvatar';
 import { ChannelPickerSheet } from '../../components/ChannelPickerSheet';
 import { PrimaryButton } from '../../components/Buttons';
 import { OptionSheet } from '../../components/OptionSheet';
+import { FormatSheet } from '../../components/FormatSheet';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
 import { LENGTHS, useOptionLists } from '../../lib/pipeline-options';
@@ -219,6 +220,9 @@ export default function NewBriefScreen() {
           <FormatChip label="More formats ▾" active={false} onPress={() => setFormatsOpen(true)} />
         ) : null}
       </View>
+      <Text style={styles.tip}>
+        {format ? format.scriptStructure : 'Freeform is the default — nothing changes unless you pick a format.'}
+      </Text>
 
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
@@ -234,13 +238,14 @@ export default function NewBriefScreen() {
         multiline
         scrollEnabled
       />
-      <Text style={styles.tip}>
-        {format ? format.scriptStructure : 'Tip: the more specific the angle, the better the script.'}
-      </Text>
+      <Text style={styles.tip}>Tip: the more specific the angle, the better the script.</Text>
 
-      <Text style={styles.label}>Sources (optional)</Text>
+      <Text style={styles.label}>
+        Sources <Text style={styles.optionalNote}>· optional</Text>
+      </Text>
       {sources.map((src, i) => (
         <View key={i} style={styles.sourceRow}>
+          <Feather name="link" size={16} color={color.muted} />
           <TextInput
             style={styles.sourceInput}
             value={src}
@@ -265,21 +270,23 @@ export default function NewBriefScreen() {
       ))}
       {sources.length < MAX_SOURCES ? (
         <Pressable onPress={() => setSources((prev) => [...prev, ''])} accessibilityRole="button">
-          <Text style={styles.emptyLink}>+ Add a source link</Text>
+          <Text style={styles.addSource}>+ Add a source link</Text>
         </Pressable>
       ) : null}
+      <Text style={styles.tip}>Shown to you at Gate 1 and credited in the video description.</Text>
 
       <View style={styles.optionsHeader}>
         <Text style={styles.optionsTitle}>Options</Text>
-        <Text style={styles.tip}>{needsYoutube ? 'Available once connected' : 'Channel defaults unless changed'}</Text>
+        <Text style={styles.tip}>
+          {needsYoutube
+            ? 'Available once connected'
+            : format
+              ? `Length: ${format.targetSeconds}s (from format)`
+              : 'Channel defaults unless changed'}
+        </Text>
       </View>
       <View style={needsYoutube ? styles.optionsDimmed : undefined} pointerEvents={needsYoutube ? 'none' : 'auto'}>
-        {format ? (
-          <>
-            <Text style={styles.label}>Length</Text>
-            <Text style={[styles.tip, styles.lengthLocked]}>Length: {format.targetSeconds}s (from format)</Text>
-          </>
-        ) : flags.briefLength ? (
+        {!format && flags.briefLength ? (
           <>
             <Text style={styles.label}>Length</Text>
             <SegmentedControl
@@ -329,14 +336,10 @@ export default function NewBriefScreen() {
         <Text style={styles.tip}>This channel&apos;s YouTube connection expired. Reconnect it in Channel settings before the run reaches upload.</Text>
       ) : null}
 
-      <OptionSheet
+      <FormatSheet
         visible={formatsOpen}
         onClose={() => setFormatsOpen(false)}
-        title="Format"
-        options={[
-          { value: null, label: 'Freeform' },
-          ...formats.map((f) => ({ value: f.key, label: f.label, caption: `${f.targetSeconds}s` })),
-        ]}
+        formats={formats}
         selected={formatKey}
         onSelect={setFormatKey}
       />
@@ -392,28 +395,29 @@ function FormatChip({ label, active, onPress }: { label: string; active: boolean
 const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   chip: {
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.pill,
+    height: 36,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderRadius: 18,
     borderWidth: 1.5,
     borderColor: color.future,
     maxWidth: '100%',
   },
   chipActive: { backgroundColor: color.ink, borderColor: color.ink },
   chipText: { fontFamily: font.semibold, fontSize: 13, color: color.ink },
-  chipTextActive: { color: color.onAccent },
-  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  sourceInput: {
-    flex: 1,
+  chipTextActive: { color: color.onAccent, fontFamily: font.black },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: color.inputBorder,
-    borderRadius: radius.lg,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    ...type.body,
-    color: color.ink,
+    borderColor: color.future,
   },
-  lengthLocked: { opacity: 0.6 },
+  sourceInput: { flex: 1, paddingVertical: 10, fontFamily: font.regular, fontSize: 13, color: color.ink },
+  optionalNote: { fontFamily: font.regular, color: color.muted },
+  addSource: { fontFamily: font.black, fontSize: 13, color: color.accentText },
   content: { padding: space.lg, gap: space.sm },
   label: { fontFamily: font.bold, fontSize: 14, color: color.ink, marginTop: space.sm },
   channelField: {

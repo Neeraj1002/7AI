@@ -374,17 +374,15 @@ export default function ChannelSettingsScreen() {
         ) : null}
       </Card>
 
-      <Card>
-        <Text style={styles.cardTitle}>Content profile</Text>
-        <Pressable
-          style={styles.row}
-          onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
-          accessibilityRole="button"
-        >
-          <Feather name="sliders" size={20} color={color.muted} />
+      <Pressable
+        onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
+        accessibilityRole="button"
+        accessibilityLabel="Content profile"
+      >
+        <Card style={styles.profileEntry}>
           <View style={styles.rowText}>
-            <Text style={styles.rowCaption}>Content profile</Text>
-            <Text style={styles.rowValue}>
+            <Text style={styles.cardTitle}>Content profile</Text>
+            <Text style={styles.meta}>
               {profile.data
                 ? profileSummary(profile.data.version, profile.data.data)
                 : profile.isLoading
@@ -392,20 +390,20 @@ export default function ChannelSettingsScreen() {
                   : 'Not set up — uses channel defaults'}
             </Text>
           </View>
-          <Feather name="chevron-right" size={20} color={color.muted} />
-        </Pressable>
-        {hasProfile ? (
-          <View style={styles.profileNote}>
-            <Text style={styles.profileNoteText}>
-              Default voice and style guide now live in the Content profile. Edit them there.
-            </Text>
-          </View>
-        ) : null}
-      </Card>
+          <Text style={styles.profileChevron}>›</Text>
+        </Card>
+      </Pressable>
 
       {showVoiceLook ? (
         <Card>
           <Text style={styles.cardTitle}>Voice &amp; look</Text>
+          {hasProfile ? (
+            <View style={styles.profileNote}>
+              <Text style={styles.profileNoteText}>
+                Default voice and style guide now come from the content profile. Edit them there.
+              </Text>
+            </View>
+          ) : null}
           {!hasProfile ? (
             <Pressable style={styles.row} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
               <Feather name="mic" size={20} color={color.muted} />
@@ -656,8 +654,10 @@ const styles = StyleSheet.create({
   inputInvalid: { borderColor: color.danger },
   multiline: { minHeight: 90, maxHeight: 200, textAlignVertical: 'top' },
   styleGuide: { minHeight: 120, maxHeight: 240 },
-  profileNote: { backgroundColor: color.warnBg, borderRadius: radius.sm, padding: space.sm },
-  profileNoteText: { ...type.meta, color: color.warnText },
+  profileEntry: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  profileChevron: { fontSize: 20, color: color.muted },
+  profileNote: { backgroundColor: color.warnBg, borderRadius: radius.sm, padding: 10 },
+  profileNoteText: { ...type.meta, fontSize: 13, lineHeight: 19, color: color.warnText },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
