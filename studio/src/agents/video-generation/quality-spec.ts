@@ -81,6 +81,27 @@ export const QUALITY_SPEC = {
   },
 } as const;
 
+// One entry per checked quality row. `warn` is true exactly when that row missed its
+// QUALITY_SPEC target (the same condition that produces its softWarnings text), so a
+// client never has to match warning text. `message` is that text, or null when !warn.
+// A row is absent when it was not checked or could not be evaluated (e.g. longestShot on
+// a stock-footage video, loudness that could not be measured): absent is never false.
+export const QUALITY_ROW_KEYS = [
+  'loudness',
+  'truePeak',
+  'videoCodec',
+  'videoProfile',
+  'pixelFormat',
+  'audioSampleRate',
+  'audioBitrate',
+  'longestShot',
+  'shotCount',
+  'captions',
+] as const;
+export type QualityRowKey = (typeof QUALITY_ROW_KEYS)[number];
+export type QualityRow = { warn: boolean; message: string | null };
+export type QualityRows = Partial<Record<QualityRowKey, QualityRow>>;
+
 export type QualityMetrics = {
   integratedLufs: number | null;
   truePeakDb: number | null;
@@ -104,4 +125,7 @@ export type QualityMetrics = {
   captionsDetected: boolean | null;
   // Spec rows that missed but are recorded-only (never block).
   softWarnings: string[];
+  // Per-row warn flags (see QualityRow). Absent on runs measured before this field
+  // existed; runs.get derives it from the stored metrics for those where it can.
+  rows?: QualityRows;
 };
