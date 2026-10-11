@@ -2,7 +2,13 @@ import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { env } from '../../config/env';
-import { QUALITY_SPEC, type QualityMetrics } from '../video-generation/quality-spec';
+import {
+  QUALITY_SPEC,
+  QUALITY_ROW_KEYS,
+  type QualityMetrics,
+  type QualityRow,
+  type QualityRows,
+} from '../video-generation/quality-spec';
 
 // Sprint 4 Task 8 (R7) — deterministic quality measurement. Zero LLM cost.
 // Everything is measured against the same QUALITY_SPEC the renderer (R1-R6)
@@ -74,29 +80,74 @@ export function hardFailureReason(m: QualityMetrics): string | null {
   return null;
 }
 
-// Spec rows that missed but never block — recorded and shown at Gate 2.
-export function collectSoftWarnings(m: Omit<QualityMetrics, 'softWarnings'>, visualSource: 'ai-stills' | 'stock-footage' | undefined): string[] {
-  const w: string[] = [];
+type MetricsInput = Omit<QualityMetrics, 'softWarnings' | 'rows'>;
+
+// Sprint 4 (Gate 2 per-row flags). The one place the soft-warning rules live: each
+// checked row is evaluated once, and both the warning text list and the per-row warn
+// flags come from it, so they cannot disagree. A row is omitted when it does not apply
+// to this video or cannot be evaluated (never reported as warn:false in that case).
+export function evaluateQualityRows(m: MetricsInput, visualSource: 'ai-stills' | 'stock-footage' | undefined): QualityRows {
+  const rows: QualityRows = {};
+  const row = (warn: boolean, message: string): QualityRow => ({ warn, message: warn ? message : null });
   const { targetLufs, toleranceLufs, maxTruePeakDb } = QUALITY_SPEC.loudness;
-  if (m.integratedLufs !== null && Math.abs(m.integratedLufs - targetLufs) > toleranceLufs) {
-    w.push(`Loudness ${m.integratedLufs.toFixed(1)} LUFS is outside ${targetLufs} ±${toleranceLufs}`);
+  if (m.integratedLufs !== null) {
+    rows.loudness = row(
+      Math.abs(m.integratedLufs - targetLufs) > toleranceLufs,
+      `Loudness ${m.integratedLufs.toFixed(1)} LUFS is outside ${targetLufs} ±${toleranceLufs}`,
+    );
   }
-  if (m.truePeakDb !== null && m.truePeakDb > maxTruePeakDb) {
-    w.push(`True peak ${m.truePeakDb.toFixed(1)} dBTP is above ${maxTruePeakDb}`);
+  if (m.truePeakDb !== null) {
+    rows.truePeak = row(m.truePeakDb > maxTruePeakDb, `True peak ${m.truePeakDb.toFixed(1)} dBTP is above ${maxTruePeakDb}`);
   }
-  if (m.videoCodec !== null && m.videoCodec !== QUALITY_SPEC.video.codec) w.push(`Video codec is ${m.videoCodec}, expected ${QUALITY_SPEC.video.codec}`);
-  if (m.videoProfile !== null && m.videoProfile !== QUALITY_SPEC.video.profile) w.push(`H.264 profile is ${m.videoProfile}, expected ${QUALITY_SPEC.video.profile}`);
-  if (m.pixFmt !== null && m.pixFmt !== QUALITY_SPEC.video.pixFmt) w.push(`Pixel format is ${m.pixFmt}, expected ${QUALITY_SPEC.video.pixFmt}`);
-  if (m.audioSampleRate !== null && m.audioSampleRate !== QUALITY_SPEC.audio.sampleRate) w.push(`Audio sample rate is ${m.audioSampleRate} Hz, expected ${QUALITY_SPEC.audio.sampleRate}`);
-  if (m.audioBitrateKbps !== null && m.audioBitrateKbps < QUALITY_SPEC.audio.minBitrateKbps) w.push(`Audio bitrate ${m.audioBitrateKbps} kbps is below ${QUALITY_SPEC.audio.minBitrateKbps}`);
-  if (visualSource === 'ai-stills' && m.longestShotSeconds !== null && m.longestShotSeconds > QUALITY_SPEC.shot.maxSeconds) {
-    w.push(`Longest single shot is ${m.longestShotSeconds.toFixed(1)}s (spec: ≤ ${QUALITY_SPEC.shot.maxSeconds}s)`);
+  if (m.videoCodec !== null) {
+    rows.videoCodec = row(m.videoCodec !== QUALITY_SPEC.video.codec, `Video codec is ${m.videoCodec}, expected ${QUALITY_SPEC.video.codec}`);
   }
-  if (visualSource === 'stock-footage' && m.shotCount !== null && m.shotCount < QUALITY_SPEC.stock.minBeats) {
-    w.push(`Only ${m.shotCount} distinct shot(s) detected in a stock-footage video (spec: a cut per beat)`);
+  if (m.videoProfile !== null) {
+    rows.videoProfile = row(m.videoProfile !== QUALITY_SPEC.video.profile, `H.264 profile is ${m.videoProfile}, expected ${QUALITY_SPEC.video.profile}`);
   }
-  if (m.captionsExpected && m.captionsDetected === false) w.push('Captions are enabled but none were detected in the frame');
-  return w;
+  if (m.pixFmt !== null) {
+    rows.pixelFormat = row(m.pixFmt !== QUALITY_SPEC.video.pixFmt, `Pixel format is ${m.pixFmt}, expected ${QUALITY_SPEC.video.pixFmt}`);
+  }
+  if (m.audioSampleRate !== null) {
+    rows.audioSampleRate = row(m.audioSampleRate !== QUALITY_SPEC.audio.sampleRate, `Audio sample rate is ${m.audioSampleRate} Hz, expected ${QUALITY_SPEC.audio.sampleRate}`);
+  }
+  if (m.audioBitrateKbps !== null) {
+    rows.audioBitrate = row(m.audioBitrateKbps < QUALITY_SPEC.audio.minBitrateKbps, `Audio bitrate ${m.audioBitrateKbps} kbps is below ${QUALITY_SPEC.audio.minBitrateKbps}`);
+  }
+  if (visualSource === 'ai-stills' && m.longestShotSeconds !== null) {
+    rows.longestShot = row(
+      m.longestShotSeconds > QUALITY_SPEC.shot.maxSeconds,
+      `Longest single shot is ${m.longestShotSeconds.toFixed(1)}s (spec: ≤ ${QUALITY_SPEC.shot.maxSeconds}s)`,
+    );
+  }
+  if (visualSource === 'stock-footage' && m.shotCount !== null) {
+    rows.shotCount = row(
+      m.shotCount < QUALITY_SPEC.stock.minBeats,
+      `Only ${m.shotCount} distinct shot(s) detected in a stock-footage video (spec: a cut per beat)`,
+    );
+  }
+  if (m.captionsExpected && m.captionsDetected !== null) {
+    rows.captions = row(m.captionsDetected === false, 'Captions are enabled but none were detected in the frame');
+  }
+  return rows;
+}
+
+// Spec rows that missed but never block — recorded and shown at Gate 2 (same order as before).
+export function collectSoftWarnings(m: MetricsInput, visualSource: 'ai-stills' | 'stock-footage' | undefined): string[] {
+  const rows = evaluateQualityRows(m, visualSource);
+  return QUALITY_ROW_KEYS.flatMap((key) => {
+    const r = rows[key];
+    return r?.warn && r.message ? [r.message] : [];
+  });
+}
+
+// For runs measured before `rows` existed: derive it from the stored metrics and the
+// run's visual source. Returns the metrics unchanged when rows are already there, and
+// without rows when the metrics are too incomplete to evaluate (absent, not false).
+export function withQualityRows(m: QualityMetrics, visualSource: 'ai-stills' | 'stock-footage' | undefined): QualityMetrics {
+  if (m.rows) return m;
+  const rows = evaluateQualityRows(m, visualSource);
+  return Object.keys(rows).length > 0 ? { ...m, rows } : m;
 }
 
 // Compact, human-readable block for the Gate 2 message.
@@ -224,7 +275,7 @@ export async function measureQualityMetrics(params: {
   ]);
   const v = probe.video;
   const a = probe.audio;
-  const base: Omit<QualityMetrics, 'softWarnings'> = {
+  const base: MetricsInput = {
     integratedLufs: loudness.integratedLufs,
     truePeakDb: loudness.truePeakDb,
     width: v?.width ?? 0,
@@ -243,5 +294,5 @@ export async function measureQualityMetrics(params: {
     captionsExpected: params.captionsEnabled,
     captionsDetected,
   };
-  return { ...base, softWarnings: collectSoftWarnings(base, params.visualSource) };
+  return { ...base, softWarnings: collectSoftWarnings(base, params.visualSource), rows: evaluateQualityRows(base, params.visualSource) };
 }

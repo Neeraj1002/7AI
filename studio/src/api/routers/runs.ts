@@ -34,6 +34,8 @@ import { PrivacyStatusSchema } from '../../agents/publishing';
 import { FORMAT_KEYS } from '../../formats/manifest';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
+import { withQualityRows } from '../../agents/video-intelligence/quality-metrics';
+import type { QualityMetrics } from '../../agents/video-generation/quality-spec';
 
 // Sprint 3 Task 11 (R2/B13) — the one place that normalizes gate1/gate2's
 // three different raw stage-output field names (`reason`/`privacyStatus`/
@@ -126,6 +128,20 @@ function intakeRepeatTopic(
   return value ?? null;
 }
 
+// The latest completed video_review attempt's qualityMetrics, with `rows` filled in from the
+// stored metrics for runs measured before per-row flags existed. null when none were measured.
+export function deriveQualityMetrics(
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'input' | 'output'>[],
+): QualityMetrics | null {
+  const review = stages
+    .filter((s) => s.stageName === 'video_review' && s.status === 'completed')
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const metrics = (review?.output as { qualityMetrics?: QualityMetrics } | null | undefined)?.qualityMetrics;
+  if (!review || !metrics) return null;
+  const source = (review.input as { visualSource?: string } | null | undefined)?.visualSource;
+  return withQualityRows(metrics, source === 'ai-stills' || source === 'stock-footage' ? source : undefined);
+}
+
 // Sprint 4 Task 2: the latest completed script_review attempt's concerns and
 // violations plus the run's explicit sources. null before any review exists.
 export function deriveScriptReview(
@@ -177,6 +193,9 @@ async function getRunDetail(id: string, ctx: Context) {
     // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
     // stable place (derived from stage output and creationOptions, not stored).
     scriptReview: deriveScriptReview(run, stages),
+    // Gate 2 quality checks of the latest completed video_review, with per-row warn flags
+    // (qualityMetrics.rows.<row>.warn). null when the run has no measured metrics.
+    qualityMetrics: deriveQualityMetrics(stages),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
     // Bugs Task 12 (R1) - the app adds a Details line ("Switched to AI stills after stock footage failed review").
