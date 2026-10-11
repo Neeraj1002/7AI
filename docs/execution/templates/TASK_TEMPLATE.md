@@ -35,6 +35,17 @@ that used to be implicit are now explicit, hard rules — see **Hard rules** at 
 Workflow section: never push or merge to `main` directly, only ever commit to a branch you created
 yourself, and always record the exact branch name in that track's `STATUS.md` the moment you create it.
 
+**Updated 2026-10-06 — one worktree per concurrent session (Hard rule 4).** A real incident: the Sprint 3
+Task 13 session and the Sprint 4 Task 8 session ran at the same time in the same checkout
+(`D:\Study Material\7AI`). Midway through Task 8's real renders, the other session switched that checkout to
+a different branch and made a merge commit. Task 8's working files changed underneath it: a function
+disappeared and a module reverted to an older version mid-run. Nothing was lost only because Task 8's work
+had already been pushed, and the session noticed and moved itself into a separate worktree. Git branches
+isolate _commits_, not _working directories_. Two sessions in one folder share one working tree, one
+checked-out branch and one index, so either session's `git checkout`/`git merge`/`git stash` silently
+changes the other's files. Hard rule 4 makes the fix mandatory: every concurrently running session gets
+its own `git worktree`.
+
 ---
 
 ## Template Structure
@@ -252,13 +263,13 @@ Per-task reports: `reports/task[1-N].md`. Full narrative (once written): `report
 
 **Status** values: `Done`, `Done — action needed` (the code/task is finished but something can't close out without the founder — a credential, an external console step, a decision), `In Progress`, `Blocked`.
 **Owner** values: `Claude Code` (nothing further needed from the founder) or `Founder` (the ball is in the founder's court — used whenever Status is `Done — action needed` or `Blocked` on something only the founder can do).
-**Branch** _(added 2026-09-25)_: the exact branch name this task's commits actually live on (e.g. `SPRINT4_BE`, `FRONTEND_FE`, `BUGS_APP_b3`). Fill this in the moment the branch is created — before the task's own commit even lands — so a later session (this chat resumed, or a different one entirely) reads this table first and finds a branch already in flight instead of creating a duplicate or guessing at a name. Leave it blank only in the instant between "task claimed" and "branch created," never longer.
+**Branch** _(added 2026-09-25)_: the exact branch name this task's commits actually live on (e.g. `SPRINT4_BE`, `FRONTEND_FE`, `BUGS_TASK3`). Fill this in the moment the branch is created — before the task's own commit even lands — so a later session (this chat resumed, or a different one entirely) reads this table first and finds a branch already in flight instead of creating a duplicate or guessing at a name. Leave it blank only in the instant between "task claimed" and "branch created," never longer. _(Added 2026-10-06)_ When the session works from a dedicated worktree (Hard rule 4), add the worktree path in the Notes column, e.g. `worktree: D:\Study Material\7AI-SPRINT4_TASK8_BE`, so a later session can find the in-flight working files as well as the branch.
 
 Update the row for _this_ task only — never rewrite other tasks' rows, and never let this file's status contradict what the task's own report says. If a later task changes an earlier task's status (e.g. the founder's Telegram token finally gets added and Task 6 becomes fully `Done`), that's the task that's actually doing the work updating the row, not a retroactive edit from whichever task happens to run next.
 
 The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (one `BUGS_TASK<N>` branch per release, covering every item regardless of role — changed 2026-09-26 from an earlier per-role split that was producing conflicting sibling PRs). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
 
-### Git Workflow _(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations)_
+### Git Workflow _(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations; updated 2026-10-06 — Hard rule 4, one worktree per concurrent session)_
 
 **Branch per track-iteration, commit per task, PR per track-iteration — merging to `main` is always a founder decision, never automatic.**
 
@@ -280,14 +291,51 @@ The frontend track follows this exact same pattern at `docs/execution/frontend/S
    column for this task before or immediately after `git checkout -b`, not only once the task is
    finished — so a later session (this chat resumed, or a different one) reads `STATUS.md` first and
    finds the branch that's already in flight instead of guessing or creating a duplicate.
+4. **One worktree per concurrent session — never share a working directory with another running
+   session.** _(Added 2026-10-06 after a real incident; see the update note at the top of this file.)_
+   - **Default:** a session that may run at the same time as any other session (another Claude Code
+     chat, a hot-fixer, a UI/UX session, or the founder working by hand) creates its own worktree from the
+     track's base checkout instead of `git checkout -b` in a shared folder:
+     ```bash
+     cd "D:/Study Material/7AI"                 # the track's base checkout (see list below)
+     git fetch origin
+     git worktree add -b <BRANCH> "D:/Study Material/7AI-<BRANCH>" origin/main
+     cd "D:/Study Material/7AI-<BRANCH>"        # ALL work, renders, commits and pushes happen here
+     ```
+     Never run `git checkout`, `git switch`, `git merge`, `git rebase`, `git stash` or `git reset` in a
+     folder you didn't create for this session. Those commands change the working files of whoever else
+     is using that folder.
+   - **Worktree setup:** a new worktree has no `node_modules` and no untracked env files. Run
+     `npm ci` in it (or create a junction/symlink to the base checkout's `node_modules` when the lockfile
+     is identical). Copy `studio/.env.local` in, never commit it, and never edit the base checkout's copy.
+     Untracked files in the base checkout (e.g. synced docs) don't appear in a new worktree either. Copy
+     them in explicitly when the task needs them.
+   - **Record it:** put the worktree path in the task's `STATUS.md` row (see the Branch column note
+     above), so a later session can find the in-flight working files, not just the branch.
+   - **Check before acting:** before any git command that changes the working tree, run
+     `git worktree list` and `git status`. If the folder is on a branch you didn't create, or has changes
+     you don't recognise, another session is using it: stop and ask (same posture as Hard rule 2).
+   - **Shared resources are still shared:** a worktree isolates files, not the dev database, the R2
+     bucket, API budgets or rate limits. Long real-render or DB-touching verification runs must still not
+     wake `resume-on-startup` for other runs (see Sprint 3 Task 10's disclosed incident) and must use
+     clearly named, cleaned-up test objects/rows.
+   - **Cleanup:** after the task's PR merges, the founder (or the session, if asked) removes the
+     worktree with `git worktree remove "D:/Study Material/7AI-<BRANCH>"` and then `git worktree prune`.
+     Never delete a worktree folder by hand, and never remove a worktree you didn't create.
+   - **Exception:** when the founder confirms that no other session is running, a session may work
+     directly in the track's base checkout as before. When in doubt, use a worktree; it costs only a
+     dependency install.
 
 **Where task docs and work happen (checkout locations)** — added 2026-09-25, after a task doc written
-only into the main checkout wasn't visible to a session working from a different track's own checkout:
+only into the main checkout wasn't visible to a session working from a different track's own checkout.
+_(Updated 2026-10-06: these are each track's **base checkout**. Under Hard rule 4, concurrent sessions
+create their own worktree from that base checkout rather than all working inside it.)_
 
 - **Frontend track** (`FRONTEND_FE` / `SPRINT[N]_FE`): work, commit, and write this track's task docs
   from `D:\Study Material\7AI-frontend`.
-- **Backend track** (`WEEK[N]_BE` / `SPRINT[N]_BE`): work, commit, and write this track's task docs from
-  `D:\Study Material\7AI` — the main checkout, which holds `studio/`.
+- **Backend track** (`WEEK[N]_BE` / `SPRINT[N]_BE`, and per-task backend branches such as
+  `SPRINT4_TASK8_BE`): base checkout `D:\Study Material\7AI` — the main checkout, which holds `studio/`.
+  Concurrent backend sessions each use `D:\Study Material\7AI-<BRANCH>` worktrees created from it.
 - **Bugs track** (`BUGS_*`): its own dedicated worktree, separate from both of the above — the current
   path and naming convention are authoritative in `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`
   (not repeated here, since that path has already changed once as the track matured).
@@ -317,13 +365,16 @@ Two independent tracks now build against this repo at the same time: the **backe
 
 **Starting a new track-iteration** (first task only — a new sprint for backend, or the first time the frontend track picks up work):
 
-1. `git checkout main && git pull` — start from a current `main`.
+1. `git checkout main && git pull` — start from a current `main`. _(Under Hard rule 4, run
+   `git fetch origin` in the base checkout and create the branch with `git worktree add -b ...
+   origin/main` instead; don't switch the shared base checkout's branch.)_
 2. If no `origin` remote exists yet: `gh repo create 7AI --private --source=. --remote=origin` (ask the founder to run `gh auth login` first if `gh auth status` isn't authenticated — don't try to work around this).
 3. **Read that track's `STATUS.md` `Branch` column first.** If a `[TRACK]_[SUFFIX]` branch is already
    recorded there and unmerged, and this task is a genuine continuation of the same track-iteration,
-   check it out instead of creating a new one. Otherwise: `git checkout -b [TRACK]_[SUFFIX]` — e.g.
-   `SPRINT2_BE`, `FRONTEND_FE` — and record that exact name in `STATUS.md`'s `Branch` column
-   immediately (Hard rule 3 above).
+   check it out instead of creating a new one (in its own worktree, if that worktree already exists, use
+   it). Otherwise: create `[TRACK]_[SUFFIX]` — e.g. `SPRINT2_BE`, `FRONTEND_FE` — in a new worktree per
+   Hard rule 4 (or with `git checkout -b` only under that rule's exception), and record that exact name
+   (plus the worktree path) in `STATUS.md` immediately (Hard rule 3 above).
 4. After this first task's commit is pushed (below), open the PR as a draft: `gh pr create --draft --title "[TRACK]_[SUFFIX]: [Theme]" --body "Tracking PR for [TRACK]. Live status: docs/execution/[sprint[N]|frontend]/STATUS.md. Do not merge until marked ready for review."` — e.g. title `SPRINT2_BE: Flexible Creation + Content Intelligence` or `FRONTEND_FE: API Layer, App Scaffold, Dashboard`. The body links to `STATUS.md` rather than duplicating it (same "documented once" principle as the rest of this template), so it never needs editing as the track progresses.
 
 **After every task** (every task, every track), once its report and `STATUS.md` row (including its `Branch` column) are written:
@@ -430,17 +481,17 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
 
 1. Claude reads the task file (or, for Week 1, `WEEK1_INSTRUCTIONS.md`) in full, plus the `SCHEMA.md`/`BUSINESS_LOGIC.md` it references.
 2. If this is the track-iteration's first task: reads that track's `STATUS.md` `Branch` column first to
-   check whether a branch is already in flight (Hard rule 3); if not, checks out a current `main`,
-   creates `[TRACK]_[SUFFIX]` (e.g. `SPRINT2_BE`, `FRONTEND_FE`) from the checkout that track actually
-   works from (see "Where task docs and work happen" above), records the branch name in `STATUS.md`
-   immediately, and (once this task is committed and pushed) opens the track's draft PR — see "Git
-   Workflow."
-3. Executes the "Implementation" section.
+   check whether a branch is already in flight (Hard rule 3); if not, runs `git worktree list` and
+   creates `[TRACK]_[SUFFIX]` (e.g. `SPRINT2_BE`, `FRONTEND_FE`) **in its own new worktree** from the
+   track's base checkout (Hard rule 4; see "Where task docs and work happen" above), records the branch
+   name and worktree path in `STATUS.md` immediately, and (once this task is committed and pushed)
+   opens the track's draft PR — see "Git Workflow."
+3. Executes the "Implementation" section — entirely inside its own worktree.
 4. Runs the "Testing" section to verify.
 5. Generates the report at `execution/sprint[N]/reports/task[ID].md` (or `execution/week[N]/reports/task[ID].md` for Sprint 1, or `execution/frontend/reports/task[ID].md`) — committed from the same checkout the code changes came from.
 6. Upserts this task's row in the track's `STATUS.md`, including the `Branch` column (creating the file if it's the track's first completed task).
 7. If implementation deviated from the schema or business logic as documented, updates `SCHEMA.md`/`BUSINESS_LOGIC.md` to match reality and flags the deviation in the report — the docs describe what was actually built, not just what was planned.
-8. Commits code + report + `STATUS.md` together and pushes to `[TRACK]_[SUFFIX]` — see "Git Workflow." Never to `main` (Hard rule 1), and never to a branch this session didn't create (Hard rule 2).
+8. Commits code + report + `STATUS.md` together and pushes to `[TRACK]_[SUFFIX]` — see "Git Workflow." Never to `main` (Hard rule 1), never to a branch this session didn't create (Hard rule 2), and never from a folder another session is using (Hard rule 4).
 9. If this was the track-iteration's last task, marks the PR ready for review (still doesn't merge, still doesn't push to `main`).
 10. Moves to the next task.
 
@@ -457,3 +508,4 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
 7. **Track identity is never ambiguous** — every branch, commit, and PR carries `_BE` or `_FE` (or, for the bugs track, one `BUGS_TASK<N>` branch per release with a `BE`/`FE`/`APP` role tag per item for shipping purposes only — see `HOTFIXER_AGENT_PROTOCOL.md`; or, for the UI/UX track, its own `FE`/`APP` role, no `BE` — see `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`), so two people (or two Claude Code chats) working different tracks in parallel never collide on naming or accidentally review the wrong diff against the wrong track's `STATUS.md`.
 8. **Historical units are never renamed** — Sprint 1's work stays `week[N]` exactly as merged; only planning language and everything from Sprint 2 forward uses `sprint[N]`.
 9. **Branch discipline is explicit, not assumed** _(added 2026-09-25)_ — never push or merge to `main` directly; only ever commit to a branch you created yourself; always record the branch name in `STATUS.md` the moment it's created. These are hard rules, not defaults to override when a task feels urgent.
+10. **Working-directory isolation is explicit, not assumed** _(added 2026-10-06)_ — branches isolate commits, not working files. Every concurrent session works in its own `git worktree`, never in a folder another session is using (Hard rule 4).
