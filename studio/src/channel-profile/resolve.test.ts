@@ -11,7 +11,9 @@ describe('resolveChannelConfig', () => {
     expect(resolveChannelConfig(none)).toEqual({
       scriptGuide: null,
       formatScriptStructure: null,
+      videoKind: 'short',
       targetSeconds: 45,
+      offeredFormatKeys: [],
       bannedOpeners: [],
       bannedEndings: [],
       factPolicy: 'brief-plus-common',
@@ -125,5 +127,58 @@ describe('resolveChannelConfig formatKey (Sprint 4 Task 6)', () => {
 
   it('a format with no profile uses the format target', () => {
     expect(resolveChannelConfig({ ...none, formatKey: 'question-surprising-answer' }).targetSeconds).toBe(35);
+  });
+});
+
+describe('resolveChannelConfig videoKind and offeredFormatKeys (Sprint 4 Task 9)', () => {
+  it('defaults: short, 45 s, no offered formats; long defaults to 600 s', () => {
+    const out = resolveChannelConfig(none);
+    expect([out.videoKind, out.targetSeconds, out.offeredFormatKeys]).toEqual(['short', 45, []]);
+    expect(resolveChannelConfig({ ...none, runOverrideVideoKind: 'long' }).targetSeconds).toBe(600);
+  });
+
+  it('the format decides the kind when the run does not; a long format gives its length', () => {
+    const out = resolveChannelConfig({ ...none, formatKey: 'chaptered-explainer' });
+    expect([out.videoKind, out.targetSeconds]).toEqual(['long', 600]);
+  });
+
+  it('precedence for long: run override > format > default; the profile Shorts target is ignored', () => {
+    const profile: ChannelProfileData = { script: { targetSeconds: 30 } };
+    const long = { ...none, profile, runOverrideVideoKind: 'long' as const };
+    expect(resolveChannelConfig(long).targetSeconds).toBe(600);
+    expect(resolveChannelConfig({ ...long, formatKey: 'chaptered-explainer', runOverrideTargetSeconds: 300 }).targetSeconds).toBe(300);
+    expect(resolveChannelConfig({ ...long, formatKey: 'chaptered-explainer' }).targetSeconds).toBe(600);
+  });
+
+  it('a format of the other kind contributes nothing', () => {
+    const out = resolveChannelConfig({ ...none, runOverrideVideoKind: 'long', formatKey: 'countdown' });
+    expect([out.targetSeconds, out.formatScriptStructure]).toEqual([600, null]);
+  });
+
+  it('the 60-second cap applies to short only', () => {
+    expect(resolveChannelConfig({ ...none, runOverrideTargetSeconds: 120 }).targetSeconds).toBe(60);
+    expect(resolveChannelConfig({ ...none, runOverrideVideoKind: 'long', runOverrideTargetSeconds: 900 }).targetSeconds).toBe(900);
+  });
+
+  it('returns the profile offeredFormatKeys in order', () => {
+    const profile: ChannelProfileData = { offeredFormatKeys: ['top-3', 'chaptered-explainer'] };
+    expect(resolveChannelConfig({ ...none, profile }).offeredFormatKeys).toEqual(['top-3', 'chaptered-explainer']);
+  });
+});
+
+describe('ChannelProfileDataSchema offeredFormatKeys (Sprint 4 Task 9, R1b)', () => {
+  const parse = (offeredFormatKeys: unknown) => ChannelProfileDataSchema.safeParse({ offeredFormatKeys });
+  it('accepts known keys in any short/long mix, and an empty list', () => {
+    expect(parse(['countdown', 'chaptered-explainer']).success).toBe(true);
+    expect(parse([]).success).toBe(true);
+  });
+  it('rejects an unknown key and a duplicate', () => {
+    expect(parse(['nope']).success).toBe(false);
+    expect(parse(['countdown', 'countdown']).success).toBe(false);
+  });
+  it('a profile version without the field still parses (older versions mean none offered)', () => {
+    const parsed = ChannelProfileDataSchema.parse({ script: { guide: 'x' } });
+    expect(parsed.offeredFormatKeys).toBeUndefined();
+    expect(resolveChannelConfig({ ...none, profile: parsed }).offeredFormatKeys).toEqual([]);
   });
 });

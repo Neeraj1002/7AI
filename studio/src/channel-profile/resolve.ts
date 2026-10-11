@@ -1,6 +1,7 @@
 import type { ChannelProfileData } from './schema';
 import { DEFAULT_TTS_VOICE } from '../media';
-import { findFormat } from '../formats/manifest';
+import { findFormat, type VideoKind } from '../formats/manifest';
+import { LONG_DEFAULT_SEC, SHORT_DEFAULT_SEC, SHORT_MAX_SEC } from '../formats/video-kind';
 
 // Sprint 4 Task 1 (R3): the one shared resolver every later Sprint 4 task
 // reads. Pure and DB-free (same posture as media/registry.ts resolveVoice):
@@ -15,7 +16,12 @@ export type ResolvedChannelConfig = {
   scriptGuide: string | null;
   // Sprint 4 Task 6: the chosen format's structural hint, null when no valid format.
   formatScriptStructure: string | null;
-  targetSeconds: number; // platform default 45
+  // Sprint 4 Task 9 (R1): run override, else the chosen format's kind, else 'short'.
+  videoKind: VideoKind;
+  // Short: platform default 45, never above 60. Long: platform default 600.
+  targetSeconds: number;
+  // Sprint 4 Task 9 (R1b): the formats this channel offers, in order; [] when none.
+  offeredFormatKeys: string[];
   bannedOpeners: string[];
   bannedEndings: string[];
   // Platform default 'brief-plus-common': today's script prompt already lets
@@ -45,14 +51,27 @@ export function resolveChannelConfig(params: {
   runOverrideVisualSource?: string | null; // creationOptions.visualSource
   runOverrideAudioLayer?: string | null; // creationOptions.audioLayer
   runOverrideTargetSeconds?: number | null; // creationOptions.targetDurationSec
+  runOverrideVideoKind?: VideoKind | null; // creationOptions.videoKind
   formatKey?: string | null; // creationOptions.formatKey; unknown keys are ignored
 }): ResolvedChannelConfig {
   const p = params.profile ?? {};
-  const format = findFormat(params.formatKey);
+  const found = findFormat(params.formatKey);
+  const videoKind: VideoKind = params.runOverrideVideoKind ?? found?.videoKind ?? 'short';
+  // A format of the other kind contributes nothing (runs.create rejects that mix).
+  const format = found && found.videoKind === videoKind ? found : undefined;
+  // The profile's script.targetSeconds is a Shorts setting (15-60 s).
+  const profileSeconds = videoKind === 'short' ? p.script?.targetSeconds : undefined;
+  const rawSeconds =
+    params.runOverrideTargetSeconds ??
+    format?.targetSeconds ??
+    profileSeconds ??
+    (videoKind === 'long' ? LONG_DEFAULT_SEC : SHORT_DEFAULT_SEC);
   return {
     scriptGuide: p.script?.guide ?? params.legacyStyleGuide ?? null,
     formatScriptStructure: format?.scriptStructure ?? null,
-    targetSeconds: params.runOverrideTargetSeconds ?? format?.targetSeconds ?? p.script?.targetSeconds ?? 45,
+    videoKind,
+    targetSeconds: videoKind === 'short' ? Math.min(rawSeconds, SHORT_MAX_SEC) : rawSeconds,
+    offeredFormatKeys: p.offeredFormatKeys ?? [],
     bannedOpeners: p.script?.bannedOpeners ?? [],
     bannedEndings: p.script?.bannedEndings ?? [],
     factPolicy: p.script?.factPolicy ?? 'brief-plus-common',

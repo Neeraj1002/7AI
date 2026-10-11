@@ -228,6 +228,22 @@ export async function checkBudget(
   return { ok: true };
 }
 
+// Sprint 4 Task 9 (R7): what this channel may still spend this week, in USD: the smaller of its own
+// share and the whole account's remainder, never below 0. Same ceilings and window as checkBudget.
+export async function getRemainingWeeklyUsd(
+  tenantId: string,
+  channelId: string,
+  platform: ChannelPlatform,
+  now: Date = new Date(),
+): Promise<number> {
+  const view = await loadChannelBudgetView(tenantId, platform);
+  const since = currentBudgetWindowStart(now);
+  const poolSpent = await sumUsageCostForTenantPlatform(tenantId, platform, since);
+  const channelCeiling = view.ceilings.get(channelId) ?? view.poolCeilingUsd;
+  const channelSpent = await sumUsageCostForTenantChannelPlatform(tenantId, channelId, platform, since);
+  return Math.max(0, Math.min(view.poolCeilingUsd - poolSpent, channelCeiling - channelSpent));
+}
+
 export async function isBudgetAvailable(
   tenantId: string,
   channelId: string,

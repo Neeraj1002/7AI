@@ -75,3 +75,9 @@ Tasks 2-6: update here as each lands.
 - After Intake completes, the topic is compared with the channel's last 20 runs; a likely repeat is written
   to the intake stage output as `repeatTopic`, shown at Gate 1 and returned by `runs.get`
   (`scriptReview.repeatTopic`). Non-blocking; a failure of the check never fails the run.
+
+## Task 9 (PR A): Video kind, offered formats and the cost estimate
+
+- `runs.create` resolves the video kind (explicit `videoKind`, else the format's, else short), validates the length per kind (short 30/45/60; long whole minutes 120..900), refuses a format of the other kind, a format outside a non-empty `offeredFormatKeys`, stock footage on a long run, and a bad `maxCostUsd`. Shorts requests are unchanged.
+- `runs.estimateCost` is read-only: per-attempt and worst-case estimate from the real unit prices, the suggested per-video limit (1.5x the estimate, next $0.50) and the channel's remaining weekly budget. `maxCostUsd` is stored but not yet enforced during the run (PR B).
+- No new run statuses or stages.

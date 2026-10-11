@@ -22,7 +22,7 @@ import { createChannelWithCapCheck, ChannelCapExceededError } from '../../manage
 import { CreateChannelInputSchema } from '../../types';
 import type { Channel } from '../../types';
 import { ChannelProfileDataSchema } from '../../channel-profile';
-import { CONTENT_FORMATS } from '../../formats/manifest';
+import { CONTENT_FORMATS, findFormat, type ContentFormat } from '../../formats/manifest';
 import {
   insertProfileVersion,
   findActiveProfileForChannel,
@@ -104,7 +104,28 @@ export const channelsRouter = router({
 
   // Sprint 4 Task 6: the static format list for the brief form's picker. Plain
   // reference data, so any valid session may read it.
-  listFormats: publicProcedure.query(() => CONTENT_FORMATS),
+  // Sprint 4 Task 9 (R1b): without input, every format as before (each now with videoKind). With
+  // channelId, only the formats in that channel's active profile, in the profile's order (an empty
+  // or missing list gives []). videoKind, when sent, filters after that. Freeform is not an entry:
+  // it is "no formatKey" and the app adds it itself.
+  listFormats: publicProcedure
+    .input(
+      z
+        .object({ channelId: z.string().uuid().optional(), videoKind: z.enum(['short', 'long']).optional() })
+        .optional(),
+    )
+    .query(async ({ input, ctx }) => {
+      let formats: ContentFormat[] = CONTENT_FORMATS;
+      if (input?.channelId) {
+        const channel = await loadReadableChannel(input.channelId, ctx);
+        const offered = (await findActiveProfileForChannel(channel.id))?.data.offeredFormatKeys ?? [];
+        formats = offered.flatMap((key) => {
+          const format = findFormat(key);
+          return format ? [format] : [];
+        });
+      }
+      return input?.videoKind ? formats.filter((f) => f.videoKind === input.videoKind) : formats;
+    }),
 
   // Sprint 4 Task 1 (R2): channel profile versions. Creating one is a
   // channel-management action, so it is ownership-checked like connecting

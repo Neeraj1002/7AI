@@ -16,7 +16,16 @@ export type {
   TranscriptSegment,
   TranscribeResult,
 } from './types';
-export { TTS_VOICES, TTS_VOICE_KEYS, DEFAULT_TTS_VOICE, resolveVoice, resolveMediaPurpose, type TtsVoice } from './registry';
+export {
+  TTS_VOICES,
+  TTS_VOICE_KEYS,
+  DEFAULT_TTS_VOICE,
+  resolveVoice,
+  resolveMediaPurpose,
+  resolveTtsPricing,
+  resolveTranscriptionPricing,
+  type TtsVoice,
+} from './registry';
 
 // MEDIA_STUB=1 swaps both calls for the stubs in ./stub.ts — no
 // OPENAI_API_KEY has been available in any session so far. Same pattern Week

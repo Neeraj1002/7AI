@@ -36,3 +36,7 @@ a gate; `null` for non-human rows, rows that predate the column, and gates resol
 path. No backfill.
 
 ## Task 5: none (`intake` stage output gains optional `repeatTopic`; publishing stage output gains `selfDeclaredMadeForKids`; both Json).
+
+## Task 9 (PR A): none (Json-column additions only)
+
+`PipelineRun.creationOptions` gains `videoKind` (stored only for long), a widened integer `targetDurationSec` (long: 120..900 whole minutes, stored as resolved) and `maxCostUsd` (long only). `ChannelProfileVersion.data` gains optional `offeredFormatKeys: string[]`; an older version without it means "none offered". `PipelineStage.output` for script_generation may carry `chapters` (written by PR B).
