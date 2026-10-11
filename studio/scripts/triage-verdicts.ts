@@ -5,10 +5,13 @@
 // function bugs.updateTriage calls (triageBugReportWithAudit), so the validation and the admin_audit_log
 // row are identical; actor kind 'script'. No SQL.
 //
+// NODE_ENV=production is required on the server: studio/src/config/env.ts reads `.env` only when NODE_ENV is
+// 'production' (otherwise `.env.local`, which does not exist there, and DATABASE_URL is undefined).
+//
 // Usage:
-//   npx tsx scripts/triage-verdicts.ts                      # DRY RUN: prints what it would do, writes nothing
-//   npx tsx scripts/triage-verdicts.ts --override 3f9a=area-only --override c01b=endms
-//   npx tsx scripts/triage-verdicts.ts --apply [--override ...] [--default-priority annoying]
+//   NODE_ENV=production npx tsx scripts/triage-verdicts.ts      # DRY RUN: prints what it would do, writes nothing
+//   NODE_ENV=production npx tsx scripts/triage-verdicts.ts --override 3f9a=area-only --override c01b=endms
+//   NODE_ENV=production npx tsx scripts/triage-verdicts.ts --apply [--override ...] [--default-priority annoying]
 //
 // --override <idprefix>=<group> forces a report into a group (use it for the "needs a decision" list after
 // the mapping is confirmed). Groups: budget, identical-clips, stutter, audio, dashboard, inbox,
