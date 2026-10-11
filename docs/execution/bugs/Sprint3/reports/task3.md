@@ -225,5 +225,5 @@ none of this branch's commits include throwaway test code.
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task3.md`
+- `docs/execution/bugs/Sprint3/tasks/task3.md`
 - PRs: `BUGS_BE` (#18), `BUGS_FE_TASK3` (#19)

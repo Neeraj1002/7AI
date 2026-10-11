@@ -146,7 +146,7 @@ step 5: registering that exact URL in Google Cloud Console.
 ## Resolution — what was actually built and verified (2026-09-28, R1; 2026-09-27, R2)
 
 Reported directly by the hot-fixer session that worked this task (report now on file at
-`docs/execution/bugs/reports/task5.md`):
+`docs/execution/bugs/Sprint3/reports/task5.md`):
 
 - **Boot guard**: `redirect-uri-guard.ts` (`isPrivateIpRedirectHost()`, 4-case unit test including the
   `*.ts.net` non-match case added for R2) plus a `[boot]` warning in `index.ts` when the resolved
@@ -158,7 +158,7 @@ Reported directly by the hot-fixer session that worked this task (report now on 
   `http://localhost:4001/oauth2callback` for R1's own verification. Gitignored, so not in the PR —
   **whichever checkout the server actually runs from needs its own correct value applied** (now the real
   Tailscale hostname, per the founder's own live test on 2026-09-27).
-- **Docs**: this task doc and `docs/execution/bugs/reports/task5.md` were written by the hot-fixer
+- **Docs**: this task doc and `docs/execution/bugs/Sprint3/reports/task5.md` were written by the hot-fixer
   session; this file's own correction/merge pass (this section and R1/R2 above) reconciles the task doc's
   original, unverified hypothesis and folds in R2's Tailscale work, which the hot-fixer session built and
   reported separately from R1.
@@ -209,7 +209,7 @@ pending the Google Console registration in "Yours to do" #1.
 
 ## Report Template
 
-Generate at `docs/execution/bugs/reports/task5.md`, same shape as `reports/task4.md` — state plainly
+Generate at `docs/execution/bugs/Sprint3/reports/task5.md`, same shape as `reports/task4.md` — state plainly
 what the actual pre-fix `redirect_uri` source was (env-var-derived, hardcoded, or something else), what
 changed, and whether the Google Console redirect-URI registration was already correct or needed a
 founder update. **Written and now on file in the project** — see "Resolution" above for the summary.
@@ -223,7 +223,7 @@ founder update. **Written and now on file in the project** — see "Resolution" 
 - `docs/execution/sprint3/tasks/task5.md` — the original OAuth connect flow this task is fixing a real
   gap in
 - PR [#29](https://github.com/Neeraj1002/7AI/pull/29) — draft, `BUGS_TASK5`
-- `docs/execution/bugs/reports/task5.md` — the hot-fixer's own written report, now on file
+- `docs/execution/bugs/Sprint3/reports/task5.md` — the hot-fixer's own written report, now on file
 
 ## Git Workflow
 

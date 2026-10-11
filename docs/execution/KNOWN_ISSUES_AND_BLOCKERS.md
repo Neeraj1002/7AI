@@ -314,7 +314,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   ~$0.0025 per existing usage-row evidence) before the next check catches it. Not fixed: the maximum
   possible overshoot across Bugs Task 3/R3's own bounded retry loop (at most ~4 review calls per run) is
   on the order of a cent — not worth a third `isBudgetAvailable` call site at current scale. Revisit if
-  review-call volume or cost per call ever changes materially. — *`bugs/reports/task6.md`*
+  review-call volume or cost per call ever changes materially. — *`bugs/Sprint3/reports/task6.md`*
 
 - **On Windows, stopping a background *task* does not reliably stop the *process tree* it spawned** — `npx tsx <script>` chains through several `node.exe` processes (npx → the tsx CLI → the actual runtime executing the script); killing only the outermost shell/task leaves the real work running undetected in the background. Bit Week 3 Task 5's live kill-and-resume test once already, and bit Week 4 Task 4's mid-`publishing` kill test the same way on a first attempt — caught both times by checking `tasklist`/`Get-CimInstance Win32_Process` for the actual PIDs and force-killing the whole tree directly, not the wrapper. Correctly applied on the first attempt in Week 5 Task 1's real re-run of this same test. Not a code bug, a testing-methodology note worth remembering before the next live kill test. — *`week3/reports/task5.md`, `week4/reports/task4.md`, `week5/reports/task1.md`*
 

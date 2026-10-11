@@ -132,5 +132,5 @@ Live verification narratives (R1/R3/R4/R2) reproduced above and in the branch's 
 
 ## Links & References
 - `docs/execution/sprint3/tasks/task9.md`, `docs/execution/sprint3/STATUS.md`
-- `docs/execution/bugs/tasks/task6.md`, `docs/execution/bugs/reports/task6.md` — the R2 dependency, merged first
-- `docs/execution/bugs/tasks/task3.md` — the score-threshold/auto-retry mechanism R2's `gate1AutoApprove` sits next to
+- `docs/execution/bugs/Sprint3/tasks/task6.md`, `docs/execution/bugs/Sprint3/reports/task6.md` — the R2 dependency, merged first
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — the score-threshold/auto-retry mechanism R2's `gate1AutoApprove` sits next to

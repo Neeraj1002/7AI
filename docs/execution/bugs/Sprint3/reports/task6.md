@@ -87,7 +87,7 @@ Plus the real console output reproduced in full above for R1 and R2.
 - Ready for Integration: yes. **Merged.**
 
 ## Links & References
-- `docs/execution/bugs/tasks/task6.md`, `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task3.md` — R3, the mechanism this task extends
+- `docs/execution/bugs/Sprint3/tasks/task6.md`, `docs/execution/bugs/STATUS.md`
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R3, the mechanism this task extends
 - `docs/execution/sprint3/tasks/task9.md` — was blocked on this branch merging first, now unblocked
 - `docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md` — the `fixNotes` pattern mirrored here

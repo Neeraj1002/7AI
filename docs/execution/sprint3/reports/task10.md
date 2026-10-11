@@ -124,7 +124,7 @@ pre-verification, correcting the original doc's `AsyncStorage` assumption).
   Checked directly (`git log -S isServerReachable --oneline --all`): the real commit is
   `eb301c9 BUGS_TASK8_R2: server-down screen instead of an endless spinner`, merged via PR #36. Neither
   citation names the right item precisely, and **no report file exists at
-  `docs/execution/bugs/reports/task8.md`** (checked directly — that whole `reports/` directory only goes
+  `docs/execution/bugs/Sprint3/reports/task8.md`** (checked directly — that whole `reports/` directory only goes
   up to `task7.md`). This didn't block R2 — the actual code (`app/lib/auth-api.ts`,
   `app/app/(app)/_layout.tsx`) was read directly rather than trusted from either citation — but is flagged
   here since a future session may otherwise go looking for a report that isn't there.
@@ -161,7 +161,7 @@ Live verification narratives (R1/R2/R3/R4) reproduced above and in the branch's 
 ## Links & References
 - `docs/execution/sprint3/tasks/task10.md`, `docs/execution/sprint3/STATUS.md`
 - `docs/server/deployment/preview/detail.md` — the real preview server R1/R2 work against
-- `docs/execution/bugs/tasks/task5.md` — the OAuth-redirect/Tailscale-Funnel precedent R2's Custom field
+- `docs/execution/bugs/Sprint3/tasks/task5.md` — the OAuth-redirect/Tailscale-Funnel precedent R2's Custom field
   reuses
 - `eb301c9` (`BUGS_TASK8_R2`, PR #36) — the actual commit behind the server-down screen R2 integrates
   with (see Discrepancies above)

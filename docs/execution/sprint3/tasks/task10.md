@@ -254,11 +254,11 @@ above (or state precisely where it diverged and why) rather than re-deriving the
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - `docs/execution/sprint3/STATUS.md`
 - `docs/server/deployment/preview/detail.md` — the real preview server R1/R2 must work against
-- `docs/execution/bugs/tasks/task4.md` — R3, the original `PUBLIC_API_BASE_URL` gap this task addresses
+- `docs/execution/bugs/Sprint3/tasks/task4.md` — R3, the original `PUBLIC_API_BASE_URL` gap this task addresses
   more generally
-- `docs/execution/bugs/tasks/task5.md` — the OAuth-redirect/Tailscale-Funnel precedent for
+- `docs/execution/bugs/Sprint3/tasks/task5.md` — the OAuth-redirect/Tailscale-Funnel precedent for
   phone-reachable URLs
-- `docs/execution/bugs/reports/task8.md` — R6, the `/health`-check + server-down screen R2 must
+- `docs/execution/bugs/Sprint3/reports/task8.md` — R6, the `/health`-check + server-down screen R2 must
   integrate with, not duplicate
 - `docs/execution/bugs/STATUS.md` — the real-dev-server environment-finding warning at the top of that
   file, directly relevant to why this task exists

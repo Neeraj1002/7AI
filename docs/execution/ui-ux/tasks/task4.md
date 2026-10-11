@@ -140,5 +140,5 @@ result; whether E8 shipped.
 ## Links & References
 - Future Screens canvas, row 5 (under review) → locked canvas once approved
 - `docs/execution/ui-ux/tasks/task3.md` (must merge first)
-- `docs/execution/bugs/reports/task8.md`, `task9.md` (where these flows came from)
+- `docs/execution/bugs/Sprint3/reports/task8.md`, `task9.md` (where these flows came from)
 - `studio/src/api/routers/options.ts`, `studio/src/api/watermark-route.ts`

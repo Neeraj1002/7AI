@@ -109,6 +109,6 @@ six test/verification rows from this batch.
 
 ## Links & References
 - `docs/execution/bugs/STATUS.md` — Task 9's row
-- `docs/execution/bugs/reports/task8.md` — the earlier pass whose `2e3b0078` and `f7db3cf5` this one
+- `docs/execution/bugs/Sprint3/reports/task8.md` — the earlier pass whose `2e3b0078` and `f7db3cf5` this one
   finally root-causes
 - `docs/execution/ui-ux/tasks/task1.md` (item E3) — the spec confirming `7894d971` is by design

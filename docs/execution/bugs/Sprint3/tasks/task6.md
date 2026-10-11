@@ -25,7 +25,7 @@ and `sprint3/STATUS.md`'s Task 9 row have been updated to stop citing that gap.
 **R1 and R2 are both complete, live-verified against a real, isolated sandbox database, and merged to
 `main` via `BUGS_TASK6` / PR [#31](https://github.com/Neeraj1002/7AI/pull/31) (2026-09-27).** Full
 verification detail (real captured-prompt output for R1, real routing outcomes for R2) is in
-`docs/execution/bugs/reports/task6.md`. **Sprint 3 Task 9/R2 is now unblocked** — see the sequencing
+`docs/execution/bugs/Sprint3/reports/task6.md`. **Sprint 3 Task 9/R2 is now unblocked** — see the sequencing
 note below, kept for history but no longer a live blocker.
 
 **Sequencing with Sprint 3 Task 9/R2 — historical, now resolved**: `sprint3/tasks/task9.md`'s R2 (Gate
@@ -169,7 +169,7 @@ the actual prompt content changed between attempts, and a real forced budget-ref
 108/108 passing (18 files), plus the real live verification described above for R1 and R2.
 
 ## Report Template
-Generate at `docs/execution/bugs/reports/task6.md`, same shape as `reports/task5.md`. State plainly: (1)
+Generate at `docs/execution/bugs/Sprint3/reports/task6.md`, same shape as `reports/task5.md`. State plainly: (1)
 confirmation of R1's exact `fixNotes` wiring path (which function reads which `ReviewLog` row, in what
 shape) and whether the video loop's own `fixNotes` source turned out to work the way this doc assumed —
 correct this doc's assumption in the report if not; (2) a real before/after example of a retry's actual
@@ -184,8 +184,8 @@ detail.**
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/reports/task6.md` — the real verification detail for both R1 and R2
-- `docs/execution/bugs/tasks/task3.md` — R3, the auto-retry mechanism this task extends with feedback
+- `docs/execution/bugs/Sprint3/reports/task6.md` — the real verification detail for both R1 and R2
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R3, the auto-retry mechanism this task extends with feedback
 - `docs/execution/sprint3/tasks/task9.md` — **R2 was waiting on this task merging first, now unblocked**
   — its own premise error (claiming this mechanism didn't exist) has been corrected as of 2026-09-26
 - `docs/decisions/VIDEO_GENERATION_LOOP_AND_VISUAL_STRATEGY.md` — the `fixNotes` pattern this task

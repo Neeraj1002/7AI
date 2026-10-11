@@ -22,7 +22,7 @@ assuming.
 section below was rewritten on 2026-09-26 after a real premise error was found and corrected (see that
 section for the full story): the script-review auto-retry mechanism this doc originally claimed didn't
 exist is, in fact, real and live on `main` (Bugs Task 3/R3), and a separate task, **Bugs Task 6**
-(`docs/execution/bugs/tasks/task6.md`), extended that exact same code region (`runScriptReviewStage` in
+(`docs/execution/bugs/Sprint3/tasks/task6.md`), extended that exact same code region (`runScriptReviewStage` in
 `state-machine.ts`) with a feedback-notes fix and a budget-routing consistency fix. R2's own new branch
 (the `gate1Enabled`-off skip-through) sits inside that same function, immediately adjacent to what Bugs
 Task 6 changed. **`BUGS_TASK6` merged to `main` via PR #31 on 2026-09-27 — R2's implementation can now
@@ -171,7 +171,7 @@ hard way during the Bugs track's own Task 4) applies exactly here too, and wasn'
 `paused_gate1`; a script still below 7 after the cap also proceeds to `paused_gate1`, with a note
 appended. **Crucially, this entire mechanism runs unconditionally today, regardless of
 `approvalGateConfig.gate1Enabled`'s value** — exactly like the rest of that field, it's simply never
-read. Separately, **Bugs Task 6** (`docs/execution/bugs/tasks/task6.md`, merged via PR #31 on
+read. Separately, **Bugs Task 6** (`docs/execution/bugs/Sprint3/tasks/task6.md`, merged via PR #31 on
 2026-09-27) fixed a real gap in this mechanism — the retry loop now feeds the reviewer's notes into the
 next generation attempt (`fixNotes`, live-verified) — and a related budget-routing inconsistency
 (a retry-attempt budget refusal now routes to `paused_gate1` like the cap-reached case, instead of
@@ -482,11 +482,11 @@ visible in the output, not just that the route didn't error).
 - [ui-ux/tasks/task2.md](../../ui-ux/tasks/task2.md) — the frontend work this unblocks
 - `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §5 — the watermark "wired but untested" note this task's
   R3 closes for real
-- `docs/execution/bugs/tasks/task6.md` — **R2's dependency, now cleared (merged via PR #31,
+- `docs/execution/bugs/Sprint3/tasks/task6.md` — **R2's dependency, now cleared (merged via PR #31,
   2026-09-27)**: the auto-retry mechanism this task's R2 wires the `gate1Enabled` toggle onto, plus the
   feedback-loop and budget-routing fixes it added to that same code region. Build R2 directly on top of
   this.
-- `docs/execution/bugs/tasks/task3.md` — R3, the original build of the auto-retry mechanism itself
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R3, the original build of the auto-retry mechanism itself
 
 ## Git Workflow
 

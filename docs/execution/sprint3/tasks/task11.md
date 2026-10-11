@@ -259,7 +259,7 @@ own correctness).
   dependencies" section (B11–B14)
 - `docs/execution/sprint3/tasks/task8.md`, `tasks/task9.md` — the prior UI-Enhancement-driven backend
   tasks this one follows the same posture as
-- `docs/execution/bugs/tasks/task8.md` (R1) — the "not connected to YouTube" channel check R4/B12 must
+- `docs/execution/bugs/Sprint3/tasks/task8.md` (R1) — the "not connected to YouTube" channel check R4/B12 must
   reuse, not reimplement
 
 ## Git Workflow

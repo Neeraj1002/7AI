@@ -72,6 +72,6 @@ task here.
 
 ## Links & References
 - `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`, `docs/execution/templates/TASK_TEMPLATE.md`
-- `docs/execution/bugs/tasks/task3.md` — R2, the original submission flow this extends
-- `docs/execution/bugs/tasks/task4.md` — R1, the fallback route this must not regress
+- `docs/execution/bugs/Sprint3/tasks/task3.md` — R2, the original submission flow this extends
+- `docs/execution/bugs/Sprint3/tasks/task4.md` — R1, the fallback route this must not regress
 - `docs/execution/bugs/STATUS.md`

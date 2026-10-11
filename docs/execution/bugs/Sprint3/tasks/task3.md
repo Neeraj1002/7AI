@@ -285,4 +285,4 @@ looks right" isn't sufficient sign-off, given what's at stake).
 - [TASK_TEMPLATE.md](../../templates/TASK_TEMPLATE.md)
 - [HOTFIXER_AGENT_PROTOCOL.md](../HOTFIXER_AGENT_PROTOCOL.md)
 - `docs/execution/bugs/STATUS.md`
-- `docs/execution/bugs/tasks/task1.md`, `docs/execution/bugs/tasks/task2.md`
+- `docs/execution/bugs/Sprint3/tasks/task1.md`, `docs/execution/bugs/Sprint3/tasks/task2.md`

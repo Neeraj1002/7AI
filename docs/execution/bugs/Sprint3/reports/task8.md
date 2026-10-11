@@ -165,5 +165,5 @@ own check. The 7 founder test/verification rows are also left `open`.
 - `docs/execution/bugs/STATUS.md` — Task 8's row, and the branch-name collision/drift warnings
 - `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` — the stop-and-ask rule this pass correctly followed
   for `auth.tsx` (PR #33), later answered by the founder go-ahead that unblocked R6 (PR #36)
-- `docs/execution/bugs/tasks/task7.md` — the unrelated, unstarted task whose "Task 7" identifier this
+- `docs/execution/bugs/Sprint3/tasks/task7.md` — the unrelated, unstarted task whose "Task 7" identifier this
   branch accidentally collided with
