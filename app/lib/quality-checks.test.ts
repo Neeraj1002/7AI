@@ -30,10 +30,10 @@ test('run 75f69faa: longest shot is amber from rows.longestShot.warn, message ca
   assert.strictEqual(r.longestShot.status, 'warn');
   assert.strictEqual(r.longestShot.value, '4.9 s');
   assert.strictEqual(r.longestShot.message, 'Longest single shot is 4.9s (spec: ≤ 4s)');
-  assert.strictEqual(r.loudness.value, '−14 LUFS');
-  assert.strictEqual(r.truePeak.value, '−1.4 dBTP');
+  assert.strictEqual(r.loudness.value, '−14');
+  assert.strictEqual(r.truePeak.value, '−1.4');
   assert.strictEqual(r.format.value, '1080×1920 · 30 fps');
-  assert.strictEqual(r.captions.value, 'Present');
+  assert.strictEqual(r.captions.value, 'On');
   for (const k of ['loudness', 'truePeak', 'format', 'captions']) assert.strictEqual(r[k].status, 'ok');
 });
 
@@ -41,7 +41,7 @@ test('run dc2062a2: all clear', () => {
   const c = parseQualityMetrics(clearRun)!;
   assert.strictEqual(c.rows.length, 5);
   assert.ok(c.rows.every((x) => x.status === 'ok' && x.message === null));
-  assert.strictEqual(byKey(c).loudness.value, '−14.3 LUFS');
+  assert.strictEqual(byKey(c).loudness.value, '−14.3');
   assert.strictEqual(byKey(c).longestShot.value, '3.2 s');
 });
 
@@ -49,7 +49,7 @@ test('a warn flag on any row colours that row, whatever its text says', () => {
   const r = byKey(parseQualityMetrics({ ...clearRun, rows: { ...clearRun.rows, loudness: { warn: true, message: 'x' }, captions: { warn: true, message: null } } })!);
   assert.strictEqual(r.loudness.status, 'warn');
   assert.strictEqual(r.captions.status, 'warn');
-  assert.strictEqual(r.captions.value, 'Present'); // value is data; only `warn` sets the colour
+  assert.strictEqual(r.captions.value, 'On'); // value is data; only `warn` sets the colour
   assert.strictEqual(r.captions.message, null);
 });
 
@@ -77,4 +77,27 @@ test('absent or malformed metrics return null', () => {
   assert.strictEqual(parseQualityMetrics('x'), null);
   assert.strictEqual(parseQualityMetrics([]), null);
   assert.strictEqual(parseQualityMetrics({}), null);
+});
+
+test('plain labels, no LUFS / dBTP units', () => {
+  const c = parseQualityMetrics(clearRun)!;
+  assert.deepEqual(c.rows.map((r) => r.label), ['Volume', 'Loudest moment', 'Picture', 'Longest shot', 'Captions']);
+});
+
+test('rows without a plain label go to technical, only when the server reports them; amber from warn only', () => {
+  const none = parseQualityMetrics(clearRun)!;
+  assert.deepEqual(none.technical, []);
+  assert.strictEqual(none.technicalWarn, false);
+
+  const c = parseQualityMetrics({
+    ...clearRun,
+    rows: { ...clearRun.rows, videoCodec: ok, audioBitrate: { warn: true, message: 'Audio bitrate is low' }, shotCount: ok },
+  })!;
+  assert.deepEqual(c.technical.map((r) => r.key), ['videoCodec', 'audioBitrate', 'shotCount']);
+  assert.strictEqual(c.technical[0].value, 'h264');
+  assert.strictEqual(c.technical[1].value, '193 kbps');
+  assert.strictEqual(c.technical[1].status, 'warn');
+  assert.strictEqual(c.technical[2].value, '17');
+  assert.strictEqual(c.technicalWarn, true);
+  assert.strictEqual(c.rows.length, 5); // technical rows never leak into the main list
 });

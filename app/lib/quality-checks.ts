@@ -3,11 +3,27 @@
 // means "not applicable" and is hidden. This file never compares a measurement to a threshold and never
 // reads text to decide a colour. The only two things it shows without a `rows` entry are the resolution/fps
 // line (hard-gated server-side, so a run at Gate 2 already passed it) and "No audio" (red).
+//
+// Sprint 4 FE Task 2 (R6): plain labels (no LUFS / dBTP), and the rows with no plain label go under one collapsed
+// "Technical details" link. Targets are NOT printed: the backend does not send them yet (Task 12 R6 will add
+// `qualityMetrics.spec`), and the app keeps no second copy of the thresholds. A warned row still carries the
+// server's own message, which names its target.
 
 export type QualityRowStatus = 'ok' | 'warn' | 'fail';
 
 export type QualityRow = {
-  key: 'loudness' | 'truePeak' | 'format' | 'longestShot' | 'captions';
+  key:
+    | 'loudness'
+    | 'truePeak'
+    | 'format'
+    | 'longestShot'
+    | 'captions'
+    | 'videoCodec'
+    | 'videoProfile'
+    | 'pixelFormat'
+    | 'audioSampleRate'
+    | 'audioBitrate'
+    | 'shotCount';
   label: string;
   value: string;
   status: QualityRowStatus;
@@ -15,7 +31,13 @@ export type QualityRow = {
   message: string | null;
 };
 
-export type QualityChecks = { rows: QualityRow[] };
+export type QualityChecks = {
+  rows: QualityRow[];
+  /** Rows with no plain label, shown behind "Technical details". Only those the server reports as applicable. */
+  technical: QualityRow[];
+  /** True when any technical row has `warn: true` (amber dot on the link). */
+  technicalWarn: boolean;
+};
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -56,26 +78,26 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
 
   const loudnessRow = serverRow(m.rows, 'loudness');
   if (!hasAudio) {
-    out.push({ key: 'loudness', label: 'Loudness', value: 'No audio', status: 'fail', message: null });
+    out.push({ key: 'loudness', label: 'Volume', value: 'No audio', status: 'fail', message: null });
   } else if (loudnessRow) {
-    out.push({ key: 'loudness', label: 'Loudness', value: lufs !== null ? `${trim(lufs, 1)} LUFS` : '—', ...flagged('loudness') });
+    out.push({ key: 'loudness', label: 'Volume', value: lufs !== null ? trim(lufs, 1) : '—', ...flagged('loudness') });
   }
 
   if (hasAudio && serverRow(m.rows, 'truePeak')) {
-    out.push({ key: 'truePeak', label: 'True peak', value: peak !== null ? `${trim(peak, 1)} dBTP` : '—', ...flagged('truePeak') });
+    out.push({ key: 'truePeak', label: 'Loudest moment', value: peak !== null ? trim(peak, 1) : '—', ...flagged('truePeak') });
   }
 
   const formatParts: string[] = [];
   if (width !== null && height !== null) formatParts.push(`${trim(width, 0)}×${trim(height, 0)}`);
   if (fps !== null) formatParts.push(`${trim(fps, 2)} fps`);
   if (formatParts.length) {
-    out.push({ key: 'format', label: 'Resolution · frame rate', value: formatParts.join(' · '), status: 'ok', message: null });
+    out.push({ key: 'format', label: 'Picture', value: formatParts.join(' · '), status: 'ok', message: null });
   }
 
   if (serverRow(m.rows, 'longestShot')) {
     out.push({
       key: 'longestShot',
-      label: 'Longest single shot',
+      label: 'Longest shot',
       value: longest !== null ? `${trim(longest, 1)} s` : '—',
       ...flagged('longestShot'),
     });
@@ -86,10 +108,26 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
     out.push({
       key: 'captions',
       label: 'Captions',
-      value: detected === true ? 'Present' : detected === false ? 'Not detected' : 'Not checked',
+      value: detected === true ? 'On' : detected === false ? 'Not detected' : 'Not checked',
       ...flagged('captions'),
     });
   }
 
-  return out.length ? { rows: out } : null;
+  const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const technical: QualityRow[] = [];
+  const tech = (key: QualityRow['key'], label: string, value: string | null) => {
+    if (!serverRow(m.rows, key)) return;
+    technical.push({ key, label, value: value ?? '—', ...flagged(key) });
+  };
+  const sampleRate = num(m.audioSampleRate);
+  const bitrate = num(m.audioBitrateKbps);
+  const shots = num(m.shotCount);
+  tech('videoCodec', 'Video codec', text(m.videoCodec));
+  tech('videoProfile', 'Video profile', text(m.videoProfile));
+  tech('pixelFormat', 'Pixel format', text(m.pixFmt));
+  tech('audioSampleRate', 'Audio sample rate', sampleRate !== null ? `${trim(sampleRate / 1000, 1)} kHz` : null);
+  tech('audioBitrate', 'Audio bitrate', bitrate !== null ? `${trim(bitrate, 0)} kbps` : null);
+  tech('shotCount', 'Shot count', shots !== null ? trim(shots, 0) : null);
+
+  return out.length || technical.length ? { rows: out, technical, technicalWarn: technical.some((r) => r.status === 'warn') } : null;
 }
