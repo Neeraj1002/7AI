@@ -1,5 +1,7 @@
 # Bugs Sprint 3 Closure, Part 2: Re-test and Triage the Open Reports on the Real Build
 
+> **Status note, 2026-10-11**: the code items (P5, P8, P9, P10) are merged in PR #57 and were phone-verified on 2026-10-10 and 2026-10-11 (`reports/closure2-phone-verification.md`). The rest of this task (P2 the 24-report triage, P3 reports 12-15, P4 leftovers, P5's live proof, P6 the docs sync, the agent's report `reports/closure2.md`) is carried into **Bugs Task 12 as C1-C7 and D1** (`tasks/task12.md`). Work them from there; this file stays the reference for what each P-item means.
+
 **Read `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`, `docs/execution/templates/TASK_TEMPLATE.md` and
 `docs/execution/bugs/Sprint3/closureTask.md` in full before starting.** This is the second half of the closure
 pass. Part 1 (`closureTask.md`, branch `Sprint3_CLOSURE`, PR #48) fixed the budget gate and the dashboard and
