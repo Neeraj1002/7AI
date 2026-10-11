@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TTS_VOICE_KEYS } from '../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../agents/video-generation/plan';
+import { findFormat } from '../formats/manifest';
 
 // Sprint 4 Task 1 (R1): the data a ChannelProfileVersion row holds. Only what
 // Sprint 4 Tasks 2-6 read; later sprints extend these same objects rather than
@@ -48,8 +49,17 @@ export const ChannelProfilePackagingSchema = z
   })
   .strict();
 
+// Sprint 4 Task 9 (R1b): the formats this channel offers, in display order. Each key must
+// exist in the format manifest and appear once; any mix of short and long. An absent field
+// (every profile version written before this) means "none offered". The UI recommends 2-4;
+// the server enforces no count.
+export const OfferedFormatKeysSchema = z
+  .array(z.string().refine((key) => findFormat(key) !== undefined, { message: 'unknown format key' }))
+  .refine((keys) => new Set(keys).size === keys.length, { message: 'duplicate format key' });
+
 export const ChannelProfileDataSchema = z
   .object({
+    offeredFormatKeys: OfferedFormatKeysSchema.optional(),
     script: ChannelProfileScriptSchema.optional(),
     visual: ChannelProfileVisualSchema.optional(),
     audio: ChannelProfileAudioSchema.optional(),

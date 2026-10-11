@@ -79,6 +79,9 @@ const EnvSchema = z.object({
   // stub instead of a real OpenAI image-generation call. Reuses
   // OPENAI_API_KEY (same as media/), no separate credential.
   AI_VISUALS_STUB: z.string().optional().default(''),
+  // Sprint 4 Task 9 (R7): absolute cap in USD on the per-video spend limit anyone may
+  // type for a long-form run (the channel's weekly share still applies on top).
+  LONGFORM_MAX_RUN_USD_LIMIT: z.coerce.number().positive().optional().default(10),
   // Sprint 4 Task 3 (R11): when '1', a fixed platform negative clause (no logos,
   // no baked-in text, no photoreal identifiable people, no gore) is appended to
   // every AI-stills scene prompt, and Video Intelligence checks AI stills for

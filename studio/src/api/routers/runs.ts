@@ -16,7 +16,12 @@ import { findByChannel } from '../../models/repositories/agent-credential.reposi
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { requestCancellation, isCancellationRequested, isActivelyDriven } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
-import { checkBudget, describeBudgetRefusal } from '../../run-pipeline/budget-gate';
+import {
+  checkBudget,
+  describeBudgetRefusal,
+  getRemainingWeeklyUsd,
+  NoBudgetConfiguredError,
+} from '../../run-pipeline/budget-gate';
 import { resolvePendingApproval } from '../../notifications';
 import { classifyEndError, type EndReason } from '../../run-pipeline/end-reason';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
@@ -31,7 +36,13 @@ import {
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
-import { FORMAT_KEYS } from '../../formats/manifest';
+import { FORMAT_KEYS, findFormat, type VideoKind } from '../../formats/manifest';
+import { isValidDuration, durationErrorMessage, resolveRequestedVideoKind } from '../../formats/video-kind';
+import { resolveChannelConfig } from '../../channel-profile';
+import { findActiveProfileForChannel } from '../../models/repositories/channel-profile-version.repository';
+import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
+import { estimateRunCost } from '../../run-pipeline/cost-estimate';
+import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
 import { withQualityRows } from '../../agents/video-intelligence/quality-metrics';
@@ -163,6 +174,73 @@ export function deriveScriptReview(
   };
 }
 
+// Sprint 4 Task 9 (PR A): the long-form fields the app reads from runs.get. They are typed now and
+// stay absent until the work that produces them lands (PR B / Task 10): previewUrl and the
+// subtitles fields are never faked.
+export type LongFormRunFields = {
+  chapters?: { title: string; text: string }[];
+  previewUrl?: string;
+  subtitlesUrl?: string;
+  subtitlesUploaded?: boolean;
+  subtitlesMessage?: string;
+};
+
+// The chapters of the latest completed script_generation attempt; absent for a Short or
+// before a long script exists.
+export function deriveChapters(
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+): { title: string; text: string }[] | undefined {
+  const latest = stages
+    .filter((s) => s.stageName === 'script_generation' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const chapters = (latest?.output as { chapters?: unknown } | null | undefined)?.chapters;
+  if (!Array.isArray(chapters) || chapters.length === 0) return undefined;
+  const valid = chapters.filter(
+    (c): c is { title: string; text: string } =>
+      typeof c === 'object' && c !== null && typeof (c as { title?: unknown }).title === 'string' && typeof (c as { text?: unknown }).text === 'string',
+  );
+  return valid.length > 0 ? valid.map((c) => ({ title: c.title, text: c.text })) : undefined;
+}
+
+function badRequest(message: string): never {
+  throw new TRPCError({ code: 'BAD_REQUEST', message });
+}
+
+// Sprint 4 Task 9 (R1/R1b/R7): everything runs.create and runs.estimateCost both decide about the
+// video type and length, in one place so the two cannot disagree.
+async function resolveVideoRequest(
+  channel: Channel,
+  input: { videoKind?: VideoKind; targetDurationSec?: number; formatKey?: string },
+): Promise<{
+  videoKind: VideoKind;
+  targetSeconds: number;
+  secondsPerStill: number | null;
+  offeredFormatKeys: string[];
+}> {
+  const { videoKind, conflict } = resolveRequestedVideoKind(input);
+  if (conflict) {
+    badRequest(`That format is a ${findFormat(input.formatKey)?.videoKind} format, but the video type is ${videoKind}`);
+  }
+  if (input.targetDurationSec !== undefined && !isValidDuration(videoKind, input.targetDurationSec)) {
+    badRequest(durationErrorMessage(videoKind));
+  }
+  const profile = (await findActiveProfileForChannel(channel.id))?.data ?? null;
+  const config = resolveChannelConfig({
+    profile,
+    legacyStyleGuide: channel.styleGuide,
+    legacyDefaultVoice: channel.defaultVoice,
+    runOverrideTargetSeconds: input.targetDurationSec,
+    runOverrideVideoKind: videoKind,
+    formatKey: input.formatKey,
+  });
+  return {
+    videoKind,
+    targetSeconds: config.targetSeconds,
+    secondsPerStill: config.visualSecondsPerStill,
+    offeredFormatKeys: config.offeredFormatKeys,
+  };
+}
+
 async function getRunDetail(id: string, ctx: Context) {
   const run = await findPipelineRunById(id);
   if (!run) {
@@ -184,11 +262,19 @@ async function getRunDetail(id: string, ctx: Context) {
   // Sprint 3 Task 12 (R6, optional) — plain existence checks, not a
   // presigned-URL mint (that stays `runs.getVideoUrl`'s own explicit call,
   // since minting one on every `runs.get` poll would be wasteful).
+  // Sprint 4 Task 9 (R1): the run's own snapshotted profile, so the chip "Video · 10 min" reads
+  // the same values the pipeline does.
+  const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
+  const longForm: LongFormRunFields = { chapters: deriveChapters(stages) };
+  if (longForm.chapters === undefined) delete longForm.chapters;
   return {
     run,
     channel,
     stages,
     reviewLogs,
+    videoKind: resolved.videoKind,
+    targetSeconds: resolved.targetSeconds,
+    ...longForm,
     lastGateDecision: deriveLastGateDecision(stages),
     // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
     // stable place (derived from stage output and creationOptions, not stored).
@@ -296,11 +382,18 @@ export const runsRouter = router({
         audioLayer: z.enum(AUDIO_LAYERS).optional(),
         // Sprint 3 Task 9 (R4) — same edge-validation posture as
         // voice/visualSource/audioLayer above.
-        targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+        // Sprint 4 Task 9 (R1): a Short is 30/45/60; a long video is whole minutes from 120 to 900.
+        // The exact rule depends on videoKind, so it is checked in the mutation, not here.
+        targetDurationSec: z.number().int().optional(),
+        // Sprint 4 Task 9 (R1): default 'short'. Inferred from formatKey when only that is sent.
+        videoKind: z.enum(['short', 'long']).optional(),
         // Sprint 4 Task 2 (R5): explicit sources only, folded into creationOptions.
         sources: z.array(z.string().trim().min(1).max(500)).max(20).optional(),
         // Sprint 4 Task 6: validated against the format manifest at the edge.
         formatKey: z.enum(FORMAT_KEYS).optional(),
+        // Sprint 4 Task 9 (R7): per-video spend limit in USD for a long video; default is the
+        // suggested value from runs.estimateCost. Stored now, enforced during the run in PR B.
+        maxCostUsd: z.number().positive().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -323,13 +416,47 @@ export const runsRouter = router({
         });
       }
       await assertChannelCanRun(channel);
+
+      // Sprint 4 Task 9 (R1/R1b/R5.3/R7): video type, length, offered formats, spend limit.
+      const request = await resolveVideoRequest(channel, input);
+      const isLong = request.videoKind === 'long';
+      if (input.formatKey && request.offeredFormatKeys.length > 0 && !request.offeredFormatKeys.includes(input.formatKey)) {
+        badRequest('That format is not offered by this channel');
+      }
+      if (isLong && input.visualSource === 'stock-footage') {
+        badRequest('Long videos use AI stills only; stock footage is not available for them');
+      }
+      if (!isLong && input.maxCostUsd !== undefined) {
+        badRequest('A spend limit can only be set for a long video');
+      }
+      let maxCostUsd: number | undefined;
+      if (isLong) {
+        const estimate = estimateRunCost({
+          videoKind: 'long',
+          targetSeconds: request.targetSeconds,
+          secondsPerStill: request.secondsPerStill,
+        });
+        maxCostUsd = input.maxCostUsd ?? estimate.suggestedMaxUsd;
+        if (maxCostUsd > env.LONGFORM_MAX_RUN_USD_LIMIT) {
+          badRequest(`The spend limit cannot be more than $${env.LONGFORM_MAX_RUN_USD_LIMIT.toFixed(2)} per video`);
+        }
+        if (maxCostUsd < estimate.estimateUsd) {
+          badRequest(
+            `Spend limit $${maxCostUsd.toFixed(2)} is below the estimated $${estimate.estimateUsd.toFixed(2)} for this video`,
+          );
+        }
+      }
+
       const creationOptions =
-        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length || input.formatKey
+        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length || input.formatKey || isLong
           ? {
               ...(input.voice && { voice: input.voice }),
               ...(input.visualSource && { visualSource: input.visualSource }),
               ...(input.audioLayer && { audioLayer: input.audioLayer }),
-              ...(input.targetDurationSec && { targetDurationSec: input.targetDurationSec }),
+              // A long run stores the resolved length (default 600), so every stage reads one value.
+              ...((isLong || input.targetDurationSec) && { targetDurationSec: isLong ? request.targetSeconds : input.targetDurationSec }),
+              ...(isLong && { videoKind: 'long' as const }),
+              ...(maxCostUsd !== undefined && { maxCostUsd }),
               ...(input.sources?.length && { sources: input.sources }),
               ...(input.formatKey && { formatKey: input.formatKey }),
             }
@@ -345,6 +472,44 @@ export const runsRouter = router({
       });
       startPipelineInBackground(run.id);
       return run;
+    }),
+
+  // Sprint 4 Task 9 (R7): the brief screen's cost preview. Same channel ownership check as create;
+  // read-only (writes nothing). suggestedMaxUsd is what runs.create uses when maxCostUsd is omitted.
+  estimateCost: publicProcedure
+    .input(
+      z.object({
+        channelId: z.string().uuid(),
+        videoKind: z.enum(['short', 'long']),
+        targetDurationSec: z.number().int().optional(),
+        options: z.object({ secondsPerStill: z.number().min(1).max(10).optional() }).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const channel = await findChannelById(input.channelId);
+      if (!channel) badRequest(`Channel ${input.channelId} not found`);
+      if (channel.tenantId !== ctx.tenantId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to estimate a run for channel ${input.channelId}` });
+      }
+      const request = await resolveVideoRequest(channel, input);
+      const estimate = estimateRunCost({
+        videoKind: request.videoKind,
+        targetSeconds: request.targetSeconds,
+        secondsPerStill: input.options?.secondsPerStill ?? request.secondsPerStill,
+      });
+      let remainingWeeklyUsd: number;
+      try {
+        remainingWeeklyUsd = await getRemainingWeeklyUsd(channel.tenantId, channel.id, channel.platform);
+      } catch (err) {
+        if (err instanceof NoBudgetConfiguredError) badRequest('No weekly budget is configured for this account');
+        throw err;
+      }
+      return {
+        estimateUsd: estimate.estimateUsd,
+        worstCaseUsd: estimate.worstCaseUsd,
+        suggestedMaxUsd: estimate.suggestedMaxUsd,
+        remainingWeeklyUsd,
+      };
     }),
 
   // GET /runs — Queue screen (Task 2): filterable by status/stage.

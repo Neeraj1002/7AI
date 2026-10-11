@@ -11,6 +11,7 @@ import type { LLMMessage, LLMRequest, LLMResponse, Purpose } from './types';
 
 export type { Purpose, LLMMessage, LLMResponse, LLMUsage, LLMRequest } from './types';
 export { extractJsonText, extractJsonObjectText, describeJsonError } from './extract-json';
+export { resolvePurpose, resolvePricing } from './registry';
 
 export async function callLLM(req: {
   purpose: Purpose;

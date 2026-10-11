@@ -15,7 +15,11 @@ export const ScriptGenerationOutputSchema = z.object({
   captions: z.string(),
   hashtags: z.array(z.string()),
 });
-export type ScriptGenerationOutput = z.infer<typeof ScriptGenerationOutputSchema>;
+// Sprint 4 Task 9 (R2): a long-form script also carries its chapters; `scriptText` stays the
+// concatenation of their texts. Declared on the type only, not in the schema above: a Short's
+// structured-output request must stay exactly as it is. PR B fills it for long runs.
+export type ScriptChapter = { title: string; text: string };
+export type ScriptGenerationOutput = z.infer<typeof ScriptGenerationOutputSchema> & { chapters?: ScriptChapter[] };
 
 export type ScriptGenerationResult = {
   output: ScriptGenerationOutput;

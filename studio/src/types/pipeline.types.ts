@@ -44,7 +44,13 @@ export const CreationOptionsSchema = z.object({
   // Sprint 3 Task 9 (R4) — a target narration length in seconds; additive,
   // never a behavior change for a run that doesn't set it (script-generation
   // falls back to its existing "30-60 seconds" framing when unset).
-  targetDurationSec: z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
+  // Sprint 4 Task 9 (R1): a Short is 30/45/60; a long-form video is whole minutes, 120..900.
+  // Validated at the API edge (formats/video-kind.ts); stored as the resolved value.
+  targetDurationSec: z.number().int().positive().optional(),
+  // Sprint 4 Task 9 (R1): 'long' is stored only for a long-form run; absent means 'short'.
+  videoKind: z.enum(['short', 'long']).optional(),
+  // Sprint 4 Task 9 (R7): per-video spend limit in USD, long-form only. Checked in PR B.
+  maxCostUsd: z.number().positive().optional(),
   // Sprint 4 Task 2 (R5): explicit source URLs/citations the brief relies on.
   // Shown at Gate 1; never inferred from the free-text brief.
   sources: z.array(z.string()).optional(),
