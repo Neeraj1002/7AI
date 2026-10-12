@@ -1,0 +1,1586 @@
+[
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 0,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 68,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 68
+   },
+   "output_tokens": 664,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 256
+   },
+   "total_tokens": 732
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-0-gpt-image-1.5.jpg",
+  "prompt": "A Roman soldier counting a small pile of coins at a wooden table in a barracks. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 0,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 68,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 68
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 226
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-0-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A Roman soldier counting a small pile of coins at a wooden table in a barracks. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 0,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 68,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 68
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 226
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-0-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A Roman soldier counting a small pile of coins at a wooden table in a barracks. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 1,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 625,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 217
+   },
+   "total_tokens": 692
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-1-gpt-image-1.5.jpg",
+  "prompt": "A medieval English peasant farmer negotiating wages with a landowner at a village gate. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 1,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 225
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-1-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A medieval English peasant farmer negotiating wages with a landowner at a village gate. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 1,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 225
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-1-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A medieval English peasant farmer negotiating wages with a landowner at a village gate. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 2,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 65,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 65
+   },
+   "output_tokens": 642,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 234
+   },
+   "total_tokens": 707
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-2-gpt-image-1.5.jpg",
+  "prompt": "A bustling Roman marketplace with egg sellers and angry customers, stone arches behind. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 2,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 65,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 65
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 223
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-2-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A bustling Roman marketplace with egg sellers and angry customers, stone arches behind. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 2,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 65,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 65
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 223
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-2-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A bustling Roman marketplace with egg sellers and angry customers, stone arches behind. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 3,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 634,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 226
+   },
+   "total_tokens": 701
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-3-gpt-image-1.5.jpg",
+  "prompt": "A scribe in a candlelit scriptorium writing a royal decree on parchment. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 3,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 225
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-3-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A scribe in a candlelit scriptorium writing a royal decree on parchment. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 3,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 225
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-3-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A scribe in a candlelit scriptorium writing a royal decree on parchment. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 4,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 652,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 244
+   },
+   "total_tokens": 716
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-4-gpt-image-1.5.jpg",
+  "prompt": "A line of Roman legionaries marching along a stone road at dawn. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 4,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 222
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-4-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A line of Roman legionaries marching along a stone road at dawn. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 4,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 222
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-4-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A line of Roman legionaries marching along a stone road at dawn. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 5,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 622,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 214
+   },
+   "total_tokens": 686
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-5-gpt-image-1.5.jpg",
+  "prompt": "An Egyptian pyramid worker eating bread and onions beside a half-built wall. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 5,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 222
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-5-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "An Egyptian pyramid worker eating bread and onions beside a half-built wall. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 5,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 222
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-5-gpt-image-2.5-sunburst.jpg",
+  "prompt": "An Egyptian pyramid worker eating bread and onions beside a half-built wall. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 6,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 566,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 158
+   },
+   "total_tokens": 632
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-6-gpt-image-1.5.jpg",
+  "prompt": "A medieval baker pulling loaves from a stone oven in a crowded town street. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 6,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 224
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-6-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A medieval baker pulling loaves from a stone oven in a crowded town street. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 6,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 224
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-6-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A medieval baker pulling loaves from a stone oven in a crowded town street. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 7,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 617,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 209
+   },
+   "total_tokens": 683
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-7-gpt-image-1.5.jpg",
+  "prompt": "A crowd of villagers reading a decree nailed to a church door, wide shot. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 7,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 224
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-7-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A crowd of villagers reading a decree nailed to a church door, wide shot. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "portrait",
+  "i": 7,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 224
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-portrait-7-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A crowd of villagers reading a decree nailed to a church door, wide shot. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 0,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 68,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 68
+   },
+   "output_tokens": 661,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 261
+   },
+   "total_tokens": 729
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-0-gpt-image-1.5.jpg",
+  "prompt": "A Roman soldier counting a small pile of coins at a wooden table in a barracks. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 0,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 68,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 68
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 216
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-0-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A Roman soldier counting a small pile of coins at a wooden table in a barracks. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 0,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 68,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 68
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 216
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-0-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A Roman soldier counting a small pile of coins at a wooden table in a barracks. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 1,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 605,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 205
+   },
+   "total_tokens": 672
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-1-gpt-image-1.5.jpg",
+  "prompt": "A medieval English peasant farmer negotiating wages with a landowner at a village gate. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 1,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 215
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-1-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A medieval English peasant farmer negotiating wages with a landowner at a village gate. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 1,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 215
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-1-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A medieval English peasant farmer negotiating wages with a landowner at a village gate. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 2,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 65,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 65
+   },
+   "output_tokens": 617,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 217
+   },
+   "total_tokens": 682
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-2-gpt-image-1.5.jpg",
+  "prompt": "A bustling Roman marketplace with egg sellers and angry customers, stone arches behind. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 2,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 65,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 65
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 213
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-2-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A bustling Roman marketplace with egg sellers and angry customers, stone arches behind. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 2,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 65,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 65
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 213
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-2-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A bustling Roman marketplace with egg sellers and angry customers, stone arches behind. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 3,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 623,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 223
+   },
+   "total_tokens": 690
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-3-gpt-image-1.5.jpg",
+  "prompt": "A scribe in a candlelit scriptorium writing a royal decree on parchment. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 3,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 215
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-3-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A scribe in a candlelit scriptorium writing a royal decree on parchment. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 3,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 67,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 67
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 215
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-3-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A scribe in a candlelit scriptorium writing a royal decree on parchment. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 4,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 682,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 282
+   },
+   "total_tokens": 746
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-4-gpt-image-1.5.jpg",
+  "prompt": "A line of Roman legionaries marching along a stone road at dawn. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 4,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 212
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-4-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A line of Roman legionaries marching along a stone road at dawn. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 4,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 212
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-4-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A line of Roman legionaries marching along a stone road at dawn. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 5,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 652,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 252
+   },
+   "total_tokens": 716
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-5-gpt-image-1.5.jpg",
+  "prompt": "An Egyptian pyramid worker eating bread and onions beside a half-built wall. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 5,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 212
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-5-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "An Egyptian pyramid worker eating bread and onions beside a half-built wall. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 5,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 64,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 64
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 212
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-5-gpt-image-2.5-sunburst.jpg",
+  "prompt": "An Egyptian pyramid worker eating bread and onions beside a half-built wall. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 6,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 634,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 234
+   },
+   "total_tokens": 700
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-6-gpt-image-1.5.jpg",
+  "prompt": "A medieval baker pulling loaves from a stone oven in a crowded town street. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 6,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 214
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-6-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A medieval baker pulling loaves from a stone oven in a crowded town street. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 6,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 214
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-6-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A medieval baker pulling loaves from a stone oven in a crowded town street. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 7,
+  "m": "gpt-image-1.5",
+  "size": "1536x1024",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 602,
+   "output_tokens_details": {
+    "image_tokens": 400,
+    "text_tokens": 202
+   },
+   "total_tokens": 668
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-7-gpt-image-1.5.jpg",
+  "prompt": "A crowd of villagers reading a decree nailed to a church door, wide shot. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 7,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 214
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-7-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A crowd of villagers reading a decree nailed to a church door, wide shot. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "niyt",
+  "orient": "landscape",
+  "i": 7,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1920x1088",
+  "usage": {
+   "input_tokens": 66,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 66
+   },
+   "output_tokens": 148,
+   "output_tokens_details": {
+    "image_tokens": 148,
+    "text_tokens": 0
+   },
+   "total_tokens": 214
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/niyt-landscape-7-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A crowd of villagers reading a decree nailed to a church door, wide shot. Warm painterly historical illustration, detailed period-accurate everyday setting, soft natural light, muted parchment-and-earth palette with one deep teal accent, gentle film-grain texture, documentary composition, no text, no modern objects"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 0,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 53,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 53
+   },
+   "output_tokens": 617,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 209
+   },
+   "total_tokens": 670
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-0-gpt-image-1.5.jpg",
+  "prompt": "A small-town football team huddled on a muddy pitch under floodlights before a big match. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 0,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 53,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 53
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 211
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-0-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A small-town football team huddled on a muddy pitch under floodlights before a big match. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 0,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 53,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 53
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 211
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-0-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A small-town football team huddled on a muddy pitch under floodlights before a big match. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 1,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 562,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 154
+   },
+   "total_tokens": 611
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-1-gpt-image-1.5.jpg",
+  "prompt": "A lone sprinter at the starting blocks in an empty old stadium at dawn. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 1,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 207
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-1-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A lone sprinter at the starting blocks in an empty old stadium at dawn. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 1,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 207
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-1-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A lone sprinter at the starting blocks in an empty old stadium at dawn. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 2,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 46,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 46
+   },
+   "output_tokens": 630,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 222
+   },
+   "total_tokens": 676
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-2-gpt-image-1.5.jpg",
+  "prompt": "A boxer shadow-boxing in a cramped gym with peeling walls. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 2,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 46,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 46
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 204
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-2-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A boxer shadow-boxing in a cramped gym with peeling walls. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 2,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 46,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 46
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 204
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-2-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A boxer shadow-boxing in a cramped gym with peeling walls. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 3,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 595,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 187
+   },
+   "total_tokens": 644
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-3-gpt-image-1.5.jpg",
+  "prompt": "A scrappy underdog basketball team celebrating on a worn outdoor court at sunset. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 3,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 207
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-3-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A scrappy underdog basketball team celebrating on a worn outdoor court at sunset. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 3,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 207
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-3-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A scrappy underdog basketball team celebrating on a worn outdoor court at sunset. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 4,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 48,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 48
+   },
+   "output_tokens": 609,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 201
+   },
+   "total_tokens": 657
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-4-gpt-image-1.5.jpg",
+  "prompt": "A marathon runner crossing a finish line as a cheering crowd blurs behind. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 4,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 48,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 48
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 206
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-4-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A marathon runner crossing a finish line as a cheering crowd blurs behind. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 4,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 48,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 48
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 206
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-4-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A marathon runner crossing a finish line as a cheering crowd blurs behind. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 5,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 50,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 50
+   },
+   "output_tokens": 608,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 200
+   },
+   "total_tokens": 658
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-5-gpt-image-1.5.jpg",
+  "prompt": "A young cricket bowler in a dusty village ground, crowd watching from rooftops. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 5,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 50,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 50
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 208
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-5-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A young cricket bowler in a dusty village ground, crowd watching from rooftops. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 5,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 50,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 50
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 208
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-5-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A young cricket bowler in a dusty village ground, crowd watching from rooftops. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 6,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 598,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 190
+   },
+   "total_tokens": 647
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-6-gpt-image-1.5.jpg",
+  "prompt": "A tiny rowing crew pulling hard on misty water beside a much larger boat. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 6,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 207
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-6-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A tiny rowing crew pulling hard on misty water beside a much larger boat. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 6,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 49,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 49
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 207
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-6-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A tiny rowing crew pulling hard on misty water beside a much larger boat. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 7,
+  "m": "gpt-image-1.5",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 48,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 48
+   },
+   "output_tokens": 576,
+   "output_tokens_details": {
+    "image_tokens": 408,
+    "text_tokens": 168
+   },
+   "total_tokens": 624
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-7-gpt-image-1.5.jpg",
+  "prompt": "A coach drawing a tactic on a chalkboard while players listen intently. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 7,
+  "m": "gpt-image-2.5-flare-2026-09-08",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 48,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 48
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 206
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-7-gpt-image-2.5-flare-2026-09-08.jpg",
+  "prompt": "A coach drawing a tactic on a chalkboard while players listen intently. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ },
+ {
+  "ch": "underdogs",
+  "orient": "portrait",
+  "i": 7,
+  "m": "gpt-image-2.5-sunburst",
+  "size": "1024x1536",
+  "usage": {
+   "input_tokens": 48,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 48
+   },
+   "output_tokens": 158,
+   "output_tokens_details": {
+    "image_tokens": 158,
+    "text_tokens": 0
+   },
+   "total_tokens": 206
+  },
+  "file": "D:/Study Material/7AI-SPRINT4_TASK11_BE/docs/execution/sprint4/reports/task11-contact-sheets/img/underdogs-portrait-7-gpt-image-2.5-sunburst.jpg",
+  "prompt": "A coach drawing a tactic on a chalkboard while players listen intently. Dramatic cinematic sports illustration, stylised and painterly, stadium floodlights, gritty determined mood, no readable text, no real faces"
+ }
+]

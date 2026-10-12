@@ -31,13 +31,34 @@ export function resolveAiVisualsPurpose(purpose: AiVisualsPurpose): RegistryEntr
 }
 
 // Pricing, sitting alongside the registry (same reasoning as
-// studio/src/media/registry.ts's TTS_PRICING). Sourced from OpenAI's own
-// published rates (2026-09, verified live at implementation time): 1024x1536
-// (portrait), 'low' quality — $0.013/image.
-export type ImagePricingEntry = { perImageUsd: number };
+// studio/src/media/registry.ts's TTS_PRICING).
+//
+// Two shapes (Sprint 4 Task 11, measured 2026-10-11):
+// - flat: `perImageUsd` only. `gpt-image-1.5`, 1024x1536 'low' = $0.013/image
+//   (matches a real run; its usage object mixes in text tokens, so it is not
+//   re-derived from tokens).
+// - token-billed: `tokenRates` (USD per million tokens, OpenAI's published
+//   gpt-image-2.5 rates) price a still from the response's own `usage`.
+//   `perImageUsd` is then the fallback when a response carries no `usage`:
+//   the measured cost of a 1024x1536 'low' still (158 image tokens + ~29 text
+//   tokens = $0.0049).
+export type ImageTokenRates = {
+  imageOutputPerMTokUsd: number;
+  textInputPerMTokUsd: number;
+  imageInputPerMTokUsd: number;
+};
+export type ImagePricingEntry = { perImageUsd: number; tokenRates?: ImageTokenRates };
+
+const GPT_IMAGE_25_PRICING: ImagePricingEntry = {
+  perImageUsd: 0.005,
+  tokenRates: { imageOutputPerMTokUsd: 30, textInputPerMTokUsd: 5, imageInputPerMTokUsd: 8 },
+};
 
 export const IMAGE_PRICING: Record<string, ImagePricingEntry> = {
   'gpt-image-1.5': { perImageUsd: 0.013 },
+  'gpt-image-2.5-flare': GPT_IMAGE_25_PRICING,
+  'gpt-image-2.5-flare-2026-09-08': GPT_IMAGE_25_PRICING,
+  'gpt-image-2.5-sunburst': GPT_IMAGE_25_PRICING,
 };
 
 export function resolveImagePricing(model: string): ImagePricingEntry {
@@ -46,4 +67,27 @@ export function resolveImagePricing(model: string): ImagePricingEntry {
     throw new Error(`No image pricing entry for model '${model}' — add one to ai-visuals/registry.ts's IMAGE_PRICING.`);
   }
   return entry;
+}
+
+// The part of an images response's `usage` this module prices from.
+export type ImageUsage = {
+  input_tokens?: number;
+  input_tokens_details?: { image_tokens?: number; text_tokens?: number };
+  output_tokens?: number;
+};
+
+// Cost of one still. Token-billed models price the response's usage; a
+// response without usable usage (or a flat-priced model) costs perImageUsd.
+export function priceStill(pricing: ImagePricingEntry, usage: ImageUsage | null | undefined): number {
+  const rates = pricing.tokenRates;
+  if (!rates || !usage || typeof usage.output_tokens !== 'number') return pricing.perImageUsd;
+  const details = usage.input_tokens_details;
+  const textIn = details?.text_tokens ?? usage.input_tokens ?? 0;
+  const imageIn = details?.image_tokens ?? 0;
+  return (
+    (usage.output_tokens * rates.imageOutputPerMTokUsd +
+      textIn * rates.textInputPerMTokUsd +
+      imageIn * rates.imageInputPerMTokUsd) /
+    1_000_000
+  );
 }
