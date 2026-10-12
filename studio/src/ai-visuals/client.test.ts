@@ -14,6 +14,7 @@ vi.mock('openai', () => {
   return { default: Object.assign(MockOpenAI, { APIError: MockAPIError }) };
 });
 
+import OpenAI from 'openai';
 import { generateStillsViaProvider, rateLimitWaitMs } from './client';
 
 describe('generateStillsViaProvider (Sprint 2 Task 2, E1)', () => {
@@ -52,6 +53,57 @@ describe('generateStillsViaProvider (Sprint 2 Task 2, E1)', () => {
     await expect(
       generateStillsViaProvider({ scenePrompts: ['a scene with no image back'], model: 'gpt-image-1.5' }),
     ).rejects.toThrow(/no usable image data/);
+  });
+
+  it('books token-billed cost from the response usage (Sprint 4 Task 11)', async () => {
+    imagesGenerateMock.mockResolvedValue({
+      data: [{ b64_json: Buffer.from('x').toString('base64') }],
+      usage: { input_tokens: 29, input_tokens_details: { image_tokens: 0, text_tokens: 29 }, output_tokens: 158 },
+    });
+    const result = await generateStillsViaProvider({ scenePrompts: ['a', 'b'], model: 'gpt-image-2.5-flare' });
+    expect(Number(result.costUsd)).toBeCloseTo(2 * 0.004885, 6);
+  });
+
+  it('falls back to the flat price when a token-billed response has no usage', async () => {
+    const result = await generateStillsViaProvider({ scenePrompts: ['a', 'b'], model: 'gpt-image-2.5-flare' });
+    expect(Number(result.costUsd)).toBeCloseTo(0.01, 6);
+  });
+
+  it('throws for a model with no pricing entry, before any request', async () => {
+    await expect(generateStillsViaProvider({ scenePrompts: ['a'], model: 'gpt-image-9' })).rejects.toThrow(/No image pricing entry/);
+    expect(imagesGenerateMock).not.toHaveBeenCalled();
+  });
+
+  it('waits out a 429 and retries the same still', async () => {
+    const waits: number[] = [];
+    const timeout = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => {
+      waits.push(ms ?? 0);
+      fn();
+      return 0 as unknown as NodeJS.Timeout;
+    }) as unknown as typeof setTimeout);
+    try {
+      const rateLimit = Object.assign(new (OpenAI as unknown as { APIError: new (m: string) => Error }).APIError(
+        'Rate limit reached. Please try again in 3s.',
+      ), { status: 429 });
+      imagesGenerateMock.mockRejectedValueOnce(rateLimit);
+      const result = await generateStillsViaProvider({ scenePrompts: ['a'], model: 'gpt-image-1.5' });
+      expect(waits).toEqual([4_000]);
+      expect(imagesGenerateMock).toHaveBeenCalledTimes(2);
+      expect(result.imagePaths).toHaveLength(1);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
+  it('skips a moderation-blocked prompt and keeps the rest, unbilled', async () => {
+    const blocked = Object.assign(new (OpenAI as unknown as { APIError: new (m: string) => Error }).APIError('blocked'), {
+      code: 'moderation_blocked',
+    });
+    imagesGenerateMock.mockRejectedValueOnce(blocked);
+    const result = await generateStillsViaProvider({ scenePrompts: ['bad', 'good'], model: 'gpt-image-1.5' });
+    expect(result.skippedPromptCount).toBe(1);
+    expect(result.imagePaths).toHaveLength(1);
+    expect(Number(result.costUsd)).toBeCloseTo(0.013, 6);
   });
 });
 

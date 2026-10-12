@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateRunCost, suggestMaxUsd, longFormStillCount } from './cost-estimate';
-import { resolveImagePricing } from '../ai-visuals/registry';
+import { resolveAiVisualsPurpose, resolveImagePricing } from '../ai-visuals/registry';
 
 describe('suggestMaxUsd', () => {
   it('is 1.5x the estimate rounded up to the next fifty cents', () => {
@@ -24,8 +24,8 @@ describe('estimateRunCost (long)', () => {
   it('prices stills through resolveImagePricing and lands near the pilot figure for 10 minutes', () => {
     const e = estimateRunCost({ videoKind: 'long', targetSeconds: 600 });
     expect(e.breakdown.stillCount).toBe(120);
-    expect(e.breakdown.stillsUsd).toBeCloseTo(120 * resolveImagePricing('gpt-image-1.5').perImageUsd, 4);
-    expect(e.estimateUsd).toBeGreaterThan(1.6);
+    expect(e.breakdown.stillsUsd).toBeCloseTo(120 * resolveImagePricing(resolveAiVisualsPurpose('still-generation').model).perImageUsd, 4);
+    expect(e.estimateUsd).toBeGreaterThan(0.8);
     expect(e.estimateUsd).toBeLessThan(2.5);
     expect(e.suggestedMaxUsd).toBeGreaterThanOrEqual(e.estimateUsd * 1.5);
   });

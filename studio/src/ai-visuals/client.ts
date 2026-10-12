@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
-import { resolveImagePricing } from './registry';
+import { priceStill, resolveImagePricing } from './registry';
 import { STILL_SIZE_PORTRAIT, STILL_QUALITY, type StillSize } from './sizes';
 import { stillCacheKey, stillCachePath, cachedStillExists } from './cache';
 import type { GenerateStillsParams, GeneratedStillsResult } from './types';
@@ -145,10 +145,11 @@ export async function generateStillsViaProvider(
       await fs.writeFile(imagePath, Buffer.from(image.b64_json, 'base64'));
       imagePaths.push(imagePath);
       promptIndexes.push(index);
-      totalCostUsd += pricing.perImageUsd;
+      const stillCostUsd = priceStill(pricing, response.usage);
+      totalCostUsd += stillCostUsd;
       finished += 1;
       params.onProgress?.({ done: finished, total });
-      await params.onStillGenerated?.({ index, costUsd: pricing.perImageUsd, model: params.model });
+      await params.onStillGenerated?.({ index, costUsd: stillCostUsd, model: params.model });
     }
 
     if (imagePaths.length === 0) {
