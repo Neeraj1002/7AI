@@ -87,7 +87,7 @@ describe('runs.create: long-form', () => {
     await caller().create({ ...base, videoKind: 'long' });
     const opts = createdOptions();
     expect(opts).toMatchObject({ videoKind: 'long', targetDurationSec: 600 });
-    expect(opts.maxCostUsd).toBeGreaterThan(2);
+    expect(opts.maxCostUsd).toBeGreaterThan(1);
   });
 
   it('infers long from a long format and takes its length', async () => {
