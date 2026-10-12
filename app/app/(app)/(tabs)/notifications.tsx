@@ -1,228 +1,151 @@
-import React from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
+import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../../lib/trpc';
-import { flags } from '../../../lib/feature-flags';
-import { relativeTime, runTopic } from '../../../lib/run-labels';
-import { color, font, space, type } from '../../../lib/theme';
+import { useChannels } from '../../../lib/channel-context';
+import { relativeTime } from '../../../lib/run-labels';
+import { buildInboxCards, reviewLabel, type InboxCard, type InboxNotification, type InboxRun, type StepTone } from '../../../lib/inbox';
+import { ENDED_STATUSES, QUEUE_POLL_MS, QUEUE_STATUSES } from '../../../lib/run-queries';
+import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
-import { Card } from '../../../components/Card';
-import { StatusChip } from '../../../components/StatusChip';
-import { GateActionBar } from '../../../components/GateActionBar';
-import type { AppRouter } from '../../../../studio/src/api/router';
 
-type NotificationRow = inferRouterOutputs<AppRouter>['notifications']['list'][number];
-type Gate2Input = inferRouterInputs<AppRouter>['runs']['gate2'];
-
-// The in-app inbox. A pending approval_request reuses the same GateActionBar
-// as Run detail, wired to the same runs.gate1/gate2 mutations — resolving
-// from here or from Run detail is the same underlying call.
+// The in-app inbox: one card per run (Sprint 4 Frontend Task 2, R3). Notifications are grouped by run in the app.
+// The step timeline comes from the same `runs.list` queries the Queue uses (shared cache); there is no `runs.get`
+// per card, and the decision itself is made on the Run screen (the button opens it).
 export default function NotificationsScreen() {
   const trpc = useTRPC();
-  const { data, isLoading, isFetching, refetch } = useQuery(trpc.notifications.list.queryOptions());
+  const { channelById, channelIndex } = useChannels();
+  const notifications = useQuery(trpc.notifications.list.queryOptions());
+  const active = useQuery(trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }, { refetchInterval: QUEUE_POLL_MS }));
+  const ended = useQuery(trpc.runs.list.queryOptions({ statuses: [...ENDED_STATUSES] }));
+
+  const { needsYou, earlier } = useMemo(
+    () =>
+      buildInboxCards(
+        (notifications.data ?? []) as InboxNotification[],
+        [...(active.data ?? []), ...(ended.data ?? [])] as InboxRun[],
+      ),
+    [notifications.data, active.data, ended.data],
+  );
+
+  const isLoading = notifications.isLoading;
+  const isFetching = notifications.isFetching || active.isFetching || ended.isFetching;
+  const refetchAll = () => Promise.all([notifications.refetch(), active.refetch(), ended.refetch()]);
+
+  const channelLine = (card: InboxCard) => {
+    if (!card.channelId) return null;
+    const idx = channelIndex(card.channelId);
+    return { name: channelById(card.channelId)?.name ?? 'Deleted channel', dot: idx >= 0 ? channelDotColor(idx) : color.future };
+  };
 
   return (
-    <Screen variant="tabRoot" title="Inbox">
-      <FlatList
+    <Screen
+      variant="tabRoot"
+      title="Inbox"
+      subtitle={needsYou.length > 0 ? `${needsYou.length} ${needsYou.length === 1 ? 'needs' : 'need'} you` : 'Nothing needs you right now'}
+    >
+      <ScrollView
         contentContainerStyle={styles.container}
-        data={data ?? []}
-        keyExtractor={(n) => n.id}
-        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => refetch()} />}
-        ListEmptyComponent={!isLoading ? <Text style={styles.empty}>No notifications yet.</Text> : null}
-        renderItem={({ item }) => <NotificationCard notification={item} />}
-      />
+        refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => void refetchAll()} />}
+      >
+        {!isLoading && needsYou.length === 0 && earlier.length === 0 ? (
+          <Text style={styles.empty}>Nothing needs you right now.</Text>
+        ) : null}
+
+        {needsYou.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Needs you</Text>
+            {needsYou.map((card) => (
+              <RunCard key={card.key} card={card} channel={channelLine(card)} needsYou />
+            ))}
+          </>
+        ) : null}
+
+        {earlier.length > 0 ? (
+          <>
+            <Text style={[styles.sectionTitle, needsYou.length > 0 && styles.sectionGap]}>Earlier</Text>
+            {earlier.map((card) => (
+              <RunCard key={card.key} card={card} channel={channelLine(card)} />
+            ))}
+          </>
+        ) : null}
+      </ScrollView>
     </Screen>
   );
 }
 
-// Bugs Closure R4 — each gate raises its own inbox entry; which one is read off the
-// message the gate itself wrote ("Gate 1 — <channel>" / "Gate 2 — <channel>"), so no
-// payload change is needed.
-function gateOf(message: string): 1 | 2 | null {
-  const m = /^\s*Gate ([12])(?!\d)/.exec(message);
-  return m ? (Number(m[1]) as 1 | 2) : null;
-}
-
-const GATE_NAME = { 1: 'Script approval', 2: 'Video approval' } as const;
-const DECISION_LABEL: Record<string, string> = {
-  approve: 'Approved',
-  edit: 'Script edited',
-  revise: 'Revision requested',
-  reject: 'Rejected',
+const TONE: Record<StepTone, { bg: string; fg: string }> = {
+  ok: { bg: color.okText, fg: color.okText },
+  alert: { bg: color.accent, fg: color.accent },
+  warn: { bg: color.warnText, fg: color.warnText },
+  fail: { bg: color.danger, fg: color.danger },
+  dark: { bg: color.ink, fg: color.ink },
 };
 
-// The one stage-specific line: for gate 1 the script's first line and review score; for
-// gate 2 the Video Intelligence review result.
-function gateSummary(message: string, gate: 1 | 2 | null): string | null {
-  if (gate === 1) {
-    const lines = message.split(/\r?\n/);
-    const at = lines.findIndex((l) => l.startsWith('Script:'));
-    const first = at >= 0 ? lines.slice(at + 1).find((l) => l.trim().length > 0) : undefined;
-    const score = /^Review score: (.+)$/m.exec(message)?.[1];
-    return [first ? `"${first.trim()}"` : null, score ? `Review score ${score}` : null].filter(Boolean).join(' · ') || null;
-  }
-  if (gate === 2) {
-    const verdict = /^Video Intelligence verdict: (.+)$/m.exec(message)?.[1];
-    return verdict ? `Video review: ${verdict}` : null;
-  }
-  return null;
+function ago(date: Date | null): string {
+  return date ? relativeTime(date).replace(/ ago$/, '') : '';
 }
 
-// A resolved gate shows what was decided, read from the run's own human review log for
-// that gate (first one written after this notification was raised).
-function useResolvedDecision(notification: NotificationRow, gate: 1 | 2 | null): string | null {
-  const trpc = useTRPC();
-  const enabled = Boolean(notification.resolvedAt && notification.threadKey && gate);
-  const { data } = useQuery({
-    ...trpc.runs.get.queryOptions({ id: notification.threadKey ?? '' }),
-    enabled,
-  });
-  if (!enabled || !data) return null;
-  const gateStageIds = new Set(data.stages.filter((st) => st.stageName === `gate${gate}`).map((st) => st.id));
-  const log = data.reviewLogs
-    .filter((l) => l.agent === 'human' && l.stageId && gateStageIds.has(l.stageId))
-    .filter((l) => new Date(l.timestamp).getTime() >= new Date(notification.createdAt).getTime() - 1000)
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
-  return log ? (DECISION_LABEL[log.verdict] ?? null) : null;
-}
-
-// Bugs Closure 2 (P9) - the run's topic line, so two cards on the same channel can be
-// told apart. Lazy per visible card; the run is cached by id and shared with the
-// other lookups on this screen.
-function useRunTopicLine(threadKey: string | null): string | null {
-  const trpc = useTRPC();
-  const { data } = useQuery({
-    ...trpc.runs.get.queryOptions({ id: threadKey ?? '' }),
-    enabled: Boolean(threadKey),
-  });
-  return data ? runTopic(data.run) : null;
-}
-
-function NotificationCard({ notification }: { notification: NotificationRow }) {
-  const topic = useRunTopicLine(notification.threadKey);
-  const isPendingApproval = notification.kind === 'approval_request' && !notification.resolvedAt;
-  const gate = notification.kind === 'approval_request' ? gateOf(notification.message) : null;
-  const decision = useResolvedDecision(notification, gate);
-  const summary = gateSummary(notification.message, gate);
-  const chipLabel =
-    notification.kind !== 'approval_request'
-      ? 'Notice'
-      : gate
-        ? notification.resolvedAt
-          ? `${GATE_NAME[gate]} · ${decision ?? 'Resolved'}`
-          : GATE_NAME[gate]
-        : 'Approval needed';
-
+function RunCard({ card, channel, needsYou }: { card: InboxCard; channel: { name: string; dot: string } | null; needsYou?: boolean }) {
+  const open = () => router.push({ pathname: '/run/[id]', params: { id: card.runId! } });
   return (
-    <Card style={styles.card}>
-      <View style={styles.cardHeader}>
-        <StatusChip
-          kind={isPendingApproval ? 'waiting' : 'neutral'}
-          label={chipLabel}
-        />
-        <Text style={styles.time}>{relativeTime(notification.createdAt)}</Text>
-      </View>
-      {topic ? (
-        <Text style={styles.topic} numberOfLines={2}>
-          {topic}
-        </Text>
-      ) : null}
-      <Text style={styles.message} numberOfLines={3}>
-        {/* U1: older reminders carry the brief's own 'Topic:' prefix - strip it. */}
-        {summary ?? notification.message.replace(/"Topic:s*/i, '"')}
+    <View style={[styles.card, needsYou && styles.cardNeedsYou]}>
+      <Text style={styles.title} numberOfLines={3}>
+        {card.title}
       </Text>
-      {notification.resolvedAt ? (
-        <Text style={styles.resolved}>Resolved {relativeTime(notification.resolvedAt)}</Text>
+      {channel ? (
+        <View style={styles.channelLine}>
+          <View style={[styles.dot, { backgroundColor: channel.dot }]} />
+          <Text style={styles.channel} numberOfLines={1}>
+            {channel.name}
+          </Text>
+        </View>
       ) : null}
-      {notification.threadKey ? (
-        <Pressable onPress={() => router.push(`/run/${notification.threadKey}`)} accessibilityRole="button">
-          <Text style={styles.openRun}>Open run →</Text>
-        </Pressable>
+      {card.steps?.map((step) => (
+        <View key={step.key} style={styles.step}>
+          <View style={[styles.stepIcon, { backgroundColor: TONE[step.tone].bg }]}>
+            <Text style={styles.stepGlyph}>{step.glyph}</Text>
+          </View>
+          <Text style={styles.stepName}>{step.name}</Text>
+          <Text style={[styles.stepWord, { color: TONE[step.tone].fg }]}>{step.word}</Text>
+          <Text style={styles.stepTime}>{ago(step.when)}</Text>
+        </View>
+      ))}
+      {card.runId ? (
+        needsYou ? (
+          <Pressable style={styles.reviewButton} onPress={open} accessibilityRole="button">
+            <Text style={styles.reviewText}>{reviewLabel(card.gate)}</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.openRun} onPress={open} accessibilityRole="button">
+            <Text style={styles.openRunText}>Open run →</Text>
+          </Pressable>
+        )
       ) : null}
-      {isPendingApproval && notification.threadKey ? <PendingGateActions runId={notification.threadKey} /> : null}
-    </Card>
+    </View>
   );
 }
 
-// The notification only says which run; fetch that run's real status to know
-// which gate is open, rather than duplicating a second gate-detection rule.
-function PendingGateActions({ runId }: { runId: string }) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { data: runDetail, isLoading } = useQuery(trpc.runs.get.queryOptions({ id: runId }));
-
-  const invalidate = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: trpc.notifications.list.queryKey() }),
-      queryClient.invalidateQueries({ queryKey: trpc.runs.get.queryKey({ id: runId }) }),
-      queryClient.invalidateQueries({ queryKey: trpc.runs.list.queryKey() }),
-    ]);
-
-  const gate1Mutation = useMutation(trpc.runs.gate1.mutationOptions({ onSuccess: () => invalidate() }));
-  const gate2Mutation = useMutation(trpc.runs.gate2.mutationOptions({ onSuccess: () => invalidate() }));
-
-  if (isLoading) return <ActivityIndicator style={{ marginTop: space.sm }} />;
-  if (!runDetail) return null;
-
-  const { run, stages } = runDetail;
-
-  if (run.status === 'paused_gate1') {
-    const scriptStage = [...stages].reverse().find((s) => s.stageName === 'script_generation');
-    const scriptText = (scriptStage?.output?.scriptText as string | undefined) ?? '';
-    return (
-      <View style={styles.actions}>
-        <GateActionBar
-          gate={1}
-          isSubmitting={gate1Mutation.isPending}
-          initialEditText={scriptText}
-          onApprove={() => gate1Mutation.mutate({ runId, action: 'approve' })}
-          onReject={(reason) => gate1Mutation.mutate({ runId, action: 'reject', reason })}
-          onEditOrRevise={(text) => gate1Mutation.mutate({ runId, action: 'edit', editedScriptText: text })}
-        />
-        {gate1Mutation.error ? <Text style={styles.errorText}>{gate1Mutation.error.message}</Text> : null}
-      </View>
-    );
-  }
-
-  if (run.status === 'paused_gate2') {
-    return (
-      <View style={styles.actions}>
-        <GateActionBar
-          gate={2}
-          isSubmitting={gate2Mutation.isPending}
-          defaultPrivacy={runDetail.channel?.defaultPrivacyStatus}
-          onApprove={(privacy) => {
-            const payload: Gate2Input = {
-              runId,
-              action: 'approve',
-              ...(flags.gate2Visibility && privacy ? { privacyStatus: privacy } : {}),
-            };
-            gate2Mutation.mutate(payload);
-          }}
-          onReject={(reason) => gate2Mutation.mutate({ runId, action: 'reject', reason })}
-          onEditOrRevise={(notes) => gate2Mutation.mutate({ runId, action: 'revise', notes })}
-        />
-        {gate2Mutation.error ? <Text style={styles.errorText}>{gate2Mutation.error.message}</Text> : null}
-      </View>
-    );
-  }
-
-  return <Text style={styles.alreadyResolved}>This gate was already resolved elsewhere.</Text>;
-}
-
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: space.lg, paddingBottom: space.xl, gap: space.md },
+  container: { paddingHorizontal: space.lg, paddingBottom: space.xl, gap: 10 },
   empty: { padding: 24, textAlign: 'center', ...type.body, color: color.muted },
-  card: { gap: space.sm },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  time: { ...type.meta, fontSize: 12 },
-  topic: { ...type.bodyStrong, color: color.ink },
-  message: { ...type.body, color: color.ink },
-  resolved: { ...type.meta, color: color.okText },
-  openRun: { fontFamily: font.bold, fontSize: 13, color: color.accentText },
-  alreadyResolved: { ...type.meta, fontStyle: 'italic' },
-  actions: { marginTop: space.xs, gap: space.sm },
-  errorText: { ...type.meta, color: color.danger },
+  sectionTitle: { fontFamily: font.black, fontSize: 16, color: color.ink },
+  sectionGap: { paddingTop: space.sm },
+  card: { borderWidth: 1.5, borderColor: color.ink, borderRadius: radius.xl, backgroundColor: color.surface, paddingVertical: 14, paddingHorizontal: space.lg, gap: 4 },
+  cardNeedsYou: { borderWidth: 2, borderColor: color.accent },
+  title: { fontFamily: font.black, fontSize: 15, lineHeight: 20, color: color.ink },
+  channelLine: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  channel: { fontFamily: font.regular, fontSize: 12, color: color.muted, flexShrink: 1 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  stepIcon: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  stepGlyph: { fontFamily: font.black, fontSize: 12, color: color.onAccent },
+  stepName: { flexGrow: 1, flexShrink: 1, fontFamily: font.bold, fontSize: 14, color: color.ink },
+  stepWord: { fontFamily: font.bold, fontSize: 12 },
+  stepTime: { width: 44, textAlign: 'right', fontFamily: font.regular, fontSize: 12, color: color.muted },
+  reviewButton: { marginTop: space.sm, minHeight: 44, borderRadius: radius.md, backgroundColor: color.accent, alignItems: 'center', justifyContent: 'center' },
+  reviewText: { fontFamily: font.black, fontSize: 14, color: color.onAccent },
+  openRun: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  openRunText: { fontFamily: font.black, fontSize: 13, color: color.accent },
 });

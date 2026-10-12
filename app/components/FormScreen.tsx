@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Screen } from './Screen';
 import { color } from '../lib/theme';
@@ -19,6 +19,7 @@ export function FormScreen({
   children,
   footer,
   contentContainerStyle,
+  refreshControl,
 }: {
   title: string;
   subtitle?: string;
@@ -29,6 +30,8 @@ export function FormScreen({
   /** Rendered inside the keyboard-avoiding view, e.g. a BottomActionBar, so it rises with the keyboard. */
   footer?: React.ReactNode;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /** Pull-to-refresh for the scroll area (tab screens with a search field). */
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }) {
   return (
     <Screen title={title} subtitle={subtitle} variant={variant} right={right} onBack={onBack}>
@@ -37,6 +40,7 @@ export function FormScreen({
           contentContainerStyle={[styles.content, contentContainerStyle]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
+          refreshControl={refreshControl}
         >
           {children}
         </ScrollView>

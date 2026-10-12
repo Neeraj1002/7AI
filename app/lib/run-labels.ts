@@ -166,7 +166,7 @@ export function runTopic(run: { briefText: string; intakeParsed?: { topic?: stri
 // Chip for a run in the "Ended" list. The runs.list rows carry no endReason,
 // so this reads the same lastError texts the server's deriveEndReason matches.
 export function endedChip(run: { status: string; lastError?: string | null }): { label: string; kind: StatusChipKind } {
-  if (run.status === 'completed') return { label: 'Completed', kind: 'ok' };
+  if (run.status === 'completed') return { label: 'Published', kind: 'ok' };
   const err = run.lastError ?? '';
   if (err === 'Cancelled by user') return { label: 'Cancelled', kind: 'neutral' };
   const rejected = /^Rejected at Gate ([12])/.exec(err);
@@ -174,7 +174,7 @@ export function endedChip(run: { status: string; lastError?: string | null }): {
   if (err === 'Channel deleted') return { label: 'Channel deleted', kind: 'neutral' };
   // Bugs Task 12 (R3): the server's classifyEndError (run-pipeline/end-reason.ts) is the source of truth;
   // this mirrors it for the list rows, which carry no endReason.
-  return { label: 'Failed', kind: 'failed' };
+  return { label: 'Failed', kind: 'error' };
 }
 
 // Bugs Closure 2 (P10) - "script_generation" -> "script generation", and the two
