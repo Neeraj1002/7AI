@@ -1,14 +1,14 @@
 # Sprint 4 Task 11: Image Model Move (gpt-image-1.5 shuts down 2026-12-01) (Backend)
 
 **Date**: 2026-10-11
-**Status**: Code done (R3 steps 1-3). **Waiting on the founder**: contact-sheet approval, then the registry switch (R3 step 4), then R5 verification.
+**Status**: Code complete, registry switched to `gpt-image-2.5-flare-2026-09-08` (founder-approved 2026-10-13). Waiting on deploy, then R5 (real preview runs).
 **Branch**: `SPRINT4_TASK11_BE` (worktree `D:\Study Material\7AI-SPRINT4_TASK11_BE`)
 **Tests**: `ai-visuals` suite 16/16 passing; typecheck and lint clean.
 
 ## What was done
 - **R1 spike** against the real API (throwaway scripts, no pipeline, no preview run). Cost of everything including the 72 contact-sheet stills: about $0.60.
 - **R3 steps 1-3**: `priceStill()` in `registry.ts` prices a still from the response `usage` for token-billed models, with a measured flat fallback; `IMAGE_PRICING` gained `gpt-image-2.5-flare`, `gpt-image-2.5-flare-2026-09-08` and `gpt-image-2.5-sunburst`; `resolveImagePricing` still throws for unknown models. `client.ts` changed in two lines (import and the cost line). `gpt-image-1.5` stays the live default and stays flat-priced at $0.013.
-- **R2**: contact sheets built, see `task11-contact-sheets/index.html` (open locally; images are 360 px or 640 px JPEGs, 4 MB total, committed under `task11-contact-sheets/`).
+- **R2**: contact sheets built. The 72 stills stay local (not in git); committed under `task11-contact-sheets/` are `index.html`, `jobs.json` (prompts, usage per still) and three small style-tweak thumbnails: **about 228 KB in total** (the images were removed from the branch history before merge; the branch was re-created on top of `main` and force-pushed with lease).
 
 ## R1 measurements (2026-10-11, this organisation, quality `low` unless noted)
 
@@ -47,6 +47,14 @@ Same 8 scene prompts per channel, three models, `low`. Sheets: Not In Your Textb
 3. `closureTask.md` lines 166-167: about $0.20 per attempt and $20 a week per channel. Image cost per attempt drops from about $0.18 to about $0.07; the recommended ceiling can be lowered after one real week.
 4. Sprint 4 Task 9 R7: the long-form cost estimate and its size constants (see 1920x1088 above).
 Test fixtures that name `gpt-image-1.5` (`closure2-render.test.ts`, admin tests) are plain strings and do not need to change.
+
+## Update 2026-10-13: sizes.ts, switch, long-form estimate
+- **`sizes.ts` check** (Task 9 PR B on `main`): one real call per candidate with the exact constants (portrait `1024x1536`, landscape `1536x1024`, quality `low`): `gpt-image-2.5-flare-2026-09-08` and `gpt-image-2.5-sunburst` all returned 200 at exactly those sizes, 158 output tokens, $0.0048. **No value in `sizes.ts` changed.**
+- **Switch**: `AI_VISUALS_REGISTRY['still-generation']` is now `gpt-image-2.5-flare-2026-09-08` (last commit). `gpt-image-1.5` stays in `IMAGE_PRICING` on purpose, so old usage rows and a rollback still price; every other repo mention is a comment or a test fixture string. No live call names it.
+- **Merge with Task 9**: `client.ts` conflicted on the cost line; resolved so `onStillGenerated` reports the same usage-priced cost that is added to the total (`priceStill`).
+- **Style**: Not In Your Textbook gets the "painting, not photograph" wording in its channel style prompt (founder, in Content profile); Underdogs gets a style line from the founder. Neither is in code.
+- **Long-form estimate** (`run-pipeline/cost-estimate.ts` reads `resolveImagePricing(model).perImageUsd` of the registry model, so it **changed automatically** with the switch): 10-minute video, 120 stills: stills $1.56 to $0.60, estimate **$1.9752 to $1.0152**, worst case $2.8056 to $1.8456, suggested per-video limit **$3 to $2**. A 45 s Short: $0.2868 to $0.1428. The fallback `perImageUsd` ($0.005) is slightly above the measured $0.0048, so the estimate errs high. `cost-estimate.test.ts` pinned `gpt-image-1.5`; it now reads the registry model and its lower bound moved from 1.6 to 0.8.
+- Task 9's "estimated $0.4125, paid $0.4032" check was on the old model; R5 below re-checks it on the new one.
 
 ## Deviations
 - Measured the style fix beyond R2's scope because the sheets showed the photoreal drift; it is a finding, not a code change.

@@ -22,8 +22,12 @@ export type RegistryEntry = {
 // real alternative worth evaluating is a dedicated image-gen vendor
 // (Stability AI, Midjourney's API) — not attempted here, since it would add
 // a net-new credential/vendor relationship this task's scope doesn't call for.
+// Sprint 4 Task 11 (2026-10): the model is now the dated snapshot of `gpt-image-2.5-flare`
+// (founder-approved after contact sheets; measurements in reports/task11.md). gpt-image-1.5
+// shuts down 2026-12-01. Dated, not the alias, so the look cannot change under a channel.
+// The paragraph above records the original provider decision and is history.
 export const AI_VISUALS_REGISTRY: Record<AiVisualsPurpose, RegistryEntry> = {
-  'still-generation': { provider: 'openai', model: 'gpt-image-1.5' },
+  'still-generation': { provider: 'openai', model: 'gpt-image-2.5-flare-2026-09-08' },
 };
 
 export function resolveAiVisualsPurpose(purpose: AiVisualsPurpose): RegistryEntry {
