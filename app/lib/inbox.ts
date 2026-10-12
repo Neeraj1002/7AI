@@ -2,6 +2,7 @@
 // the app, and each card's step timeline is read from the run row `runs.list` already returns (status,
 // currentStage, lastError, completedAt) plus the group's own notification times. Nothing is fetched per card.
 import { runTopic } from './run-labels';
+import { chipFromRun } from './run-video';
 
 export type InboxNotification = {
   id: string;
@@ -21,6 +22,7 @@ export type InboxRun = {
   briefText: string;
   intakeParsed?: { topic?: string } | null;
   completedAt: Date | string | null;
+  creationOptions?: unknown;
 };
 
 export type StepTone = 'ok' | 'alert' | 'dark' | 'warn' | 'fail';
@@ -31,6 +33,8 @@ export type InboxCard = {
   runId: string | null;
   channelId: string | null;
   title: string;
+  /** Set for a long video, so the card can show the "Video · {n} min" chip. */
+  video?: { videoKind: string | undefined; targetSeconds: number | undefined };
   /** Which review the "Review …" button opens; null on a card that needs nothing. */
   gate: 1 | 2 | null;
   steps: TimelineStep[] | null;
@@ -130,6 +134,7 @@ export function buildInboxCards(
         runId: run.id,
         channelId: run.channelId,
         title: runTopic(run),
+        video: chipFromRun(run),
         gate: waitingGate,
         steps: runTimeline(run, group),
         latestAt,

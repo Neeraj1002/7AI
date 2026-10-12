@@ -9,6 +9,7 @@ import { buildInboxCards, reviewLabel, type InboxCard, type InboxNotification, t
 import { ENDED_STATUSES, QUEUE_POLL_MS, QUEUE_STATUSES } from '../../../lib/run-queries';
 import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
+import { VideoChip } from '../../../components/VideoChip';
 
 // The in-app inbox: one card per run (Sprint 4 Frontend Task 2, R3). Notifications are grouped by run in the app.
 // The step timeline comes from the same `runs.list` queries the Queue uses (shared cache); there is no `runs.get`
@@ -94,6 +95,7 @@ function RunCard({ card, channel, needsYou }: { card: InboxCard; channel: { name
       <Text style={styles.title} numberOfLines={3}>
         {card.title}
       </Text>
+      <VideoChip videoKind={card.video?.videoKind} targetSeconds={card.video?.targetSeconds} />
       {channel ? (
         <View style={styles.channelLine}>
           <View style={[styles.dot, { backgroundColor: channel.dot }]} />
