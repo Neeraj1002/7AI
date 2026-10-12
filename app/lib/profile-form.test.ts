@@ -1,7 +1,7 @@
 // App tests have no runner of their own; run with the server's vitest:
 //   cd studio && npx vitest run --root ../app
 import { test, assert } from 'vitest';
-import { EMPTY_FORM, buildProfileData, profileToForm, parseServerProfileError, profileSummary, formsEqual } from './profile-form';
+import { EMPTY_FORM, buildProfileData, profileToForm, parseServerProfileError, profileEntrySummary, formsEqual } from './profile-form';
 
 test('blank form builds an empty profile (everything falls back to defaults)', () => {
   assert.deepEqual(buildProfileData(EMPTY_FORM), { data: {}, localErrors: {} });
@@ -56,6 +56,58 @@ test('server Zod errors land under their field; unknown paths go to general', ()
 });
 
 test('summary lists only sections that hold something', () => {
-  assert.strictEqual(profileSummary(2, { script: { guide: 'x' }, visual: {}, packaging: { categoryId: '1' } }), 'v2 · script, packaging');
-  assert.strictEqual(profileSummary(1, {}), 'v1');
+  assert.strictEqual(profileEntrySummary(3, { offeredFormatKeys: ['a', 'b', 'c'] }, '2026-10-06T10:00:00Z'), 'v3 · 3 formats · saved 6 Oct');
+  assert.strictEqual(profileEntrySummary(2, { offeredFormatKeys: ['a'] }, '2026-10-06T10:00:00Z'), 'v2 · 1 format · saved 6 Oct');
+  assert.strictEqual(profileEntrySummary(1, { script: { guide: 'x' } }, '2026-09-28T10:00:00Z'), 'v1 · 0 formats · saved 28 Sep');
+});
+
+import { firstErrorField, formatsNote, sectionOfField, sectionSummary } from './profile-form';
+
+test('offeredFormatKeys round-trips and is written only when something is picked', () => {
+  const form = profileToForm({ offeredFormatKeys: ['origin-story', 'myth-vs-fact'], script: { guide: 'x' } });
+  assert.deepEqual(form.offeredFormatKeys, ['origin-story', 'myth-vs-fact']);
+  assert.deepEqual(buildProfileData(form).data, { offeredFormatKeys: ['origin-story', 'myth-vs-fact'], script: { guide: 'x' } });
+  assert.deepEqual(buildProfileData({ ...form, offeredFormatKeys: [] }).data, { script: { guide: 'x' } });
+});
+
+test('an older version without the field means none offered, and untouched fields survive a save', () => {
+  const old = { script: { guide: 'g', targetSeconds: 40 }, audio: { defaultVoice: 'echo' } };
+  const form = profileToForm(old);
+  assert.deepEqual(form.offeredFormatKeys, []);
+  assert.deepEqual(buildProfileData({ ...form, offeredFormatKeys: ['countdown'] }).data, { ...old, offeredFormatKeys: ['countdown'] });
+});
+
+test('formsEqual compares the format list by content and order', () => {
+  assert.equal(formsEqual({ ...EMPTY_FORM, offeredFormatKeys: ['a', 'b'] }, { ...EMPTY_FORM, offeredFormatKeys: ['a', 'b'] }), true);
+  assert.equal(formsEqual({ ...EMPTY_FORM, offeredFormatKeys: ['a'] }, EMPTY_FORM), false);
+});
+
+test('a server error on offeredFormatKeys lands on the formats field', () => {
+  const r = parseServerProfileError('Invalid channel profile: offeredFormatKeys.1: unknown format key');
+  assert.deepEqual(r, { fields: { offeredFormatKeys: 'unknown format key' }, general: null });
+});
+
+test('section summaries: "{set} of {total} set" or "uses defaults"', () => {
+  assert.equal(sectionSummary(EMPTY_FORM, 'script'), 'uses defaults');
+  assert.equal(sectionSummary({ ...EMPTY_FORM, guide: 'x', targetSeconds: '40', editorCredit: 'no' }, 'script'), '2 of 5 set');
+  assert.equal(sectionSummary({ ...EMPTY_FORM, editorCredit: 'no', categoryId: '27' }, 'packaging'), '2 of 7 set');
+  assert.equal(sectionSummary({ ...EMPTY_FORM, defaultVoice: 'a', defaultMoodTag: 'b' }, 'audio'), '2 of 2 set');
+});
+
+test('error reveal: field -> section, and the first error in screen order', () => {
+  assert.equal(sectionOfField('secondsPerStill'), 'visual');
+  assert.equal(sectionOfField('offeredFormatKeys'), null);
+  assert.equal(firstErrorField({ categoryId: 'bad', stylePrompt: 'bad' }), 'stylePrompt');
+  assert.equal(firstErrorField({ categoryId: 'bad', offeredFormatKeys: 'bad' }), 'offeredFormatKeys');
+  assert.equal(firstErrorField({}), null);
+});
+
+test('formats note: none, 1 to 4, and 5 or more (warn)', () => {
+  assert.deepEqual(formatsNote(0), { text: 'None selected: New brief shows only Freeform for this channel.', warn: false });
+  assert.equal(formatsNote(2).text, '2 selected. New brief shows these (for the chosen Type) plus Freeform.');
+  assert.equal(formatsNote(4).warn, false);
+  assert.deepEqual(formatsNote(5), {
+    text: '5 selected. More than 4 makes the New brief picker crowded; allowed, but consider fewer.',
+    warn: true,
+  });
 });

@@ -2,7 +2,10 @@
 // The form holds strings only; a blank field is "leave blank to use the default" and is omitted from the data.
 // Validation is the server's (Zod): its error is parsed back onto the matching field, nothing is re-implemented here.
 
+import { shortDate } from './formats';
+
 export type ProfileForm = {
+  offeredFormatKeys: string[]; // formats this channel uses (New brief offers these plus Freeform); [] = none
   guide: string;
   targetSeconds: string;
   bannedOpeners: string; // one per line
@@ -26,6 +29,7 @@ export type ProfileForm = {
 export type ProfileFieldKey = keyof ProfileForm;
 
 export const EMPTY_FORM: ProfileForm = {
+  offeredFormatKeys: [],
   guide: '',
   targetSeconds: '',
   bannedOpeners: '',
@@ -47,6 +51,7 @@ export const EMPTY_FORM: ProfileForm = {
 };
 
 type Data = {
+  offeredFormatKeys?: string[];
   script?: Record<string, unknown>;
   visual?: Record<string, unknown>;
   audio?: Record<string, unknown>;
@@ -64,7 +69,7 @@ export type BuildResult = { data: Data; localErrors: Partial<Record<ProfileField
 export function buildProfileData(f: ProfileForm): BuildResult {
   const localErrors: Partial<Record<ProfileFieldKey, string>> = {};
   const num = (key: ProfileFieldKey): number | undefined => {
-    const raw = f[key].trim();
+    const raw = (f[key] as string).trim();
     if (!raw) return undefined;
     const n = Number(raw);
     if (!Number.isFinite(n)) {
@@ -102,6 +107,8 @@ export function buildProfileData(f: ProfileForm): BuildResult {
   put(packaging, 'defaultLanguage', text(f.defaultLanguage));
 
   const data: Data = {};
+  // Absent and [] both mean "none offered"; the field is only written when something is picked.
+  if (f.offeredFormatKeys.length) data.offeredFormatKeys = [...f.offeredFormatKeys];
   if (Object.keys(script).length) data.script = script;
   if (Object.keys(visual).length) data.visual = visual;
   if (Object.keys(audio).length) data.audio = audio;
@@ -116,11 +123,13 @@ const tri = (v: unknown): '' | 'yes' | 'no' => (v === true ? 'yes' : v === false
 
 export function profileToForm(raw: unknown): ProfileForm {
   const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, Record<string, unknown> | undefined>;
+  const offered = (raw as { offeredFormatKeys?: unknown } | null)?.offeredFormatKeys;
   const s = d.script ?? {};
   const v = d.visual ?? {};
   const a = d.audio ?? {};
   const p = d.packaging ?? {};
   return {
+    offeredFormatKeys: Array.isArray(offered) ? offered.filter((x): x is string => typeof x === 'string') : [],
     guide: str(s.guide),
     targetSeconds: numStr(s.targetSeconds),
     bannedOpeners: strList(s.bannedOpeners, '\n'),
@@ -177,7 +186,9 @@ export function parseServerProfileError(message: string): {
     const at = part.indexOf(': ');
     const path = at >= 0 ? part.slice(0, at) : part;
     const msg = at >= 0 ? part.slice(at + 2) : part;
-    const key = PATH_TO_FIELD[path.split('.').slice(0, 2).join('.')];
+    const key = path.startsWith('offeredFormatKeys')
+      ? 'offeredFormatKeys'
+      : PATH_TO_FIELD[path.split('.').slice(0, 2).join('.')];
     if (key && !fields[key]) fields[key] = msg;
     else if (!key) unplaced.push(part);
   }
@@ -185,24 +196,65 @@ export function parseServerProfileError(message: string): {
 }
 
 export function formsEqual(a: ProfileForm, b: ProfileForm): boolean {
-  return (Object.keys(EMPTY_FORM) as ProfileFieldKey[]).every((k) => a[k] === b[k]);
+  return (Object.keys(EMPTY_FORM) as ProfileFieldKey[]).every((k) => {
+    const x = a[k];
+    const y = b[k];
+    return Array.isArray(x) && Array.isArray(y) ? x.length === y.length && x.every((v, i) => v === y[i]) : x === y;
+  });
 }
 
-// "v3 · script, visuals, audio, packaging" — only sections that hold something.
-export function profileSummary(version: number, raw: unknown): string {
-  const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const parts = (
-    [
-      ['script', 'script'],
-      ['visual', 'visuals'],
-      ['audio', 'audio'],
-      ['packaging', 'packaging'],
-    ] as const
-  )
-    .filter(([key]) => {
-      const section = d[key];
-      return section && typeof section === 'object' && Object.keys(section as object).length > 0;
-    })
-    .map(([, label]) => label);
-  return parts.length ? `v${version} · ${parts.join(', ')}` : `v${version}`;
+// Channel settings row, board N_S4ChannelSettingsEntry: "v3 · 3 formats · saved 6 Oct".
+export function profileEntrySummary(version: number, raw: unknown, createdAt: string | Date): string {
+  const offered = (raw as { offeredFormatKeys?: unknown } | null)?.offeredFormatKeys;
+  const k = Array.isArray(offered) ? offered.length : 0; // no field = none
+  const saved = shortDate(createdAt);
+  return `v${version} · ${k} ${k === 1 ? 'format' : 'formats'} · saved ${saved}`;
+}
+
+export type ProfileSection = 'script' | 'visual' | 'audio' | 'packaging';
+
+const SECTION_FIELDS: Record<ProfileSection, ProfileFieldKey[]> = {
+  script: ['guide', 'targetSeconds', 'bannedOpeners', 'bannedEndings', 'factPolicy'],
+  visual: ['defaultSource', 'stylePrompt', 'negativePrompt', 'secondsPerStill'],
+  audio: ['defaultVoice', 'defaultMoodTag'],
+  packaging: [
+    'titleGuidance',
+    'descriptionTemplate',
+    'hashtagsBase',
+    'editorCredit',
+    'selfDeclaredMadeForKids',
+    'categoryId',
+    'defaultLanguage',
+  ],
+};
+
+// The folded section a field lives in; null for the always-open Formats section.
+export function sectionOfField(key: ProfileFieldKey): ProfileSection | null {
+  return (Object.keys(SECTION_FIELDS) as ProfileSection[]).find((s) => SECTION_FIELDS[s].includes(key)) ?? null;
+}
+
+// Folded summary: "4 of 5 set", or "uses defaults" when nothing in the section is set.
+export function sectionSummary(f: ProfileForm, section: ProfileSection): string {
+  const fields = SECTION_FIELDS[section];
+  const set = fields.filter((k) => (f[k] as string).trim() !== '').length;
+  return set === 0 ? 'uses defaults' : `${set} of ${fields.length} set`;
+}
+
+// The note under the Formats checkbox list.
+export function formatsNote(count: number): { text: string; warn: boolean } {
+  if (count === 0) return { text: 'None selected: New brief shows only Freeform for this channel.', warn: false };
+  if (count > 4) {
+    return { text: `${count} selected. More than 4 makes the New brief picker crowded; allowed, but consider fewer.`, warn: true };
+  }
+  return { text: `${count} selected. New brief shows these (for the chosen Type) plus Freeform.`, warn: false };
+}
+
+// Screen order, top to bottom: where an error should be revealed first.
+export const FIELD_ORDER: ProfileFieldKey[] = [
+  'offeredFormatKeys',
+  ...(Object.keys(SECTION_FIELDS) as ProfileSection[]).flatMap((s) => SECTION_FIELDS[s]),
+];
+
+export function firstErrorField(errors: Partial<Record<ProfileFieldKey, string>>): ProfileFieldKey | null {
+  return FIELD_ORDER.find((k) => errors[k]) ?? null;
 }

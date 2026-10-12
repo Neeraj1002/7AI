@@ -12,7 +12,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { flags } from '../../../lib/feature-flags';
 import { useOptionLists } from '../../../lib/pipeline-options';
-import { profileSummary } from '../../../lib/profile-form';
+import { profileEntrySummary } from '../../../lib/profile-form';
 import { useAuthedImageSource } from '../../../lib/use-authed-image-source';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { FormScreen } from '../../../components/FormScreen';
@@ -384,7 +384,7 @@ export default function ChannelSettingsScreen() {
             <Text style={styles.cardTitle}>Content profile</Text>
             <Text style={styles.meta}>
               {profile.data
-                ? profileSummary(profile.data.version, profile.data.data)
+                ? profileEntrySummary(profile.data.version, profile.data.data, profile.data.createdAt)
                 : profile.isLoading
                   ? '…'
                   : 'Not set up — uses channel defaults'}

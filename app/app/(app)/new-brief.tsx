@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { youtubeNeedsReconnect } from '../../lib/server-extras';
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { useTRPC, useTRPCClient } from '../../lib/trpc';
 import { useChannels } from '../../lib/channel-context';
@@ -17,7 +17,9 @@ import { FormatSheet } from '../../components/FormatSheet';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
 import { LENGTHS, useOptionLists } from '../../lib/pipeline-options';
-import { MAX_SOURCES, chipFormatKeys, validateSources } from '../../lib/brief-extras';
+import { MAX_SOURCES, formatKeyField, validateSources } from '../../lib/brief-extras';
+import { canEditChannelProfile, formatLengthNote } from '../../lib/formats';
+import { useAuth } from '../../lib/auth';
 
 // Task 6/E4 "Edit brief & run again" pre-fills these from an ended run's own
 // briefText/channelId/creationOptions — read once on mount, matched against
@@ -65,8 +67,11 @@ export default function NewBriefScreen() {
   const [sources, setSources] = useState<string[]>([]);
   const [formatKey, setFormatKey] = useState<string | null>(null);
   const [formatsOpen, setFormatsOpen] = useState(false);
-  const formatsQuery = useQuery(trpc.channels.listFormats.queryOptions());
-  const comparisonQuery = useQuery(trpc.dashboard.comparison.queryOptions());
+  // Only this channel's formats (its profile's offeredFormatKeys, in the profile's order). The Type field arrives
+  // in Frontend Task 4, so for now the picker is Shorts. The channel is part of the query key: a new channel refetches.
+  const formatsQuery = useQuery(
+    trpc.channels.listFormats.queryOptions(selectedChannelId ? { channelId: selectedChannelId, videoKind: 'short' } : skipToken),
+  );
   // Task 4/E7 — live from options.list (B9), falling back to the static
   // lists in pipeline-options.ts while it loads or on error.
   const { voices: VOICES, visualSources: VISUAL_SOURCES, moodTags: MUSIC_MOODS } = useOptionLists();
@@ -78,13 +83,18 @@ export default function NewBriefScreen() {
   }, []);
 
   const selected = channelById(selectedChannelId);
+  // The link to Content profile is hidden for users who cannot edit this channel's profile.
+  const { role, userId } = useAuth();
+  const canEditProfile = canEditChannelProfile({ role, userId }, selected);
+  const openProfile = () => {
+    if (selectedChannelId) router.push({ pathname: '/channel/[id]/profile', params: { id: selectedChannelId } });
+  };
   const formats = formatsQuery.data ?? [];
+  // A picked key the (new) channel does not offer reads as Freeform.
   const format = formats.find((f) => f.key === formatKey);
-  const chipKeys = chipFormatKeys(
-    formats,
-    comparisonQuery.data?.channels.find((c) => c.channelId === selectedChannelId),
-    formatKey,
-  );
+  const activeKey = format?.key ?? null;
+  // Only once the answer is in: a loading or failed query must not claim "no formats".
+  const noFormats = formatsQuery.isSuccess && formats.length === 0;
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
   const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
   // R13: the credential exists but Google rejected it; the run would fail at upload, so say so up front (not blocked).
@@ -152,7 +162,7 @@ export default function NewBriefScreen() {
       channelId: selectedChannelId,
       briefText: briefText.trim(),
       ...(checked.sources.length > 0 ? { sources: checked.sources } : {}),
-      ...(format ? { formatKey: format.key as never } : {}),
+      ...(formatKeyField(activeKey, formats) as { formatKey?: never }),
       ...(voice ? { voice: voice as never } : {}),
       ...(visual !== 'auto' ? { visualSource: visual as never } : {}),
       ...(music ? { audioLayer: music as never } : {}),
@@ -206,23 +216,35 @@ export default function NewBriefScreen() {
       )}
 
       <Text style={styles.label}>Format</Text>
-      <View style={styles.chipRow}>
-        <FormatChip label="Freeform" active={formatKey === null} onPress={() => setFormatKey(null)} />
-        {chipKeys.map((k) => (
-          <FormatChip
-            key={k}
-            label={formats.find((f) => f.key === k)?.label ?? k}
-            active={formatKey === k}
-            onPress={() => setFormatKey(k)}
-          />
+      {/* Freeform first, then this channel's formats; more than about 4 chips scroll sideways. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        <FormatChip label="Freeform" active={activeKey === null} onPress={() => setFormatKey(null)} />
+        {formats.map((f) => (
+          <FormatChip key={f.key} label={f.label} active={activeKey === f.key} onPress={() => setFormatKey(f.key)} />
         ))}
         {formats.length > 0 ? (
-          <FormatChip label="More formats ▾" active={false} onPress={() => setFormatsOpen(true)} />
+          <FormatChip
+            label={formats.length > 3 ? 'More ▾' : `All ${formats.length + 1} ▾`}
+            active={false}
+            onPress={() => setFormatsOpen(true)}
+          />
         ) : null}
-      </View>
-      <Text style={styles.tip}>
-        {format ? format.scriptStructure : 'Freeform is the default — nothing changes unless you pick a format.'}
-      </Text>
+      </ScrollView>
+      {format ? (
+        <Text style={styles.tip}>{format.scriptStructure}</Text>
+      ) : noFormats ? (
+        // Board FmtBriefFreeformOnly: only Freeform shows. The link is for users who can edit the profile.
+        <View>
+          <Text style={styles.tip}>This channel has no formats yet.</Text>
+          {canEditProfile ? (
+            <Pressable onPress={openProfile} style={styles.formatsLinkRow} accessibilityRole="link">
+              <Text style={styles.formatsLink}>Add formats in Content profile ›</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <Text style={styles.tip}>Freeform is the default. The chips are the formats this channel uses (set in Content profile).</Text>
+      )}
 
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
@@ -296,6 +318,14 @@ export default function NewBriefScreen() {
             />
           </>
         ) : null}
+        {format ? (
+          <>
+            <Text style={styles.label}>Length</Text>
+            <View style={styles.lengthLocked} accessibilityState={{ disabled: true }}>
+              <Text style={styles.lengthLockedText}>{formatLengthNote(format.targetSeconds)}</Text>
+            </View>
+          </>
+        ) : null}
         <Text style={styles.label}>Visuals</Text>
         <SegmentedControl
           options={[{ value: 'auto' as const, label: 'Auto' }, ...VISUAL_SOURCES]}
@@ -340,8 +370,9 @@ export default function NewBriefScreen() {
         visible={formatsOpen}
         onClose={() => setFormatsOpen(false)}
         formats={formats}
-        selected={formatKey}
+        selected={activeKey}
         onSelect={setFormatKey}
+        onEditProfile={canEditProfile ? openProfile : undefined}
       />
       <OptionSheet
         visible={voiceOpen}
@@ -367,6 +398,7 @@ export default function NewBriefScreen() {
         onSelect={(id) => {
           if (!id) return;
           setSelectedChannelId(id);
+          setFormatKey(null);
           setVoice(null);
           setVisual('auto');
           setMusic(null);
@@ -393,7 +425,18 @@ function FormatChip({ label, active, onPress }: { label: string; active: boolean
 }
 
 const styles = StyleSheet.create({
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  chipRow: { flexDirection: 'row', gap: space.sm, paddingVertical: 2 },
+  lengthLocked: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: color.future,
+    backgroundColor: color.surface2,
+  },
+  lengthLockedText: { fontFamily: font.semibold, fontSize: 13, lineHeight: 18, color: color.muted },
   chip: {
     height: 36,
     paddingHorizontal: 12,
@@ -401,7 +444,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1.5,
     borderColor: color.future,
-    maxWidth: '100%',
+    flexShrink: 0,
   },
   chipActive: { backgroundColor: color.ink, borderColor: color.ink },
   chipText: { fontFamily: font.semibold, fontSize: 13, color: color.ink },
@@ -416,6 +459,8 @@ const styles = StyleSheet.create({
     borderColor: color.future,
   },
   sourceInput: { flex: 1, paddingVertical: 10, fontFamily: font.regular, fontSize: 13, color: color.ink },
+  formatsLink: { fontFamily: font.black, fontSize: 13, color: color.accent },
+  formatsLinkRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   optionalNote: { fontFamily: font.regular, color: color.muted },
   addSource: { fontFamily: font.black, fontSize: 13, color: color.accentText },
   content: { padding: space.lg, gap: space.sm },
