@@ -29,9 +29,11 @@ Optional fields (build the element so it appears the moment the field is present
 | Item | If missing, do this |
 |---|---|
 | B1 image count: `runs.progress` gains `{ done, total }` for the image stage (Task 12 R4) | Show "Generating images…" with an indeterminate bar. There is no percentage in `runs.progress` today (Sprint 3 left `pct` out on purpose), so do not show one. |
-| Chapter warning: `runs.get.chapterWarning?: string` (Task 12 R5) | Hide the amber line. Do not recompute the rule in the app. When present, the line reads "Chapters won't be added to the description: {chapterWarning}." |
+| Chapter warning: `runs.get.chapterWarning?: string` (Task 10; Task 12 R5 was skipped). Read it from `runs.get` | Hide the amber line. Do not recompute the rule in the app. When present, the line reads "Chapters won't be added to the description: {chapterWarning}." |
 | Length row: `qualityMetrics.rows.duration` for long videos (Task 12 R6) | Hide the Length row. |
 | Quality targets: `qualityMetrics.spec` (Task 12 R6) | Label and measured value only (Frontend Task 2 R6). |
+
+**`resolvedOptions` (Task 12 R1, used by the Run settings tiles):** show each `label` exactly as the server sends it, with no suffix or rewording added by the app. This replaces the "(default)" suffix rule in Frontend Task 2 B3 for long runs; list that in "Differences found, not changed" if Task 2 code still appends it.
 
 ## R0. Read the code first
 
@@ -64,6 +66,14 @@ Board **"Run screen — long video on the new layout: Gate 1 (chapters), Gate 2 
 5. **In progress.** "Generating images {done} of {total}" when B1 exists, otherwise "Generating images…" with an indeterminate bar. Text under it: "Long videos take 25 to 45 minutes. You can leave the app; you'll get a notification at Gate 2." No time-left estimate.
 6. **Published, with subtitles.** Chip "✓ Uploaded" when `subtitlesUploaded` is true, "! Not uploaded" when false. When false, show `subtitlesMessage` **exactly as the server sends it**. **Do not build a "Reconnect to upload" button**: founder decision 2026-10-11, the founder reconnects the channel himself once after Task 10 merges. If the board shows that button, leave it out and list it under "Differences found, not changed". The row "↓ Subtitles (.srt)" (from `subtitlesUrl`) is shown for every long-form video, uploaded or not.
 7. Large text: tiles and tabs follow Shared rule 5.
+8. **Raise the spend limit.** Task 9 PR B stops a long run at `needs_attention` when it reaches its per-video limit, and `runs.retry` takes a new limit; a plain Retry would stop again at once. Data: `runs.get` returns `maxCostUsd` and `spentUsd` (Task 12 R3); `runs.retry({ runId, maxCostUsd })` (Task 9 PR B).
+   - `spentUsd` of 0 means "nothing booked", not "free": never show it as "$0 spent" or as a saving; show "Nothing booked yet" (or hide the figure) where the copy would otherwise read as free.
+   - For a long run in `needs_attention` where both fields are present and `spentUsd >= maxCostUsd`, Retry opens a small sheet instead of retrying at once. Detect the case from the two numbers only; never match message text.
+   - Title "Raise the spend limit". Text "This video has spent ${spentUsd} of its ${maxCostUsd} limit. Enter a new limit to continue."
+   - One money field, empty, validated above `spentUsd`. Do not copy the suggested-limit rule into the app; for a prefill, call `runs.estimateCost` and use what it returns.
+   - Buttons "Continue" (calls `runs.retry` with `maxCostUsd`) and "Cancel run" (the existing cancel). Any server error (weekly budget, the absolute cap) shows under the field in the server's words.
+   - Fallback: if either field is missing, keep today's plain Retry and list it under "Fallbacks in use".
+   - Verify: a long run stopped at its limit shows the sheet, Continue resumes it, a Short's Retry is unchanged. Phone screenshot beside the sheet.
 
 ## R3. Queue: long-video row
 

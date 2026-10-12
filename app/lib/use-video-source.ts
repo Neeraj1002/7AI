@@ -12,7 +12,8 @@ import type { VideoSource } from 'expo-video';
 // On a real device/simulator this branch is never taken; the native player
 // gets the header directly, which is what actually proves the API's Range
 // support end to end (a blob: URL wouldn't exercise that).
-export function useAuthedVideoSource(url: string | null, token: string): VideoSource | null {
+// `sendAuth` is false for a signed storage link, which must not get our Authorization header.
+export function useAuthedVideoSource(url: string | null, token: string, sendAuth = true, reloadKey = 0): VideoSource | null {
   const [blobUri, setBlobUri] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export function useAuthedVideoSource(url: string | null, token: string): VideoSo
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(url, sendAuth ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
         if (!res.ok) return;
         const blob = await res.blob();
         objectUrl = URL.createObjectURL(blob);
@@ -37,11 +38,11 @@ export function useAuthedVideoSource(url: string | null, token: string): VideoSo
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url, token]);
+  }, [url, token, sendAuth, reloadKey]);
 
   return useMemo<VideoSource | null>(() => {
     if (!url) return null;
     if (Platform.OS === 'web') return blobUri ? { uri: blobUri } : null;
-    return { uri: url, headers: { Authorization: `Bearer ${token}` } };
-  }, [url, token, blobUri]);
+    return sendAuth ? { uri: url, headers: { Authorization: `Bearer ${token}` } } : { uri: url };
+  }, [url, token, blobUri, sendAuth]);
 }

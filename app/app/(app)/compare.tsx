@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../lib/trpc';
@@ -9,13 +9,18 @@ import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { ChannelAvatar } from '../../components/ChannelAvatar';
 import { SecondaryButton } from '../../components/Buttons';
+import { SegmentedControl } from '../../components/SegmentedControl';
 
 // Sprint 4 FE E2 — channels side by side, then each channel's formats. Real data from
 // `dashboard.comparison`; channels without published videos are shown, never hidden.
+// Sprint 4 FE N3 R5: a Shorts / Videos switch calls it with the matching `videoKind`, so the two kinds are never mixed
+// in one figure. The response carries views, likes and comments only; long-form watch metrics are shown the day the
+// response has them (none are invented here).
 export default function CompareScreen() {
   const trpc = useTRPC();
   const { channelIndex } = useChannels();
-  const comparison = useQuery(trpc.dashboard.comparison.queryOptions());
+  const [kind, setKind] = useState<'short' | 'long'>('short');
+  const comparison = useQuery(trpc.dashboard.comparison.queryOptions({ videoKind: kind }));
   const formats = useQuery(trpc.channels.listFormats.queryOptions());
   const labels: Record<string, string> = Object.fromEntries((formats.data ?? []).map((f) => [f.key, f.label]));
 
@@ -91,6 +96,14 @@ export default function CompareScreen() {
           />
         }
       >
+        <SegmentedControl
+          options={[
+            { value: 'short' as const, label: 'Shorts' },
+            { value: 'long' as const, label: 'Videos' },
+          ]}
+          value={kind}
+          onChange={setKind}
+        />
         {body}
       </ScrollView>
     </Screen>

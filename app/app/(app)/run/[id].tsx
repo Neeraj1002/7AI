@@ -10,11 +10,16 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
+import { chapterWarningOf, manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, humanizeRunError, relativeTime, runTopic, stageLabel, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
 import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
 import { color, font, radius, space, type } from '../../../lib/theme';
+import { VideoChip } from '../../../components/VideoChip';
+import { LongPreview } from '../../../components/LongPreview';
+import { SubtitlesCard } from '../../../components/SubtitlesCard';
+import { RaiseLimitSheet } from '../../../components/RaiseLimitSheet';
+import { mmss, needsHigherLimit } from '../../../lib/long-video';
 import { FormScreen } from '../../../components/FormScreen';
 import { Card } from '../../../components/Card';
 import { StatusChip } from '../../../components/StatusChip';
@@ -184,7 +189,16 @@ export default function RunDetailScreen() {
   // (cancel while running/pending) — same endpoint, different confirm copy
   // and follow-up UI since a running cancel isn't guaranteed synchronous.
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const retryMutation = useMutation(trpc.runs.retry.mutationOptions({ onSuccess: () => invalidate() }));
+  const [limitOpen, setLimitOpen] = useState(false);
+  const [showAllChapters, setShowAllChapters] = useState(false);
+  const retryMutation = useMutation(
+    trpc.runs.retry.mutationOptions({
+      onSuccess: () => {
+        setLimitOpen(false);
+        return invalidate();
+      },
+    }),
+  );
   const cancelMutation = useMutation(
     trpc.runs.cancel.mutationOptions({
       onSuccess: (res) => {
@@ -213,7 +227,7 @@ export default function RunDetailScreen() {
   );
 
   const videoUrl = useMemo(
-    () => (apiUrl && data ? `${apiUrl.replace(/\/$/, '')}/runs/${data.run.id}/video` : null),
+    () => (apiUrl && data && data.videoKind !== 'long' ? `${apiUrl.replace(/\/$/, '')}/runs/${data.run.id}/video` : null),
     [apiUrl, data],
   );
   const videoSource = useAuthedVideoSource(data?.run.status === 'paused_gate2' ? videoUrl : null, token ?? '');
@@ -263,6 +277,12 @@ export default function RunDetailScreen() {
     | undefined;
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
+  const isLong = data.videoKind === 'long';
+  const chapters = isLong ? data.chapters : undefined;
+  // Gate 1 edit sheet of a long script: chapters as "## Title" lines followed by their text (Task 9 R2.5).
+  const editText = isLong ? (data.scriptEditText ?? scriptText) : scriptText;
+  const atLimit = needsHigherLimit({ videoKind: data.videoKind, spentUsd: data.spentUsd, maxCostUsd: data.maxCostUsd });
+  const lengthLabel = isLong && typeof data.qualityMetrics?.durationSeconds === 'number' ? mmss(data.qualityMetrics.durationSeconds) : null;
   const stats = scriptStats(scriptText);
   const reviewScore = scriptReviewStage?.output?.score as number | undefined;
   const reviewNotes = scriptReviewStage?.output?.notes as string | undefined;
@@ -325,7 +345,7 @@ export default function RunDetailScreen() {
     gateDecisions: data.gateDecisions,
   });
   // Default tab follows the state: the video at Gate 2, the script while it is made or reviewed, the brief once ended.
-  const tab: RunTab = tabChoice ?? (isGate2 ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
+  const tab: RunTab = tabChoice ?? (isGate2 || (isPublished && isLong && data.previewUrl) ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
 
   const cancelRequested = data.cancelRequested;
   const cancelling = cancelMutation.isPending || (cancelRequested && !cancelTimedOut);
@@ -337,7 +357,10 @@ export default function RunDetailScreen() {
           key={run.id + run.status}
           gate={isGate1 ? 1 : 2}
           isSubmitting={isGate1 ? gate1Mutation.isPending : gate2Mutation.isPending}
-          initialEditText={scriptText}
+          initialEditText={editText}
+          keepEditOpen={isGate1 && isLong}
+          editError={isGate1 && gate1Mutation.variables?.action === 'edit' ? gate1Mutation.error?.message : null}
+          onEditOpen={() => gate1Mutation.reset()}
           defaultPrivacy={defaultPrivacy}
           onApprove={(privacy) => {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'approve' });
@@ -368,7 +391,7 @@ export default function RunDetailScreen() {
           icon="rotate-cw"
           loading={retryMutation.isPending}
           disabled={cancelMutation.isPending || Boolean(manualRetry?.retryCapReached)}
-          onPress={() => retryMutation.mutate({ runId: run.id })}
+          onPress={() => (atLimit ? setLimitOpen(true) : retryMutation.mutate({ runId: run.id }))}
         />
         {manualRetry?.retryCapReached ? <Text style={styles.meta}>{manualRetry.message}</Text> : null}
         <DangerOutlineButton
@@ -399,6 +422,7 @@ export default function RunDetailScreen() {
                 ...(run.creationOptions?.voice ? { voice: run.creationOptions.voice } : {}),
                 ...(run.creationOptions?.visualSource ? { visualSource: run.creationOptions.visualSource } : {}),
                 ...(run.creationOptions?.audioLayer ? { audioLayer: run.creationOptions.audioLayer } : {}),
+                ...(isLong ? { videoKind: 'long' } : {}),
                 ...(run.creationOptions?.targetDurationSec
                   ? { targetDurationSec: String(run.creationOptions.targetDurationSec) }
                   : {}),
@@ -423,10 +447,12 @@ export default function RunDetailScreen() {
 
   const mutationError = (
     isGate1
-      ? gate1Mutation.error
+      ? isLong && gate1Mutation.variables?.action === 'edit'
+        ? null
+        : gate1Mutation.error
       : isGate2
         ? gate2Mutation.error
-        : (retryMutation.error ?? (isRunningOrPending ? null : cancelMutation.error))
+        : ((limitOpen ? null : retryMutation.error) ?? (isRunningOrPending ? null : cancelMutation.error))
   )?.message;
 
   return (
@@ -449,6 +475,7 @@ export default function RunDetailScreen() {
       </View>
 
       <Text style={styles.runTitle}>{isPublished && publishOutput?.metadata?.title ? publishOutput.metadata.title : runTopic(run)}</Text>
+      <VideoChip videoKind={data.videoKind} targetSeconds={data.targetSeconds} />
 
       <RunSettingsTiles tiles={settings.tiles} formatLine={settings.formatLine} />
 
@@ -458,6 +485,22 @@ export default function RunDetailScreen() {
 
       {isNeedsAttention ? (
         <NeedsAttentionCard stage={run.currentStage} stages={stages as unknown as StageLike[]} lastError={run.lastError} extra={capNextStep} />
+      ) : null}
+
+      {atLimit && data.spentUsd !== undefined && data.maxCostUsd !== undefined ? (
+        <RaiseLimitSheet
+          visible={limitOpen}
+          onClose={() => setLimitOpen(false)}
+          spentUsd={data.spentUsd}
+          maxCostUsd={data.maxCostUsd}
+          pending={retryMutation.isPending}
+          serverError={retryMutation.error?.message ?? null}
+          onContinue={(maxCostUsd) => retryMutation.mutate({ runId: run.id, maxCostUsd })}
+          onCancelRun={() => {
+            setLimitOpen(false);
+            setConfirmCancel(true);
+          }}
+        />
       ) : null}
 
       <ConfirmSheet
@@ -589,7 +632,7 @@ export default function RunDetailScreen() {
         />
       ) : null}
 
-      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} maxCostUsd={data.maxCostUsd} /> : null}
+      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} maxCostUsd={data.maxCostUsd} isLong={isLong} /> : null}
 
       {isPublished ? (
         <>
@@ -607,6 +650,15 @@ export default function RunDetailScreen() {
         </>
       ) : null}
 
+      {isPublished && isLong ? (
+        <SubtitlesCard
+          subtitlesUploaded={data.subtitlesUploaded}
+          subtitlesMessage={data.subtitlesMessage}
+          subtitlesUrl={data.subtitlesUrl}
+          apiUrl={apiUrl}
+        />
+      ) : null}
+
       {isGate2 ? (
         <Card>
           <View style={styles.reviewHeader}>
@@ -618,6 +670,11 @@ export default function RunDetailScreen() {
           ) : null}
           {regensUsed !== undefined ? (
             <Text style={styles.meta}>Regenerations used: {regensUsed} of {AUTO_REGEN_CAP}</Text>
+          ) : null}
+          {isLong && chapterWarningOf(data) ? (
+            <View style={styles.chapterWarning}>
+              <Text style={styles.chapterWarningText}>Chapters won&apos;t be added to the description: {chapterWarningOf(data)}.</Text>
+            </View>
           ) : null}
           <QualityChecksCard embedded qualityMetrics={data.qualityMetrics} />
         </Card>
@@ -636,18 +693,38 @@ export default function RunDetailScreen() {
               <View style={styles.scriptHeader}>
                 {stats ? (
                   <Text style={styles.cardMeta}>
-                    ~{stats.words} words · ~{stats.seconds} s
+                    ~{stats.words} words · ~{isLong ? `${Math.max(1, Math.round(stats.seconds / 60))} min` : `${stats.seconds} s`}
+                    {chapters && chapters.length > 0 ? ` · ${chapters.length} chapters` : ''}
                   </Text>
                 ) : null}
                 {reviewScore !== undefined && !isGate1 ? <StatusChip kind="neutral" label={`Review ${reviewScore}/10`} /> : null}
               </View>
-              <ClampedText lines={6} style={styles.body} text={scriptText} moreLabel="Show full script" lessLabel="Show less" />
+              {chapters && chapters.length > 0 ? (
+                <>
+                  {(showAllChapters ? chapters : chapters.slice(0, 2)).map((c, i) => (
+                    <View key={`${i}-${c.title}`} style={styles.chapterBlock}>
+                      <Text style={styles.cardMeta}>Chapter {i + 1}</Text>
+                      <Text style={styles.chapterHeading}>{c.title}</Text>
+                      {c.text ? <Text style={styles.body}>{c.text}</Text> : null}
+                    </View>
+                  ))}
+                  {chapters.length > 2 ? (
+                    <Pressable onPress={() => setShowAllChapters((v) => !v)} accessibilityRole="button" style={styles.chapterToggle}>
+                      <Text style={styles.chapterToggleText}>{showAllChapters ? 'Show less' : 'Show full script'}</Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : (
+                <ClampedText lines={6} style={styles.body} text={scriptText} moreLabel="Show full script" lessLabel="Show less" />
+              )}
             </>
           ) : (
             <Text style={styles.cardMeta}>The script isn&apos;t written yet.</Text>
           )
         ) : (
-          isGate2 ? (
+          isLong && (isGate2 || data.previewUrl) ? (
+            <LongPreview previewUrl={data.previewUrl} apiUrl={apiUrl} token={token ?? ''} chapters={chapters} lengthLabel={lengthLabel} />
+          ) : isGate2 ? (
             <View style={styles.videoRow}>
               {videoSource ? (
                 <VideoView style={styles.video} player={player} nativeControls />
@@ -844,6 +921,12 @@ const styles = StyleSheet.create({
   barTrack: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4 },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
+  chapterBlock: { gap: 2, paddingBottom: space.sm },
+  chapterHeading: { fontFamily: font.bold, fontSize: 15, color: color.ink },
+  chapterToggle: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  chapterToggleText: { fontFamily: font.black, fontSize: 13, color: color.accentText },
+  chapterWarning: { backgroundColor: color.warnBg, borderRadius: radius.md, padding: space.md },
+  chapterWarningText: { fontFamily: font.semibold, fontSize: 13, lineHeight: 19, color: color.warnText },
   videoRow: { flexDirection: 'row', gap: space.md },
   video: { width: 118, height: 210, borderRadius: radius.sm, backgroundColor: color.video },
   videoLoading: { alignItems: 'center', justifyContent: 'center' },
