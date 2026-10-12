@@ -18,7 +18,8 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
 import { LENGTHS, useOptionLists } from '../../lib/pipeline-options';
 import { MAX_SOURCES, formatKeyField, validateSources } from '../../lib/brief-extras';
-import { formatLengthNote } from '../../lib/formats';
+import { canEditChannelProfile, formatLengthNote } from '../../lib/formats';
+import { useAuth } from '../../lib/auth';
 
 // Task 6/E4 "Edit brief & run again" pre-fills these from an ended run's own
 // briefText/channelId/creationOptions — read once on mount, matched against
@@ -82,6 +83,12 @@ export default function NewBriefScreen() {
   }, []);
 
   const selected = channelById(selectedChannelId);
+  // The link to Content profile is hidden for users who cannot edit this channel's profile.
+  const { role, userId } = useAuth();
+  const canEditProfile = canEditChannelProfile({ role, userId }, selected);
+  const openProfile = () => {
+    if (selectedChannelId) router.push({ pathname: '/channel/[id]/profile', params: { id: selectedChannelId } });
+  };
   const formats = formatsQuery.data ?? [];
   // A picked key the (new) channel does not offer reads as Freeform.
   const format = formats.find((f) => f.key === formatKey);
@@ -353,6 +360,7 @@ export default function NewBriefScreen() {
         formats={formats}
         selected={activeKey}
         onSelect={setFormatKey}
+        onEditProfile={canEditProfile ? openProfile : undefined}
       />
       <OptionSheet
         visible={voiceOpen}
