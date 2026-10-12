@@ -19,35 +19,40 @@ import { DATA_DIR } from '../config/paths';
 
 const AUDIO_BEDS_DIR = path.resolve(DATA_DIR, 'audio-beds');
 
+// Sprint 4 Task 9 (R6.4): every long-form video is published publicly and may be monetised, so every
+// entry's `license` must say it is cleared for monetised public use and whether attribution is required
+// (checked at pick time by assertMonetisableLicense). Add `attribution` for a track that needs a credit.
+const LICENSE_YT_LIBRARY = 'YouTube Audio Library: cleared for monetised public use; no attribution required';
+
 export const AUDIO_BED_MANIFEST: AudioBedTrack[] = [
   {
     moodTag: 'upbeat',
     filePath: path.join(AUDIO_BEDS_DIR, 'upbeat.mp3'),
     label: 'AnaCaptainsLogue - Noir Et Blanc Vie',
-    license: 'YouTube Audio Library (no attribution required)',
+    license: LICENSE_YT_LIBRARY,
   },
   {
     moodTag: 'calm',
     filePath: path.join(AUDIO_BEDS_DIR, 'calm.mp3'),
     label: 'Far Behind — Silent Partner',
-    license: 'YouTube Audio Library (no attribution required)',
+    license: LICENSE_YT_LIBRARY,
   },
   {
     moodTag: 'mysterious',
     filePath: path.join(AUDIO_BEDS_DIR, 'mysterious.mp3'),
     label: 'Fun House - Coyote hearing',
-    license: 'YouTube Audio Library (no attribution required)',
+    license: LICENSE_YT_LIBRARY,
   },
   {
     moodTag: 'inspirational',
     filePath: path.join(AUDIO_BEDS_DIR, 'inspirational.mp3'),
     label: 'Subharmonic Bliss - Loopop',
-    license: 'YouTube Audio Library (no attribution required)',
+    license: LICENSE_YT_LIBRARY,
   },
   {
     moodTag: 'tense',
     filePath: path.join(AUDIO_BEDS_DIR, 'tense.mp3'),
     label: 'Dream of Ancestor - Asher Fulero',
-    license: 'YouTube Audio Library (no attribution required)',
+    license: LICENSE_YT_LIBRARY,
   },
 ];

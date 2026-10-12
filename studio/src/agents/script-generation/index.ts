@@ -2,6 +2,19 @@ import { z } from 'zod';
 import { callLLM, describeJsonError, extractJsonObjectText, type LLMMessage, type LLMResponse } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
+import {
+  LONG_SCRIPT_MAX_TOKENS,
+  LongScriptReplySchema,
+  ScriptChapterSchema,
+  buildLengthRepairMessage,
+  buildLongSystemPrompt,
+  buildLongTargetLine,
+  countWords,
+  isLengthInRange,
+  joinChapterTexts,
+  validateChapters,
+  type ScriptChapter,
+} from './long-form';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
 // agent in the critical path: turns Intake's parsed brief into a script.
@@ -16,10 +29,16 @@ export const ScriptGenerationOutputSchema = z.object({
   hashtags: z.array(z.string()),
 });
 // Sprint 4 Task 9 (R2): a long-form script also carries its chapters; `scriptText` stays the
-// concatenation of their texts. Declared on the type only, not in the schema above: a Short's
-// structured-output request must stay exactly as it is. PR B fills it for long runs.
-export type ScriptChapter = { title: string; text: string };
-export type ScriptGenerationOutput = z.infer<typeof ScriptGenerationOutputSchema> & { chapters?: ScriptChapter[] };
+// concatenation of their texts. The model-facing schema above is untouched (a Short's
+// structured-output request must stay exactly as it is); this wider schema is what a STORED
+// script_generation output is parsed with, so chapters survive the round trip.
+export type { ScriptChapter };
+export const ScriptGenerationStoredSchema = ScriptGenerationOutputSchema.extend({
+  chapters: z.array(ScriptChapterSchema).optional(),
+  // True when the word count stayed outside +-20% of the target after the one repair attempt.
+  lengthOutOfRange: z.boolean().optional(),
+});
+export type ScriptGenerationOutput = z.infer<typeof ScriptGenerationStoredSchema>;
 
 export type ScriptGenerationResult = {
   output: ScriptGenerationOutput;
@@ -81,10 +100,15 @@ export type GenerateScriptParams = {
   bannedEndings?: string[];
   // Sprint 4 Task 6: the chosen format's structural hint.
   scriptStructure?: string | null;
+  // Sprint 4 Task 9 (R2): 'long' selects the chaptered long-form prompt and reply. Absent = a Short.
+  videoKind?: 'short' | 'long';
+  // The founder's explicit source URLs/citations (long-form only: with the brief, the only facts allowed).
+  sources?: string[];
 };
 
 export function buildUserMessage(params: GenerateScriptParams): string {
   const lines = [`Topic: ${params.topic}`];
+  const isLong = params.videoKind === 'long';
   // R4: the raw brief as explicit extra context alongside topic/constraints,
   // not a replacement for them, so facts in it survive into the script.
   if (params.briefText) {
@@ -115,7 +139,12 @@ export function buildUserMessage(params: GenerateScriptParams): string {
   // this also states the equivalent word count, at the same ~150 words/
   // minute rate media/stub.ts's own duration estimate already assumes.
   const targetSeconds = params.targetSeconds ?? params.targetDurationSec;
-  if (targetSeconds) {
+  if (isLong && params.sources && params.sources.length > 0) {
+    lines.push(`Sources (with the brief, the only material you may take facts from):\n${params.sources.map((s) => `- ${s}`).join('\n')}`);
+  }
+  if (isLong && targetSeconds) {
+    lines.push(buildLongTargetLine(targetSeconds));
+  } else if (targetSeconds) {
     const approxWords = Math.round((targetSeconds / 60) * 150);
     lines.push(
       `Target length: write this script to run approximately ${targetSeconds} seconds when narrated aloud (never more than 60) — aim for around ${approxWords} words of narration (natural speaking pace, ~150 words/minute).`,
@@ -269,25 +298,23 @@ function buildRetryRequest(
   };
 }
 
-export async function generateScript(params: GenerateScriptParams): Promise<ScriptGenerationResult> {
-  const calls: LLMResponse[] = [];
-  const userMessage = buildUserMessage(params);
-  // Bugs Task 11 (R3) — schema-constrained output is the primary path: the
-  // provider's decoder then escapes quotes and newlines, which is what broke
-  // run 248fae8a (straight quotes copied from the brief into scriptText). If
-  // the provider rejects the structured-output request itself (a 4xx on the
-  // request, which bills nothing and which no offline test can rule out), fall
-  // back once to the plain-text path below (R5: repair, then one retry) and say so
-  // in the log.
+// Bugs Task 11 (R3) — schema-constrained output is the primary path: the
+// provider's decoder then escapes quotes and newlines, which is what broke
+// run 248fae8a (straight quotes copied from the brief into scriptText). If
+// the provider rejects the structured-output request itself (a 4xx on the
+// request, which bills nothing and which no offline test can rule out), fall
+// back once to the plain-text path (R5: repair, then one retry) and say so
+// in the log. Shared by the Short and the long-form generators.
+function createCaller(system: string, outputSchema: z.ZodType, calls: LLMResponse[]) {
   let structured = true;
   const call = async (messages: LLMMessage[], maxTokens: number): Promise<LLMResponse> => {
     try {
       const llm = await callLLM({
         purpose: 'script-generation',
-        system: buildSystemPrompt(params.factPolicy),
+        system,
         messages,
         maxTokens,
-        ...(structured ? { outputSchema: ScriptGenerationOutputSchema } : {}),
+        ...(structured ? { outputSchema } : {}),
       });
       calls.push(llm);
       return llm;
@@ -303,6 +330,92 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
       throw withCompletedCalls(error, calls);
     }
   };
+  return call;
+}
+
+type ParsedLongReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
+
+function parseLongScriptReply(llm: LLMResponse): ParsedLongReply {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(extractJsonObjectText(llm.text));
+  } catch (error) {
+    return { ok: false, failure: { what: 'did not return valid JSON', cause: error, parseError: describeJsonError(error) } };
+  }
+  const result = LongScriptReplySchema.safeParse(parsedJson);
+  if (!result.success) {
+    return { ok: false, failure: { what: 'output failed schema validation', cause: result.error, parseError: result.error.message } };
+  }
+  const structureProblem = validateChapters(result.data.chapters);
+  if (structureProblem) {
+    return { ok: false, failure: { what: 'output failed schema validation', cause: new Error(structureProblem), parseError: structureProblem } };
+  }
+  const chapters: ScriptChapter[] = result.data.chapters.map((c) => ({ title: c.title.trim(), text: c.text.trim() }));
+  // scriptText is the concatenation of the chapter texts; the SRT is built from the script
+  // itself later, so the model is not asked for caption text.
+  return { ok: true, output: { scriptText: joinChapterTexts(chapters), captions: '', hashtags: result.data.hashtags, chapters } };
+}
+
+// Sprint 4 Task 9 (R2): the long-form generator. Same safety net as a Short (structured output,
+// one repair retry for an unusable reply), plus one length repair: a script outside +-20% of the
+// target words is sent back once; if it is still outside, the run continues and the output says
+// so (`lengthOutOfRange`) for the reviewer. Length alone never fails a run.
+async function generateLongScript(params: GenerateScriptParams): Promise<ScriptGenerationResult> {
+  const calls: LLMResponse[] = [];
+  const targetSeconds = params.targetSeconds ?? params.targetDurationSec ?? 600;
+  const userMessage = buildUserMessage(params);
+  const call = createCaller(buildLongSystemPrompt(), LongScriptReplySchema, calls);
+
+  const first = await call([{ role: 'user', content: userMessage }], LONG_SCRIPT_MAX_TOKENS);
+  if (first.stopReason === 'length') throw buildCutOffError(first, calls);
+  let current: { llm: LLMResponse; output: ScriptGenerationOutput };
+  const firstParsed = parseLongScriptReply(first);
+  if (firstParsed.ok) {
+    current = { llm: first, output: firstParsed.output };
+  } else {
+    logReplyFailure(firstParsed.failure, first, 'long first call, retrying once');
+    const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
+    const second = await call(retryRequest.messages, LONG_SCRIPT_MAX_TOKENS);
+    if (second.stopReason === 'length') throw buildCutOffError(second, calls);
+    const secondParsed = parseLongScriptReply(second);
+    if (!secondParsed.ok) {
+      logReplyFailure(secondParsed.failure, second, 'long retry call, giving up');
+      throw buildReplyError(secondParsed.failure, second, calls, { failure: firstParsed.failure, llm: first });
+    }
+    current = { llm: second, output: secondParsed.output };
+  }
+
+  let words = countWords(current.output.scriptText);
+  if (!isLengthInRange(words, targetSeconds)) {
+    console.warn(`[script-generation] long script is ${words} words, outside +-20% of the target for ${targetSeconds}s; one repair attempt`);
+    const repairMessages: LLMMessage[] = [
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: current.llm.text.slice(0, FEEDBACK_REPLY_CHARS * 3) },
+      { role: 'user', content: buildLengthRepairMessage(words, targetSeconds) },
+    ];
+    try {
+      const repair = await call(repairMessages, LONG_SCRIPT_MAX_TOKENS);
+      const repaired = repair.stopReason === 'length' ? null : parseLongScriptReply(repair);
+      if (repaired?.ok) {
+        const repairedWords = countWords(repaired.output.scriptText);
+        // Keep the repair when it is valid; it is the model's answer to the specific problem.
+        current = { llm: repair, output: repaired.output };
+        words = repairedWords;
+      }
+    } catch (error) {
+      // The first script is usable and already paid for; a failed repair must not lose it.
+      console.error(`[script-generation] length repair call failed, keeping the first script: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const lengthOutOfRange = !isLengthInRange(words, targetSeconds);
+  return { output: { ...current.output, ...(lengthOutOfRange && { lengthOutOfRange: true }) }, llm: current.llm, calls };
+}
+
+export async function generateScript(params: GenerateScriptParams): Promise<ScriptGenerationResult> {
+  if (params.videoKind === 'long') return generateLongScript(params);
+  const calls: LLMResponse[] = [];
+  const userMessage = buildUserMessage(params);
+  const call = createCaller(buildSystemPrompt(params.factPolicy), ScriptGenerationOutputSchema, calls);
 
   const first = await call([{ role: 'user', content: userMessage }], SCRIPT_MAX_TOKENS);
   if (first.stopReason === 'length') throw buildCutOffError(first, calls);

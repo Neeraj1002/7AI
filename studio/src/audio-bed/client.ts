@@ -35,6 +35,47 @@ export function pickTrackByMood(manifest: AudioBedTrack[], moodTag: MoodTag): Au
   return track;
 }
 
+// Sprint 4 Task 9 (R6.4): a long-form video is published publicly and may earn money, so a track's
+// license must say both that it is cleared for monetised public use and whether attribution is
+// required (with the credit text when it is). Fails loudly rather than guessing.
+export function assertMonetisableLicense(track: AudioBedTrack): void {
+  const license = (track.license ?? '').toLowerCase();
+  if (!license.includes('monetised public use') && !license.includes('monetized public use')) {
+    throw new NonTransientStageError(
+      `Audio-bed track '${track.label}' (${track.moodTag}) is not marked as cleared for monetised public use in audio-bed/manifest.ts — refusing to use it in a long-form video.`,
+    );
+  }
+  const needsCredit = license.includes('attribution required') && !license.includes('no attribution required');
+  if (!needsCredit && !license.includes('no attribution required')) {
+    throw new NonTransientStageError(
+      `Audio-bed track '${track.label}' (${track.moodTag}): its license must say whether attribution is required.`,
+    );
+  }
+  if (needsCredit && !track.attribution) {
+    throw new NonTransientStageError(
+      `Audio-bed track '${track.label}' (${track.moodTag}) requires attribution but has no 'attribution' credit text in audio-bed/manifest.ts.`,
+    );
+  }
+}
+
+// Sprint 4 Task 9 (R6.4): every track of the mood, in manifest order (the fixed chain order for
+// long-form beds). Each one passes the same checks pickTrackByMood applies, plus the monetisation one.
+export function pickTracksByMood(manifest: AudioBedTrack[], moodTag: MoodTag): AudioBedTrack[] {
+  const tracks = manifest.filter((t) => t.moodTag === moodTag);
+  if (tracks.length === 0) {
+    throw new NonTransientStageError(`No audio-bed track found for mood '${moodTag}' in the manifest`);
+  }
+  for (const t of tracks) {
+    pickTrackByMood([t], moodTag);
+    assertMonetisableLicense(t);
+  }
+  return tracks;
+}
+
+export function pickAudioBedTracks(moodTag: MoodTag): AudioBedTrack[] {
+  return pickTracksByMood(AUDIO_BED_MANIFEST, moodTag);
+}
+
 export function pickAudioBedTrack(moodTag: MoodTag): AudioBedTrack {
   return pickTrackByMood(AUDIO_BED_MANIFEST, moodTag);
 }

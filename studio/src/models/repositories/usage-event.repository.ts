@@ -67,6 +67,12 @@ export async function listStockSourceIdsUsedByRun(pipelineRunId: string): Promis
   return [...new Set(rows.flatMap((r) => sourceIdsFromUsageMetadata(r.metadata)))];
 }
 
+// Sprint 4 Task 9 (R7.3): everything one run has spent so far, every stage and attempt, in USD.
+export async function sumUsageCostForRun(pipelineRunId: string): Promise<number> {
+  const result = await prisma.usageEvent.aggregate({ where: { pipelineRunId }, _sum: { costUsd: true } });
+  return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
+}
+
 // Backs the Script Generation cost gate (BUSINESS_LOGIC.md Section 2) — sums
 // spend for every channel on this (tenantId, platform), since UsageEvent
 // itself doesn't store platform directly (only channelId).

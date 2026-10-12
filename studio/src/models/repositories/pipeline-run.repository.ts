@@ -1,4 +1,5 @@
 import { prisma } from '../prisma-client';
+import { removeRunWorkFiles } from '../../ai-visuals/cache';
 import { Prisma } from '@prisma/client';
 import { markNotificationsResolvedByThreadKey } from './notification.repository';
 import type { PipelineRun as PrismaPipelineRun } from '@prisma/client';
@@ -173,6 +174,8 @@ export async function updatePipelineRun(
     // Bugs Task 12 (R5f) - an ended run closes its open Inbox cards (a cancelled run's Gate 2 card
     // used to stay under "needs action"). Fire-and-forget: never blocks or fails the run write.
     if (patch.status === 'failed' || patch.status === 'completed') {
+      // Sprint 4 Task 9 (R5.4): the per-run still and narration caches go too (the finished video stays).
+      void removeRunWorkFiles(id);
       void markNotificationsResolvedByThreadKey(id, new Date()).catch((error) => {
         console.error(`[pipeline-run] could not resolve notifications for ended run ${id}:`, error);
       });

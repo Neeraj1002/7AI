@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import { resolveImagePricing } from './registry';
+import { STILL_SIZE_PORTRAIT, STILL_QUALITY, type StillSize } from './sizes';
+import { stillCacheKey, stillCachePath, cachedStillExists } from './cache';
 import type { GenerateStillsParams, GeneratedStillsResult } from './types';
 import { DATA_DIR } from '../config/paths';
 
@@ -41,8 +43,7 @@ function mapOpenAiError(error: unknown, context: Record<string, unknown>): Error
 // 1080x1920 target — the shared scale/crop step in video-generation/index.ts
 // already handles the exact-size mismatch, the same way it already does for
 // stock-footage clips that don't natively match 1080x1920 either.
-const STILL_SIZE = '1024x1536' as const;
-const STILL_QUALITY = 'low' as const;
+// (Sprint 4 Task 9: the sizes now live in ./sizes.ts; portrait stays the default.)
 
 // Sprint 4 Task 8 (R6) — measured on a real run: this org's gpt-image limit is
 // 5 images/minute, and the faster default pacing sends 6-20 per attempt. A 429
@@ -60,13 +61,13 @@ export function rateLimitWaitMs(message: string): number {
   return Math.ceil((m[2].toLowerCase() === 'ms' ? value : value * 1000) + 1000);
 }
 
-async function generateOneStill(model: string, prompt: string): Promise<OpenAI.Images.ImagesResponse> {
+async function generateOneStill(model: string, prompt: string, size: StillSize): Promise<OpenAI.Images.ImagesResponse> {
   for (let attempt = 1; ; attempt += 1) {
     try {
       return (await getClient().images.generate({
         model,
         prompt,
-        size: STILL_SIZE,
+        size,
         quality: STILL_QUALITY,
         n: 1,
       })) as OpenAI.Images.ImagesResponse;
@@ -99,10 +100,25 @@ export async function generateStillsViaProvider(
     // applies one prompt to all n images in a batch; each still here needs
     // its own distinct scene description from the production plan.
     let skippedPromptCount = 0;
-    for (const prompt of params.scenePrompts) {
+    let cachedCount = 0;
+    const promptIndexes: number[] = [];
+    const size = params.size ?? STILL_SIZE_PORTRAIT;
+    if (params.cacheDir) await fs.mkdir(params.cacheDir, { recursive: true });
+    for (let index = 0; index < params.scenePrompts.length; index += 1) {
+      const prompt = params.scenePrompts[index];
+      // Sprint 4 Task 9 (R5.4): a still already paid for (an earlier attempt, a restart) costs nothing.
+      const cachePath = params.cacheDir
+        ? stillCachePath(params.cacheDir, stillCacheKey({ model: params.model, size, quality: STILL_QUALITY, prompt }))
+        : undefined;
+      if (cachePath && (await cachedStillExists(cachePath))) {
+        imagePaths.push(cachePath);
+        promptIndexes.push(index);
+        cachedCount += 1;
+        continue;
+      }
       let response: OpenAI.Images.ImagesResponse;
       try {
-        response = await generateOneStill(params.model, prompt);
+        response = await generateOneStill(params.model, prompt, size);
       } catch (error) {
         // A provider safety refusal of one scene (e.g. a minor in a medical
         // setting) is a property of that prompt, not an outage: skip the still
@@ -118,10 +134,12 @@ export async function generateStillsViaProvider(
       if (!image?.b64_json) {
         throw new NonTransientStageError('OpenAI image generation returned no usable image data', undefined, context);
       }
-      const imagePath = path.join(AI_VISUALS_TMP_DIR, `${randomUUID()}.png`);
+      const imagePath = cachePath ?? path.join(AI_VISUALS_TMP_DIR, `${randomUUID()}.png`);
       await fs.writeFile(imagePath, Buffer.from(image.b64_json, 'base64'));
       imagePaths.push(imagePath);
+      promptIndexes.push(index);
       totalCostUsd += pricing.perImageUsd;
+      await params.onStillGenerated?.({ index, costUsd: pricing.perImageUsd, model: params.model });
     }
 
     if (imagePaths.length === 0) {
@@ -138,6 +156,7 @@ export async function generateStillsViaProvider(
       model: params.model,
       costUsd: totalCostUsd.toFixed(6),
       ...(skippedPromptCount > 0 && { skippedPromptCount }),
+      ...(params.cacheDir && { cachedCount, promptIndexes }),
     };
   } catch (error) {
     const partial = { partialStillCount: imagePaths.length, partialCostUsd: totalCostUsd.toFixed(6) };

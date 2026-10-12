@@ -26,6 +26,9 @@ const execFileAsync = promisify(execFile);
 export const MAX_VIDEO_REGEN_ATTEMPTS = 2;
 
 const MAX_DURATION_SECONDS = 60;
+// Sprint 4 Task 9: a long-form video is 16:9 and up to 15 minutes (the 2% slack covers the end tail).
+const LONG_MAX_DURATION_SECONDS = 960;
+const LONG_EXPECTED_ASPECT_RATIO_VALUE = 16 / 9;
 const EXPECTED_ASPECT_RATIO_VALUE = 9 / 16;
 const ASPECT_RATIO_TOLERANCE = 0.02;
 const MIN_MEAN_VOLUME_DB = -45;
@@ -74,19 +77,26 @@ async function probeMeanVolumeDb(videoPath: string): Promise<number> {
 // this task exists to prove.
 export async function runDeterministicChecks(
   videoPath: string,
-  options: { captionsEnabled?: boolean; visualSource?: VisualSource } = {},
+  options: { captionsEnabled?: boolean; visualSource?: VisualSource; videoKind?: 'short' | 'long' } = {},
 ): Promise<DeterministicCheckResult> {
   const meta = await probeVideoMeta(videoPath);
+  const isLong = options.videoKind === 'long';
 
-  if (meta.durationSeconds > MAX_DURATION_SECONDS) {
+  if (isLong ? meta.durationSeconds > LONG_MAX_DURATION_SECONDS : meta.durationSeconds > MAX_DURATION_SECONDS) {
     return {
       passed: false,
-      reason: `Duration ${meta.durationSeconds.toFixed(1)}s exceeds the ${MAX_DURATION_SECONDS}s Shorts limit`,
+      reason: isLong
+        ? `Duration ${meta.durationSeconds.toFixed(1)}s exceeds the ${LONG_MAX_DURATION_SECONDS}s long-form limit`
+        : `Duration ${meta.durationSeconds.toFixed(1)}s exceeds the ${MAX_DURATION_SECONDS}s Shorts limit`,
     };
   }
 
   const actualRatio = meta.width / meta.height;
-  if (Math.abs(actualRatio - EXPECTED_ASPECT_RATIO_VALUE) > ASPECT_RATIO_TOLERANCE) {
+  if (isLong) {
+    if (Math.abs(actualRatio - LONG_EXPECTED_ASPECT_RATIO_VALUE) > ASPECT_RATIO_TOLERANCE) {
+      return { passed: false, reason: `Aspect ratio ${meta.width}x${meta.height} is not 16:9 (expected a landscape long-form video)` };
+    }
+  } else if (Math.abs(actualRatio - EXPECTED_ASPECT_RATIO_VALUE) > ASPECT_RATIO_TOLERANCE) {
     return {
       passed: false,
       reason: `Aspect ratio ${meta.width}x${meta.height} is not 9:16 (expected vertical Shorts format)`,
@@ -101,8 +111,9 @@ export async function runDeterministicChecks(
     videoPath,
     captionsEnabled: options.captionsEnabled ?? false,
     visualSource: options.visualSource,
+    videoKind: options.videoKind,
   });
-  const hardFailure = hardFailureReason(metrics);
+  const hardFailure = hardFailureReason(metrics, options.videoKind);
   if (hardFailure) {
     return { passed: false, reason: hardFailure, metrics };
   }
@@ -183,6 +194,14 @@ clearly shows any of: a recognisable brand logo or trademark; legible text baked
 (other than the burned-in captions); a photoreal depiction of an identifiable real person; gore or
 graphic content. Name the offending frame in the notes so the next attempt can steer away from it.`;
 
+// Sprint 4 Task 9: a stop-gap so the Shorts framing above is not applied to a long-form video. The real
+// long-form review rubric is Sprint 4 Task 10.
+export const LONG_FORM_VIDEO_REVIEW_ADDENDUM = `
+
+NOTE: this is a LONG-FORM landscape (16:9) video of several minutes, not a Short. The frames are sampled
+across the whole video; there are no burned-in captions (subtitles are uploaded separately). Judge it by
+the same blank/corrupted/unrelated-content bar as above.`;
+
 export function buildSystemPrompt(visualSource: VisualSource, safetyChecks = false): string {
   return `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points
 (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's
@@ -229,10 +248,13 @@ export async function reviewVideo(params: {
   // Sprint 4 Task 3 (R11): the platform safety-negatives flag; applies to
   // ai-stills only.
   safetyChecks?: boolean;
+  // Sprint 4 Task 9: 'long' = 16:9, up to 15 minutes. Absent = a Short.
+  videoKind?: 'short' | 'long';
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
     visualSource: params.visualSource,
+    videoKind: params.videoKind,
   });
   if (!deterministic.passed) {
     return { verdict: 'fail', rationale: deterministic.reason, multimodalRan: false, qualityMetrics: deterministic.metrics };
@@ -252,7 +274,9 @@ export async function reviewVideo(params: {
   const llm = await withRetryAndCircuitBreaker(() =>
     callLLM({
       purpose: 'video-intelligence-own-draft',
-      system: buildSystemPrompt(params.visualSource, params.safetyChecks),
+      system:
+        buildSystemPrompt(params.visualSource, params.safetyChecks) +
+        (params.videoKind === 'long' ? LONG_FORM_VIDEO_REVIEW_ADDENDUM : ''),
       messages: [
         {
           role: 'user',

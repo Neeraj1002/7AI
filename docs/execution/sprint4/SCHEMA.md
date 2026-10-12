@@ -40,3 +40,11 @@ path. No backfill.
 ## Task 9 (PR A): none (Json-column additions only)
 
 `PipelineRun.creationOptions` gains `videoKind` (stored only for long), a widened integer `targetDurationSec` (long: 120..900 whole minutes, stored as resolved) and `maxCostUsd` (long only). `ChannelProfileVersion.data` gains optional `offeredFormatKeys: string[]`; an older version without it means "none offered". `PipelineStage.output` for script_generation may carry `chapters` (written by PR B).
+
+## Task 9 (PR B): none (Json-column additions only)
+
+- `PipelineStage.output` (script_generation) gains `chapters: {title, text}[]` and, when the length stayed outside +-20% after the one repair, `lengthOutOfRange: true`. (gate1) gains `chapters` (the approved or edited chapters).
+- `PipelineStage.output` (video_generation, long only) gains `videoKind`, `width`, `height`, `fps`, `frameCount`, `chapterTimings: {title, startSec, endSec}[]`, `subtitlesPath`, `r2SubtitlesKey`; its `plan` gains `longScenes: {chapterIndex, words, prompt}[]`.
+- `PipelineRun.creationOptions.maxCostUsd` can be raised by `runs.retry({ maxCostUsd })` (written with the existing creationOptions merge).
+- `UsageEvent` rows of a long run: one per narration request (`metadata.part` = `tts` / `transcription`), one per still (`part` = `still`) and one per planner call, written as each is paid for. The summary `video-generation` row carries `$0` and `metadata.costsBookedSeparately = true`.
+- Files (not DB): `data/ai-visuals-cache/<runId>/` and `data/videos/<runId>/work/` (narration chunks, chapter segments, mixed audio) are removed when the run ends (completed or failed). The finished videos and the SRT stay.
