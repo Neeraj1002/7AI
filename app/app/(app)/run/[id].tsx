@@ -10,7 +10,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { gateDecisionsOf, manualRetryOf, maxCostUsdOf, resolvedOptionsOf, spentUsdOf, videoFallbackUsed } from '../../../lib/server-extras';
+import { manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, humanizeRunError, relativeTime, runTopic, stageLabel, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
 import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
@@ -315,14 +315,14 @@ export default function RunDetailScreen() {
   const chip = runChip(run, endReason);
   const settings = settingTiles({
     creationOptions: run.creationOptions,
-    resolved: resolvedOptionsOf(data),
+    resolved: data.resolvedOptions,
     videoKind: data.videoKind,
     targetSeconds: data.targetSeconds,
   });
   const history = buildStepHistory({
     stages: stages as unknown as StageLike[],
     lastGateDecision,
-    gateDecisions: gateDecisionsOf(data),
+    gateDecisions: data.gateDecisions,
   });
   // Default tab follows the state: the video at Gate 2, the script while it is made or reviewed, the brief once ended.
   const tab: RunTab = tabChoice ?? (isGate2 ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
@@ -585,11 +585,11 @@ export default function RunDetailScreen() {
           rejectedGate={lastGateDecision?.gate}
           reason={lastGateDecision?.reason}
           lastError={run.lastError}
-          spentUsd={spentUsdOf(data)}
+          spentUsd={data.spentUsd}
         />
       ) : null}
 
-      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} maxCostUsd={maxCostUsdOf(data)} /> : null}
+      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} maxCostUsd={data.maxCostUsd} /> : null}
 
       {isPublished ? (
         <>
