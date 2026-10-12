@@ -60,6 +60,18 @@ export const CreationOptionsSchema = z.object({
   // manual Retry/Revise count per stage (R2) and the one-shot AI-stills fallback marker (R1).
   manualRetries: z.record(z.string(), z.number().int().nonnegative()).optional(),
   videoFallbackUsed: z.boolean().optional(),
+  // Sprint 4 Task 12 (R1): the settings the run really used and where each came from, written once
+  // when the run is created. Absent on older runs. Read-only; runs.rerun recomputes it.
+  resolvedOptions: z
+    .object({
+      voice: z.object({ key: z.string(), label: z.string(), from: z.string() }),
+      visualSource: z.object({ value: z.string(), label: z.string(), from: z.string() }),
+      music: z.object({ label: z.string(), from: z.string() }),
+      targetSeconds: z.object({ value: z.number(), from: z.string() }),
+      videoKind: z.enum(['short', 'long']),
+      formatKey: z.string().nullable(),
+    })
+    .optional(),
 });
 export type CreationOptions = z.infer<typeof CreationOptionsSchema>;
 
