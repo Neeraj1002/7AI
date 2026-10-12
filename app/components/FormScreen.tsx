@@ -20,6 +20,7 @@ export function FormScreen({
   footer,
   contentContainerStyle,
   refreshControl,
+  scrollRef,
 }: {
   title: string;
   subtitle?: string;
@@ -32,11 +33,14 @@ export function FormScreen({
   contentContainerStyle?: StyleProp<ViewStyle>;
   /** Pull-to-refresh for the scroll area (tab screens with a search field). */
   refreshControl?: React.ReactElement<RefreshControlProps>;
+  /** For screens that scroll to a field themselves (e.g. Content profile revealing an error). */
+  scrollRef?: React.Ref<ScrollView>;
 }) {
   return (
     <Screen title={title} subtitle={subtitle} variant={variant} right={right} onBack={onBack}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={0}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[styles.content, contentContainerStyle]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"

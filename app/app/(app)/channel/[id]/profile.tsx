@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, BackHandler, ActivityIndicator, Switch } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, BackHandler, ActivityIndicator, Switch, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,12 +9,18 @@ import { useChannels } from '../../../../lib/channel-context';
 import { useOptionLists } from '../../../../lib/pipeline-options';
 import {
   buildProfileData,
+  firstErrorField,
+  formatsNote,
   formsEqual,
   parseServerProfileError,
   profileToForm,
+  sectionOfField,
+  sectionSummary,
   type ProfileFieldKey,
   type ProfileForm,
+  type ProfileSection,
 } from '../../../../lib/profile-form';
+import { formatLengthLabel } from '../../../../lib/formats';
 import { color, font, radius, space, type } from '../../../../lib/theme';
 import { FormScreen } from '../../../../components/FormScreen';
 import { Card } from '../../../../components/Card';
@@ -30,7 +36,10 @@ const FACT_POLICIES = [
 
 type SheetName = 'voice' | 'mood' | 'source' | 'fact' | null;
 
-// Sprint 4 FE E5 — the channel's Content profile (board "Content profile — full screen"). Fields are exactly
+// Formats is open by default; every other section starts folded with a one-line summary.
+type SectionName = 'formats' | ProfileSection;
+
+// Sprint 4 FE E5 / N2 — the channel's Content profile (board N_S4ChannelProfile: Formats first, other sections fold). Fields are exactly
 // `ChannelProfileDataSchema`; saving always creates a new version (`channels.createProfileVersion`), and runs
 // already started keep theirs. Blank = "leave blank to use the default".
 export default function ContentProfileScreen() {
@@ -45,6 +54,8 @@ export default function ContentProfileScreen() {
   const active = useQuery(trpc.channels.getActiveProfile.queryOptions({ channelId: id }));
   const versions = useQuery(trpc.channels.listProfileVersions.queryOptions({ channelId: id }));
   const createVersion = useMutation(trpc.channels.createProfileVersion.mutationOptions());
+  const formatsQuery = useQuery(trpc.channels.listFormats.queryOptions());
+  const allFormats = useMemo(() => formatsQuery.data ?? [], [formatsQuery.data]);
 
   // The form is the server's active version until the user edits; `edits` holds the working copy.
   const baseline = useMemo(() => profileToForm(active.data?.data ?? null), [active.data]);
@@ -56,12 +67,52 @@ export default function ContentProfileScreen() {
   const [barHeight, setBarHeight] = useState(0);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetName>(null);
+  const [open, setOpen] = useState<Record<SectionName, boolean>>({
+    formats: true,
+    script: false,
+    visual: false,
+    audio: false,
+    packaging: false,
+  });
+  const toggleSection = (name: SectionName) => setOpen((o) => ({ ...o, [name]: !o[name] }));
+  // After a failed Save: reveal the section holding the first error, then scroll to that field.
+  const scrollRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const fieldRefs = useRef<Partial<Record<ProfileFieldKey, View | null>>>({});
+  const register = useCallback((key: ProfileFieldKey, node: View | null) => {
+    fieldRefs.current[key] = node;
+  }, []);
+  const revealError = (errors: Partial<Record<ProfileFieldKey, string>>) => {
+    const key = firstErrorField(errors);
+    if (!key) return;
+    const section = sectionOfField(key);
+    setOpen((o) => ({ ...o, formats: key === 'offeredFormatKeys' ? true : o.formats, ...(section ? { [section]: true } : {}) }));
+    // Wait a moment so the opened section is laid out before measuring.
+    setTimeout(() => {
+      const node = fieldRefs.current[key];
+      const content = contentRef.current;
+      if (!node || !content) return;
+      node.measureLayout(content, (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: true }), () => {});
+    }, 80);
+  };
 
   const dirty = edits !== null && !formsEqual(edits, baseline);
   const nextVersion = (versions.data?.[0]?.version ?? 0) + 1;
-  const set = (key: ProfileFieldKey, value: string) => {
+  const set = (key: Exclude<ProfileFieldKey, 'offeredFormatKeys'>, value: string) => {
     setEdits((e) => ({ ...(e ?? baseline), [key]: value }));
     setFieldErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
+    setSavedNote(null);
+  };
+  // Kept in the library's order so New brief lists chips in a predictable order. A saved key the library no
+  // longer lists is kept at the end rather than silently dropped.
+  const toggleFormat = (key: string) => {
+    const cur = new Set(form.offeredFormatKeys);
+    if (cur.has(key)) cur.delete(key);
+    else cur.add(key);
+    const known = allFormats.map((x) => x.key);
+    const next = [...known.filter((k) => cur.has(k)), ...form.offeredFormatKeys.filter((k) => !known.includes(k) && cur.has(k))];
+    setEdits((e) => ({ ...(e ?? baseline), offeredFormatKeys: next }));
+    setFieldErrors((e) => (e.offeredFormatKeys ? { ...e, offeredFormatKeys: undefined } : e));
     setSavedNote(null);
   };
 
@@ -92,10 +143,12 @@ export default function ContentProfileScreen() {
       if (local) {
         setFieldErrors(local);
         setError('Fix the highlighted fields.');
+        revealError(local);
         return;
       }
       const parsed = parseServerProfileError(err instanceof Error ? err.message : 'Failed to save.');
       setFieldErrors(parsed.fields);
+      revealError(parsed.fields);
       setError(parsed.general ?? (Object.keys(parsed.fields).length > 0 ? 'Fix the highlighted fields.' : 'Failed to save.'));
     },
   });
@@ -144,71 +197,134 @@ export default function ContentProfileScreen() {
       subtitle={subtitle}
       onBack={goBack}
       footer={footer}
-      contentContainerStyle={[styles.content, { paddingBottom: barHeight + space.xl }]}
+      scrollRef={scrollRef}
+      contentContainerStyle={[styles.pad, { paddingBottom: barHeight + space.xl }]}
     >
       {loading ? (
         <ActivityIndicator style={styles.loading} />
       ) : active.isError ? (
         <Text style={styles.error}>Couldn&apos;t load the profile. Go back and try again.</Text>
       ) : (
-        <>
-          <Text style={styles.intro}>Applies to new runs on {channel.name}. Every field is optional.</Text>
+        <View ref={contentRef} collapsable={false} style={styles.content}>
+          <Text style={styles.intro}>Applies to new runs on {channel.name}. Every field is optional. Tap a section to open it.</Text>
 
           <Card>
-            <Text style={styles.cardTitle}>Script</Text>
-            <TextField label="Script guide" value={form.guide} error={fieldErrors.guide} multiline
+            <SectionHeader
+              title="Formats"
+              summary={`${form.offeredFormatKeys.length} selected`}
+              open={open.formats}
+              onPress={() => toggleSection('formats')}
+            />
+            {open.formats ? (
+              <View ref={(n) => register('offeredFormatKeys', n)} collapsable={false} style={styles.sectionBody}>
+                <Text style={styles.helper}>Pick 2 to 4 formats this channel uses.</Text>
+                {formatsQuery.isLoading ? <ActivityIndicator /> : null}
+                {formatsQuery.isError ? <Text style={styles.fieldError}>Couldn&apos;t load the formats. Go back and try again.</Text> : null}
+                {(
+                  [
+                    ['Shorts', 'short'],
+                    ['Video', 'long'],
+                  ] as const
+                ).map(([name, kind]) => {
+                  const rows = allFormats.filter((x) => x.videoKind === kind);
+                  if (rows.length === 0) return null;
+                  return (
+                    <View key={kind}>
+                      <Text style={styles.groupName}>{name}</Text>
+                      {rows.map((x) => {
+                        const on = form.offeredFormatKeys.includes(x.key);
+                        return (
+                          <Pressable
+                            key={x.key}
+                            style={styles.formatRow}
+                            onPress={() => toggleFormat(x.key)}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: on }}
+                            accessibilityLabel={x.label}
+                          >
+                            <View style={[styles.box, on && styles.boxOn]}>
+                              {on ? <Feather name="check" size={15} color={color.onAccent} /> : null}
+                            </View>
+                            <Text style={styles.formatLabel}>{x.label}</Text>
+                            <Text style={styles.labelNote}>{formatLengthLabel(x.targetSeconds)}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+                <ErrorLine error={fieldErrors.offeredFormatKeys} />
+                <Text style={[styles.note, formatsNote(form.offeredFormatKeys.length).warn && styles.noteWarn]}>
+                  {formatsNote(form.offeredFormatKeys.length).text}
+                </Text>
+                <Text style={styles.note}>Freeform is always available and isn&apos;t in this list.</Text>
+              </View>
+            ) : null}
+          </Card>
+
+          <Card>
+            <SectionHeader title="Script" summary={sectionSummary(form, 'script')} open={open.script} onPress={() => toggleSection('script')} />
+            {open.script ? <View style={styles.sectionBody}>
+            <TextField fieldKey="guide" register={register} label="Script guide" value={form.guide} error={fieldErrors.guide} multiline
               placeholder="Tone, audience, how hooks should sound…" onChange={(v) => set('guide', v)} />
-            <TextField label="Target length (15–60 s)" value={form.targetSeconds} error={fieldErrors.targetSeconds}
+            <TextField fieldKey="targetSeconds" register={register} label="Target length for Shorts (15–60 s)" value={form.targetSeconds} error={fieldErrors.targetSeconds}
               numeric onChange={(v) => set('targetSeconds', v)} />
-            <TextField label="Banned openers" note="one per line" value={form.bannedOpeners} error={fieldErrors.bannedOpeners}
+            <TextField fieldKey="bannedOpeners" register={register} label="Banned openers" note="one per line" value={form.bannedOpeners} error={fieldErrors.bannedOpeners}
               multiline onChange={(v) => set('bannedOpeners', v)} />
-            <TextField label="Banned endings" note="one per line" value={form.bannedEndings} error={fieldErrors.bannedEndings}
+            <TextField fieldKey="bannedEndings" register={register} label="Banned endings" note="one per line" value={form.bannedEndings} error={fieldErrors.bannedEndings}
               multiline onChange={(v) => set('bannedEndings', v)} />
-            <SelectField label="Fact policy" value={labelOf(FACT_POLICIES, form.factPolicy, '')} error={fieldErrors.factPolicy}
+            <SelectField fieldKey="factPolicy" register={register} label="Fact policy" value={labelOf(FACT_POLICIES, form.factPolicy, '')} error={fieldErrors.factPolicy}
               onPress={() => setSheet('fact')} />
+            </View> : null}
           </Card>
 
           <Card>
-            <Text style={styles.cardTitle}>Visuals</Text>
-            <SelectField label="Default visual source" value={labelOf(visualSources, form.defaultSource, '')}
+            <SectionHeader title="Visuals" summary={sectionSummary(form, 'visual')} open={open.visual} onPress={() => toggleSection('visual')} />
+            {open.visual ? <View style={styles.sectionBody}>
+            <SelectField fieldKey="defaultSource" register={register} label="Default visual source" value={labelOf(visualSources, form.defaultSource, '')}
               error={fieldErrors.defaultSource} onPress={() => setSheet('source')} />
-            <TextField label="Style prompt" value={form.stylePrompt} error={fieldErrors.stylePrompt} multiline
+            <TextField fieldKey="stylePrompt" register={register} label="Style prompt" value={form.stylePrompt} error={fieldErrors.stylePrompt} multiline
               onChange={(v) => set('stylePrompt', v)} />
-            <TextField label="Negative prompt" value={form.negativePrompt} error={fieldErrors.negativePrompt} multiline
+            <TextField fieldKey="negativePrompt" register={register} label="Negative prompt" value={form.negativePrompt} error={fieldErrors.negativePrompt} multiline
               onChange={(v) => set('negativePrompt', v)} />
-            <TextField label="Seconds per still (1–10)" value={form.secondsPerStill} error={fieldErrors.secondsPerStill}
+            <TextField fieldKey="secondsPerStill" register={register} label="Seconds per still (1–10)" value={form.secondsPerStill} error={fieldErrors.secondsPerStill}
               numeric onChange={(v) => set('secondsPerStill', v)} />
+            </View> : null}
           </Card>
 
           <Card>
-            <Text style={styles.cardTitle}>Audio</Text>
-            <SelectField label="Default voice" value={labelOf(voices, form.defaultVoice, '')} error={fieldErrors.defaultVoice}
+            <SectionHeader title="Audio" summary={sectionSummary(form, 'audio')} open={open.audio} onPress={() => toggleSection('audio')} />
+            {open.audio ? <View style={styles.sectionBody}>
+            <SelectField fieldKey="defaultVoice" register={register} label="Default voice" value={labelOf(voices, form.defaultVoice, '')} error={fieldErrors.defaultVoice}
               onPress={() => setSheet('voice')} />
-            <SelectField label="Music mood" value={labelOf(moodTags, form.defaultMoodTag, '')} error={fieldErrors.defaultMoodTag}
+            <SelectField fieldKey="defaultMoodTag" register={register} label="Music mood" value={labelOf(moodTags, form.defaultMoodTag, '')} error={fieldErrors.defaultMoodTag}
               onPress={() => setSheet('mood')} />
+            </View> : null}
           </Card>
 
           <Card>
-            <Text style={styles.cardTitle}>Packaging</Text>
-            <TextField label="Title guidance" value={form.titleGuidance} error={fieldErrors.titleGuidance} multiline
+            <SectionHeader title="Packaging" summary={sectionSummary(form, 'packaging')} open={open.packaging} onPress={() => toggleSection('packaging')} />
+            {open.packaging ? <View style={styles.sectionBody}>
+            <TextField fieldKey="titleGuidance" register={register} label="Title guidance" value={form.titleGuidance} error={fieldErrors.titleGuidance} multiline
               onChange={(v) => set('titleGuidance', v)} />
-            <TextField label="Description template" value={form.descriptionTemplate} error={fieldErrors.descriptionTemplate}
+            <TextField fieldKey="descriptionTemplate" register={register} label="Description template" value={form.descriptionTemplate} error={fieldErrors.descriptionTemplate}
               multiline placeholder="Supports {summary} {sources} {editor} {hashtags}" onChange={(v) => set('descriptionTemplate', v)} />
-            <TextField label="Base hashtags" value={form.hashtagsBase} error={fieldErrors.hashtagsBase}
+            <TextField fieldKey="hashtagsBase" register={register} label="Base hashtags" value={form.hashtagsBase} error={fieldErrors.hashtagsBase}
               onChange={(v) => set('hashtagsBase', v)} />
-            <SwitchRow label="Editor credit in description" value={form.editorCredit === 'yes'} error={fieldErrors.editorCredit}
+            <SwitchRow fieldKey="editorCredit" register={register} label="Editor credit in description" value={form.editorCredit === 'yes'} error={fieldErrors.editorCredit}
               onChange={(on) => set('editorCredit', on ? 'yes' : 'no')} />
-            <SwitchRow label="Made for kids" note="defaults to No" value={form.selfDeclaredMadeForKids === 'yes'}
+            <SwitchRow fieldKey="selfDeclaredMadeForKids" register={register} label="Made for kids" note="defaults to No" value={form.selfDeclaredMadeForKids === 'yes'}
               error={fieldErrors.selfDeclaredMadeForKids} onChange={(on) => set('selfDeclaredMadeForKids', on ? 'yes' : 'no')} />
-            <TextField label="Category (YouTube id, e.g. 27)" value={form.categoryId} error={fieldErrors.categoryId}
+            <TextField fieldKey="categoryId" register={register} label="Category (YouTube id, e.g. 27)" value={form.categoryId} error={fieldErrors.categoryId}
               onChange={(v) => set('categoryId', v)} />
-            <TextField label="Default language (e.g. en)" value={form.defaultLanguage} error={fieldErrors.defaultLanguage}
+            <TextField fieldKey="defaultLanguage" register={register} label="Default language (e.g. en)" value={form.defaultLanguage} error={fieldErrors.defaultLanguage}
               onChange={(v) => set('defaultLanguage', v)} />
+            </View> : null}
           </Card>
 
           <Card style={styles.limits}>
             <Text style={styles.cardTitle}>🔒 Platform limits (not editable)</Text>
-            <Text style={styles.limitRow}>• Max length 60 s</Text>
+            <Text style={styles.limitRow}>• Shorts: 60 s max · Videos: 2 to 15 min</Text>
             <Text style={styles.limitRow}>• AI-generated visuals are flagged as synthetic content on upload</Text>
           </Card>
 
@@ -226,7 +342,7 @@ export default function ContentProfileScreen() {
               </View>
             ))}
           </Card>
-        </>
+        </View>
       )}
 
       <OptionSheet
@@ -278,6 +394,23 @@ export default function ContentProfileScreen() {
   );
 }
 
+// Tappable section title with its folded summary ("4 of 5 set") and a chevron.
+function SectionHeader({ title, summary, open, onPress }: { title: string; summary: string; open: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      style={styles.sectionHeader}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${summary}`}
+      accessibilityState={{ expanded: open }}
+    >
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.labelNote}>{summary}</Text>
+      <Feather name={open ? 'chevron-up' : 'chevron-down'} size={18} color={color.muted} />
+    </Pressable>
+  );
+}
+
 // "Label · leave blank to use the default" — the board's inline hint.
 function FieldLabel({ label, note }: { label: string; note?: string }) {
   return (
@@ -300,7 +433,11 @@ function TextField({
   multiline,
   numeric,
   placeholder,
+  fieldKey,
+  register,
 }: {
+  fieldKey?: ProfileFieldKey;
+  register?: (key: ProfileFieldKey, node: View | null) => void;
   label: string;
   note?: string;
   value: string;
@@ -311,7 +448,7 @@ function TextField({
   placeholder?: string;
 }) {
   return (
-    <View style={styles.field}>
+    <View ref={(n) => { if (fieldKey) register?.(fieldKey, n); }} collapsable={false} style={styles.field}>
       <FieldLabel label={label} note={note} />
       <TextInput
         selectionColor={color.accent}
@@ -331,9 +468,23 @@ function TextField({
   );
 }
 
-function SelectField({ label, value, error, onPress }: { label: string; value: string; error?: string; onPress: () => void }) {
+function SelectField({
+  label,
+  value,
+  error,
+  onPress,
+  fieldKey,
+  register,
+}: {
+  label: string;
+  value: string;
+  error?: string;
+  onPress: () => void;
+  fieldKey?: ProfileFieldKey;
+  register?: (key: ProfileFieldKey, node: View | null) => void;
+}) {
   return (
-    <View style={styles.field}>
+    <View ref={(n) => { if (fieldKey) register?.(fieldKey, n); }} collapsable={false} style={styles.field}>
       <FieldLabel label={label} />
       <Pressable style={[styles.input, styles.select, error ? styles.inputError : null]} onPress={onPress} accessibilityRole="button">
         <Text style={[styles.selectText, !value && styles.selectEmpty]} numberOfLines={1}>
@@ -352,7 +503,11 @@ function SwitchRow({
   value,
   error,
   onChange,
+  fieldKey,
+  register,
 }: {
+  fieldKey?: ProfileFieldKey;
+  register?: (key: ProfileFieldKey, node: View | null) => void;
   label: string;
   note?: string;
   value: boolean;
@@ -360,7 +515,7 @@ function SwitchRow({
   onChange: (on: boolean) => void;
 }) {
   return (
-    <View>
+    <View ref={(n) => { if (fieldKey) register?.(fieldKey, n); }} collapsable={false}>
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>
           {label}
@@ -374,7 +529,33 @@ function SwitchRow({
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.lg, gap: space.md },
+  pad: { padding: space.lg },
+  content: { gap: space.md },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44 },
+  sectionTitle: { flex: 1, fontFamily: font.black, fontSize: 15, color: color.ink },
+  sectionBody: { gap: space.sm },
+  groupName: { fontFamily: font.black, fontSize: 12, letterSpacing: 0.3, color: color.muted, paddingTop: space.sm, paddingBottom: space.xs },
+  formatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: 44,
+    borderTopWidth: 1,
+    borderTopColor: color.border,
+  },
+  box: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: color.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxOn: { backgroundColor: color.accent, borderColor: color.accent },
+  formatLabel: { flex: 1, fontFamily: font.semibold, fontSize: 14, color: color.ink },
+  note: { ...type.meta, fontSize: 12, lineHeight: 17 },
+  noteWarn: { color: color.warnText },
   loading: { marginTop: space.xxl },
   body: { ...type.body, color: color.ink },
   intro: { ...type.meta, fontSize: 13 },
