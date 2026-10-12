@@ -35,7 +35,7 @@
 - `captions.insert`: scope `youtube.force-ssl` (or `youtubepartner`); quota **400 units**; multipart upload to `/upload/youtube/v3/captions`; snippet needs `videoId`, `language`, `name`. Added `youtube.force-ssl` to the connect request in `youtube-oauth-connect.ts`. **The founder must reconnect each channel once after merge.** `youtube.force-ssl` also allows deleting videos; no code here calls a delete endpoint.
 - Quota per long publish: `videos.insert` 1,600 + `captions.insert` 400 + `thumbnails.set` 50 = about 2,050 of the 10,000 daily units (the cover-frame call is existing behaviour).
 - **Impressions click-through rate is not available in the YouTube Analytics API v2** (the metrics reference lists no thumbnail-impression metric). `longFormMetrics.impressionsClickThroughRate` is therefore always `null`; the app should read it from YouTube Studio. The other three (average view duration, average percentage viewed, estimated minutes watched) are documented video-report metrics.
-- The Analytics API also needs `yt-analytics.readonly`, which the connect request still does **not** ask for (pre-existing; the retention curve has the same dependency). Without it the long-form metrics stay null and the snapshot still records the counts. Decision for the founder: add that scope to the same one-time reconnect.
+- The Analytics API needs `yt-analytics.readonly`; the founder said yes (2026-10-13), so the connect request now asks for it next to `youtube.force-ssl`. **Each channel needs one reconnect for both.** The YouTube Analytics API must also be enabled in the Google Cloud project (existing founder item); until then the long-form metrics stay null and the counts still record.
 - Channel allowed to upload videos over 15 minutes: the channel was confirmed `longUploadsStatus: "eligible"` (phone-verified) in Sprint 2 Task 5; no code checks it because the target tops out at 15 minutes.
 
 ## Real checks (dev database, Task 9 run d88d50b8, 2-minute "chaptered-explainer", Eiffel Tower)
@@ -79,5 +79,5 @@ Not done: the actual `videos.insert` and `captions.insert` to YouTube (this is a
 - R7 (regenerate only flagged scenes) was not built.
 - **Minimum duration is 96 s and maximum 918 s** (the task said 120 to 900): a 2-minute script is allowed 20% either way and the real run was 107.4 s; 918 is 15 minutes plus the 2% slack.
 - Task 9 PR B's long debug bundle kept a sample of 6 stills; this task's `longForm` flag keeps only transcript, plan, ffmpeg args and script (R3.3). The preview and SRT are stored beside the draft instead.
-- The `yt-analytics.readonly` permission is still not requested (the founder has not said yes); each channel needs one reconnect for `youtube.force-ssl`.
+- `yt-analytics.readonly` is now in the connect flow (founder approved). Each channel needs one reconnect for `youtube.force-ssl` and `yt-analytics.readonly` together.
 - Schema: one small migration (`longFormMetrics`). `videoKind` is read from `creationOptions`, not duplicated.

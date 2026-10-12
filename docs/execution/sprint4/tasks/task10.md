@@ -71,4 +71,4 @@ Unit tests: long-form rubric selection, quality profile selection (including no 
 - Shapes confirmed in Task 9's code: `chapterTimings` (title, startSec, endSec) on the `video_generation` output; the SRT is `subtitlesPath` (`<attempt>.srt` beside the video) with the R2 key `r2SubtitlesKey`. Corrected from the first guess: the field is `subtitlesPath` (not `captionsSrtPath`), and `audioBeds` does not exist (credits come from the manifest `attribution` text for the plan's mood).
 - The minimum long-form duration is 96 s, not 120 s: a 2-minute script is allowed 20% either way, and the real 2-minute run measured 107.4 s. The maximum is 918 s (15 minutes plus the 2% slack).
 - New named fields for the later Task 12 work: `video_review.output.chapterWarning` and `runs.get.chapterWarning` (why no chapter list), and `runs.get.qualityMetrics.rows.<row>.warn` (unchanged names; long runs add no `captions` row).
-- The `yt-analytics.readonly` permission was not added to the connect flow (the founder has not said yes).
+- `yt-analytics.readonly` was added to the connect flow next to `youtube.force-ssl` (founder approved 2026-10-13); each channel reconnects once for both.
