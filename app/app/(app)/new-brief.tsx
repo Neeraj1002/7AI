@@ -93,6 +93,8 @@ export default function NewBriefScreen() {
   // A picked key the (new) channel does not offer reads as Freeform.
   const format = formats.find((f) => f.key === formatKey);
   const activeKey = format?.key ?? null;
+  // Only once the answer is in: a loading or failed query must not claim "no formats".
+  const noFormats = formatsQuery.isSuccess && formats.length === 0;
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
   const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
   // R13: the credential exists but Google rejected it; the run would fail at upload, so say so up front (not blocked).
@@ -228,11 +230,21 @@ export default function NewBriefScreen() {
           />
         ) : null}
       </ScrollView>
-      <Text style={styles.tip}>
-        {format
-          ? format.scriptStructure
-          : 'Freeform is the default. The chips are the formats this channel uses (set in Content profile).'}
-      </Text>
+      {format ? (
+        <Text style={styles.tip}>{format.scriptStructure}</Text>
+      ) : noFormats ? (
+        // Board FmtBriefFreeformOnly: only Freeform shows. The link is for users who can edit the profile.
+        <View>
+          <Text style={styles.tip}>This channel has no formats yet.</Text>
+          {canEditProfile ? (
+            <Pressable onPress={openProfile} style={styles.formatsLinkRow} accessibilityRole="link">
+              <Text style={styles.formatsLink}>Add formats in Content profile ›</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <Text style={styles.tip}>Freeform is the default. The chips are the formats this channel uses (set in Content profile).</Text>
+      )}
 
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
@@ -447,6 +459,8 @@ const styles = StyleSheet.create({
     borderColor: color.future,
   },
   sourceInput: { flex: 1, paddingVertical: 10, fontFamily: font.regular, fontSize: 13, color: color.ink },
+  formatsLink: { fontFamily: font.black, fontSize: 13, color: color.accent },
+  formatsLinkRow: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   optionalNote: { fontFamily: font.regular, color: color.muted },
   addSource: { fontFamily: font.black, fontSize: 13, color: color.accentText },
   content: { padding: space.lg, gap: space.sm },
