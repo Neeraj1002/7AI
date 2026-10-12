@@ -127,5 +127,5 @@ const styles = StyleSheet.create({
   },
   spendFieldError: { borderWidth: 2, borderColor: color.danger },
   spendPrefix: { fontFamily: font.bold, fontSize: 15, color: color.ink },
-  spendInput: { flex: 1, paddingVertical: 8, fontFamily: font.bold, fontSize: 15, color: color.ink },
+  spendInput: { flex: 1, minWidth: 0, paddingVertical: 8, fontFamily: font.bold, fontSize: 15, color: color.ink },
 });

@@ -301,9 +301,9 @@ export default function NewBriefScreen() {
       <Text style={styles.label}>Format</Text>
       {/* Freeform first, then this channel's formats; more than about 4 chips scroll sideways. */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        <FormatChip label="Freeform" active={activeKey === null} onPress={() => setFormatKey(null)} />
+        <FormatChip label="Freeform" active={activeKey === null} onPress={() => { setFormatKey(null); setError(null); }} />
         {formats.map((f) => (
-          <FormatChip key={f.key} label={f.label} active={activeKey === f.key} onPress={() => setFormatKey(f.key)} />
+          <FormatChip key={f.key} label={f.label} active={activeKey === f.key} onPress={() => { setFormatKey(f.key); setError(null); }} />
         ))}
         {formats.length > 0 ? (
           <FormatChip
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   },
   minutesFieldError: { borderWidth: 2, borderColor: color.danger },
   minutesFieldLocked: { borderColor: color.border, backgroundColor: color.surface2 },
-  minutesInput: { flex: 1, paddingVertical: 8, fontFamily: font.bold, fontSize: 15, color: color.ink },
+  minutesInput: { flex: 1, minWidth: 0, paddingVertical: 8, fontFamily: font.bold, fontSize: 15, color: color.ink },
   minutesTextLocked: { color: color.muted },
   minutesSuffix: { fontFamily: font.regular, fontSize: 13, color: color.muted },
   fieldError: { ...type.meta, fontSize: 12, lineHeight: 17, color: color.danger },
