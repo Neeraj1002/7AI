@@ -33,7 +33,7 @@ export function LongPreview({
   const link = mediaLink(previewUrl, apiUrl);
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
-  const source = useAuthedVideoSource(link?.url ?? null, token, link?.sendAuth ?? true);
+  const source = useAuthedVideoSource(link?.url ?? null, token, link?.sendAuth ?? true, attempt);
   const player = useVideoPlayer(source, (p) => {
     p.loop = false;
   });

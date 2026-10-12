@@ -87,7 +87,7 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
       specNum(res?.width) !== null && specNum(res?.height) !== null && specNum(spec?.fps) !== null
         ? `${trim(res!.width as number, 0)}×${trim(res!.height as number, 0)} · ${trim(spec!.fps as number, 0)} fps`
         : null,
-    longestShot: specNum(spec?.longestShotMaxSec) !== null ? `${trim(spec!.longestShotMaxSec as number, 0)} s or less` : null,
+    longestShot: specNum(spec?.longestShotMaxSec) !== null ? `up to ${trim(spec!.longestShotMaxSec as number, 1)} s` : null,
     captions: m.captionsExpected === true ? 'on' : null,
     duration: specNum(durationSpec?.target) !== null ? `target ${mmss(durationSpec!.target as number)}` : null,
   };

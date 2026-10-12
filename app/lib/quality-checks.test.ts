@@ -109,7 +109,7 @@ test('targets are printed only from qualityMetrics.spec', () => {
   assert.strictEqual(r.loudness.target, 'target −14');
   assert.strictEqual(r.truePeak.target, '−1 or lower');
   assert.strictEqual(r.format.target, '1080×1920 · 30 fps');
-  assert.strictEqual(r.longestShot.target, '4 s or less');
+  assert.strictEqual(r.longestShot.target, 'up to 4 s');
   assert.strictEqual(r.captions.target, 'on');
 });
 

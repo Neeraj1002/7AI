@@ -13,7 +13,7 @@ import type { VideoSource } from 'expo-video';
 // gets the header directly, which is what actually proves the API's Range
 // support end to end (a blob: URL wouldn't exercise that).
 // `sendAuth` is false for a signed storage link, which must not get our Authorization header.
-export function useAuthedVideoSource(url: string | null, token: string, sendAuth = true): VideoSource | null {
+export function useAuthedVideoSource(url: string | null, token: string, sendAuth = true, reloadKey = 0): VideoSource | null {
   const [blobUri, setBlobUri] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export function useAuthedVideoSource(url: string | null, token: string, sendAuth
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url, token, sendAuth]);
+  }, [url, token, sendAuth, reloadKey]);
 
   return useMemo<VideoSource | null>(() => {
     if (!url) return null;

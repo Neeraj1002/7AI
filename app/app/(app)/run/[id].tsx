@@ -345,7 +345,7 @@ export default function RunDetailScreen() {
     gateDecisions: data.gateDecisions,
   });
   // Default tab follows the state: the video at Gate 2, the script while it is made or reviewed, the brief once ended.
-  const tab: RunTab = tabChoice ?? (isGate2 ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
+  const tab: RunTab = tabChoice ?? (isGate2 || (isPublished && isLong && data.previewUrl) ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
 
   const cancelRequested = data.cancelRequested;
   const cancelling = cancelMutation.isPending || (cancelRequested && !cancelTimedOut);
@@ -452,7 +452,7 @@ export default function RunDetailScreen() {
         : gate1Mutation.error
       : isGate2
         ? gate2Mutation.error
-        : (retryMutation.error ?? (isRunningOrPending ? null : cancelMutation.error))
+        : ((limitOpen ? null : retryMutation.error) ?? (isRunningOrPending ? null : cancelMutation.error))
   )?.message;
 
   return (
@@ -693,7 +693,7 @@ export default function RunDetailScreen() {
               <View style={styles.scriptHeader}>
                 {stats ? (
                   <Text style={styles.cardMeta}>
-                    ~{stats.words} words · ~{isLong ? `${Math.round(stats.seconds / 60)} min` : `${stats.seconds} s`}
+                    ~{stats.words} words · ~{isLong ? `${Math.max(1, Math.round(stats.seconds / 60))} min` : `${stats.seconds} s`}
                     {chapters && chapters.length > 0 ? ` · ${chapters.length} chapters` : ''}
                   </Text>
                 ) : null}
