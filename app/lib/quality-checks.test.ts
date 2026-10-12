@@ -112,3 +112,17 @@ test('targets are printed only from qualityMetrics.spec', () => {
   assert.strictEqual(r.longestShot.target, '4 s or less');
   assert.strictEqual(r.captions.target, 'on');
 });
+
+test('long video: Length row only when the server sends rows.duration; no Captions row without one', () => {
+  const long = { ...clearRun, rows: { loudness: ok, truePeak: ok, longestShot: ok, duration: ok }, durationSeconds: 602, spec: { durationSec: { target: 600, tolerance: 120 } } };
+  const r = byKey(parseQualityMetrics(long)!);
+  assert.strictEqual(r.duration.label, 'Length');
+  assert.strictEqual(r.duration.value, '10:02');
+  assert.strictEqual(r.duration.target, 'target 10:00');
+  assert.strictEqual(r.captions, undefined);
+  const noLength = byKey(parseQualityMetrics({ ...long, rows: { loudness: ok, truePeak: ok, longestShot: ok } })!);
+  assert.strictEqual(noLength.duration, undefined);
+  const warned = byKey(parseQualityMetrics({ ...long, rows: { ...long.rows, duration: { warn: true, message: 'Too long' } } })!);
+  assert.strictEqual(warned.duration.status, 'warn');
+  assert.strictEqual(warned.duration.message, 'Too long');
+});

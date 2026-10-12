@@ -9,6 +9,8 @@
 // 'Technical details' link. Targets come from `qualityMetrics.spec` (Task 12 R6, on main); the app keeps no second copy
 // of the thresholds. A warned row still carries the server's own message.
 
+import { mmss } from './long-video';
+
 export type QualityRowStatus = 'ok' | 'warn' | 'fail';
 
 export type QualityRow = {
@@ -16,6 +18,7 @@ export type QualityRow = {
     | 'loudness'
     | 'truePeak'
     | 'format'
+    | 'duration'
     | 'longestShot'
     | 'captions'
     | 'videoCodec'
@@ -75,6 +78,7 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
   const spec = (m.spec && typeof m.spec === 'object' ? m.spec : null) as Record<string, unknown> | null;
   const specNum = (v: unknown) => num(v);
   const loud = spec?.loudnessLufs as { target?: unknown } | undefined;
+  const durationSpec = spec?.durationSec as { target?: unknown } | undefined;
   const res = spec?.resolution as { width?: unknown; height?: unknown } | undefined;
   const targets = {
     loudness: specNum(loud?.target) !== null ? `target ${trim(loud!.target as number, 0)}` : null,
@@ -85,6 +89,7 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
         : null,
     longestShot: specNum(spec?.longestShotMaxSec) !== null ? `${trim(spec!.longestShotMaxSec as number, 0)} s or less` : null,
     captions: m.captionsExpected === true ? 'on' : null,
+    duration: specNum(durationSpec?.target) !== null ? `target ${mmss(durationSpec!.target as number)}` : null,
   };
   const out: QualityRow[] = [];
   const flagged = (key: string): Pick<QualityRow, 'status' | 'message'> => {
@@ -108,6 +113,12 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
   if (fps !== null) formatParts.push(`${trim(fps, 2)} fps`);
   if (formatParts.length) {
     out.push({ key: 'format', label: 'Picture', value: formatParts.join(' · '), status: 'ok', message: null });
+  }
+
+  // Long videos only: the Length row, present when the server sends `rows.duration`; hidden otherwise.
+  const length = num(m.durationSeconds);
+  if (serverRow(m.rows, 'duration')) {
+    out.push({ key: 'duration', label: 'Length', value: length !== null ? mmss(length) : '—', ...flagged('duration') });
   }
 
   if (serverRow(m.rows, 'longestShot')) {

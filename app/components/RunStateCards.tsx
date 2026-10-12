@@ -5,6 +5,7 @@ import { useTRPC } from '../lib/trpc';
 import { color, font, space } from '../lib/theme';
 import { Card } from './Card';
 import { IndeterminateBar } from './IndeterminateBar';
+import { LONG_WAIT_NOTE, imageStageFraction, imageStageLine } from '../lib/long-video';
 import { endedTitle, needsAttentionText, plainReason, spentLine, stagePhrase, type EndReason, type StageLike } from '../lib/run-view';
 
 // The status card of the Run screen's states (NEXT 1 states board). Same layout in every state; only this card and
@@ -65,16 +66,36 @@ export function EndedCard({
   );
 }
 
-// `runs.progress` returns `{ stage, attemptNo }` and no percentage or time estimate, so the bar is indeterminate.
-export function InProgressCard({ runId, currentStage, maxCostUsd }: { runId: string; currentStage: string | null | undefined; maxCostUsd?: number }) {
+// `runs.progress` returns `{ stage, attemptNo }` and, while stills are generated, `{ done, total }`; never a
+// percentage or a time estimate. A long video shows the image count when the server sends it, else an indeterminate bar.
+export function InProgressCard({
+  runId,
+  currentStage,
+  maxCostUsd,
+  isLong,
+}: {
+  runId: string;
+  currentStage: string | null | undefined;
+  maxCostUsd?: number;
+  isLong?: boolean;
+}) {
   const trpc = useTRPC();
   const { data } = useQuery(trpc.runs.progress.queryOptions({ runId }, { refetchInterval: 5_000 }));
   const stage = data?.stage ?? currentStage;
   const attempt = data?.attemptNo;
+  const imageStage = Boolean(isLong) && stage === 'video_generation';
+  const fraction = imageStage ? imageStageFraction(data) : null;
   return (
     <View style={[styles.card, styles.dark]}>
-      <Text style={[styles.title, styles.onDark]}>{stagePhrase(stage)}</Text>
-      <IndeterminateBar />
+      <Text style={[styles.title, styles.onDark]}>{imageStage ? imageStageLine(data) : stagePhrase(stage)}</Text>
+      {fraction !== null ? (
+        <View style={styles.track}>
+          <View style={[styles.fill, { width: `${Math.round(fraction * 100)}%` }]} />
+        </View>
+      ) : (
+        <IndeterminateBar />
+      )}
+      {isLong ? <Text style={styles.darkMeta}>{LONG_WAIT_NOTE}</Text> : null}
       <Text style={styles.darkMeta}>
         {attempt ? `Attempt ${attempt} · ` : ''}This screen updates on its own.{maxCostUsd !== undefined ? ` Stops at $${maxCostUsd.toFixed(2)}.` : ''}
       </Text>
@@ -94,4 +115,6 @@ const styles = StyleSheet.create({
   link: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   linkText: { fontFamily: font.black, fontSize: 13, color: color.accent },
   raw: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
+  fill: { height: 6, backgroundColor: color.accent },
 });

@@ -21,3 +21,10 @@ export function videoFallbackUsed(data: unknown): boolean {
 export function youtubeNeedsReconnect(channel: unknown): boolean {
   return (channel as { youtubeNeedsReconnect?: boolean } | undefined)?.youtubeNeedsReconnect === true;
 }
+
+// Sprint 4 Task 10: `runs.get.chapterWarning` is sent for a long run when the chapter list cannot meet YouTube's
+// rules, but the server's declared response type (`LongFormRunFields`) does not list it, so it is read here.
+export function chapterWarningOf(data: unknown): string | undefined {
+  const v = (data as { chapterWarning?: unknown } | undefined)?.chapterWarning;
+  return typeof v === 'string' && v.trim() ? v : undefined;
+}

@@ -33,6 +33,11 @@ export function GateActionBar(props: {
   onEditOrRevise: (text: string) => void;
   // Bugs Task 12 (R2): at the manual Revise cap the button stays visible but disabled, with this sentence under it.
   reviseDisabledReason?: string;
+  // Long script edit: the sheet stays open while the edit is sent, and a server rejection (fewer than 3 chapters) shows
+  // inside it. The parent clears the error with onEditOpen when the sheet is opened again.
+  keepEditOpen?: boolean;
+  editError?: string | null;
+  onEditOpen?: () => void;
 }) {
   const [mode, setMode] = useState<Mode>(null);
   const [privacy, setPrivacy] = useState<Privacy>(props.defaultPrivacy ?? 'private');
@@ -40,7 +45,7 @@ export function GateActionBar(props: {
   const showVisibility = props.gate === 2 && flags.gate2Visibility;
   const effective: Privacy = showVisibility ? privacy : 'private';
 
-  if (props.isSubmitting) {
+  if (props.isSubmitting && !(props.keepEditOpen && mode === 'edit')) {
     return (
       <View style={styles.submitting}>
         <ActivityIndicator />
@@ -90,7 +95,10 @@ export function GateActionBar(props: {
           label={props.gate === 1 ? 'Edit' : 'Revise'}
           icon={props.gate === 1 ? 'edit-2' : 'rotate-cw'}
           disabled={props.gate === 2 && Boolean(props.reviseDisabledReason)}
-          onPress={() => setMode('edit')}
+          onPress={() => {
+            props.onEditOpen?.();
+            setMode('edit');
+          }}
           style={styles.flex}
         />
       </View>
@@ -105,10 +113,12 @@ export function GateActionBar(props: {
         initialText={mode === 'edit' && props.gate === 1 ? (props.initialEditText ?? '') : ''}
         placeholder={mode === 'reject' ? 'Why is this being rejected?' : 'Enter text…'}
         submitLabel={mode === 'reject' ? 'Reject' : props.gate === 1 ? 'Save edit' : 'Send revision'}
+        pending={Boolean(props.keepEditOpen && mode === 'edit' && props.isSubmitting)}
+        error={props.keepEditOpen && mode === 'edit' ? (props.editError ?? null) : null}
         onClose={() => setMode(null)}
         onSubmit={(text) => {
           const m = mode;
-          setMode(null);
+          if (!(props.keepEditOpen && m === 'edit')) setMode(null);
           if (m === 'reject') props.onReject(text);
           else props.onEditOrRevise(text);
         }}
@@ -136,6 +146,8 @@ function TextEntrySheet(props: {
   initialText: string;
   placeholder: string;
   submitLabel: string;
+  pending?: boolean;
+  error?: string | null;
   onClose: () => void;
   onSubmit: (text: string) => void;
 }) {
@@ -147,7 +159,7 @@ function TextEntrySheet(props: {
   );
 }
 
-function TextEntryBody({ title, initialText, placeholder, submitLabel, onClose, onSubmit }: Parameters<typeof TextEntrySheet>[0]) {
+function TextEntryBody({ title, initialText, placeholder, submitLabel, pending, error, onClose, onSubmit }: Parameters<typeof TextEntrySheet>[0]) {
   const [text, setText] = useState(initialText);
   return (
     <>
@@ -164,10 +176,12 @@ function TextEntryBody({ title, initialText, placeholder, submitLabel, onClose, 
         placeholder={placeholder}
         placeholderTextColor={color.muted}
       />
+      {error ? <Text style={styles.sheetError}>{error}</Text> : null}
       <View style={styles.row}>
         <SecondaryButton label="Cancel" onPress={onClose} style={styles.flex} />
         <PrimaryButton
           label={submitLabel}
+          loading={pending}
           disabled={!text.trim()}
           onPress={() => onSubmit(text.trim())}
           style={styles.flex}
@@ -192,6 +206,7 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: color.ink },
   hint: { ...type.meta, fontSize: 12 },
   hintWarn: { color: color.warnText },
+  sheetError: { ...type.body, color: color.danger },
   sheetTitle: { ...type.stackTitle, color: color.ink },
   sheetInput: {
     borderWidth: 2,
