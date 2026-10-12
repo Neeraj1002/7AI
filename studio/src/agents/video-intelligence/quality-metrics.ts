@@ -11,7 +11,9 @@ import {
   type QualityMetrics,
   type QualityRow,
   type QualityRows,
+  type QualitySpec,
 } from '../video-generation/quality-spec';
+import { LONG_LENGTH_TOLERANCE } from '../script-generation/long-form';
 
 // Sprint 4 Task 8 (R7) — deterministic quality measurement. Zero LLM cost.
 // Everything is measured against the same QUALITY_SPEC the renderer (R1-R6)
@@ -104,7 +106,7 @@ export function hardFailureReason(
   return null;
 }
 
-type MetricsInput = Omit<QualityMetrics, 'softWarnings' | 'rows'>;
+type MetricsInput = Omit<QualityMetrics, 'softWarnings' | 'rows' | 'spec'>;
 
 // Sprint 4 (Gate 2 per-row flags). The one place the soft-warning rules live: each
 // checked row is evaluated once, and both the warning text list and the per-row warn
@@ -184,6 +186,51 @@ export function withQualityRows(
   if (m.rows) return m;
   const rows = evaluateQualityRows(m, visualSource, profile);
   return Object.keys(rows).length > 0 ? { ...m, rows } : m;
+}
+
+// Sprint 4 Task 12 (R6): the numbers the checks used for this run, so the app never keeps its own
+// copy. Every figure comes from QUALITY_SPEC or the profile (LONG_FORM_SPEC for a long video); the
+// length window is the same +/-20% the script's length rule uses.
+export function qualitySpecFor(profile: QualityProfile, targetSeconds?: number): QualitySpec {
+  return {
+    loudnessLufs: { target: QUALITY_SPEC.loudness.targetLufs, tolerance: QUALITY_SPEC.loudness.toleranceLufs },
+    truePeakMaxDb: QUALITY_SPEC.loudness.maxTruePeakDb,
+    longestShotMaxSec: profile.maxShotSeconds,
+    resolution: { width: profile.width, height: profile.height },
+    fps: profile.fps,
+    ...(profile.videoKind === 'long' &&
+      targetSeconds !== undefined && {
+        durationSec: { target: targetSeconds, tolerance: Math.round(targetSeconds * LONG_LENGTH_TOLERANCE) },
+      }),
+  };
+}
+
+// The Length row of a long video: measured length against the run's target. Soft (never blocks;
+// the hard window is 96 to 918 s, checked at review).
+export function durationRow(durationSeconds: number, targetSeconds: number): QualityRow {
+  const tolerance = Math.round(targetSeconds * LONG_LENGTH_TOLERANCE);
+  const warn = Math.abs(durationSeconds - targetSeconds) > tolerance;
+  return {
+    warn,
+    message: warn
+      ? `Video is ${Number(durationSeconds.toFixed(1))}s long, target ${targetSeconds}s ±${tolerance}s`
+      : null,
+  };
+}
+
+// What runs.get returns: the metrics plus `spec`, and for a long run the Length row. The row is
+// absent (not false) when the length was not recorded for this run.
+export function withQualitySpec(m: QualityMetrics, profile: QualityProfile, targetSeconds?: number): QualityMetrics {
+  const isLong = profile.videoKind === 'long';
+  const lengthRow =
+    isLong && targetSeconds !== undefined && m.durationSeconds !== undefined
+      ? durationRow(m.durationSeconds, targetSeconds)
+      : undefined;
+  return {
+    ...m,
+    ...(lengthRow && { rows: { ...m.rows, duration: lengthRow } }),
+    spec: qualitySpecFor(profile, isLong ? targetSeconds : undefined),
+  };
 }
 
 // Compact, human-readable block for the Gate 2 message.
@@ -335,6 +382,7 @@ export async function measureQualityMetrics(params: {
     shotCount: shots.shotCount,
     captionsExpected: params.captionsEnabled && profile.checkCaptions,
     captionsDetected,
+    durationSeconds: Number(probe.durationSeconds.toFixed(2)),
   };
   return {
     ...base,

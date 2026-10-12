@@ -44,6 +44,7 @@ import { generateLongVideo } from '../agents/video-generation/long-form';
 import { planLongVideoProduction } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
+import { createStillsProgressReporter } from './stills-progress';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
@@ -1075,6 +1076,8 @@ export async function runVideoGenerationStage(
       stockFootage: env.STOCK_FOOTAGE_STUB === '1',
       aiVisuals: env.AI_VISUALS_STUB === '1',
     });
+    // Sprint 4 Task 12 (R4): the stills counter runs.progress reads, kept on this stage's output.
+    const stillsProgress = createStillsProgressReporter((p) => patchStageOutput(stage.id, { stillsProgress: p }));
     try {
       const sceneStyle = {
         stylePrompt: config.visualStylePrompt,
@@ -1115,6 +1118,7 @@ export async function runVideoGenerationStage(
               const refusal = await checkBudget(run.tenantId, channel.id, channel.platform);
               if (!refusal.ok) throw new NonTransientStageError(`Video Generation stopped: ${describeBudgetRefusal(refusal)}`);
             },
+            onStillsProgress: stillsProgress.report,
             // Narration and stills are booked one call at a time, as they are paid for.
             onNarrationPaid: async (paid) => {
               await bookPaidCall({
@@ -1139,7 +1143,9 @@ export async function runVideoGenerationStage(
             sceneStyle,
             excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
             spend,
+            onStillsProgress: stillsProgress.report,
           });
+      await stillsProgress.flush();
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
@@ -1157,6 +1163,7 @@ export async function runVideoGenerationStage(
       lastUsage = usage;
       return output;
     } catch (error) {
+      await stillsProgress.flush();
       const context = getStageErrorContext(error);
       // Real spend (TTS, transcription, stills) when the render got that far;
       // otherwise the previous provider/model-or-unknown row at $0.

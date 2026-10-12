@@ -158,6 +158,8 @@ export const QUALITY_ROW_KEYS = [
   'longestShot',
   'shotCount',
   'captions',
+  // Sprint 4 Task 12 (R6): long-form only, added when runs.get is read (needs the run's target length).
+  'duration',
 ] as const;
 export type QualityRowKey = (typeof QUALITY_ROW_KEYS)[number];
 export type QualityRow = { warn: boolean; message: string | null };
@@ -189,4 +191,19 @@ export type QualityMetrics = {
   // Per-row warn flags (see QualityRow). Absent on runs measured before this field
   // existed; runs.get derives it from the stored metrics for those where it can.
   rows?: QualityRows;
+  // Sprint 4 Task 12 (R6): the measured file length, so runs.get can score it against the target.
+  // Absent on runs measured before it was recorded.
+  durationSeconds?: number;
+  // Sprint 4 Task 12 (R6): the numbers the checks used for this run. Added by runs.get, not stored.
+  spec?: QualitySpec;
+};
+
+export type QualitySpec = {
+  loudnessLufs: { target: number; tolerance: number };
+  truePeakMaxDb: number;
+  longestShotMaxSec: number;
+  resolution: { width: number; height: number };
+  fps: number;
+  // Long-form only: the run's target length and how far the video may be from it (seconds).
+  durationSec?: { target: number; tolerance: number };
 };

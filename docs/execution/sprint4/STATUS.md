@@ -64,7 +64,7 @@ a new hardening item added for the thumbnail-403/phone-verification investigatio
 | Task 9 PR B: long-form pipeline | `tasks/task9.md` | `SPRINT4_TASK9_BE` | Merges before Task 10. |
 | Task 10: quality, preview, publishing | `tasks/task10.md` | `SPRINT4_TASK10_BE` | Builds on Task 9's shapes with fixtures. |
 | Task 11: image model move | `tasks/task11.md` | `SPRINT4_TASK11_BE` | Deadline 2026-12-01, target 2026-11-15. |
-| Task 12 PR A / PR B: run screen data | `tasks/task12.md` | `SPRINT4_TASK12A_BE` / `SPRINT4_TASK12B_BE` | PR A (R1-R3) ready, worktree `D:/Study Material/7AI-SPRINT4_TASK12A_BE`. PR B (R4, R6; R5 is covered by Task 10) in worktree `D:/Study Material/7AI-SPRINT4_TASK12B_BE`. Tasks 9 and 10 are on `main`. |
+| Task 12 PR A / PR B: run screen data | `tasks/task12.md` | `SPRINT4_TASK12A_BE` / `SPRINT4_TASK12B_BE` | PR A (R1-R3, PR #73) and PR B (R4, R6; R5 is covered by Task 10) both ready. Worktrees `D:/Study Material/7AI-SPRINT4_TASK12A_BE` and `D:/Study Material/7AI-SPRINT4_TASK12B_BE`. |
 | Frontend Task 2 (NEXT 1) | `tasks/frontend-task2.md` | `SPRINT4_FE_N1_RUN` / `SPRINT4_FE_N1_LISTS` | After PR #53 merges. |
 | Frontend Task 3 (NEXT 2) | `tasks/frontend-task3.md` | `SPRINT4_FE_N2` | After Frontend Task 2 and Task 9 PR A. |
 | Frontend Task 4 (NEXT 3) | `tasks/frontend-task4.md` | `SPRINT4_FE_N3_BRIEF` / `_RUN` / `_LISTS` | After Frontend Task 3 and Tasks 9 and 10. |

@@ -25,6 +25,10 @@ export type GenerateStillsParams = {
   // before the next one starts, so spend is booked per still. It may throw to stop generation
   // (a spend limit); the still just paid for is already on disk in the cache.
   onStillGenerated?: (info: { index: number; costUsd: number; model: string }) => Promise<void> | void;
+  // Sprint 4 Task 12 (R4): called with 0 of N before the first still and again after every still that
+  // is finished (generated, taken from the cache, or skipped by the provider's safety system), so the
+  // count reaches N. It must not throw; the caller decides how often to store it.
+  onProgress?: (progress: { done: number; total: number }) => void;
 };
 
 export type GeneratedStillsResult = {

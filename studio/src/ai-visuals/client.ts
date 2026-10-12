@@ -104,6 +104,9 @@ export async function generateStillsViaProvider(
     const promptIndexes: number[] = [];
     const size = params.size ?? STILL_SIZE_PORTRAIT;
     if (params.cacheDir) await fs.mkdir(params.cacheDir, { recursive: true });
+    const total = params.scenePrompts.length;
+    let finished = 0;
+    params.onProgress?.({ done: 0, total });
     for (let index = 0; index < params.scenePrompts.length; index += 1) {
       const prompt = params.scenePrompts[index];
       // Sprint 4 Task 9 (R5.4): a still already paid for (an earlier attempt, a restart) costs nothing.
@@ -114,6 +117,8 @@ export async function generateStillsViaProvider(
         imagePaths.push(cachePath);
         promptIndexes.push(index);
         cachedCount += 1;
+        finished += 1;
+        params.onProgress?.({ done: finished, total });
         continue;
       }
       let response: OpenAI.Images.ImagesResponse;
@@ -125,6 +130,8 @@ export async function generateStillsViaProvider(
         // and keep the rest. Not billed, so not added to the cost either.
         if (error instanceof OpenAI.APIError && error.code === 'moderation_blocked') {
           skippedPromptCount += 1;
+          finished += 1;
+          params.onProgress?.({ done: finished, total });
           console.warn(`[ai-visuals] still skipped — provider safety system blocked prompt: ${prompt.slice(0, 120)}`);
           continue;
         }
@@ -140,6 +147,8 @@ export async function generateStillsViaProvider(
       promptIndexes.push(index);
       const stillCostUsd = priceStill(pricing, response.usage);
       totalCostUsd += stillCostUsd;
+      finished += 1;
+      params.onProgress?.({ done: finished, total });
       await params.onStillGenerated?.({ index, costUsd: stillCostUsd, model: params.model });
     }
 
