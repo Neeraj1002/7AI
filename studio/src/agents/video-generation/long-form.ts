@@ -10,7 +10,7 @@ import { DATA_DIR } from '../../config/paths';
 import { NonTransientStageError, getStageErrorContext } from '../../run-pipeline/retry-with-backoff';
 import { END_TAIL_SECONDS } from './quality-spec';
 import { buildStyledScenePrompts, type SceneStyle } from './scene-prompts';
-import { joinChapterTexts, type ScriptChapter } from '../script-generation/long-form';
+import { LONG_WORDS_PER_MINUTE, countWords, joinChapterTexts, measuredWordsPerMinute, type ScriptChapter } from '../script-generation/long-form';
 import { narrateChapters, type NarrationPaid } from './long-narration';
 import { buildSrtFromScript } from './subtitles-srt';
 import { renderProfileFor } from './render-profile';
@@ -99,6 +99,12 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       await guard();
     },
   });
+
+  const scriptWordCount = countWords(scriptText);
+  const pace = measuredWordsPerMinute(scriptWordCount, narration.durationSeconds);
+  console.log(
+    `[video_generation] run ${params.pipelineRunId} attempt ${params.attemptNumber}: narration pace ${pace} words per minute (${scriptWordCount} words in ${narration.durationSeconds.toFixed(1)} s; script planned at ${LONG_WORDS_PER_MINUTE})`,
+  );
 
   // 2. The mixed audio, before any picture work. A music license that cannot be confirmed fails here,
   //    before the stills are paid for.
@@ -195,6 +201,9 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       frameCount,
       chapterTimings: narration.chapterTimings,
       subtitlesPath: srtPath,
+      scriptWordCount,
+      narrationSeconds: Number(narration.durationSeconds.toFixed(2)),
+      measuredWordsPerMinute: pace,
     },
     usage: {
       provider: 'openai',
@@ -219,6 +228,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
         ttsModel: ttsEntry.model,
         ttsCharacterCount: narration.ttsCharacters,
         ttsCostUsd: narration.ttsCostUsd.toFixed(6),
+        measuredWordsPerMinute: pace,
         narrationCostUsd: (narration.ttsCostUsd + narration.transcriptionCostUsd).toFixed(6),
         transcriptionProvider: transcriptionEntry.provider,
         transcriptionModel: transcriptionEntry.model,

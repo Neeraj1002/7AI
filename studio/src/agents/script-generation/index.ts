@@ -11,6 +11,9 @@ import {
   buildLongTargetLine,
   countWords,
   isLengthInRange,
+  lengthError,
+  LONG_LENGTH_HARD_TOLERANCE,
+  LONG_MAX_LENGTH_REPAIRS,
   joinChapterTexts,
   validateChapters,
   type ScriptChapter,
@@ -357,9 +360,9 @@ function parseLongScriptReply(llm: LLMResponse): ParsedLongReply {
 }
 
 // Sprint 4 Task 9 (R2): the long-form generator. Same safety net as a Short (structured output,
-// one repair retry for an unusable reply), plus one length repair: a script outside +-20% of the
-// target words is sent back once; if it is still outside, the run continues and the output says
-// so (`lengthOutOfRange`) for the reviewer. Length alone never fails a run.
+// one repair retry for an unusable reply), plus up to two length repairs: a script outside +-10% of
+// the target words is sent back; if it is still outside +-20% after that, the run continues and the
+// output says so (`lengthOutOfRange`) for the reviewer. Length alone never fails a run.
 async function generateLongScript(params: GenerateScriptParams): Promise<ScriptGenerationResult> {
   const calls: LLMResponse[] = [];
   const targetSeconds = params.targetSeconds ?? params.targetDurationSec ?? 600;
@@ -386,8 +389,10 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   }
 
   let words = countWords(current.output.scriptText);
-  if (!isLengthInRange(words, targetSeconds)) {
-    console.warn(`[script-generation] long script is ${words} words, outside +-20% of the target for ${targetSeconds}s; one repair attempt`);
+  // Up to two length repairs until the script is within +-10% of the target. A repair is kept only
+  // when it is valid AND closer to the target than what we have, so a repair never makes things worse.
+  for (let repairs = 0; repairs < LONG_MAX_LENGTH_REPAIRS && !isLengthInRange(words, targetSeconds); repairs += 1) {
+    console.warn(`[script-generation] long script is ${words} words, outside +-10% of the target for ${targetSeconds}s; length repair ${repairs + 1}/${LONG_MAX_LENGTH_REPAIRS}`);
     const repairMessages: LLMMessage[] = [
       { role: 'user', content: userMessage },
       { role: 'assistant', content: current.llm.text.slice(0, FEEDBACK_REPLY_CHARS * 3) },
@@ -398,16 +403,19 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
       const repaired = repair.stopReason === 'length' ? null : parseLongScriptReply(repair);
       if (repaired?.ok) {
         const repairedWords = countWords(repaired.output.scriptText);
-        // Keep the repair when it is valid; it is the model's answer to the specific problem.
-        current = { llm: repair, output: repaired.output };
-        words = repairedWords;
+        if (lengthError(repairedWords, targetSeconds) < lengthError(words, targetSeconds)) {
+          current = { llm: repair, output: repaired.output };
+          words = repairedWords;
+        }
       }
     } catch (error) {
-      // The first script is usable and already paid for; a failed repair must not lose it.
-      console.error(`[script-generation] length repair call failed, keeping the first script: ${error instanceof Error ? error.message : String(error)}`);
+      // The script we have is usable and already paid for; a failed repair must not lose it.
+      console.error(`[script-generation] length repair call failed, keeping the current script: ${error instanceof Error ? error.message : String(error)}`);
+      break;
     }
   }
-  const lengthOutOfRange = !isLengthInRange(words, targetSeconds);
+  // Only a script that is still outside +-20% is flagged for the reviewer; it still continues.
+  const lengthOutOfRange = !isLengthInRange(words, targetSeconds, LONG_LENGTH_HARD_TOLERANCE);
   return { output: { ...current.output, ...(lengthOutOfRange && { lengthOutOfRange: true }) }, llm: current.llm, calls };
 }
 

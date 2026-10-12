@@ -3,8 +3,17 @@ import { z } from 'zod';
 // Sprint 4 Task 9 (R2): the pure half of long-form script generation: the prompt, the reply
 // shape, the length rule and the Gate 1 chapter edit sheet. No model calls here.
 
-export const LONG_WORDS_PER_MINUTE = 145;
-export const LONG_LENGTH_TOLERANCE = 0.2;
+// Measured on the 2-minute real run of 2026-10-11 (276 words narrated in 106.66 s, voice alloy,
+// tts-1-hd): 155 words per minute. The earlier plan of 145 asked for scripts that narrate about 7%
+// short even when hit exactly. The pace is logged for every run (measuredWordsPerMinute) so this can
+// be re-calibrated from real data.
+export const LONG_WORDS_PER_MINUTE = 155;
+// A script is accepted without repair when its word count is within +-10% of the target; up to
+// LONG_MAX_LENGTH_REPAIRS repairs are tried to get there. Past that the run continues anyway, and
+// is only flagged (lengthOutOfRange) when it is still outside +-20%. Length never fails a run.
+export const LONG_LENGTH_TOLERANCE = 0.1;
+export const LONG_LENGTH_HARD_TOLERANCE = 0.2;
+export const LONG_MAX_LENGTH_REPAIRS = 2;
 export const LONG_MIN_CHAPTERS = 3;
 export const LONG_MAX_CHAPTERS = 6;
 export const LONG_MIN_CHAPTER_WORDS = 25;
@@ -29,14 +38,24 @@ export function targetWordCount(targetSeconds: number): number {
   return Math.round((targetSeconds / 60) * LONG_WORDS_PER_MINUTE);
 }
 
-export function lengthRange(targetSeconds: number): { min: number; max: number } {
+export function lengthRange(targetSeconds: number, tolerance = LONG_LENGTH_TOLERANCE): { min: number; max: number } {
   const target = targetWordCount(targetSeconds);
-  return { min: Math.floor(target * (1 - LONG_LENGTH_TOLERANCE)), max: Math.ceil(target * (1 + LONG_LENGTH_TOLERANCE)) };
+  return { min: Math.floor(target * (1 - tolerance)), max: Math.ceil(target * (1 + tolerance)) };
 }
 
-export function isLengthInRange(wordCount: number, targetSeconds: number): boolean {
-  const { min, max } = lengthRange(targetSeconds);
+export function isLengthInRange(wordCount: number, targetSeconds: number, tolerance = LONG_LENGTH_TOLERANCE): boolean {
+  const { min, max } = lengthRange(targetSeconds, tolerance);
   return wordCount >= min && wordCount <= max;
+}
+
+// Distance from the target word count, as a fraction (0 = exact).
+export function lengthError(wordCount: number, targetSeconds: number): number {
+  return Math.abs(wordCount - targetWordCount(targetSeconds)) / targetWordCount(targetSeconds);
+}
+
+// Words per minute of a finished narration (the figure LONG_WORDS_PER_MINUTE is calibrated from).
+export function measuredWordsPerMinute(wordCount: number, narrationSeconds: number): number {
+  return narrationSeconds > 0 ? Number(((wordCount / narrationSeconds) * 60).toFixed(1)) : 0;
 }
 
 // scriptText stays the concatenation of the chapter texts, so every existing reader keeps working.
@@ -79,7 +98,7 @@ Respond with raw JSON only: no markdown code fences, no commentary.`;
 
 export function buildLongTargetLine(targetSeconds: number): string {
   const { min, max } = lengthRange(targetSeconds);
-  return `Target length: about ${Math.round(targetSeconds / 60)} minutes when narrated aloud (${targetSeconds} seconds). Write around ${targetWordCount(targetSeconds)} words in total across all chapters (natural pace, about ${LONG_WORDS_PER_MINUTE} words per minute); anything outside ${min} to ${max} words is too far off.`;
+  return `Target length: about ${Math.round(targetSeconds / 60)} minutes when narrated aloud (${targetSeconds} seconds). Write around ${targetWordCount(targetSeconds)} words in total across all chapters (natural pace, about ${LONG_WORDS_PER_MINUTE} words per minute); keep it between ${min} and ${max} words (within 10% of the target); anything outside that is sent back for a rewrite.`;
 }
 
 export function buildLengthRepairMessage(wordCount: number, targetSeconds: number): string {

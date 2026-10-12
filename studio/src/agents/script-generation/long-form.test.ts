@@ -9,6 +9,9 @@ import {
   parseChapterSheet,
   validateChapters,
   isLengthInRange,
+  LONG_WORDS_PER_MINUTE,
+  countWords,
+  measuredWordsPerMinute,
   lengthRange,
   targetWordCount,
   joinChapterTexts,
@@ -19,13 +22,26 @@ const words = (n: number, w = 'word') => Array.from({ length: n }, () => w).join
 const chapter = (title: string, n: number) => ({ title, text: `${title}? ${words(n)}.` });
 
 describe('length rule', () => {
-  it('is +-20% of 145 words per minute', () => {
-    expect(targetWordCount(600)).toBe(1450);
-    expect(lengthRange(600)).toEqual({ min: 1160, max: 1740 });
-    expect(isLengthInRange(1160, 600)).toBe(true);
-    expect(isLengthInRange(1159, 600)).toBe(false);
-    expect(isLengthInRange(1740, 600)).toBe(true);
-    expect(isLengthInRange(1741, 600)).toBe(false);
+  it('plans 155 words per minute and accepts +-10% (hard limit +-20%)', () => {
+    expect(LONG_WORDS_PER_MINUTE).toBe(155);
+    expect(targetWordCount(600)).toBe(1550);
+    expect(targetWordCount(120)).toBe(310);
+    expect(lengthRange(600)).toEqual({ min: 1395, max: 1706 });
+    expect(isLengthInRange(1395, 600)).toBe(true);
+    expect(isLengthInRange(1394, 600)).toBe(false);
+    expect(isLengthInRange(1706, 600)).toBe(true);
+    expect(isLengthInRange(1707, 600)).toBe(false);
+    expect(lengthRange(600, 0.2)).toEqual({ min: 1240, max: 1860 });
+  });
+
+  it('a script at the lowest accepted word count narrates well above the 96 s review floor', () => {
+    const { min } = lengthRange(120);
+    expect((min / LONG_WORDS_PER_MINUTE) * 60).toBeGreaterThan(105);
+  });
+
+  it('measures words per minute from a narration', () => {
+    expect(measuredWordsPerMinute(276, 106.662)).toBeCloseTo(155.3, 1);
+    expect(measuredWordsPerMinute(10, 0)).toBe(0);
   });
 });
 
@@ -76,8 +92,8 @@ describe('buildUserMessage', () => {
 
   it('a long script states its length, range and sources', () => {
     const msg = buildUserMessage({ ...base, targetSeconds: 600, videoKind: 'long', sources: ['https://e.com/a'] });
-    expect(msg).toContain('Write around 1450 words');
-    expect(msg).toContain('1160 to 1740');
+    expect(msg).toContain('Write around 1550 words');
+    expect(msg).toContain('between 1395 and 1706');
     expect(msg).toContain('- https://e.com/a');
     expect(msg).not.toContain('never more than 60');
   });
@@ -94,13 +110,13 @@ describe('generateScript (long)', () => {
   });
   const body = (perChapter: number) =>
     JSON.stringify({ chapters: [chapter('One', perChapter), chapter('Two', perChapter), chapter('Three', perChapter), chapter('Four', perChapter)], hashtags: ['a'] });
-  // 600 s => 1450 words. Four chapters of 360 words is ~1456 with the heading words.
+  // 600 s => 1550 words (range 1395-1705). Four chapters of 380 words is 1524 with the heading words.
   const params = { topic: 'Bridges', constraints: [], targetSeconds: 600, videoKind: 'long' as const };
 
   beforeEach(() => mocks.callLLM.mockReset());
 
   it('returns chapters, with scriptText as their concatenation and no captions', async () => {
-    mocks.callLLM.mockResolvedValueOnce(reply(body(360)));
+    mocks.callLLM.mockResolvedValueOnce(reply(body(380)));
     const { output, calls } = await generateScript(params);
     expect(calls).toHaveLength(1);
     expect(output.chapters).toHaveLength(4);
@@ -109,20 +125,40 @@ describe('generateScript (long)', () => {
     expect(output.lengthOutOfRange).toBeUndefined();
   });
 
-  it('asks for one length repair when out of range and uses the repaired script', async () => {
-    mocks.callLLM.mockResolvedValueOnce(reply(body(100))).mockResolvedValueOnce(reply(body(360)));
+  it('asks for a length repair when outside +-10% and uses the repaired script', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(body(100))).mockResolvedValueOnce(reply(body(380)));
     const { output, calls } = await generateScript(params);
     expect(calls).toHaveLength(2);
     expect(mocks.callLLM.mock.calls[1][0].messages.at(-1).content).toContain('too short');
     expect(output.lengthOutOfRange).toBeUndefined();
   });
 
-  it('continues and records lengthOutOfRange when the repair is still out of range', async () => {
-    mocks.callLLM.mockResolvedValueOnce(reply(body(100))).mockResolvedValueOnce(reply(body(120)));
+  it('tries at most two repairs, then continues and records lengthOutOfRange when still outside +-20%', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(body(100))).mockResolvedValueOnce(reply(body(120))).mockResolvedValueOnce(reply(body(150)));
     const { output, calls } = await generateScript(params);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(output.lengthOutOfRange).toBe(true);
     expect(output.chapters).toHaveLength(4);
+  });
+
+  it('proceeds without a flag when two repairs leave it outside +-10% but within +-20%', async () => {
+    // 4 x 331 = 1324 words: 14.6% under 1550.
+    mocks.callLLM.mockResolvedValue(reply(body(330)));
+    const { output, calls } = await generateScript(params);
+    expect(calls).toHaveLength(3);
+    expect(output.lengthOutOfRange).toBeUndefined();
+  });
+
+  it('a repair that lands further from the target is not kept', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(body(330))).mockResolvedValueOnce(reply(body(100))).mockResolvedValueOnce(reply(body(100)));
+    const { output } = await generateScript(params);
+    expect(countWords(output.scriptText)).toBe(4 * 331);
+  });
+
+  it('a script inside +-10% is accepted with no repair', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(body(330 + 40)));
+    const { calls } = await generateScript(params);
+    expect(calls).toHaveLength(1);
   });
 
   it('keeps the first script if the repair call itself fails', async () => {
