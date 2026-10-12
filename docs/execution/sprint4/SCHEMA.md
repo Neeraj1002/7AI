@@ -45,3 +45,11 @@ path. No backfill.
 
 `longFormMetrics jsonb NULL`: `{ averageViewDurationSec, averageViewPercentage, estimatedMinutesWatched, impressionsClickThroughRate: null }`. Written only for long-form snapshots; null for every Short and every existing row. No backfill. `videoKind` is not stored on the snapshot: it is read from the run's `creationOptions.videoKind` (absent = short), so there is one source.
 Json-only additions (no migration): the `video_review` stage output gains `previewPath`, `previewBytes`, `srtPath`, `r2PreviewKey`, `r2SrtKey` (long only); the `publishing` stage output gains `subtitlesUploaded`, `subtitlesMessage`, `subtitlesError`, `subtitlesLanguage`, `subtitlesQuotaUnits`, `chapterListIncluded` (long only); the `script_review` stage output gains optional `chapterNotes`.
+
+## Task 9 (PR B): none (Json-column additions only)
+
+- `PipelineStage.output` (script_generation) gains `chapters: {title, text}[]` and, when the length stayed outside +-20% after the one repair, `lengthOutOfRange: true`. (gate1) gains `chapters` (the approved or edited chapters).
+- `PipelineStage.output` (video_generation, long only) gains `videoKind`, `width`, `height`, `fps`, `frameCount`, `chapterTimings: {title, startSec, endSec}[]`, `subtitlesPath`, `r2SubtitlesKey`; its `plan` gains `longScenes: {chapterIndex, words, prompt}[]`.
+- `PipelineRun.creationOptions.maxCostUsd` can be raised by `runs.retry({ maxCostUsd })` (written with the existing creationOptions merge).
+- `UsageEvent` rows of a long run: one per narration request (`metadata.part` = `tts` / `transcription`), one per still (`part` = `still`) and one per planner call, written as each is paid for. The summary `video-generation` row carries `$0` and `metadata.costsBookedSeparately = true`.
+- Files (not DB): `data/ai-visuals-cache/<runId>/` and `data/videos/<runId>/work/` (narration chunks, chapter segments, mixed audio) are removed when the run ends (completed or failed). The finished videos and the SRT stay.

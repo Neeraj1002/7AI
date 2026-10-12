@@ -2,7 +2,7 @@
 // text states whether attribution is required (Task 9 R6.4 makes that mandatory per entry), so
 // the rule reads that text rather than a second flag that could drift from it.
 
-type BedLike = { label: string; filePath?: string; moodTag?: string; license?: string };
+type BedLike = { label: string; filePath?: string; moodTag?: string; license?: string; attribution?: string };
 
 const NO_ATTRIBUTION = /no attribution( is)? (needed|required)|attribution (is )?not (needed|required)|without attribution/i;
 
@@ -12,9 +12,10 @@ export function licenseRequiresAttribution(license: string | undefined): boolean
   return /attribution|credit/i.test(license);
 }
 
-// The beds a long render used: the names Task 9 records on the video_generation output
-// (`audioBeds`, labels or file paths), else every manifest track of the plan's mood, so a missing
-// record over-credits rather than leaves a required credit out.
+// The beds a long render used. Task 9 chains every track of the plan's mood (pickAudioBedTracks) and
+// does not record which were reached, so this is every manifest track of that mood: it can over-credit
+// when the video ended before the last track, but never leaves a required credit out. A `audioBeds`
+// list (labels or file paths) on the output, if a later change records one, narrows it.
 export function bedsUsed(videoGenOutput: unknown, manifest: BedLike[]): BedLike[] {
   const out = videoGenOutput as { audioBeds?: unknown; plan?: { audioLayer?: string } } | null | undefined;
   const recorded = Array.isArray(out?.audioBeds)
@@ -33,7 +34,7 @@ export function creditLinesForBeds(beds: BedLike[]): string[] {
   for (const b of beds) {
     if (!licenseRequiresAttribution(b.license) || seen.has(b.label)) continue;
     seen.add(b.label);
-    lines.push(`Music: ${b.label}`);
+    lines.push(b.attribution?.trim() || `Music: ${b.label}`);
   }
   return lines;
 }

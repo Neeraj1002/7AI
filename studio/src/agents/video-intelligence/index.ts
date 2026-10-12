@@ -7,7 +7,7 @@ import { env } from '../../config/env';
 import { NonTransientStageError, withRetryAndCircuitBreaker } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import type { VisualSource } from '../video-generation/plan';
-import { SHORT_PROFILE, type QualityMetrics, type QualityProfile } from '../video-generation/quality-spec';
+import { qualityProfileFor, type QualityMetrics } from '../video-generation/quality-spec';
 import type { ChapterTiming } from '../../long-form/chapters';
 import { hardFailureReason, measureQualityMetrics } from './quality-metrics';
 
@@ -78,13 +78,16 @@ export async function runDeterministicChecks(
   options: {
     captionsEnabled?: boolean;
     visualSource?: VisualSource;
-    // Sprint 4 Task 10: long-form profile and the narration length its video must follow.
-    profile?: QualityProfile;
+    // Sprint 4 Task 9/10: 'long' = 16:9 with its own profile; absent = a Short.
+    videoKind?: 'short' | 'long';
+    // Task 10: planned seconds per still (sets the longest-shot allowance) and the narration length
+    // the video must follow within 2%.
+    secondsPerStill?: number | null;
     narrationSeconds?: number;
   } = {},
 ): Promise<DeterministicCheckResult> {
   const meta = await probeVideoMeta(videoPath);
-  const profile = options.profile ?? SHORT_PROFILE;
+  const profile = qualityProfileFor(options.videoKind, options.secondsPerStill);
   const isLong = profile.videoKind === 'long';
 
   if (!isLong && meta.durationSeconds > MAX_DURATION_SECONDS) {
@@ -261,20 +264,25 @@ export async function reviewVideo(params: {
   // ai-stills only.
   safetyChecks?: boolean;
   // Sprint 4 Task 10 (R2): long-form only. Absent for a Short, which then behaves exactly as before.
-  longForm?: { profile: QualityProfile; chapterTimings?: ChapterTiming[]; narrationSeconds?: number };
+  videoKind?: 'short' | 'long';
+  secondsPerStill?: number | null;
+  chapterTimings?: ChapterTiming[];
+  narrationSeconds?: number;
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
     visualSource: params.visualSource,
-    ...(params.longForm && { profile: params.longForm.profile, narrationSeconds: params.longForm.narrationSeconds }),
+    videoKind: params.videoKind,
+    secondsPerStill: params.secondsPerStill,
+    narrationSeconds: params.narrationSeconds,
   });
   if (!deterministic.passed) {
     return { verdict: 'fail', rationale: deterministic.reason, multimodalRan: false, qualityMetrics: deterministic.metrics };
   }
 
   const chapterTimestamps =
-    params.longForm?.chapterTimings && params.longForm.chapterTimings.length > 0
-      ? chapterSampleTimestamps(params.longForm.chapterTimings, deterministic.meta.durationSeconds)
+    params.videoKind === 'long' && params.chapterTimings && params.chapterTimings.length > 0
+      ? chapterSampleTimestamps(params.chapterTimings, deterministic.meta.durationSeconds)
       : undefined;
   const framesBase64 = await extractSampleFramesBase64(params.videoPath, deterministic.meta.durationSeconds, chapterTimestamps);
 
@@ -293,7 +301,7 @@ export async function reviewVideo(params: {
       system: buildSystemPrompt(
         params.visualSource,
         params.safetyChecks,
-        params.longForm ? { frameCount: framesBase64.length } : undefined,
+        params.videoKind === 'long' ? { frameCount: framesBase64.length } : undefined,
       ),
       messages: [
         {

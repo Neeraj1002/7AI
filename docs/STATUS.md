@@ -12,33 +12,32 @@ Task 12 server (PR #58) and app (PR #59) are merged and live on preview. The App
 
 | # | What | How | When |
 |---|---|---|---|
-| 1 | Merge the docs PR | It brings `STATUS.md`, `sprint4/PENDING.md` and the long-form tasks 9 and 10 into `main`. Then pull `main`. | Now |
-| 2 | Add longer music tracks | 2 to 3 tracks for each of the five moods, each 4 minutes or longer, cleared for monetised public use, normalised to -18 LUFS, added to the music list through your usual PR. | Today or tomorrow |
-| 3 | Deploy the Sprint 4 server | PR #49 (all 8 Sprint 4 backend tasks) and PR #64 (quality-check row flags), both merged. The backup `~/sevenai_preview_before_pr49.dump` is already taken. Then check `pm2 restarts=N` stays steady. | After merging |
-| 4 | Publish the app update | After PR #53 is finished and merged: `npx expo-updates fingerprint:generate --platform android` from a clean `main`, compare, then `eas update --branch preview`. | After PR #53 |
-| 5 | Check Gate 2 quality card on the phone | Run `75f69faa…` or `dc2062a2…` on the tenant account, put the screenshot beside the board. Frontend item E1 is Done only then. | After #4 |
-| 6 | Phone screenshots still missing | Cold start, cursor colour, "Decision sent", "Cancelling...", Gate 1 clamp. OnePlus screenshots for UI/UX tasks 3 to 6 (F5). | When you have time |
-| 7 | Receipts check | Paste the receipts SQL from the Task 12 report (F8). | When you have time |
-| 8 | Reconnect YouTube channels | Weekly (testing-mode tokens expire in 7 days). Also once after Sprint 4 Task 10 merges, because subtitle upload needs a wider Google permission. | Weekly |
-| 9 | Triage the 5 newest bug reports | They arrived after the closure run and stay open for Sprint 4. | When you have time |
+| 1 | Add longer music tracks | 2 to 3 tracks for each of the five moods, each 4 minutes or longer, cleared for monetised public use, normalised to -18 LUFS, added to the music list through your usual PR. | Today or tomorrow |
+| 2 | Deploy the Sprint 4 server | PR #49 (all 8 Sprint 4 backend tasks) and PR #64 (quality-check row flags), both merged. The backup `~/sevenai_preview_before_pr49.dump` is already taken. Then check `pm2 restarts=N` stays steady. | After merging |
+| 3 | Publish the app update | After PR #53 is finished and merged: `npx expo-updates fingerprint:generate --platform android` from a clean `main`, compare, then `eas update --branch preview`. | After PR #53 |
+| 4 | Check Gate 2 quality card on the phone | Run `75f69faa…` or `dc2062a2…` on the tenant account, put the screenshot beside the board. Frontend item E1 is Done only then. | After #4 |
+| 5 | Phone screenshots still missing | Cold start, cursor colour, "Decision sent", "Cancelling...", Gate 1 clamp. OnePlus screenshots for UI/UX tasks 3 to 6 (F5). | When you have time |
+| 6 | Receipts check | Paste the receipts SQL from the Task 12 report (F8). | When you have time |
+| 7 | Reconnect YouTube channels | Weekly (testing-mode tokens expire in 7 days). Also once after Sprint 4 Task 10 merges, because subtitle upload needs a wider Google permission. | Weekly |
+| 8 | Triage the 5 newest bug reports | They arrived after the closure run and stay open for Sprint 4. | When you have time |
 
 ## In review
 
 | Item | State |
 |---|---|
-| Frontend PR #53 (branch `SPRINT4_FE_E1`) | Gate 2 quality card built, awaiting device check. The agent finishes the remaining Sprint 4 screens (E2 to E6) in this same PR now that PR #49 is merged. |
-| Docs PR (this page, `PENDING.md`, tasks 9 and 10) | Waiting for the docs agent. |
+| Frontend PR #53 (branch `SPRINT4_FE_E1`) | E1 to E6 built and aligned to the row-6 boards; report written; ready to merge. Not seen on a device yet (to-do #3 and #4). Five small differences from the boards accepted (see `execution/sprint4/PENDING.md`). |
 | Archive of old doc folders (DOCS_ARCHIVE) | Separate PR by another agent; status unknown. |
 
 ## Next work (Sprint 4, in order)
 
-1. Sprint 4 backend Tasks 1 to 8: merged (PR #49 and PR #46); deploy and verification pending (to-do #3).
-2. Frontend: finish E1 to E6 in PR #53, now including the "formats each channel offers" change (see `execution/sprint4/PENDING.md`).
-3. Long-form video (16:9, 2 to 15 minutes, published publicly on real channels):
-   1. Image-model spike (R1 of `execution/bugs/Sprint3/tasks/hardening-gpt-image-migration.md`): landscape size, price, rate limit.
-   2. Task 9, Long-Form Foundation (`execution/sprint4/tasks/task9.md`): `videoKind`, chaptered script, narration, landscape stills with disk cache, 1920x1080 render, cost estimate and per-video spend limit, formats each channel offers. Ends with a 2-minute test render.
-   3. Task 10, Quality, Preview and Publishing (`execution/sprint4/tasks/task10.md`): long-form review and quality profile, 720p preview copy, chapter timestamps, subtitle upload, long-form analytics.
-   4. App screens: the UI designer's boards first ("under review"), then the build.
+1. Sprint 4 backend Tasks 1 to 8: merged (PR #49 and PR #46); deploy and verification pending (to-do #2).
+2. Frontend, strictly in this order: PR #53 (E1 to E6, ready to merge); Frontend Task 2, Run / Inbox / Queue redesign (`execution/sprint4/tasks/frontend-task2.md`); Frontend Task 3, formats per channel (`frontend-task3.md`, needs Task 9 PR A); Frontend Task 4, long-form video in the app (`frontend-task4.md`, after Tasks 9 and 10 merge). Details: `execution/sprint4/PENDING.md`.
+3. Long-form video (16:9, 2 to 15 minutes, published publicly on real channels), in parallel lanes that do not wait for each other:
+   1. Task 9, Long-Form Foundation (`execution/sprint4/tasks/task9.md`): PR A is the small API contract and ships first; PR B is the pipeline (chaptered script, narration, landscape stills with disk cache, 1920x1080 render, budget). Ends with a 2-minute test render.
+   2. Task 11, Image Model Move (`execution/sprint4/tasks/task11.md`, moved here from Sprint 3): spike, contact sheets for your approval, then the switch. Deadline 2026-12-01, target 2026-11-15.
+   3. Task 10, Quality, Preview and Publishing (`execution/sprint4/tasks/task10.md`): builds on Task 9's shapes, merges after Task 9 PR B.
+   4. Task 12, Run Screen Data (`execution/sprint4/tasks/task12.md`): small backend fields the new app screens want (settings a run used, every gate's decision, spend per run, image count, chapter warning, quality targets). Independent; the app has a fallback for each.
+   5. App screens: boards are locked on the canvas; the builds are the Frontend tasks in Next work 2.
 4. Script Review rules SR-1 to SR-9 (no claims outside the brief, no stronger hedges, no 9 or 10 with a fact issue): small separate task, to be written.
 5. Moved here from Task 12: tester-facing bug type and priority chips; per-channel colour setting; two small items (R10.3, R10.10); the YouTube thumbnail 403; add the app tests to CI.
 
@@ -48,7 +47,7 @@ Details: `execution/sprint4/STATUS.md`.
 
 | Decision | Note |
 |---|---|
-| Move the image model before it shuts down (`gpt-image-1.5`, shuts down 2026-12-01) | Target: merged and deployed by 2026-11-15. The spike (Next work 3.1) comes first; contact sheets need your approval of the new look. |
+| Move the image model before it shuts down (`gpt-image-1.5`, shuts down 2026-12-01) | Target: merged and deployed by 2026-11-15. Task 11 (Next work 3.2) runs in parallel with everything else; the contact sheets need your approval of the new look. |
 | Add a search-based fact check to Script Review | Open. Long-form does not use web search: facts come from your brief. |
 | An "abandon this run" button for stuck gates | Not built. Only if stuck gates become a real problem. |
 
@@ -64,6 +63,7 @@ Full list with reasons: `execution/KNOWN_ISSUES_AND_BLOCKERS.md`, Section 7.
 
 ## Done recently
 
+- Docs PR #70 merged to `main`: this page, `PENDING.md`, Sprint 4 tasks 9 to 12, Frontend Tasks 2 to 4 and the image-model pointer. (This page and the sprint 4 `STATUS.md` were edited again after it; they go in the next docs PR.)
 - Sprint 3 closed (see above), including the Approve-screen fix (PR #63) and the 24-report triage (PR #65).
 - Sprint 4 backend Tasks 1 to 7 merged (PR #49); Task 8 merged (PR #46); quality-check row flags merged (PR #64), so the frontend agent can colour the "Longest single shot" row from `qualityMetrics.rows.longestShot.warn`.
 - Bugs Task 7 (bug triage columns): closed. Task 13 (per-attempt debug bundles in R2): live on preview.

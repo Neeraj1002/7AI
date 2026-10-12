@@ -56,6 +56,21 @@ a new hardening item added for the thumbnail-403/phone-verification investigatio
 | 9 | Task 5: Packaging From Profile | Lowest growth impact of the set, so it comes last. |
 | Anytime | Hardening: Thumbnail 403 / phone verification | Founder action, independent. |
 
+**Added 2026-10-11 (long-form video, image model move and app redesign). Agents record their branch in the Branch column the moment it exists.**
+
+| Item | Task doc | Branch | Notes |
+|---|---|---|---|
+| Task 9 PR A: long-form API contract | `tasks/task9.md` | `SPRINT4_TASK9A_BE` | Small; ships first. |
+| Task 9 PR B: long-form pipeline | `tasks/task9.md` | `SPRINT4_TASK9_BE` | Merges before Task 10. |
+| Task 10: quality, preview, publishing | `tasks/task10.md` | `SPRINT4_TASK10_BE` | Builds on Task 9's shapes with fixtures. |
+| Task 11: image model move | `tasks/task11.md` | `SPRINT4_TASK11_BE` | Deadline 2026-12-01, target 2026-11-15. |
+| Task 12 PR A / PR B: run screen data | `tasks/task12.md` | `SPRINT4_TASK12A_BE` / `SPRINT4_TASK12B_BE` | PR B merges after Tasks 9 and 10. |
+| Frontend Task 2 (NEXT 1) | `tasks/frontend-task2.md` | `SPRINT4_FE_N1_RUN` / `SPRINT4_FE_N1_LISTS` | After PR #53 merges. |
+| Frontend Task 3 (NEXT 2) | `tasks/frontend-task3.md` | `SPRINT4_FE_N2` | After Frontend Task 2 and Task 9 PR A. |
+| Frontend Task 4 (NEXT 3) | `tasks/frontend-task4.md` | `SPRINT4_FE_N3_BRIEF` / `_RUN` / `_LISTS` | After Frontend Task 3 and Tasks 9 and 10. |
+
+The Task 1 to 7 rows above still say "Not started" although PR #49 merged them; they are stale and need correcting separately.
+
 | Task | Name | Status | Owner | Notes |
 |---|---|---|---|---|
 | 8 | Render Quality Floor: Audio Mastering, Captions, Output Standard, Visual Pacing, Deterministic QC | **Merged (PR #46)**. Verification pending | — | Added 2026-10-06 from measured evidence (9 published Shorts + code read). R1: `loudnorm` to −14 LUFS + sidechain-ducked music bed. R2: `.ass` captions with `PlayResX/Y=1080×1920` (fixes the 288 px-canvas sizing bug), a bundled font, safe-area placement, script-accurate text with Whisper used for timing only. R3: 30 fps constant + explicit encoding settings. R4: planner defaults to `ai-stills` for real people/events. R5: stock path becomes a shot list (multiple distinct clips, no looping). R6: platform default ~2.5 s per still (6–20), with a mandatory Ken Burns regression check. R7: deterministic `qualityMetrics` recorded at video review and shown at Gate 2, blocking only on hard failures. Founder action: ✅ **done 2026-10-07, PR #54 (merged)**. The synthetic sine-wave beds were replaced with five YouTube Audio Library tracks (one per mood), normalised to −18 LUFS, manifest `license`/`label` updated; test render −14.1 LUFS. **Still open:** the real verification run on the preview VPS (confirm the new beds are in the server's `DATA_DIR/audio-beds` and `sevenai` restarted), and the `qualityMetrics` read from a real Gate 2. The report `docs/execution/sprint4/reports/task8.md` is written. Later changes to the same render path: Closure part 2 P8 (end tail) and P5 (failed-render spend), PR #57. |
@@ -66,7 +81,7 @@ a new hardening item added for the thumbnail-403/phone-verification investigatio
 | 5 | Packaging From Profile: Title/Description/Hashtags + Editor & Source Credit + Upload Compliance Fields + Repeat-Topic Warning | Not started | — | Title/description/hashtag guidance from the profile; real `{editor}`/`{sources}` credit lines (Task 4's data, no longer deferred); new R18: `status.selfDeclaredMadeForKids` (always explicit, default `false`) and `snippet.categoryId`/`defaultLanguage` sent on every real upload instead of left to YouTube/channel defaults; a non-blocking repeat-topic warning appended to the Gate 1 message. |
 | 6 | Format Library + Channel Setup API (Backend) | Not started | — | Static, in-repo 9-format manifest (`studio/src/formats/manifest.ts`), a `formatKey` precedence level in the resolver (run override → format → profile → legacy → default), `channels.listFormats`, `runs.create`'s `formatKey`. Advanced-path API only; AI-drafted/guided setup explicitly deferred (see Scope note). |
 | 7 | Channel × Format Comparison Dashboard | Not started | — | New `dashboard.comparison` procedure + `app/app/(app)/compare.tsx`: real side-by-side channel/format totals, zero-data channels shown, not omitted. Deliberately pulled forward ahead of Tasks 2-5 in this sprint's actual build order (see its own Additional Notes) since it's parallelizable and most directly answers "is this worth continuing". No real ad-revenue figure exists yet (YouTube Partner Program thresholds won't be hit in the founder's own 2-3 week window), so this is explicitly a views/likes/comments/retention proxy view, not a P&L. |
-| Frontend 1 | Channel Profile Setup Screen (Advanced) + Format Picker | Not started | — | New `app/app/(app)/channel/[id]/profile.tsx` (raw-fields form, no wizard, now including R18's made-for-kids/category/language fields), a format picker folded into `new-brief.tsx` with Freeform preserved as the zero-extra-taps default, a read-only platform-guardrails block, and a version-history list (no diff/rollback yet). Depends on backend Tasks 1 and 6. |
+| Frontend 1 | Sprint 4 front end, spec `tasks/frontend-task1.md`: E1 Gate 2 quality, E2 Compare, E3 Gate 1 review + Sources, E4 Format picker, E5 Content profile, E6 repeat-topic | E1–E6 built, awaiting founder device verification (E2, E4, E5 without boards) | UI/UX code agent | Branch `SPRINT4_FE_E1`, PR #53 (all items, per the 2026-10-11 pending page). Report: `reports/frontend-task1.md`. |
 | Hardening | Thumbnail 403: Link to Phone Verification | Not started | — | Not a numbered task (same posture as Sprint 3's tenant-check hardening doc). Resolves the real, still-open Sprint 2 Task 5/H1 custom-thumbnail `403` by testing the concrete hypothesis that it's a channel phone-verification/Studio feature-eligibility gap, distinct from `longUploadsStatus`, which that report already found doesn't gate it. Founder action (complete phone verification via Studio's own Feature Eligibility page) + a real re-test, not a code rebuild. |
 
 ## Full detail

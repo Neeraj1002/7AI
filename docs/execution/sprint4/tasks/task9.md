@@ -6,7 +6,7 @@
 
 **Objective**: Let the same pipeline produce a 16:9 video of 2 to 15 minutes (a "long-form video") as a second type next to Shorts, set per run from the app, generic for every channel. Shorts must behave exactly as today.
 **Duration**: 2 to 3 days.
-**Depends On**: PR #49 (Sprint 4 Tasks 1 to 7) merged; Sprint 4 Task 8 (merged); Sprint 3 Task 12 (merged). The image-model spike (`Sprint3/tasks/hardening-gpt-image-migration.md`, R1) should be done first because it settles the landscape size, price and rate limit. If its report is not on `main` when you reach R5, make those measurements yourself (one real call per size) and record them.
+**Depends On**: nothing to wait for. PR #49, Sprint 4 Task 8 and Sprint 3 Task 12 are on `main`. The image-model move is Sprint 4 Task 11, a parallel task with its own agent; this task never waits for it (see R5).
 **Owning Component**: `studio/src/api/routers/runs.ts`, the creation-options schema, `studio/src/formats/`, `studio/src/channel-profile/resolve.ts`, script generation, narration, `ai-visuals/`, `video-generation/`, the budget pre-check.
 **Success Criteria**: (1) a real `runs.create` with `videoKind: 'long'` and a 2-minute target runs to Gate 2 on the dev database and produces a 1920x1080, 30 fps, -14 LUFS MP4 whose length is within 2% of the narration, with chapters and an SRT built from the exact script text; (2) measured cost and render time are in the report; (3) a normal Shorts run is unchanged (same stage inputs, same output, same cost); (4) a crash during image generation resumes without re-paying finished stills; (5) a channel's offered formats are stored in its profile, filtered by type through `channels.listFormats`, and enforced at `runs.create` (R1b).
 
@@ -15,6 +15,11 @@
 > This task does **not** include: the long-form review rubric, the long-form quality profile, the Gate 2 preview copy, publishing changes, analytics, or any app screen. Those are Sprint 4 Task 10 and the UI track. Thumbnails stay manual.
 
 ---
+
+## Delivery: two PRs, so nobody waits
+- **PR A, `SPRINT4_TASK9A_BE`, small, ships first (aim for the same day):** the API contract only. R1 (`videoKind`, validation, resolver, manifest, `runs.get` fields), R1b (offered formats), the `runs.estimateCost` procedure and the `maxCostUsd` input of R7 (validated, not yet enforced), and the optional output fields that later work fills: `chapters` on the script output and, on `runs.get`, `chapters`, `previewUrl`, `subtitlesUrl`, `subtitlesUploaded`, `subtitlesMessage` (typed now, absent until filled). With PR A on `main`, the frontend agent, the UI designer and Task 10 build against real types and nobody fakes data.
+- **PR B, `SPRINT4_TASK9_BE`:** R2 to R7 (script, narration, subtitles, stills, render, budget enforcement), cut from `main` after PR A. Start the pipeline work immediately; do not wait for A to merge before beginning, only before you push B.
+- Each PR is ready for review on its own and can merge in any order relative to Tasks 10 and 11. Whoever merges second merges `main` into their branch and resolves conflicts.
 
 ## R0. Read the code first (nothing below is final until you have done this)
 
@@ -78,7 +83,7 @@ Build `captions.srt` from the **exact script text** with Whisper word timing, re
 
 **What exists** (verify): `STILL_SIZE` is a fixed portrait 1024x1536; `estimateStillCount` is capped at 20 and now uses the profile's `secondsPerStill` (Task 3); the rate-limit wait is per still; `resolveImagePricing` throws for an unknown model.
 **Change**, long-form only:
-1. A landscape size constant for long-form, set from the image-model spike (today's model offers 1536x1024, which is 3:2; the render step scales and crops it to 1920x1080 with a centre crop, leaving room for the zoom). If the spike says another size, use that and note it.
+1. This task owns the `size` plumbing: a `size` parameter on the still-generation call and two constants in a new small file `ai-visuals/sizes.ts`: portrait (today's value, unchanged) and landscape 1536x1024 (3:2; the render step scales and crops it to 1920x1080 with a centre crop, leaving room for the zoom). Confirm with one real call on the current model before relying on it. Task 11 (image model move, a parallel task) owns the model, the price table and cost-from-usage, and may change the values in `sizes.ts` if its measurements show another size. Do not wait for it: long-form works on the current model, and Task 11 switches the model later without changing this code. Whichever task merges second merges `main` and resolves the conflict. If Task 11 is already on `main` when you finish, also run the 2-minute test render on the new model; if not, Task 11's agent does that check after its merge.
 2. Still count = `ceil(targetSeconds / secondsPerStill)`, clamped to 12..200. Default `secondsPerStill` for long = 5 (decision 2026-10-11: the pilot plan implied about 5.4 s, and a new picture every 5 s suits retention); the format manifest or channel profile can override it. A 10-minute video is about 120 stills.
 3. Each scene belongs to one chapter and carries the words it illustrates, so image timing follows the narration. The planner gets the channel style guide (Task 3) and the chapter titles. Long-form uses `ai-stills` only. If the run asks for stock footage, return `BAD_REQUEST` at `runs.create`.
 4. **Disk cache by prompt hash**: key = hash of (model, size, quality, final prompt text). Store files under a per-run folder in the data directory. On a restart or a retry the stage reads the cache and generates only the missing stills; spend is recorded per still when it is generated, so a cache hit costs nothing and a crash never loses paid work. Delete the folder when the run reaches a terminal state, using the existing temp cleanup path. No reuse across different runs.

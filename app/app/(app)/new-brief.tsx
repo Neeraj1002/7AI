@@ -3,7 +3,7 @@ import { youtubeNeedsReconnect } from '../../lib/server-extras';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { useTRPC, useTRPCClient } from '../../lib/trpc';
 import { useChannels } from '../../lib/channel-context';
@@ -13,9 +13,11 @@ import { ChannelAvatar } from '../../components/ChannelAvatar';
 import { ChannelPickerSheet } from '../../components/ChannelPickerSheet';
 import { PrimaryButton } from '../../components/Buttons';
 import { OptionSheet } from '../../components/OptionSheet';
+import { FormatSheet } from '../../components/FormatSheet';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
 import { LENGTHS, useOptionLists } from '../../lib/pipeline-options';
+import { MAX_SOURCES, chipFormatKeys, validateSources } from '../../lib/brief-extras';
 
 // Task 6/E4 "Edit brief & run again" pre-fills these from an ended run's own
 // briefText/channelId/creationOptions — read once on mount, matched against
@@ -59,6 +61,12 @@ export default function NewBriefScreen() {
   const [music, setMusic] = useState<string | null>(params.audioLayer ?? null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  // Sprint 4 FE E3 (sources) and E4 (format). Freeform = no format; `formatKey` is only ever sent when one is picked.
+  const [sources, setSources] = useState<string[]>([]);
+  const [formatKey, setFormatKey] = useState<string | null>(null);
+  const [formatsOpen, setFormatsOpen] = useState(false);
+  const formatsQuery = useQuery(trpc.channels.listFormats.queryOptions());
+  const comparisonQuery = useQuery(trpc.dashboard.comparison.queryOptions());
   // Task 4/E7 — live from options.list (B9), falling back to the static
   // lists in pipeline-options.ts while it loads or on error.
   const { voices: VOICES, visualSources: VISUAL_SOURCES, moodTags: MUSIC_MOODS } = useOptionLists();
@@ -70,6 +78,13 @@ export default function NewBriefScreen() {
   }, []);
 
   const selected = channelById(selectedChannelId);
+  const formats = formatsQuery.data ?? [];
+  const format = formats.find((f) => f.key === formatKey);
+  const chipKeys = chipFormatKeys(
+    formats,
+    comparisonQuery.data?.channels.find((c) => c.channelId === selectedChannelId),
+    formatKey,
+  );
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
   const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
   // R13: the credential exists but Google rejected it; the run would fail at upload, so say so up front (not blocked).
@@ -128,13 +143,20 @@ export default function NewBriefScreen() {
     // zod enums are still the real validation, this just satisfies the
     // client's stricter input type for a value that only ever actually
     // originates from that same server list or its static fallback.
+    const checked = validateSources(sources);
+    if (checked.error) {
+      setError(checked.error);
+      return;
+    }
     createRun.mutate({
       channelId: selectedChannelId,
       briefText: briefText.trim(),
+      ...(checked.sources.length > 0 ? { sources: checked.sources } : {}),
+      ...(format ? { formatKey: format.key as never } : {}),
       ...(voice ? { voice: voice as never } : {}),
       ...(visual !== 'auto' ? { visualSource: visual as never } : {}),
       ...(music ? { audioLayer: music as never } : {}),
-      ...(flags.briefLength && length !== 'auto' ? ({ targetDurationSec: length } as object) : {}),
+      ...(!format && flags.briefLength && length !== 'auto' ? ({ targetDurationSec: length } as object) : {}),
     });
   };
 
@@ -183,6 +205,25 @@ export default function NewBriefScreen() {
         </View>
       )}
 
+      <Text style={styles.label}>Format</Text>
+      <View style={styles.chipRow}>
+        <FormatChip label="Freeform" active={formatKey === null} onPress={() => setFormatKey(null)} />
+        {chipKeys.map((k) => (
+          <FormatChip
+            key={k}
+            label={formats.find((f) => f.key === k)?.label ?? k}
+            active={formatKey === k}
+            onPress={() => setFormatKey(k)}
+          />
+        ))}
+        {formats.length > 0 ? (
+          <FormatChip label="More formats ▾" active={false} onPress={() => setFormatsOpen(true)} />
+        ) : null}
+      </View>
+      <Text style={styles.tip}>
+        {format ? format.scriptStructure : 'Freeform is the default — nothing changes unless you pick a format.'}
+      </Text>
+
       <Text style={styles.label}>What&apos;s the short about?</Text>
       <TextInput
         selectionColor={color.accent}
@@ -192,19 +233,60 @@ export default function NewBriefScreen() {
         onChangeText={setBriefText}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder={'Topic, angle and length — e.g. "30 sec on why octopuses have three hearts"'}
+        placeholder={format?.briefTemplate ?? 'Topic, angle and length — e.g. "30 sec on why octopuses have three hearts"'}
         placeholderTextColor={color.muted}
         multiline
         scrollEnabled
       />
       <Text style={styles.tip}>Tip: the more specific the angle, the better the script.</Text>
 
+      <Text style={styles.label}>
+        Sources <Text style={styles.optionalNote}>· optional</Text>
+      </Text>
+      {sources.map((src, i) => (
+        <View key={i} style={styles.sourceRow}>
+          <Feather name="link" size={16} color={color.muted} />
+          <TextInput
+            style={styles.sourceInput}
+            value={src}
+            onChangeText={(t) => setSources((prev) => prev.map((v, j) => (j === i ? t : v)))}
+            placeholder="https://…"
+            placeholderTextColor={color.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            selectionColor={color.accent}
+            cursorColor={color.accent}
+          />
+          <Pressable
+            onPress={() => setSources((prev) => prev.filter((_, j) => j !== i))}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove source ${i + 1}`}
+          >
+            <Feather name="x" size={20} color={color.muted} />
+          </Pressable>
+        </View>
+      ))}
+      {sources.length < MAX_SOURCES ? (
+        <Pressable onPress={() => setSources((prev) => [...prev, ''])} accessibilityRole="button">
+          <Text style={styles.addSource}>+ Add a source link</Text>
+        </Pressable>
+      ) : null}
+      <Text style={styles.tip}>Shown to you at Gate 1 and credited in the video description.</Text>
+
       <View style={styles.optionsHeader}>
         <Text style={styles.optionsTitle}>Options</Text>
-        <Text style={styles.tip}>{needsYoutube ? 'Available once connected' : 'Channel defaults unless changed'}</Text>
+        <Text style={styles.tip}>
+          {needsYoutube
+            ? 'Available once connected'
+            : format
+              ? `Length: ${format.targetSeconds}s (from format)`
+              : 'Channel defaults unless changed'}
+        </Text>
       </View>
       <View style={needsYoutube ? styles.optionsDimmed : undefined} pointerEvents={needsYoutube ? 'none' : 'auto'}>
-        {flags.briefLength ? (
+        {!format && flags.briefLength ? (
           <>
             <Text style={styles.label}>Length</Text>
             <SegmentedControl
@@ -254,6 +336,13 @@ export default function NewBriefScreen() {
         <Text style={styles.tip}>This channel&apos;s YouTube connection expired. Reconnect it in Channel settings before the run reaches upload.</Text>
       ) : null}
 
+      <FormatSheet
+        visible={formatsOpen}
+        onClose={() => setFormatsOpen(false)}
+        formats={formats}
+        selected={formatKey}
+        onSelect={setFormatKey}
+      />
       <OptionSheet
         visible={voiceOpen}
         onClose={() => setVoiceOpen(false)}
@@ -288,7 +377,47 @@ export default function NewBriefScreen() {
   );
 }
 
+function FormatChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.chip, active && styles.chipActive]}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  chip: {
+    height: 36,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: color.future,
+    maxWidth: '100%',
+  },
+  chipActive: { backgroundColor: color.ink, borderColor: color.ink },
+  chipText: { fontFamily: font.semibold, fontSize: 13, color: color.ink },
+  chipTextActive: { color: color.onAccent, fontFamily: font.black },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: color.future,
+  },
+  sourceInput: { flex: 1, paddingVertical: 10, fontFamily: font.regular, fontSize: 13, color: color.ink },
+  optionalNote: { fontFamily: font.regular, color: color.muted },
+  addSource: { fontFamily: font.black, fontSize: 13, color: color.accentText },
   content: { padding: space.lg, gap: space.sm },
   label: { fontFamily: font.bold, fontSize: 14, color: color.ink, marginTop: space.sm },
   channelField: {

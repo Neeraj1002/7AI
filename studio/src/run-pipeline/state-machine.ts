@@ -23,11 +23,12 @@ import { insertReviewLog, listReviewLogsForRun, updateReviewLogRationale } from 
 import { isCancellationRequested } from './cancellation-registry';
 import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
-import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError } from './retry-with-backoff';
+import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError, NonTransientStageError } from './retry-with-backoff';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
-import { generateScript, ScriptGenerationOutputSchema, type ScriptGenerationOutput } from '../agents/script-generation';
+import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
+import { joinChapterTexts, parseChapterSheet } from '../agents/script-generation/long-form';
 import {
   reviewScript,
   SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD,
@@ -39,13 +40,17 @@ import { loadResolvedConfig } from './resolved-config';
 import { findLikelyRepeatTopic } from './repeat-topic';
 import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
 import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
+import { generateLongVideo } from '../agents/video-generation/long-form';
+import { planLongVideoProduction } from '../agents/video-generation/plan-long';
+import { assertWithinRunLimit } from './run-budget';
+import type { ScriptChapter } from '../agents/script-generation/long-form';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
-import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
+import { type QualityMetrics } from '../agents/video-generation/quality-spec';
 import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
 import { LONG_FORM_DEFAULT_CATEGORY_ID, languageDisplayName } from '../long-form/youtube-meta';
 import { AUDIO_BED_MANIFEST } from '../audio-bed';
@@ -301,6 +306,8 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     bannedOpeners: config.bannedOpeners,
     bannedEndings: config.bannedEndings,
     scriptStructure: config.formatScriptStructure,
+    // Sprint 4 Task 9 (R2): only a long run adds these, so a Short's stage input is unchanged.
+    ...(config.videoKind === 'long' && { videoKind: 'long' as const, sources: run.creationOptions?.sources ?? [] }),
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -389,6 +396,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         bannedOpeners: stageInput.bannedOpeners,
         bannedEndings: stageInput.bannedEndings,
         scriptStructure: stageInput.scriptStructure,
+        ...(config.videoKind === 'long' && { videoKind: 'long' as const, sources: run.creationOptions?.sources ?? [] }),
       });
       await bookCalls(
         calls.map((llm) => ({
@@ -450,7 +458,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       `PipelineRun ${runId} has no completed script_generation output — run script_generation before script_review`,
     );
   }
-  const scriptOutput: ScriptGenerationOutput = ScriptGenerationOutputSchema.parse(scriptGenStage.output);
+  const scriptOutput: ScriptGenerationOutput = ScriptGenerationStoredSchema.parse(scriptGenStage.output);
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -626,7 +634,11 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
       if (gate1AutoApproveStage) {
         await completeStage(
           gate1AutoApproveStage.id,
-          { outcome: 'approve', sanctionedScriptText: scriptOutput.scriptText },
+          {
+            outcome: 'approve',
+            sanctionedScriptText: scriptOutput.scriptText,
+            ...(scriptOutput.chapters && { chapters: scriptOutput.chapters }),
+          },
           tx,
         );
         await insertReviewLog(
@@ -666,11 +678,12 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     throw new Error(`Channel ${run.channelId} not found`);
   }
 
+  const config = await loadResolvedConfig(run, channel);
   const scriptGenStage = await findLatestCompletedAttempt(runId, 'script_generation');
   if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed script_generation output — cannot open Gate 1`);
   }
-  const scriptOutput: ScriptGenerationOutput = ScriptGenerationOutputSchema.parse(scriptGenStage.output);
+  const scriptOutput: ScriptGenerationOutput = ScriptGenerationStoredSchema.parse(scriptGenStage.output);
 
   const reviewLogs = await listReviewLogsForRun(runId);
   const latestReview = [...reviewLogs].reverse().find((log) => log.agent === 'script-review');
@@ -764,7 +777,17 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     // On edit, the edited text — not the original AI output — becomes the
     // sanctioned input for whatever reads gate1's stage output next. The
     // original stays in script_generation's own stage row, never overwritten.
-    const sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
+    // Sprint 4 Task 9 (R2.5): on a long run the edit sheet is "## Title" + text per chapter; it is parsed
+    // back into chapters (runs.gate1 already refused fewer than 3), and the sanctioned text is their
+    // concatenation, as for a script that was never edited.
+    let sanctionedChapters = scriptOutput.chapters;
+    let sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
+    if (outcome.type === 'edit' && config.videoKind === 'long') {
+      const parsed = parseChapterSheet(outcome.editedScriptText);
+      if (!parsed.ok) throw new NonTransientStageError(parsed.message);
+      sanctionedChapters = parsed.chapters;
+      sanctionedScriptText = joinChapterTexts(parsed.chapters);
+    }
 
     return await prisma.$transaction(async (tx) => {
       await insertReviewLog(
@@ -782,7 +805,11 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
         tx,
       );
 
-      await completeStage(stage.id, { outcome: outcome.type, sanctionedScriptText }, tx);
+      await completeStage(
+        stage.id,
+        { outcome: outcome.type, sanctionedScriptText, ...(sanctionedChapters && { chapters: sanctionedChapters }) },
+        tx,
+      );
 
       return await updatePipelineRun(
         runId,
@@ -881,6 +908,23 @@ export async function runVideoGenerationStage(
   // resolveVoice did before.
   const config = await loadResolvedConfig(run, channel);
   const resolvedVoice = config.audioDefaultVoice;
+  // Sprint 4 Task 9: a long run narrates, plans and renders chapter by chapter, with its per-video spend
+  // limit checked between paid calls. A Short takes none of these branches.
+  const isLong = config.videoKind === 'long';
+  const maxCostUsd = run.creationOptions?.maxCostUsd;
+  // Awaited between paid calls. It also honours a Cancel: the runner only looks for one between
+  // stages, and a long video's stage runs for tens of minutes, so without this a cancelled run would
+  // keep paying for stills until the stage ended.
+  const runLimitGuard = isLong
+    ? async () => {
+        if (isCancellationRequested(runId)) throw new NonTransientStageError('Cancelled by user');
+        if (maxCostUsd) await assertWithinRunLimit(runId, maxCostUsd);
+      }
+    : undefined;
+  const sanctionedChapters = isLong ? (gate1Stage.output as { chapters?: ScriptChapter[] }).chapters : undefined;
+  if (isLong && (!sanctionedChapters || sanctionedChapters.length === 0)) {
+    throw new Error(`PipelineRun ${runId} gate1 output has no chapters, cannot render a long-form video`);
+  }
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -894,6 +938,7 @@ export async function runVideoGenerationStage(
     brandAssets: channel.brandAssets,
     fixNotes: fixNotes ?? null,
     resolvedVoice,
+    ...(isLong && { videoKind: 'long' as const }),
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
@@ -928,6 +973,35 @@ export async function runVideoGenerationStage(
   const attemptPlanOnce = async (): Promise<ProductionPlan> => {
     if (testOverrides?.forcedPlan) {
       return testOverrides.forcedPlan;
+    }
+    if (isLong) {
+      // Chapter by chapter; every planner call is booked as it returns.
+      await runLimitGuard?.();
+      const { plan } = await planLongVideoProduction({
+        chapters: sanctionedChapters as ScriptChapter[],
+        topic: run.intakeParsed!.topic,
+        targetSeconds: config.targetSeconds,
+        secondsPerStill: config.visualSecondsPerStill,
+        audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
+        visualStyle: config.visualStylePrompt,
+        scriptGuide: config.scriptGuide,
+        fixNotes: fixNotes ?? undefined,
+        onCall: async (llm) => {
+          await insertUsageEvent({
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'video-production-planning',
+            provider: llm.provider,
+            model: llm.model,
+            inputTokens: llm.usage.inputTokens,
+            outputTokens: llm.usage.outputTokens,
+            costUsd: llm.costUsd,
+          });
+        },
+      });
+      return plan;
     }
     try {
       const { plan, llm } = await planVideoProduction({
@@ -1001,21 +1075,70 @@ export async function runVideoGenerationStage(
       aiVisuals: env.AI_VISUALS_STUB === '1',
     });
     try {
-      const { output, usage, artifacts } = await generateVideo({
-        pipelineRunId: runId,
-        attemptNumber,
-        scriptText: sanctionedScriptText,
-        brandAssets: channel.brandAssets,
-        plan,
-        voice: resolvedVoice,
-        sceneStyle: {
-          stylePrompt: config.visualStylePrompt,
-          negativePrompt: config.visualNegativePrompt,
-          safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
-        },
-        excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
-        spend,
-      });
+      const sceneStyle = {
+        stylePrompt: config.visualStylePrompt,
+        negativePrompt: config.visualNegativePrompt,
+        safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
+      };
+      const bookPaidCall = (fields: {
+        model: string;
+        costUsd: number;
+        characterCount?: number;
+        audioDurationSeconds?: number;
+        metadata: Record<string, unknown>;
+      }) =>
+        insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'video-generation',
+          provider: 'openai',
+          model: fields.model,
+          characterCount: fields.characterCount,
+          audioDurationSeconds: fields.audioDurationSeconds?.toFixed(2),
+          costUsd: fields.costUsd.toFixed(6),
+          metadata: { ...fields.metadata, stubFlags: spend.stubFlags },
+        });
+      const { output, usage, artifacts } = isLong
+        ? await generateLongVideo({
+            pipelineRunId: runId,
+            attemptNumber,
+            chapters: sanctionedChapters as ScriptChapter[],
+            plan,
+            voice: resolvedVoice,
+            sceneStyle,
+            spend,
+            guard: runLimitGuard,
+            weeklyGate: async () => {
+              const refusal = await checkBudget(run.tenantId, channel.id, channel.platform);
+              if (!refusal.ok) throw new NonTransientStageError(`Video Generation stopped: ${describeBudgetRefusal(refusal)}`);
+            },
+            // Narration and stills are booked one call at a time, as they are paid for.
+            onNarrationPaid: async (paid) => {
+              await bookPaidCall({
+                model: paid.transcriptionCostUsd > 0 ? 'whisper-1' : 'tts-1-hd',
+                costUsd: paid.ttsCostUsd + paid.transcriptionCostUsd,
+                characterCount: paid.ttsCharacters || undefined,
+                audioDurationSeconds: paid.transcriptionSeconds || undefined,
+                metadata: { part: paid.transcriptionCostUsd > 0 ? 'transcription' : 'tts', chapterIndex: paid.chapterIndex, chunkIndex: paid.chunkIndex },
+              });
+            },
+            onStillPaid: async (info) => {
+              await bookPaidCall({ model: info.model, costUsd: info.costUsd, metadata: { part: 'still', sceneIndex: info.index } });
+            },
+          })
+        : await generateVideo({
+            pipelineRunId: runId,
+            attemptNumber,
+            scriptText: sanctionedScriptText,
+            brandAssets: channel.brandAssets,
+            plan,
+            voice: resolvedVoice,
+            sceneStyle,
+            excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
+            spend,
+          });
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
@@ -1075,6 +1198,12 @@ export async function runVideoGenerationStage(
       try {
         await uploadToR2({ key: r2Key, filePath: output.videoPath, contentType: 'video/mp4' });
         await patchStageOutput(stage.id, { r2DraftKey: r2Key, r2DraftUploadedAt: new Date().toISOString() });
+        // Sprint 4 Task 9 (R4): the SRT is stored next to the video, under the same prefix.
+        if (output.subtitlesPath) {
+          const srtKey = `videos/${env.NODE_ENV}/drafts/${run.tenantId}/${runId}/${attemptNumber}.srt`;
+          await uploadToR2({ key: srtKey, filePath: output.subtitlesPath, contentType: 'application/x-subrip' });
+          await patchStageOutput(stage.id, { r2SubtitlesKey: srtKey });
+        }
       } catch (error) {
         console.error(
           `[video_generation] run ${runId} attempt ${attemptNumber}: R2 draft upload failed (non-blocking, video_generation itself already succeeded) — ${
@@ -1094,10 +1223,12 @@ export async function runVideoGenerationStage(
             videoPath: output.videoPath,
             captionsEnabled: meta.captionsEnabled,
             visualSource: meta.visualSource,
+            videoKind: isLong ? 'long' : undefined,
           }).catch(() => null);
           const bundle = await uploadAttemptBundle({
             prefix,
-            artifacts: lastArtifacts,
+            // A long video has ~120 stills; the bundle keeps the first few as a sample.
+            artifacts: isLong ? { ...lastArtifacts, stillImagePaths: lastArtifacts.stillImagePaths?.slice(0, 6) } : lastArtifacts,
             scriptText: sanctionedScriptText,
             scratchDir: path.dirname(output.videoPath),
             longForm: config.videoKind === 'long',
@@ -1199,7 +1330,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   const chapterTimings = isLongForm ? readChapterTimings(videoGenStage.output) : undefined;
   const longFormReview = isLongForm
     ? {
-        profile: qualityProfileFor('long', reviewConfig.visualSecondsPerStill),
+        videoKind: 'long' as const,
+        secondsPerStill: reviewConfig.visualSecondsPerStill,
         chapterTimings,
         narrationSeconds: chapterTimings?.[chapterTimings.length - 1]?.endSec,
       }
@@ -1214,7 +1346,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
       captionsEnabled: isLongForm ? false : channel.brandAssets.captionsEnabled !== false,
       safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
-      ...(longFormReview && { longForm: longFormReview }),
+      ...(isLongForm && longFormReview),
     });
 
     // Sprint 4 Task 10 (R3): the Gate 2 preview copy and the subtitle file are made before the run
@@ -1767,7 +1899,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       } else {
         console.warn(`[publishing] run ${runId}: ${list.warning}`);
       }
-      const credits = creditLinesForBeds(bedsUsed(videoGenOutput, AUDIO_BED_MANIFEST));
+      // Task 9 declares `bedCredits` on the output (not filled today); use it when present.
+      const recordedCredits = (videoGenOutput as { bedCredits?: string[] }).bedCredits;
+      const credits = recordedCredits?.length ? recordedCredits : creditLinesForBeds(bedsUsed(videoGenOutput, AUDIO_BED_MANIFEST));
       for (const line of credits) {
         if (!description.includes(line)) description = `${description}\n${line}`;
       }

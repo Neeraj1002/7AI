@@ -104,7 +104,8 @@ export const LONG_FORM_SPEC = {
   height: 1080,
   fps: 30,
   minDurationSec: 120,
-  maxDurationSec: 900,
+  // 15 minutes plus the same 2% slack the narration match allows (the end tail sits on top of it).
+  maxDurationSec: 918,
   narrationToleranceFraction: 0.02,
   // A still may be held up to this many times its planned length before the shot row warns.
   maxShotFactor: 1.5,

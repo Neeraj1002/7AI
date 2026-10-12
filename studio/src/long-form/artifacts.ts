@@ -18,9 +18,10 @@ export function readChapterTimings(output: unknown): ChapterTiming[] | undefined
   return out.length > 0 ? out : undefined;
 }
 
-// Local path of captions.srt: the explicit field, else the file beside the video.
+// Local path of the SRT: Task 9 writes `<attempt>.srt` beside the video and records it as
+// `subtitlesPath` on the video_generation output; the sibling-file fallbacks cover older rows.
 export async function findSrtPath(output: unknown, videoPath: string): Promise<string | undefined> {
-  const explicit = (output as { captionsSrtPath?: unknown } | null | undefined)?.captionsSrtPath;
+  const explicit = (output as { subtitlesPath?: unknown } | null | undefined)?.subtitlesPath;
   const candidates = [
     typeof explicit === 'string' ? explicit : undefined,
     videoPath.replace(/\.mp4$/i, '.srt'),

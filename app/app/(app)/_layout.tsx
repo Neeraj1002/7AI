@@ -28,6 +28,8 @@ export default function AppGroupLayout() {
         <Stack.Screen name="run/[id]" />
         <Stack.Screen name="new-brief" />
         <Stack.Screen name="channel/[id]" />
+        <Stack.Screen name="compare" />
+        <Stack.Screen name="channel/[id]/profile" />
       </Stack>
     </ChannelProvider>
   );

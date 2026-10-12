@@ -40,8 +40,15 @@ export async function prepareLongFormGate2Artifacts(params: {
     try {
       await uploadToR2({ key: `${prefix}.preview.mp4`, filePath: previewPath, contentType: 'video/mp4' });
       result.r2PreviewKey = `${prefix}.preview.mp4`;
-      await uploadToR2({ key: `${prefix}.srt`, filePath: srtPath, contentType: 'application/x-subrip' });
-      result.r2SrtKey = `${prefix}.srt`;
+      // Task 9 already uploads the SRT to the same key and records it as r2SubtitlesKey; only upload
+      // here if that did not happen.
+      const existing = (params.videoGenOutput as { r2SubtitlesKey?: string } | null | undefined)?.r2SubtitlesKey;
+      if (existing) {
+        result.r2SrtKey = existing;
+      } else {
+        await uploadToR2({ key: `${prefix}.srt`, filePath: srtPath, contentType: 'application/x-subrip' });
+        result.r2SrtKey = `${prefix}.srt`;
+      }
     } catch (error) {
       // Same posture as the draft upload: R2 is additive, the local files still serve the app.
       console.error(`[video_review] run ${params.runId}: R2 upload of preview/subtitles failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`);

@@ -57,6 +57,8 @@ export async function deriveLongFormRunFields(params: {
     | { r2FinalKey?: string; subtitlesUploaded?: boolean; subtitlesMessage?: string }
     | undefined;
   const draft = (videoGen?.output as { r2DraftKey?: string } | undefined)?.r2DraftKey;
+  // Task 9 uploads the SRT during video_generation and records its key there.
+  const genSrtKey = (videoGen?.output as { r2SubtitlesKey?: string } | undefined)?.r2SubtitlesKey;
 
   const link = async (r2Key: string | undefined, localPath: string | undefined, route: string) => {
     if (sign && r2Key) return sign(r2Key);
@@ -65,7 +67,7 @@ export async function deriveLongFormRunFields(params: {
 
   const previewUrl = await link(review?.r2PreviewKey, review?.previewPath, 'preview');
   if (previewUrl) out.previewUrl = previewUrl;
-  const subtitlesUrl = await link(review?.r2SrtKey, review?.srtPath, 'subtitles');
+  const subtitlesUrl = await link(review?.r2SrtKey ?? genSrtKey, review?.srtPath ?? (videoGen?.output as { subtitlesPath?: string } | undefined)?.subtitlesPath, 'subtitles');
   if (subtitlesUrl) out.subtitlesUrl = subtitlesUrl;
   const videoKey = publishing?.r2FinalKey ?? draft;
   const videoUrl = await link(videoKey, (videoGen?.output as { videoPath?: string } | undefined)?.videoPath, 'video');

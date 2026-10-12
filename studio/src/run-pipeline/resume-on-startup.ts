@@ -57,6 +57,18 @@ function latestStageTimestamp(stage: PipelineStage): Date {
   return stage.completedAt ?? stage.startedAt ?? stage.createdAt;
 }
 
+// Sprint 4 Task 9 (R5.6): a long-form video_generation stage legitimately runs for tens of minutes
+// (about 24 min of image generation for 10 minutes of video, up to 36 for 15, plus the render), and its
+// stage row is only touched when it starts. With the default 30-minute window a restart in the middle
+// of it would park the run instead of resuming it from the stills cache and finished chapters.
+export const LONG_FORM_RESUME_STALE_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+export function resumeStaleWindowMs(run: Pick<PipelineRun, 'creationOptions'>, stage: Pick<PipelineStage, 'status'>): number {
+  return run.creationOptions?.videoKind === 'long' && stage.status === 'running'
+    ? Math.max(env.RESUME_STALE_WINDOW_MS, LONG_FORM_RESUME_STALE_WINDOW_MS)
+    : env.RESUME_STALE_WINDOW_MS;
+}
+
 function staleAgeMs(stage: PipelineStage): number {
   return Date.now() - latestStageTimestamp(stage).getTime();
 }
@@ -156,9 +168,10 @@ async function resumeOneRun(run: PipelineRun): Promise<void> {
   // human deciding whether the run is actually abandoned or worth a
   // manual `resumer(run.id)` call.
   const ageMs = staleAgeMs(latestStage);
-  if (ageMs > env.RESUME_STALE_WINDOW_MS) {
+  const staleWindowMs = resumeStaleWindowMs(run, latestStage);
+  if (ageMs > staleWindowMs) {
     const ageMinutes = Math.round(ageMs / 60_000);
-    const windowMinutes = Math.round(env.RESUME_STALE_WINDOW_MS / 60_000);
+    const windowMinutes = Math.round(staleWindowMs / 60_000);
     const message = `[stale-resume-skip] latest stage '${latestStage.stageName}' (${latestStage.status}) last changed ${ageMinutes}m ago, past the ${windowMinutes}m staleness window — not re-executed automatically`;
     console.log(`[resume] run ${run.id}: ${message}`);
     await updatePipelineRun(run.id, { status: 'needs_attention', lastError: message });

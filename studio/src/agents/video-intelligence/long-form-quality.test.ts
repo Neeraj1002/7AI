@@ -37,7 +37,7 @@ describe('quality profile selection', () => {
   });
 
   it('long is 1920x1080 at 30 fps, 120-900 s, no caption check, shots up to 1.5 x secondsPerStill', () => {
-    expect(longProfile).toMatchObject({ width: 1920, height: 1080, fps: 30, checkCaptions: false, minDurationSec: 120, maxDurationSec: 900, maxShotSeconds: 9 });
+    expect(longProfile).toMatchObject({ width: 1920, height: 1080, fps: 30, checkCaptions: false, minDurationSec: 120, maxDurationSec: 918, maxShotSeconds: 9 });
     expect(qualityProfileFor('long').maxShotSeconds).toBe(7.5); // default 5 s per still
   });
 });

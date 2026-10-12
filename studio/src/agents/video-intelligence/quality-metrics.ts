@@ -5,6 +5,7 @@ import { env } from '../../config/env';
 import {
   QUALITY_SPEC,
   SHORT_PROFILE,
+  qualityProfileFor,
   type QualityProfile,
   QUALITY_ROW_KEYS,
   type QualityMetrics,
@@ -303,8 +304,11 @@ export async function measureQualityMetrics(params: {
   visualSource?: 'ai-stills' | 'stock-footage';
   // Sprint 4 Task 10: long-form passes its own profile (no caption check, longer shots allowed).
   profile?: QualityProfile;
+  // Task 9 callers pass the kind; the profile is derived from it (secondsPerStill sets the shot allowance).
+  videoKind?: 'short' | 'long';
+  secondsPerStill?: number | null;
 }): Promise<QualityMetrics> {
-  const profile = params.profile ?? SHORT_PROFILE;
+  const profile = params.profile ?? qualityProfileFor(params.videoKind, params.secondsPerStill);
   const probe = await probeStreams(params.videoPath);
   const [loudness, shots, captionsDetected] = await Promise.all([
     probe.audio ? measureLoudness(params.videoPath) : Promise.resolve({ integratedLufs: null, truePeakDb: null }),
