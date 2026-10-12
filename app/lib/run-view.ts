@@ -3,8 +3,15 @@
 // missing field has the fallback the task doc names.
 import { humanizeRunError } from './run-labels';
 import { MUSIC_MOODS, VISUAL_SOURCES, VOICES } from './pipeline-options';
-import type { GateDecisionEntry, ResolvedOptions } from './server-extras';
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
 import type { StatusChipKind } from '../components/StatusChip';
+
+// Sprint 4 Task 12 fields, typed straight from the API (no hand-written copy). Partial so a caller may pass a subset.
+type RunGet = inferRouterOutputs<AppRouter>['runs']['get'];
+export type ResolvedOptions = Partial<NonNullable<RunGet['resolvedOptions']>>;
+export type GateDecisionEntry = Pick<NonNullable<RunGet['gateDecisions']>[number], 'gate' | 'outcome' | 'decidedBy'> &
+  Partial<Pick<NonNullable<RunGet['gateDecisions']>[number], 'privacyStatus'>>;
 
 // ---------- header: chip + title ----------
 
@@ -47,11 +54,9 @@ function labelFor(list: readonly { value: string; label: string }[], value: stri
   return list.find((o) => o.value === value)?.label ?? titleCase(value);
 }
 
-// B3: a resolved value reads as its label, with "(default)" when it came from the channel or platform default.
-const isDefault = (from: string | undefined) => from === 'channel' || from === 'default';
-function resolvedLabel(opt: { label: string; from?: string } | undefined): string | null {
-  if (!opt) return null;
-  return isDefault(opt.from) ? `${opt.label} (default)` : opt.label;
+// B3: a resolved value reads exactly as the server's label (no suffix added); `from` is not shown.
+function resolvedLabel(opt: { label: string } | undefined): string | null {
+  return opt ? opt.label : null;
 }
 
 export function lengthLabel(videoKind: string | undefined, targetSeconds: number | undefined): string {
@@ -76,9 +81,8 @@ export function settingTiles(args: {
     resolvedLabel(resolved?.[r]) ?? (value ? labelFor(labels, value) : CHANNEL_DEFAULT);
 
   const length = lengthLabel(resolved?.videoKind ?? args.videoKind, resolved?.targetSeconds?.value ?? args.targetSeconds);
-  const lengthFrom = resolved?.targetSeconds?.from;
   const tiles: SettingTile[] = [
-    { key: 'length', label: 'Type · length', value: isDefault(lengthFrom) ? `${length} (default)` : length },
+    { key: 'length', label: 'Type · length', value: length },
     { key: 'visuals', label: 'Visuals', value: pick('visualSource', picked?.visualSource, VISUAL_SOURCES) },
     { key: 'voice', label: 'Voice', value: pick('voice', picked?.voice, VOICES) },
     { key: 'music', label: 'Music', value: pick('music', picked?.audioLayer, MUSIC_MOODS) },
@@ -305,7 +309,9 @@ export function endedTitle(endReason: EndReason, rejectedGate: number | undefine
 }
 
 export function spentLine(spentUsd: number | undefined): string {
-  return spentUsd === undefined ? '' : ` Spent on this run: $${spentUsd.toFixed(2)}.`;
+  if (spentUsd === undefined) return '';
+  // 0 means nothing was booked, not that the run was free.
+  return spentUsd === 0 ? ' Nothing booked for this run.' : ` Spent on this run: $${spentUsd.toFixed(2)}.`;
 }
 
 // ---------- "Why didn't it work?" tags ----------

@@ -46,15 +46,15 @@ describe('settings tiles (B3 fallback and resolvedOptions)', () => {
     expect(tiles.find((t) => t.key === 'music')?.value).toBe('Channel default');
     expect(tiles.find((t) => t.key === 'length')?.value).toBe('Shorts · 45 s');
   });
-  it('prefers resolvedOptions and adds "(default)" for channel/default sources', () => {
+  it('shows the server label exactly as sent (no suffix added)', () => {
     const { tiles } = settingTiles({
       ...base,
       creationOptions: null,
       resolved: { voice: { key: 'onyx', label: 'Onyx', from: 'channel' }, music: { label: 'Calm', from: 'run' }, targetSeconds: { value: 60, from: 'default' } },
     });
-    expect(tiles.find((t) => t.key === 'voice')?.value).toBe('Onyx (default)');
+    expect(tiles.find((t) => t.key === 'voice')?.value).toBe('Onyx');
     expect(tiles.find((t) => t.key === 'music')?.value).toBe('Calm');
-    expect(tiles.find((t) => t.key === 'length')?.value).toBe('Shorts · 60 s (default)');
+    expect(tiles.find((t) => t.key === 'length')?.value).toBe('Shorts · 60 s');
   });
   it('formats long videos in minutes and hides the format line when unknown', () => {
     expect(lengthLabel('long', 600)).toBe('Video · 10 min');
@@ -138,6 +138,7 @@ describe('state texts', () => {
   it('shows spend only when the backend sends it', () => {
     expect(spentLine(undefined)).toBe('');
     expect(spentLine(0.4)).toBe(' Spent on this run: $0.40.');
+    expect(spentLine(0)).toBe(' Nothing booked for this run.');
   });
 });
 

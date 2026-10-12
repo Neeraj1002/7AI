@@ -6,9 +6,8 @@
 //
 // Targets come only from `qualityMetrics.spec` (the numbers the server used for this run); absent spec = no target.
 // Sprint 4 FE Task 2 (R6): plain labels (no LUFS / dBTP), and the rows with no plain label go under one collapsed
-// "Technical details" link. Targets are NOT printed: the backend does not send them yet (Task 12 R6 will add
-// `qualityMetrics.spec`), and the app keeps no second copy of the thresholds. A warned row still carries the
-// server's own message, which names its target.
+// 'Technical details' link. Targets come from `qualityMetrics.spec` (Task 12 R6, on main); the app keeps no second copy
+// of the thresholds. A warned row still carries the server's own message.
 
 export type QualityRowStatus = 'ok' | 'warn' | 'fail';
 
