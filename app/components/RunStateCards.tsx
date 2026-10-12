@@ -66,7 +66,7 @@ export function EndedCard({
 }
 
 // `runs.progress` returns `{ stage, attemptNo }` and no percentage or time estimate, so the bar is indeterminate.
-export function InProgressCard({ runId, currentStage }: { runId: string; currentStage: string | null | undefined }) {
+export function InProgressCard({ runId, currentStage, maxCostUsd }: { runId: string; currentStage: string | null | undefined; maxCostUsd?: number }) {
   const trpc = useTRPC();
   const { data } = useQuery(trpc.runs.progress.queryOptions({ runId }, { refetchInterval: 5_000 }));
   const stage = data?.stage ?? currentStage;
@@ -76,7 +76,7 @@ export function InProgressCard({ runId, currentStage }: { runId: string; current
       <Text style={[styles.title, styles.onDark]}>{stagePhrase(stage)}</Text>
       <IndeterminateBar />
       <Text style={styles.darkMeta}>
-        {attempt ? `Attempt ${attempt} · ` : ''}This screen updates on its own.
+        {attempt ? `Attempt ${attempt} · ` : ''}This screen updates on its own.{maxCostUsd !== undefined ? ` Stops at $${maxCostUsd.toFixed(2)}.` : ''}
       </Text>
     </View>
   );

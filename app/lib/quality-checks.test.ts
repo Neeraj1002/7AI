@@ -101,3 +101,14 @@ test('rows without a plain label go to technical, only when the server reports t
   assert.strictEqual(c.technicalWarn, true);
   assert.strictEqual(c.rows.length, 5); // technical rows never leak into the main list
 });
+
+test('targets are printed only from qualityMetrics.spec', () => {
+  assert.ok(parseQualityMetrics(clearRun)!.rows.filter((r) => r.key !== 'captions').every((r) => !r.target));
+  const spec = { loudnessLufs: { target: -14, tolerance: 1 }, truePeakMaxDb: -1, longestShotMaxSec: 4, resolution: { width: 1080, height: 1920 }, fps: 30 };
+  const r = byKey(parseQualityMetrics({ ...clearRun, spec })!);
+  assert.strictEqual(r.loudness.target, 'target −14');
+  assert.strictEqual(r.truePeak.target, '−1 or lower');
+  assert.strictEqual(r.format.target, '1080×1920 · 30 fps');
+  assert.strictEqual(r.longestShot.target, '4 s or less');
+  assert.strictEqual(r.captions.target, 'on');
+});

@@ -24,22 +24,20 @@ export function youtubeNeedsReconnect(channel: unknown): boolean {
 
 // Sprint 4 Frontend Task 2 — fields the backend adds in Sprint 4 Task 12. All optional: each element built on
 // them appears the moment the field is present and falls back to the plain wording until then.
-export type ResolvedOption = { label: string; from?: 'run' | 'format' | 'profile' | 'channel' | 'default' };
-export type ResolvedOptions = Partial<
-  Record<'voice' | 'visualSource' | 'music' | 'targetSeconds' | 'videoKind' | 'formatKey', ResolvedOption>
->;
+export type ResolvedFrom = 'run' | 'format' | 'profile' | 'channel' | 'default' | string;
+export type ResolvedOptions = {
+  voice?: { key: string; label: string; from: ResolvedFrom };
+  visualSource?: { value: string; label: string; from: ResolvedFrom };
+  music?: { label: string; from: ResolvedFrom };
+  targetSeconds?: { value: number; from: ResolvedFrom };
+  videoKind?: 'short' | 'long';
+  /** null = Freeform. */
+  formatKey?: string | null;
+};
 
 export function resolvedOptionsOf(data: unknown): ResolvedOptions | undefined {
   const raw = (data as { resolvedOptions?: unknown } | undefined)?.resolvedOptions;
-  if (!raw || typeof raw !== 'object') return undefined;
-  const out: ResolvedOptions = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    const v = value as { label?: unknown; from?: unknown } | null;
-    if (v && typeof v.label === 'string' && v.label.trim()) {
-      out[key as keyof ResolvedOptions] = { label: v.label, from: typeof v.from === 'string' ? (v.from as ResolvedOption['from']) : undefined };
-    }
-  }
-  return out;
+  return raw && typeof raw === 'object' ? (raw as ResolvedOptions) : undefined;
 }
 
 export type GateDecisionEntry = {
@@ -49,7 +47,7 @@ export type GateDecisionEntry = {
   privacyStatus?: string;
 };
 
-/** Oldest first, as the backend sends them. Undefined while the backend field does not exist. */
+/** Oldest first, as the backend sends them. Undefined on runs that predate the field. */
 export function gateDecisionsOf(data: unknown): GateDecisionEntry[] | undefined {
   const raw = (data as { gateDecisions?: unknown } | undefined)?.gateDecisions;
   if (!Array.isArray(raw)) return undefined;
@@ -59,7 +57,12 @@ export function gateDecisionsOf(data: unknown): GateDecisionEntry[] | undefined 
   );
 }
 
-/** USD spent on the run; undefined (never 0) while the backend does not send it. */
+/** USD spent on the run (all attempts). */
+export function maxCostUsdOf(data: unknown): number | undefined {
+  const v = (data as { maxCostUsd?: unknown } | undefined)?.maxCostUsd;
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
+
 export function spentUsdOf(data: unknown): number | undefined {
   const v = (data as { spentUsd?: unknown } | undefined)?.spentUsd;
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;

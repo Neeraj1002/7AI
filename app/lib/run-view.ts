@@ -48,9 +48,10 @@ function labelFor(list: readonly { value: string; label: string }[], value: stri
 }
 
 // B3: a resolved value reads as its label, with "(default)" when it came from the channel or platform default.
-function resolvedLabel(opt: ResolvedOptions[keyof ResolvedOptions]): string | null {
+const isDefault = (from: string | undefined) => from === 'channel' || from === 'default';
+function resolvedLabel(opt: { label: string; from?: string } | undefined): string | null {
   if (!opt) return null;
-  return opt.from === 'channel' || opt.from === 'default' ? `${opt.label} (default)` : opt.label;
+  return isDefault(opt.from) ? `${opt.label} (default)` : opt.label;
 }
 
 export function lengthLabel(videoKind: string | undefined, targetSeconds: number | undefined): string {
@@ -71,18 +72,20 @@ export function settingTiles(args: {
 }): { tiles: SettingTile[]; formatLine: string | null } {
   const { creationOptions: picked, resolved } = args;
   const CHANNEL_DEFAULT = 'Channel default';
-  const pick = (r: keyof ResolvedOptions, value: string | undefined, labels: readonly { value: string; label: string }[]) =>
+  const pick = (r: 'voice' | 'visualSource' | 'music', value: string | undefined, labels: readonly { value: string; label: string }[]) =>
     resolvedLabel(resolved?.[r]) ?? (value ? labelFor(labels, value) : CHANNEL_DEFAULT);
 
-  const length = lengthLabel(args.videoKind, args.targetSeconds);
+  const length = lengthLabel(resolved?.videoKind ?? args.videoKind, resolved?.targetSeconds?.value ?? args.targetSeconds);
   const lengthFrom = resolved?.targetSeconds?.from;
   const tiles: SettingTile[] = [
-    { key: 'length', label: 'Type · length', value: lengthFrom === 'channel' || lengthFrom === 'default' ? `${length} (default)` : length },
+    { key: 'length', label: 'Type · length', value: isDefault(lengthFrom) ? `${length} (default)` : length },
     { key: 'visuals', label: 'Visuals', value: pick('visualSource', picked?.visualSource, VISUAL_SOURCES) },
     { key: 'voice', label: 'Voice', value: pick('voice', picked?.voice, VOICES) },
     { key: 'music', label: 'Music', value: pick('music', picked?.audioLayer, MUSIC_MOODS) },
   ];
-  const format = resolvedLabel(resolved?.formatKey) ?? (picked?.formatKey ? titleCase(picked.formatKey) : null);
+  // The response carries the format key only (null = Freeform), so the key is made readable here.
+  const key = resolved && 'formatKey' in resolved ? resolved.formatKey : picked?.formatKey;
+  const format = resolved && key === null ? 'Freeform' : key ? titleCase(key) : null;
   return { tiles, formatLine: format ? `Format: ${format}` : null };
 }
 

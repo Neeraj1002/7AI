@@ -10,7 +10,7 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
-import { gateDecisionsOf, manualRetryOf, resolvedOptionsOf, spentUsdOf, videoFallbackUsed } from '../../../lib/server-extras';
+import { gateDecisionsOf, manualRetryOf, maxCostUsdOf, resolvedOptionsOf, spentUsdOf, videoFallbackUsed } from '../../../lib/server-extras';
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, humanizeRunError, relativeTime, runTopic, stageLabel, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
 import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
@@ -589,7 +589,7 @@ export default function RunDetailScreen() {
         />
       ) : null}
 
-      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} /> : null}
+      {isRunningOrPending && !isRevising ? <InProgressCard runId={run.id} currentStage={run.currentStage} maxCostUsd={maxCostUsdOf(data)} /> : null}
 
       {isPublished ? (
         <>

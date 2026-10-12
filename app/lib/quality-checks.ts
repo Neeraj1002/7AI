@@ -4,6 +4,7 @@
 // reads text to decide a colour. The only two things it shows without a `rows` entry are the resolution/fps
 // line (hard-gated server-side, so a run at Gate 2 already passed it) and "No audio" (red).
 //
+// Targets come only from `qualityMetrics.spec` (the numbers the server used for this run); absent spec = no target.
 // Sprint 4 FE Task 2 (R6): plain labels (no LUFS / dBTP), and the rows with no plain label go under one collapsed
 // "Technical details" link. Targets are NOT printed: the backend does not send them yet (Task 12 R6 will add
 // `qualityMetrics.spec`), and the app keeps no second copy of the thresholds. A warned row still carries the
@@ -27,6 +28,8 @@ export type QualityRow = {
   label: string;
   value: string;
   status: QualityRowStatus;
+  /** Target text printed from `qualityMetrics.spec`; null when the response has no spec. */
+  target?: string | null;
   /** The server's own explanation, set only on a warned row. */
   message: string | null;
 };
@@ -70,6 +73,20 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
   const longest = num(m.longestShotSeconds);
   const hasAudio = m.hasAudio !== false;
 
+  const spec = (m.spec && typeof m.spec === 'object' ? m.spec : null) as Record<string, unknown> | null;
+  const specNum = (v: unknown) => num(v);
+  const loud = spec?.loudnessLufs as { target?: unknown } | undefined;
+  const res = spec?.resolution as { width?: unknown; height?: unknown } | undefined;
+  const targets = {
+    loudness: specNum(loud?.target) !== null ? `target ${trim(loud!.target as number, 0)}` : null,
+    truePeak: specNum(spec?.truePeakMaxDb) !== null ? `${trim(spec!.truePeakMaxDb as number, 1)} or lower` : null,
+    format:
+      specNum(res?.width) !== null && specNum(res?.height) !== null && specNum(spec?.fps) !== null
+        ? `${trim(res!.width as number, 0)}×${trim(res!.height as number, 0)} · ${trim(spec!.fps as number, 0)} fps`
+        : null,
+    longestShot: specNum(spec?.longestShotMaxSec) !== null ? `${trim(spec!.longestShotMaxSec as number, 0)} s or less` : null,
+    captions: m.captionsExpected === true ? 'on' : null,
+  };
   const out: QualityRow[] = [];
   const flagged = (key: string): Pick<QualityRow, 'status' | 'message'> => {
     const r = serverRow(m.rows, key);
@@ -129,5 +146,6 @@ export function parseQualityMetrics(metrics: unknown): QualityChecks | null {
   tech('audioBitrate', 'Audio bitrate', bitrate !== null ? `${trim(bitrate, 0)} kbps` : null);
   tech('shotCount', 'Shot count', shots !== null ? trim(shots, 0) : null);
 
+  for (const r of out) r.target = (targets as Record<string, string | null>)[r.key] ?? null;
   return out.length || technical.length ? { rows: out, technical, technicalWarn: technical.some((r) => r.status === 'warn') } : null;
 }

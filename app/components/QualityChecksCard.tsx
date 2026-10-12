@@ -20,7 +20,10 @@ function CheckRow({ row }: { row: QualityRow }) {
           <Text style={styles.badgeGlyph}>{badge.glyph}</Text>
         </View>
         <Text style={styles.label}>{row.label}</Text>
-        <Text style={[styles.value, { color: badge.fg }]}>{row.value}</Text>
+        <View style={styles.valueCol}>
+          <Text style={[styles.value, { color: badge.fg }]}>{row.value}</Text>
+          {row.target ? <Text style={styles.target}>{row.target}</Text> : null}
+        </View>
       </View>
       {row.message ? <Text style={styles.message}>{row.message}</Text> : null}
     </View>
@@ -72,6 +75,8 @@ const styles = StyleSheet.create({
   badge: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   badgeGlyph: { fontFamily: font.black, fontSize: 12, color: color.onAccent },
   label: { flex: 1, fontFamily: font.regular, fontSize: 14, color: color.ink },
+  valueCol: { alignItems: 'flex-end' },
+  target: { fontFamily: font.regular, fontSize: 11, color: color.muted },
   value: { fontFamily: font.bold, fontSize: 13 },
   techLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: color.border },
   techLinkText: { fontFamily: font.black, fontSize: 13, color: color.accent },

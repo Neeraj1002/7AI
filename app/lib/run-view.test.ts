@@ -50,15 +50,17 @@ describe('settings tiles (B3 fallback and resolvedOptions)', () => {
     const { tiles } = settingTiles({
       ...base,
       creationOptions: null,
-      resolved: { voice: { label: 'Onyx', from: 'channel' }, music: { label: 'Calm', from: 'run' } },
+      resolved: { voice: { key: 'onyx', label: 'Onyx', from: 'channel' }, music: { label: 'Calm', from: 'run' }, targetSeconds: { value: 60, from: 'default' } },
     });
     expect(tiles.find((t) => t.key === 'voice')?.value).toBe('Onyx (default)');
     expect(tiles.find((t) => t.key === 'music')?.value).toBe('Calm');
+    expect(tiles.find((t) => t.key === 'length')?.value).toBe('Shorts · 60 s (default)');
   });
   it('formats long videos in minutes and hides the format line when unknown', () => {
     expect(lengthLabel('long', 600)).toBe('Video · 10 min');
     expect(lengthLabel('short', 30)).toBe('Shorts · 30 s');
     expect(settingTiles({ ...base, creationOptions: null, resolved: undefined }).formatLine).toBeNull();
+    expect(settingTiles({ ...base, creationOptions: null, resolved: { formatKey: null } }).formatLine).toBe('Format: Freeform');
     expect(settingTiles({ ...base, creationOptions: { formatKey: 'true_story' }, resolved: undefined }).formatLine).toBe('Format: True Story');
   });
 });

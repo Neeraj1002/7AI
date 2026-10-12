@@ -9,7 +9,7 @@
 | `SPRINT4_FE_N1_RUN` | R1, R2, R5, R6 | `R1`, `R2`, `R5`, `R6` |
 | `SPRINT4_FE_N1_LISTS` | R3, R4 | `R3`, `R4` |
 
-Neither branch is pushed and no PR is open. Both are independent; `LISTS` carries its own copy of the small `StatusChip` "error" kind (same lines as `RUN`, so they merge without conflict). This report is on the `RUN` branch and covers both.
+Both branches are rebased on `main` and have a PR open. They are independent; `LISTS` carries its own copy of the small `StatusChip` "error" kind (same lines as `RUN`, so they merge without conflict). This report is on the `RUN` branch and covers both.
 
 **Checks run (each branch)**
 - `cd app && npx tsc --noEmit`: no errors in `app/`. Two errors remain in `studio/src/storage/r2-client.ts` (`@aws-sdk/*` not installed in this worktree). Not from this change.
@@ -110,19 +110,22 @@ Built — awaiting screenshot (board `N_S4RunGate2Quality`).
 - Inbox: the board's Published row shows the privacy word ("Unlisted"). The list row has no privacy, so it reads "Published".
 - The video-review step is not its own row in the board's step history; its failed attempts remain visible in Details.
 
-## Fallbacks in use (rows of the Data table)
+## Fallbacks in use — updated after #53, #73 and #74 landed on main
+
+Rebased onto `main`. Every field now comes from the real response (shapes from `task12.md`):
 
 | Item | State | What the app does |
 |---|---|---|
-| B2 per-row quality flag | on `main` | Used. Colour from `warn` only. |
-| B3 settings the run used | missing | Tiles show the picked value or "Channel default". Reads `resolvedOptions` the moment it appears (label, plus "(default)" when `from` is `channel` or `default`). Format line shows the picked `formatKey` made readable (the response has no format label); hidden if none. |
-| B4 gate decisions | missing | "Gate 1 · Done" style, no "by you". The latest gate (from `lastGateDecision`) reads "Approved" / "Edited and approved" without "by you". Reads `gateDecisions` when it appears. |
-| B5 spend per run | missing | Spent sentence dropped. Shows when `spentUsd` appears. |
-| Quality targets (`qualityMetrics.spec`) | missing | Label and measured value only. **Not wired when the field appears**: its shape is not on `main` or in any doc I could read, and guessing it would break "never build against an unmerged backend branch". When Task 12 R6 merges this is a small follow-up in `lib/quality-checks.ts`. |
+| B2 per-row quality flag | on `main` | Colour from `warn` only. |
+| B3 `resolvedOptions` | **wired** | Voice, visuals and music tiles show the resolved label, plus "(default)" when `from` is `channel` or `default`. Length uses `targetSeconds.value`. Format line: the key made readable, "Freeform" when `formatKey` is null (the response has no format label). The old "Channel default" fallback now shows only on runs that predate the field. |
+| B4 `gateDecisions` | **wired** | "Approved by you" / "Edited and approved" / "Auto-approved" / "Rejected by you". Runs that predate the field keep "Done". |
+| B5 `spentUsd` | **wired** | Ended card shows "Spent on this run: $x." |
+| `maxCostUsd` | **wired** | In-progress card adds "Stops at $X." when the run has a limit. |
+| `qualityMetrics.spec` | **wired** | Targets print under each value: "target −14", "−1 or lower", "1080×1920 · 30 fps", "4 s or less", "on" (captions, when expected). Without `spec` no target is printed. The long-video Length row stays in Frontend Task 4. |
 
 ## Decisions for the founder
 
-1. The Inbox has no inline approve/reject any more (see R3). Say if you want it back on the cards.
+1. Inbox: kept as the board shows it (button opens the Run screen; no inline approve/reject) — confirmed by the founder.
 2. Rejected runs only appear under "All" in Recent runs (the board has four chips).
 3. The Queue now fetches ended runs on open.
 
