@@ -37,6 +37,8 @@ export type LongFormUrls = {
   subtitlesUrl?: string;
   subtitlesUploaded?: boolean;
   subtitlesMessage?: string;
+  // Set when the chapter list cannot meet YouTube's rules (the video publishes without it).
+  chapterWarning?: string;
   chapters?: { title: string; text?: string; startSec?: number }[];
 };
 
@@ -51,7 +53,7 @@ export async function deriveLongFormRunFields(params: {
   const out: LongFormUrls = {};
   const videoGen = latestCompleted(stages, 'video_generation');
   const review = latestCompleted(stages, 'video_review')?.output as
-    | { previewPath?: string; srtPath?: string; r2PreviewKey?: string; r2SrtKey?: string }
+    | { previewPath?: string; srtPath?: string; r2PreviewKey?: string; r2SrtKey?: string; chapterWarning?: string }
     | undefined;
   const publishing = latestCompleted(stages, 'publishing')?.output as
     | { r2FinalKey?: string; subtitlesUploaded?: boolean; subtitlesMessage?: string }
@@ -73,6 +75,7 @@ export async function deriveLongFormRunFields(params: {
   const videoUrl = await link(videoKey, (videoGen?.output as { videoPath?: string } | undefined)?.videoPath, 'video');
   if (videoUrl) out.videoUrl = videoUrl;
 
+  if (review?.chapterWarning) out.chapterWarning = review.chapterWarning;
   if (publishing && typeof publishing.subtitlesUploaded === 'boolean') {
     out.subtitlesUploaded = publishing.subtitlesUploaded;
     if (!publishing.subtitlesUploaded && publishing.subtitlesMessage) out.subtitlesMessage = publishing.subtitlesMessage;

@@ -1,9 +1,9 @@
 # Sprint 4 Task 10: Long-Form Video Quality, Preview and Publishing (Backend)
 
 **Date**: 2026-10-11
-**Status**: Code complete and unit-tested. The real end-to-end check on the dev database is **not done**: it needs Task 9 PR B (the 2-minute long render with `chapterTimings` and `captions.srt`), which had not merged. A synthetic 1920x1080 file was used for the parts that do not need PR B (see "Real checks").
-**Branch**: `SPRINT4_TASK10_BE` (worktree `D:\Study Material\7AI-SPRINT4_TASK10_BE`), cut from `main` at `d732ca4` (Task 9 PR A merged).
-**Tests**: `npm run build`, `npm run lint`, `npm run typecheck` clean; `npx vitest run`: 82 files passed, 581 tests passed (9 files / 49 tests skipped, the DB-backed ones). New: `long-form/long-form.test.ts`, `agents/video-intelligence/long-form-quality.test.ts`, three added cases in `dashboard-comparison.test.ts`.
+**Status**: Complete. Merged with `main` after Task 9 PR B (#69); the real check ran on the dev database against Task 9's 2-minute run `d88d50b8-ad08-48c0-8725-d312b20aeba8` (see "Real checks").
+**Branch**: `SPRINT4_TASK10_BE` (worktree `D:\Study Material\7AI-SPRINT4_TASK10_BE`), originally cut from `main` at `d732ca4`, now merged with `555f0b1`.
+**Tests**: `npm run build`, `npm run lint`, `npm run typecheck` clean; `npx vitest run`: 92 files passed, 649 tests passed (9 files / 49 tests skipped, the DB-backed ones).
 
 ## What was done
 
@@ -38,27 +38,36 @@
 - The Analytics API also needs `yt-analytics.readonly`, which the connect request still does **not** ask for (pre-existing; the retention curve has the same dependency). Without it the long-form metrics stay null and the snapshot still records the counts. Decision for the founder: add that scope to the same one-time reconnect.
 - Channel allowed to upload videos over 15 minutes: the channel was confirmed `longUploadsStatus: "eligible"` (phone-verified) in Sprint 2 Task 5; no code checks it because the target tops out at 15 minutes.
 
-## Real checks
+## Real checks (dev database, Task 9 run d88d50b8, 2-minute "chaptered-explainer", Eiffel Tower)
 
-PR B was not available, so there was no Task 9 two-minute video. On a synthetic 2-minute 1920x1080, 30 fps file (test pattern, -14 LUFS) on this machine with the real ffmpeg:
+The run was at `paused_gate2`; `runVideoReviewStage` was run on it once (a new `video_review` attempt, back to `paused_gate2`; the server was not started, so no other run resumed).
 
 | Check | Result |
 | --- | --- |
-| `measureQualityMetrics` with the long profile | 4.8 s; -13.9 LUFS, 1920x1080, 30 fps, h264 High yuv420p; no captions row; hard check `null` (pass) |
-| Rows | `audioBitrate` warned (138 kbps, the synthetic sine encodes small) and `longestShot` warned (a test pattern is one "shot", 120 s over 7.5 s); both carry `warn: true` and a message |
-| Preview copy | 1280x720, 30 fps, h264 1.50 Mbps, aac 96 kbps; **23.0 MB for 2 minutes**, 28.6 s to make (about 4x real time) |
-| Chapter list | `00:00 Cold open` / `0:30 The question` / `1:10 The answer` appended after the description |
+| Verdict | pass; 4 frames sent to the model, one inside each chapter (Task 9's old review sent 3 spread frames); review plus preview took 43.7 s |
+| Video | 1920x1080, 30 fps (avg 30.0001), h264 High yuv420p, 107.4 s against 106.66 s of narration (0.7%), -14.0 LUFS, true peak -1.2 dBTP, aac 48 kHz 193 kbps |
+| Quality rows | all `warn: false` except `longestShot`: `warn: true`, "Longest single shot is 8.4s (spec: <= 7.5s)". No `captions` row. A soft warning only; it does not block |
+| Preview copy | 1280x720, 30 fps, 16.3 MB for 107 s (17.07 MB file). At that rate a 10-minute preview is about 91 MB, under the 110 MB target, so the preview bitrate was **not** lowered |
+| `runs.get` | `videoKind: long`, `targetSeconds: 120`, signed R2 `previewUrl`, `videoUrl`, `subtitlesUrl`; `chapters` with `startSec` 0 / 30.298 / 60.092 / 79.494 (and script `text`); `qualityMetrics.rows`. `subtitlesUploaded` and `subtitlesMessage` absent (not published) |
+| Description (real metadata call plus the real assembly code) | a generated 3-sentence summary, then a blank line and `00:00 Why Build It` / `0:30 How It Went Up` / `1:00 Why It Was Almost Lost` / `1:19 Why It Stayed`; chapter list included; no `#shorts`; no music line (the inspirational bed's license says no attribution required) |
 
-Preview size: the test pattern is worst-case motion and sits at the bitrate cap, so 10 minutes would be about 115 MB (cap: 1.6 Mbps x 600 s = 120 MB). The spec target of "about 110 MB or less" is therefore met only if real still-image content encodes under the cap, which it normally does (low motion); **to be re-measured on the real 2-minute video** and, if over, lower the video bitrate in `PREVIEW_SPEC`. Not measured: Gate 2 playback on a phone, the real description on a published video, the real `captions.insert` call (needs the reconnect), the long-form review LLM calls.
+Found by the real run: a 2-minute video measured 107.4 s, which the first-build 120 s minimum would have hard-blocked. The minimum is now 96 s (see Deviations).
+Not done: the actual `videos.insert` and `captions.insert` to YouTube (this is a private test video and the channel has not been reconnected for `youtube.force-ssl`), and playback on a phone.
 
-## Assumed Task 9 shapes (tell the Task 9 agent / architect)
+## Task 9 shapes: assumed versus confirmed in code
 
-Everything reads defensively and returns "absent" if a field is missing. Please confirm or adjust these when PR B lands:
-1. `video_generation` output carries `chapterTimings: { title, startSec, endSec }[]` (as the task text says).
-2. `captions.srt` is on disk as `output.captionsSrtPath`, else `<video>.srt`, else `captions.srt` beside the video. If it is not found a long run fails `video_review` loudly.
-3. Optional: `output.audioBeds` (labels or file paths of the beds used). Without it the music credits fall back to every manifest track of the plan's mood (over-credit, never under-credit). The attribution rule reads the manifest `license` text ("no attribution required" means none); a bed whose license says attribution is required gets a `Music: <label>` line.
-4. `scriptOutput.lengthOutOfRange` (R2.3) is read if present.
-5. The bundle upload in `runVideoGenerationStage` now passes `longForm: config.videoKind === 'long'`; if PR B restructures that call, keep the flag.
+| Assumed | In Task 9's code | Action |
+| --- | --- | --- |
+| `video_generation.output.chapterTimings: {title,startSec,endSec}[]` | **Confirmed** (`agents/video-generation/index.ts`, set by `long-form.ts` from `long-narration.ts`) | none |
+| SRT path at `output.captionsSrtPath`, else beside the video | **Different**: the field is `subtitlesPath` (`<attempt>.srt` beside the video), and Task 9 uploads it to R2 as `<attempt>.srt`, recorded as `output.r2SubtitlesKey` | reads `subtitlesPath` first; reuses `r2SubtitlesKey` for `subtitlesUrl` and does not upload the SRT a second time |
+| `output.audioBeds` lists the beds used | **Does not exist.** The schema declares `bedCredits?: string[]` but nothing fills it; the render chains every track of the plan's mood (`pickAudioBedTracks`) and the manifest has an `attribution` credit text for tracks that need one | credits use `bedCredits` if present, else every manifest track of the plan's mood whose license requires attribution, written as its `attribution` text (over-credits if the video ended before the last track, never under-credits) |
+| `scriptOutput.lengthOutOfRange` | read if present | none |
+
+## Fields the later work (Task 12 PR B) reads
+
+- Chapter warning: `video_review` stage output `chapterWarning` (string, present only when a long video cannot get a chapter list), returned on `runs.get` as `chapterWarning`, and shown as a `Warning:` line in the Gate 2 message. Same text, one function (`buildChapterList`).
+- Quality rows: `runs.get.qualityMetrics.rows.<row>` = `{ warn: boolean, message: string | null }` with the same row keys as Shorts (`loudness`, `truePeak`, `videoCodec`, `videoProfile`, `pixelFormat`, `audioSampleRate`, `audioBitrate`, `longestShot`, `shotCount`; `captions` is absent for a long video). Also `qualityMetrics.softWarnings`.
+- Other long-form fields on `runs.get`: `previewUrl`, `videoUrl`, `subtitlesUrl`, `subtitlesUploaded`, `subtitlesMessage`, `chapters[].startSec`.
 
 ## Deviations and open items
 
@@ -68,4 +77,7 @@ Everything reads defensively and returns "absent" if a field is missing. Please 
 - The preview is made in `video_review` (not `video_generation`) so a preview failure retries the cheap stage, not the 15 to 25 minute render. If the run is rejected on review the preview is simply not made.
 - Existing published Shorts and runs: no change; `scripts/youtube-oauth.ts` (the old terminal flow) was not touched and does not request `force-ssl`.
 - R7 (regenerate only flagged scenes) was not built.
+- **Minimum duration is 96 s and maximum 918 s** (the task said 120 to 900): a 2-minute script is allowed 20% either way and the real run was 107.4 s; 918 is 15 minutes plus the 2% slack.
+- Task 9 PR B's long debug bundle kept a sample of 6 stills; this task's `longForm` flag keeps only transcript, plan, ffmpeg args and script (R3.3). The preview and SRT are stored beside the draft instead.
+- The `yt-analytics.readonly` permission is still not requested (the founder has not said yes); each channel needs one reconnect for `youtube.force-ssl`.
 - Schema: one small migration (`longFormMetrics`). `videoKind` is read from `creationOptions`, not duplicated.

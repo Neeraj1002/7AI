@@ -54,7 +54,8 @@ import { type QualityMetrics } from '../agents/video-generation/quality-spec';
 import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
 import { LONG_FORM_DEFAULT_CATEGORY_ID, languageDisplayName } from '../long-form/youtube-meta';
 import { AUDIO_BED_MANIFEST } from '../audio-bed';
-import { buildChapterList, appendChapterList, stripShortsFromTags, stripShortsTag } from '../long-form/chapters';
+import { buildChapterList } from '../long-form/chapters';
+import { assembleLongFormMetadata } from '../long-form/metadata';
 import { creditLinesForBeds, bedsUsed } from '../long-form/credits';
 import { prepareLongFormGate2Artifacts } from '../long-form/gate2-artifacts';
 import {
@@ -1459,6 +1460,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
           rationale: outcome.rationale,
           ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
           ...(longFormArtifacts && longFormArtifacts),
+          // Named field: why this long video will publish without a chapter list (also shown at Gate 2).
+          ...(isLongForm && (() => { const l = buildChapterList(chapterTimings); return l.ok ? {} : { chapterWarning: l.warning }; })()),
         },
         tx,
       );
@@ -1891,26 +1894,16 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     let metadata = generatedMetadata;
     let chapterListIncluded = false;
     if (isLongForm) {
-      let description = stripShortsTag(generatedMetadata.description);
-      const list = buildChapterList(chapterTimings);
-      if (list.ok) {
-        description = appendChapterList(description, list.text);
-        chapterListIncluded = true;
-      } else {
-        console.warn(`[publishing] run ${runId}: ${list.warning}`);
-      }
       // Task 9 declares `bedCredits` on the output (not filled today); use it when present.
       const recordedCredits = (videoGenOutput as { bedCredits?: string[] }).bedCredits;
-      const credits = recordedCredits?.length ? recordedCredits : creditLinesForBeds(bedsUsed(videoGenOutput, AUDIO_BED_MANIFEST));
-      for (const line of credits) {
-        if (!description.includes(line)) description = `${description}\n${line}`;
-      }
-      metadata = {
-        ...generatedMetadata,
-        title: stripShortsTag(generatedMetadata.title) || generatedMetadata.title,
-        description,
-        tags: stripShortsFromTags(generatedMetadata.tags),
-      };
+      const assembled = assembleLongFormMetadata({
+        generated: generatedMetadata,
+        chapterTimings,
+        creditLines: recordedCredits?.length ? recordedCredits : creditLinesForBeds(bedsUsed(videoGenOutput, AUDIO_BED_MANIFEST)),
+      });
+      metadata = assembled.metadata;
+      chapterListIncluded = assembled.chapterListIncluded;
+      if (assembled.chapterWarning) console.warn(`[publishing] run ${runId}: ${assembled.chapterWarning}`);
     }
 
     // Long-form defaults to Education (27) when the channel profile sets no category.

@@ -179,3 +179,42 @@ describe('runs.get long-form fields', () => {
     expect(readChapterTimings({})).toBeUndefined();
   });
 });
+
+describe('assembleLongFormMetadata', () => {
+  const generated = { title: 'A title #shorts', description: 'About it. #Shorts', tags: ['history', 'shorts'], coverFrameTimestampRatio: 0.4 };
+
+  it('adds the chapter list and credits and strips #shorts', async () => {
+    const { assembleLongFormMetadata } = await import('./metadata');
+    const out = assembleLongFormMetadata({ generated, chapterTimings: good, creditLines: ['Music: B'] });
+    expect(out.chapterListIncluded).toBe(true);
+    expect(out.metadata.title).toBe('A title');
+    expect(out.metadata.tags).toEqual(['history']);
+    expect(out.metadata.description).not.toMatch(/shorts/i);
+    expect(out.metadata.description.split('\n').slice(-5)).toEqual([
+      '00:00 Cold open',
+      '0:45 Why it happens',
+      '3:10 What it means',
+      '6:40 Closing',
+      'Music: B',
+    ]);
+  });
+
+  it('publishes without the list and says why when the chapters break a rule', async () => {
+    const { assembleLongFormMetadata } = await import('./metadata');
+    const out = assembleLongFormMetadata({ generated, chapterTimings: good.slice(0, 2), creditLines: [] });
+    expect(out.chapterListIncluded).toBe(false);
+    expect(out.chapterWarning).toMatch(/at least 3 chapters/);
+    expect(out.metadata.description).not.toContain('00:00');
+  });
+});
+
+describe('runs.get chapterWarning', () => {
+  it('is returned from the review stage output', async () => {
+    const out = await deriveLongFormRunFields({
+      runId: 'r',
+      stages: [{ stageName: 'video_review', status: 'completed', attemptNumber: 1, output: { chapterWarning: 'Chapter list left out: x' } }],
+      scriptChapters: undefined,
+    });
+    expect(out.chapterWarning).toBe('Chapter list left out: x');
+  });
+});

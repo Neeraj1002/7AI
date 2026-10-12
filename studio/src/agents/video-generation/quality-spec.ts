@@ -103,7 +103,9 @@ export const LONG_FORM_SPEC = {
   width: 1920,
   height: 1080,
   fps: 30,
-  minDurationSec: 120,
+  // A 2-minute target is scripted within +/-20% of its word count, so the shortest legitimate video is
+  // 96 s (the real 2-minute run measured 107.4 s). Anything under that is a broken render.
+  minDurationSec: 96,
   // 15 minutes plus the same 2% slack the narration match allows (the end tail sits on top of it).
   maxDurationSec: 918,
   narrationToleranceFraction: 0.02,
