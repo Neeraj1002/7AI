@@ -2,6 +2,8 @@
 // The form holds strings only; a blank field is "leave blank to use the default" and is omitted from the data.
 // Validation is the server's (Zod): its error is parsed back onto the matching field, nothing is re-implemented here.
 
+import { shortDate } from './formats';
+
 export type ProfileForm = {
   offeredFormatKeys: string[]; // formats this channel uses (New brief offers these plus Freeform); [] = none
   guide: string;
@@ -201,23 +203,12 @@ export function formsEqual(a: ProfileForm, b: ProfileForm): boolean {
   });
 }
 
-// "v3 · script, visuals, audio, packaging" — only sections that hold something.
-export function profileSummary(version: number, raw: unknown): string {
-  const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const parts = (
-    [
-      ['script', 'script'],
-      ['visual', 'visuals'],
-      ['audio', 'audio'],
-      ['packaging', 'packaging'],
-    ] as const
-  )
-    .filter(([key]) => {
-      const section = d[key];
-      return section && typeof section === 'object' && Object.keys(section as object).length > 0;
-    })
-    .map(([, label]) => label);
-  return parts.length ? `v${version} · ${parts.join(', ')}` : `v${version}`;
+// Channel settings row, board N_S4ChannelSettingsEntry: "v3 · 3 formats · saved 6 Oct".
+export function profileEntrySummary(version: number, raw: unknown, createdAt: string | Date): string {
+  const offered = (raw as { offeredFormatKeys?: unknown } | null)?.offeredFormatKeys;
+  const k = Array.isArray(offered) ? offered.length : 0; // no field = none
+  const saved = shortDate(createdAt);
+  return `v${version} · ${k} ${k === 1 ? 'format' : 'formats'} · saved ${saved}`;
 }
 
 export type ProfileSection = 'script' | 'visual' | 'audio' | 'packaging';

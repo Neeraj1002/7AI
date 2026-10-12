@@ -22,3 +22,11 @@ export function canEditChannelProfile(
   if (!channel) return false;
   return user.role === 'owner' || (user.userId !== null && user.userId === channel.ownerUserId);
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// "6 Oct" — spelled out here because Intl abbreviations differ between engines ("Sept" vs "Sep").
+export function shortDate(value: string | Date): string {
+  const d = new Date(value);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
