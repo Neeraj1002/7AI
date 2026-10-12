@@ -1,4 +1,4 @@
-import type { RetentionCurvePoint } from '../../types';
+import type { LongFormMetrics, RetentionCurvePoint } from '../../types';
 import type { VideoStats } from './types';
 
 // Testing-only stand-in for the real YouTube Data API v3 stats fetch, used
@@ -35,4 +35,9 @@ export async function stubFetchRetentionCurve(_youtubeVideoId: string): Promise<
     points.push({ elapsedVideoTimeRatio, audienceWatchRatio });
   }
   return points;
+}
+
+// Sprint 4 Task 10 (R6): stand-in for the long-form Analytics report under YOUTUBE_ANALYTICS_STUB=1.
+export async function stubFetchLongFormMetrics(_youtubeVideoId: string): Promise<LongFormMetrics> {
+  return { averageViewDurationSec: 210, averageViewPercentage: 42.5, estimatedMinutesWatched: 120, impressionsClickThroughRate: null };
 }

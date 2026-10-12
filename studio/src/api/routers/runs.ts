@@ -47,7 +47,8 @@ import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage } from '../../types';
 import { withQualityRows } from '../../agents/video-intelligence/quality-metrics';
-import type { QualityMetrics } from '../../agents/video-generation/quality-spec';
+import { qualityProfileFor, type QualityMetrics, type QualityProfile } from '../../agents/video-generation/quality-spec';
+import { deriveLongFormRunFields, LINK_TTL_SECONDS } from '../../long-form/run-fields';
 
 // Sprint 3 Task 11 (R2/B13) — the one place that normalizes gate1/gate2's
 // three different raw stage-output field names (`reason`/`privacyStatus`/
@@ -144,6 +145,7 @@ function intakeRepeatTopic(
 // stored metrics for runs measured before per-row flags existed. null when none were measured.
 export function deriveQualityMetrics(
   stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'input' | 'output'>[],
+  profile?: QualityProfile,
 ): QualityMetrics | null {
   const review = stages
     .filter((s) => s.stageName === 'video_review' && s.status === 'completed')
@@ -151,7 +153,7 @@ export function deriveQualityMetrics(
   const metrics = (review?.output as { qualityMetrics?: QualityMetrics } | null | undefined)?.qualityMetrics;
   if (!review || !metrics) return null;
   const source = (review.input as { visualSource?: string } | null | undefined)?.visualSource;
-  return withQualityRows(metrics, source === 'ai-stills' || source === 'stock-footage' ? source : undefined);
+  return withQualityRows(metrics, source === 'ai-stills' || source === 'stock-footage' ? source : undefined, profile);
 }
 
 // Sprint 4 Task 2: the latest completed script_review attempt's concerns and
@@ -179,11 +181,13 @@ export function deriveScriptReview(
 // stay absent until the work that produces them lands (PR B / Task 10): previewUrl and the
 // subtitles fields are never faked.
 export type LongFormRunFields = {
-  chapters?: { title: string; text: string }[];
+  // `text` from the script; `startSec` once the video is rendered (Task 10).
+  chapters?: { title: string; text?: string; startSec?: number }[];
   // Gate 1 edit sheet for a long script: each chapter as "## Title" then its text. Saving an edit
   // parses the "##" lines back into chapters.
   scriptEditText?: string;
   previewUrl?: string;
+  videoUrl?: string;
   subtitlesUrl?: string;
   subtitlesUploaded?: boolean;
   subtitlesMessage?: string;
@@ -269,14 +273,23 @@ async function getRunDetail(id: string, ctx: Context) {
   // Sprint 4 Task 9 (R1): the run's own snapshotted profile, so the chip "Video · 10 min" reads
   // the same values the pipeline does.
   const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
-  const longForm: LongFormRunFields = { chapters: deriveChapters(stages) };
-  // The SRT of the latest long-form attempt, as a fresh signed link (signing is local: no request is made).
-  const srtKey = [...stages].reverse().map((s) => (s.output as { r2SubtitlesKey?: string } | null)?.r2SubtitlesKey).find(Boolean);
-  if (srtKey && isR2Configured()) {
-    longForm.subtitlesUrl = await getPresignedDownloadUrl({ key: srtKey, expiresInSeconds: 24 * 60 * 60 });
+  const scriptChapters = deriveChapters(stages);
+  const longForm: LongFormRunFields = { chapters: scriptChapters };
+  if (scriptChapters === undefined) delete longForm.chapters;
+  else longForm.scriptEditText = formatChapterSheet(scriptChapters);
+  // Sprint 4 Task 10 (R3.2): preview/video/subtitle links, subtitle upload result and chapter starts,
+  // for a long run only. Links are signed for 24 hours, like runs.getVideoUrl; a Short gets none.
+  if (resolved.videoKind === 'long') {
+    Object.assign(
+      longForm,
+      await deriveLongFormRunFields({
+        runId: id,
+        stages,
+        scriptChapters,
+        sign: isR2Configured() ? (key) => getPresignedDownloadUrl({ key, expiresInSeconds: LINK_TTL_SECONDS }) : undefined,
+      }),
+    );
   }
-  if (longForm.chapters === undefined) delete longForm.chapters;
-  else longForm.scriptEditText = formatChapterSheet(longForm.chapters);
   return {
     run,
     channel,
@@ -291,7 +304,10 @@ async function getRunDetail(id: string, ctx: Context) {
     scriptReview: deriveScriptReview(run, stages),
     // Gate 2 quality checks of the latest completed video_review, with per-row warn flags
     // (qualityMetrics.rows.<row>.warn). null when the run has no measured metrics.
-    qualityMetrics: deriveQualityMetrics(stages),
+    qualityMetrics: deriveQualityMetrics(
+      stages,
+      resolved.videoKind === 'long' ? qualityProfileFor('long', resolved.visualSecondsPerStill) : undefined,
+    ),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
     // Bugs Task 12 (R1) - the app adds a Details line ("Switched to AI stills after stock footage failed review").

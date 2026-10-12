@@ -4,8 +4,8 @@ import { promisify } from 'node:util';
 import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
-import { uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
-import { stubUploadVideo, stubSetThumbnail } from './stub';
+import { uploadVideoViaProvider, setThumbnailViaProvider, uploadCaptionsViaProvider, type CaptionsUploadParams } from './youtube-client';
+import { stubUploadVideo, stubSetThumbnail, stubUploadCaptions } from './stub';
 import { env } from '../../config/env';
 import { buildMetadataUserMessage, scrubDescription, type PackagingParams } from './packaging';
 import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, type UploadResult } from './types';
@@ -24,6 +24,7 @@ const execFileAsync = promisify(execFile);
 
 export type { PublishingMetadata, UploadParams, UploadResult, PrivacyStatus } from './types';
 export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
+export { subtitlesFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
 
 const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags, and cover
 frame) from a sanctioned script and its hashtags — platform-specific optimization, not creative
@@ -43,12 +44,29 @@ transition is more likely). This matters wherever the Short surfaces outside the
 (search results, channel page, embeds).
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
+// Sprint 4 Task 10 (R4): the 16:9 video is not a Short. Same JSON shape; a longer description, and
+// never a #shorts tag. The chapter list and credit lines are appended afterwards, in code.
+const LONG_FORM_SYSTEM_PROMPT = `You are optimizing YouTube metadata (title, description, tags, and cover
+frame) for a long-form 16:9 video from its sanctioned script and hashtags - platform-specific
+optimization, not creative writing (the script itself is finished and approved).
+
+Respond with ONLY a JSON object:
+{"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}
+"title" is under 100 characters, specific, and accurate to the content - no clickbait that
+misrepresents what the video shows.
+"description" is 2-4 sentences summarizing what the viewer will learn; do not write a chapter list,
+timestamps, or the word "Shorts" - those are handled separately. Use only facts from the script.
+"tags" is 8-15 short keyword phrases relevant to the topic, no leading '#' character, and never "shorts".
+"coverFrameTimestampRatio" is a number from 0 to 1 choosing where through the video to grab a still
+frame for the cover: a clear visual, not the first or last ~5%.
+Respond with raw JSON only - no markdown code fences, no commentary.`;
+
 export async function generatePublishingMetadata(
-  params: { scriptText: string; hashtags: string[] } & PackagingParams,
+  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long' } & PackagingParams,
 ): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {
   const llm = await callLLM({
     purpose: 'metadata-generation',
-    system: SYSTEM_PROMPT,
+    system: params.videoKind === 'long' ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT,
     // Sprint 4 Task 5 (R17): packaging guidance is appended only when the channel
     // set it; with none, this is exactly the old message.
     messages: [{ role: 'user', content: buildMetadataUserMessage(params) }],
@@ -125,4 +143,13 @@ export async function setThumbnail(params: { channelId: string; youtubeVideoId: 
     return stubSetThumbnail(params);
   }
   return setThumbnailViaProvider(params);
+}
+
+// Sprint 4 Task 10 (R4.4): best-effort subtitle upload after a long-form upload. Throws on failure;
+// the caller (runPublishingStage) isolates it, records subtitlesUploaded:false and moves on.
+export async function uploadCaptions(params: CaptionsUploadParams): Promise<{ captionId?: string }> {
+  if (env.YOUTUBE_STUB === '1') {
+    return stubUploadCaptions(params);
+  }
+  return uploadCaptionsViaProvider(params);
 }

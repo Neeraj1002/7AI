@@ -82,6 +82,16 @@ Tasks 2-6: update here as each lands.
 - `runs.estimateCost` is read-only: per-attempt and worst-case estimate from the real unit prices, the suggested per-video limit (1.5x the estimate, next $0.50) and the channel's remaining weekly budget. `maxCostUsd` is stored but not yet enforced during the run (PR B).
 - No new run statuses or stages.
 
+## Task 10: Long-form review, preview, publishing and analytics
+
+- **Script Review**: `videoKind = 'long'` switches to the long-form rubric (chapter flow, cold open, open loops, closing line, length within +/-20% including `lengthOutOfRange`). Output adds optional `chapterNotes`. Shorts use the old prompt and stage input byte for byte.
+- **Video review**: a long run uses `qualityProfileFor('long', secondsPerStill)`: 1920x1080, 30 fps, 120 to 900 s, video within 2% of the narration (`chapterTimings` last `endSec`), no caption check, longest shot allowed `1.5 x secondsPerStill`. Visual review samples one frame inside every chapter (cap 12). Blocking rules are the Shorts kinds (audio, resolution, fps, loudness) plus duration range and narration match.
+- **Before Gate 2**: after a passing long review the stage creates the 1280x720 preview copy and checks `captions.srt` exists; both are stored beside the draft (R2 when configured, local files always). A missing SRT or a failed ffmpeg is a stage failure with the normal retry. Gate 2 follows the channel toggle; nothing forces a stop.
+- **Gate 2 message** gains `Warning:` lines; a long run whose chapters break YouTube's rules (fewer than 3, one under 10 s, not starting at 0) gets one, and is published without the chapter list.
+- **Publishing (long)**: description = generated text + chapter list (`00:00 <first title>`, then `m:ss`/`h:mm:ss`) + `Music:` lines for beds whose license requires attribution; no `#shorts` anywhere; category defaults to 27. After the upload succeeds the SRT is uploaded with `captions.insert` (scope `youtube.force-ssl`, 400 quota units); a failure never fails or retries the publish, and is recorded with a plain message (403 permission: reconnect; anything else: upload by hand).
+- **Analytics**: long snapshots also record `longFormMetrics`; if the Analytics API is not reachable the snapshot still records views/likes/comments. `dashboard.comparison` takes an optional `videoKind`; rows carry `videoKind`; a channel with both kinds has `avgViewsPerVideo = null` and per-kind averages in `byVideoKind`.
+- No new run statuses or stages.
+
 ## Task 9 (PR B): Long-form pipeline
 
 - **Same stages and gates.** `videoKind = long` changes what each stage does, not the state machine. Preconditions for `video_generation`: Gate 1 approved with chapters, plan present, the per-video limit and the weekly budget not reached.

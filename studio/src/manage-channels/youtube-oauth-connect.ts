@@ -27,6 +27,12 @@ import { upsertForChannel } from '../models/repositories/agent-credential.reposi
 const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.readonly',
+  // Sprint 4 Task 10 (R4.4): captions.insert needs this wider scope. It can also delete videos;
+  // nothing in this codebase calls a delete endpoint. Existing channels reconnect once.
+  'https://www.googleapis.com/auth/youtube.force-ssl',
+  // Sprint 4 Task 10 (R6): read-only analytics (average view duration, percentage viewed, minutes watched,
+  // retention curve). Founder approved 2026-10-13; asked in the same one-time reconnect as force-ssl.
+  'https://www.googleapis.com/auth/yt-analytics.readonly',
 ];
 
 function getAppOAuthClient(): OAuth2Client {

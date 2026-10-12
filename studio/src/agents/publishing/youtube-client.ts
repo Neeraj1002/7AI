@@ -181,3 +181,55 @@ export async function setThumbnailViaProvider(params: {
     throw mapGoogleError(error, context);
   }
 }
+
+// Sprint 4 Task 10 (R4.4): captions.insert. Endpoint, scope (youtube.force-ssl) and quota cost
+// (400 units per call) confirmed against Google's captions.insert reference on 2026-10-11. A
+// multipart upload: JSON snippet part, then the SRT bytes.
+const YOUTUBE_CAPTIONS_INSERT_URL = 'https://www.googleapis.com/upload/youtube/v3/captions?uploadType=multipart&part=snippet';
+export const CAPTIONS_INSERT_QUOTA_UNITS = 400;
+
+export type CaptionsUploadParams = {
+  channelId: string;
+  youtubeVideoId: string;
+  srtPath: string;
+  // BCP-47 language of the track (the channel's defaultLanguage) and the track name shown to viewers.
+  language: string;
+  name: string;
+};
+
+export function buildCaptionsMetadataPart(params: Pick<CaptionsUploadParams, 'youtubeVideoId' | 'language' | 'name'>) {
+  return { snippet: { videoId: params.youtubeVideoId, language: params.language, name: params.name, isDraft: false } };
+}
+
+// A failed caption upload never fails the publish. This maps the error to the two plain messages
+// the app shows; the technical error stays in the log and the stage output.
+export const SUBTITLES_RECONNECT_MESSAGE = 'Subtitles were not uploaded. Reconnect this channel, then upload the file by hand.';
+export const SUBTITLES_REJECTED_MESSAGE = 'YouTube did not accept the subtitles. Upload the file by hand.';
+
+export function subtitlesFailureMessage(error: unknown): string {
+  const e = error as { response?: { status?: number; data?: { error?: { errors?: { reason?: string }[]; message?: string } } }; code?: number | string };
+  const status = e?.response?.status ?? (typeof e?.code === 'number' ? e.code : undefined);
+  const reason = e?.response?.data?.error?.errors?.[0]?.reason ?? '';
+  const quotaLike = /quota|limitExceeded/i.test(reason);
+  const permissionLike = /insufficient|forbidden|scope/i.test(`${reason} ${e?.response?.data?.error?.message ?? ''}`);
+  if (status === 403 && !quotaLike && (permissionLike || reason === '')) return SUBTITLES_RECONNECT_MESSAGE;
+  return SUBTITLES_REJECTED_MESSAGE;
+}
+
+export async function uploadCaptionsViaProvider(params: CaptionsUploadParams): Promise<{ captionId?: string }> {
+  const client = await getOAuthClient(params.channelId);
+  const srt = await fs.readFile(params.srtPath);
+  const body = Buffer.concat([
+    Buffer.from(`--${MULTIPART_BOUNDARY}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(buildCaptionsMetadataPart(params))}\r\n`),
+    Buffer.from(`--${MULTIPART_BOUNDARY}\r\nContent-Type: application/octet-stream\r\n\r\n`),
+    srt,
+    Buffer.from(`\r\n--${MULTIPART_BOUNDARY}--`),
+  ]);
+  const response = await client.request<{ id?: string }>({
+    url: YOUTUBE_CAPTIONS_INSERT_URL,
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${MULTIPART_BOUNDARY}` },
+    data: body,
+  });
+  return { captionId: response.data.id };
+}

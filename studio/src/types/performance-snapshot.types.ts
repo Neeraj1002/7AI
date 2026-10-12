@@ -7,6 +7,15 @@ export type RetentionCurvePoint = {
   audienceWatchRatio: number;
 };
 
+// Sprint 4 Task 10 (R6). The YouTube Analytics API (v2) offers no thumbnail-impressions click-through
+// metric, so that one is always null rather than guessed.
+export type LongFormMetrics = {
+  averageViewDurationSec: number | null;
+  averageViewPercentage: number | null;
+  estimatedMinutesWatched: number | null;
+  impressionsClickThroughRate: null;
+};
+
 export type PerformanceSnapshot = {
   id: string;
   tenantId: string;
@@ -20,6 +29,7 @@ export type PerformanceSnapshot = {
   watchTimeMinutes: string | null; // NUMERIC as string, matching UsageEvent.costUsd's DB representation
   retentionPct: string | null;
   retentionCurve: RetentionCurvePoint[] | null;
+  longFormMetrics: LongFormMetrics | null;
 
   snapshotAt: Date;
   createdAt: Date;
@@ -36,5 +46,6 @@ export type CreatePerformanceSnapshotInput = {
   watchTimeMinutes?: string;
   retentionPct?: string;
   retentionCurve?: RetentionCurvePoint[];
+  longFormMetrics?: LongFormMetrics;
   snapshotAt: Date;
 };

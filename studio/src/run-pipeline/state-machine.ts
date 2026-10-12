@@ -50,10 +50,20 @@ import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intellige
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
-import type { QualityMetrics } from '../agents/video-generation/quality-spec';
+import { type QualityMetrics } from '../agents/video-generation/quality-spec';
+import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
+import { LONG_FORM_DEFAULT_CATEGORY_ID, languageDisplayName } from '../long-form/youtube-meta';
+import { AUDIO_BED_MANIFEST } from '../audio-bed';
+import { buildChapterList } from '../long-form/chapters';
+import { assembleLongFormMetadata } from '../long-form/metadata';
+import { creditLinesForBeds, bedsUsed } from '../long-form/credits';
+import { prepareLongFormGate2Artifacts } from '../long-form/gate2-artifacts';
 import {
   generatePublishingMetadata,
   uploadVideo,
+  uploadCaptions,
+  subtitlesFailureMessage,
+  CAPTIONS_INSERT_QUOTA_UNITS,
   extractCoverFrame,
   setThumbnail,
   DEFAULT_PRIVACY_STATUS,
@@ -468,7 +478,12 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     targetSeconds: config.targetSeconds,
     bannedOpeners: config.bannedOpeners,
     bannedEndings: config.bannedEndings,
-    ...(config.videoKind === 'long' && { videoKind: 'long' as const }),
+    // Sprint 4 Task 10 (R1): the long-form rubric inputs; a Short's stage input is unchanged.
+    ...(config.videoKind === 'long' && {
+      videoKind: 'long' as const,
+      chapterTitles: (scriptOutput.chapters ?? []).map((c) => c.title),
+      ...((scriptOutput as { lengthOutOfRange?: boolean }).lengthOutOfRange && { lengthOutOfRange: true }),
+    }),
   };
 
   const stage = await createStageAttempt({
@@ -1217,6 +1232,7 @@ export async function runVideoGenerationStage(
             artifacts: isLong ? { ...lastArtifacts, stillImagePaths: lastArtifacts.stillImagePaths?.slice(0, 6) } : lastArtifacts,
             scriptText: sanctionedScriptText,
             scratchDir: path.dirname(output.videoPath),
+            longForm: config.videoKind === 'long',
             context: {
               runId,
               attemptNumber,
@@ -1309,6 +1325,19 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     input: stageInput,
   });
 
+  // Sprint 4 Task 10 (R2): long-form uses its own quality profile and chapter-based frame sampling.
+  const reviewConfig = await loadResolvedConfig(run, channel);
+  const isLongForm = reviewConfig.videoKind === 'long';
+  const chapterTimings = isLongForm ? readChapterTimings(videoGenStage.output) : undefined;
+  const longFormReview = isLongForm
+    ? {
+        videoKind: 'long' as const,
+        secondsPerStill: reviewConfig.visualSecondsPerStill,
+        chapterTimings,
+        narrationSeconds: chapterTimings?.[chapterTimings.length - 1]?.endSec,
+      }
+    : undefined;
+
   try {
     const outcome = await reviewVideo({
       videoPath: videoOutput.videoPath,
@@ -1316,10 +1345,23 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       scriptText: sanctionedScriptText,
       visualSource,
       // Sprint 4 Task 8 (R7) — same default-on rule generateVideo applies.
-      captionsEnabled: run.creationOptions?.videoKind === 'long' ? false : channel.brandAssets.captionsEnabled !== false,
+      captionsEnabled: isLongForm ? false : channel.brandAssets.captionsEnabled !== false,
       safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
-      ...(run.creationOptions?.videoKind === 'long' && { videoKind: 'long' as const }),
+      ...(isLongForm && longFormReview),
     });
+
+    // Sprint 4 Task 10 (R3): the Gate 2 preview copy and the subtitle file are made before the run
+    // can reach Gate 2. A failure here is a stage failure with the normal retry (the catch below).
+    const longFormArtifacts =
+      isLongForm && outcome.verdict === 'pass'
+        ? await prepareLongFormGate2Artifacts({
+            runId,
+            tenantId: run.tenantId,
+            attemptNumber: videoGenStage.attemptNumber,
+            videoPath: videoOutput.videoPath,
+            videoGenOutput: videoGenStage.output,
+          })
+        : undefined;
 
     // A UsageEvent row only when the multimodal pass actually ran — a
     // deterministic-only fail has no LLM cost to meter.
@@ -1417,6 +1459,9 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
           verdict: outcome.verdict,
           rationale: outcome.rationale,
           ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
+          ...(longFormArtifacts && longFormArtifacts),
+          // Named field: why this long video will publish without a chapter list (also shown at Gate 2).
+          ...(isLongForm && (() => { const l = buildChapterList(chapterTimings); return l.ok ? {} : { chapterWarning: l.warning }; })()),
         },
         tx,
       );
@@ -1517,6 +1562,14 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
   }
 
+  // Sprint 4 Task 10 (R4.1): a long run whose chapters do not meet YouTube's rules is published
+  // without the chapter list; the approver is told here, before approving.
+  const gate2Warnings: string[] = [];
+  if ((await loadResolvedConfig(run, channel)).videoKind === 'long') {
+    const list = buildChapterList(readChapterTimings(videoGenStage.output));
+    if (!list.ok) gate2Warnings.push(list.warning);
+  }
+
   const previousAttempt = await findLatestAttempt(runId, 'gate2');
 
   // Restart-safety (Week 5 Task 3) — same reasoning as gate1's own comment.
@@ -1554,6 +1607,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     rationale: reviewOutput.rationale,
     qualityMetrics: reviewOutput.qualityMetrics,
     restarted: isRestartReopen,
+    ...(gate2Warnings.length > 0 && { warnings: gate2Warnings }),
   });
 
   const recordGate2Outcome = async (): Promise<PipelineRun> => {
@@ -1773,6 +1827,8 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
   // Sprint 4 Task 5: packaging from the run's own snapshotted profile.
   const config = await loadResolvedConfig(run, channel);
+  const isLongForm = config.videoKind === 'long';
+  const chapterTimings = isLongForm ? readChapterTimings(videoGenStage.output) : undefined;
   // {editor}: the real Gate 1 approver (Task 4), or null (ops path / lookup failure)
   // which packaging.ts turns into "the team". A failed lookup must not block a publish.
   let editorName: string | null = null;
@@ -1801,6 +1857,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
         editorCredit: config.editorCredit,
         editorName,
         sources: run.creationOptions?.sources,
+        ...(isLongForm && { videoKind: 'long' as const }),
       });
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -1829,8 +1886,28 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   };
 
   try {
-    const metadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
+    const generatedMetadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
+    // Sprint 4 Task 10 (R4): long-form description = the generated text, a chapter list (only when
+    // YouTube's three rules hold), then a credit line for every music bed that requires one. Never a
+    // #shorts tag anywhere. A Short's metadata is used exactly as generated.
+    let metadata = generatedMetadata;
+    let chapterListIncluded = false;
+    if (isLongForm) {
+      // Task 9 declares `bedCredits` on the output (not filled today); use it when present.
+      const recordedCredits = (videoGenOutput as { bedCredits?: string[] }).bedCredits;
+      const assembled = assembleLongFormMetadata({
+        generated: generatedMetadata,
+        chapterTimings,
+        creditLines: recordedCredits?.length ? recordedCredits : creditLinesForBeds(bedsUsed(videoGenOutput, AUDIO_BED_MANIFEST)),
+      });
+      metadata = assembled.metadata;
+      chapterListIncluded = assembled.chapterListIncluded;
+      if (assembled.chapterWarning) console.warn(`[publishing] run ${runId}: ${assembled.chapterWarning}`);
+    }
+
+    // Long-form defaults to Education (27) when the channel profile sets no category.
+    const categoryId = config.categoryId ?? (isLongForm ? LONG_FORM_DEFAULT_CATEGORY_ID : undefined);
     const attemptUploadOnce = async (): Promise<UploadResult> =>
       uploadVideo({
         channelId: channel.id,
@@ -1840,7 +1917,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
         containsSyntheticMedia,
         // Sprint 4 Task 5 (R18): always explicit, never left to the channel's Studio defaults.
         selfDeclaredMadeForKids: config.selfDeclaredMadeForKids,
-        ...(config.categoryId && { categoryId: config.categoryId }),
+        ...(categoryId && { categoryId }),
         ...(config.defaultLanguage && { defaultLanguage: config.defaultLanguage }),
       });
     const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
@@ -1903,10 +1980,35 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       );
     }
 
+    // Sprint 4 Task 10 (R4.4): subtitles, long-form only, after the video upload succeeded. A failure
+    // is recorded, never retried, and never fails the publish. The technical error stays in the log and
+    // the stage output; the plain message is what the app shows.
+    let longFormOutput: Record<string, unknown> = {};
+    if (isLongForm) {
+      const srtPath = await findSrtPath(videoGenOutput, videoPath);
+      const language = config.defaultLanguage ?? 'en';
+      const trackName = languageDisplayName(language);
+      try {
+        if (!srtPath) throw new Error('captions.srt was not found next to the video');
+        await uploadCaptions({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, srtPath, language, name: trackName });
+        longFormOutput = { subtitlesUploaded: true, subtitlesLanguage: language, subtitlesQuotaUnits: CAPTIONS_INSERT_QUOTA_UNITS, chapterListIncluded };
+      } catch (error) {
+        const technical = error instanceof Error ? error.message : String(error);
+        console.error(`[publishing] run ${runId}: subtitle upload failed (non-blocking, video already uploaded successfully): ${technical}`);
+        longFormOutput = {
+          subtitlesUploaded: false,
+          subtitlesMessage: subtitlesFailureMessage(error),
+          subtitlesError: technical,
+          chapterListIncluded,
+        };
+      }
+    }
+
     // Durable checkpoint — see recordStageProgress's own comment. Written
     // before completeStage so a crash in the gap between "upload succeeded"
     // and "stage marked complete" is recoverable without re-uploading.
     const fullOutput = {
+      ...longFormOutput,
       youtubeVideoId: uploadResult.youtubeVideoId,
       privacyStatus: uploadResult.privacyStatus,
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
@@ -1988,6 +2090,7 @@ export async function runAnalyticsStage(runId: string): Promise<PipelineRun> {
       channelId: run.channelId,
       pipelineRunId: runId,
       youtubeVideoId,
+      videoKind: run.creationOptions?.videoKind === 'long' ? 'long' : 'short',
     });
 
     return await prisma.$transaction(async (tx) => {

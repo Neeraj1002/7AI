@@ -1,6 +1,6 @@
 import { prisma } from '../prisma-client';
 import type { Prisma, PerformanceSnapshot as PrismaPerformanceSnapshot } from '@prisma/client';
-import type { CreatePerformanceSnapshotInput, PerformanceSnapshot, RetentionCurvePoint } from '../../types';
+import type { CreatePerformanceSnapshotInput, LongFormMetrics, PerformanceSnapshot, RetentionCurvePoint } from '../../types';
 
 function toDomainSnapshot(row: PrismaPerformanceSnapshot): PerformanceSnapshot {
   return {
@@ -15,6 +15,7 @@ function toDomainSnapshot(row: PrismaPerformanceSnapshot): PerformanceSnapshot {
     watchTimeMinutes: row.watchTimeMinutes ? row.watchTimeMinutes.toString() : null,
     retentionPct: row.retentionPct ? row.retentionPct.toString() : null,
     retentionCurve: (row.retentionCurve as RetentionCurvePoint[] | null) ?? null,
+    longFormMetrics: (row.longFormMetrics as LongFormMetrics | null) ?? null,
     snapshotAt: row.snapshotAt,
     createdAt: row.createdAt,
   };
@@ -35,6 +36,7 @@ export async function insertPerformanceSnapshot(
       watchTimeMinutes: input.watchTimeMinutes as Prisma.Decimal.Value | undefined,
       retentionPct: input.retentionPct as Prisma.Decimal.Value | undefined,
       retentionCurve: input.retentionCurve as Prisma.InputJsonValue | undefined,
+      longFormMetrics: input.longFormMetrics as Prisma.InputJsonValue | undefined,
       snapshotAt: input.snapshotAt,
     },
   });
@@ -59,6 +61,8 @@ export type PublishedVideoTarget = {
   channelId: string;
   youtubeVideoId: string;
   publishedAt: Date | null;
+  // Sprint 4 Task 10 (R6): from the run's creationOptions; a run without it is a Short.
+  videoKind: 'short' | 'long';
 };
 
 // Bugs Task 12 (R10.7) - newest snapshot per run, so the poll can stop after its final snapshot.
@@ -86,7 +90,7 @@ export async function listCompletedRunsWithPublishedVideo(): Promise<PublishedVi
       pipelineRun: { status: 'completed', channel: { isActive: true } },
     },
     orderBy: { attemptNumber: 'desc' },
-    include: { pipelineRun: { select: { tenantId: true, channelId: true } } },
+    include: { pipelineRun: { select: { tenantId: true, channelId: true, creationOptions: true } } },
   });
 
   // A run may have multiple publishing rows only in pathological cases (it
@@ -105,6 +109,7 @@ export async function listCompletedRunsWithPublishedVideo(): Promise<PublishedVi
       channelId: stage.pipelineRun.channelId,
       youtubeVideoId: output.youtubeVideoId,
       publishedAt: stage.completedAt ?? null,
+      videoKind: (stage.pipelineRun.creationOptions as { videoKind?: string } | null)?.videoKind === 'long' ? 'long' : 'short',
     });
   }
   return results;
