@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, ActivityIndicator, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, Text, ActivityIndicator, StyleSheet, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { color, radius, space, type } from '../lib/theme';
 
@@ -12,12 +12,13 @@ type ButtonProps = {
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
 };
 
 // height 54, radius 14, centered [icon][label] row with flexShrink+numberOfLines
 // on the label — the fix for the Gate 2 "arrow stuck to the left" bug the
 // founder caught (a long label pushed the row's flex-start icon away from it).
-export function PrimaryButton({ label, onPress, icon, disabled, loading, style }: ButtonProps) {
+export function PrimaryButton({ label, onPress, icon, disabled, loading, style, labelStyle }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -29,7 +30,7 @@ export function PrimaryButton({ label, onPress, icon, disabled, loading, style }
       ) : (
         <>
           {icon ? <Feather name={icon} size={18} color={color.onAccent} /> : null}
-          <Text style={styles.primaryLabel}>{label}</Text>
+          <Text style={[styles.primaryLabel, labelStyle]}>{label}</Text>
         </>
       )}
     </Pressable>

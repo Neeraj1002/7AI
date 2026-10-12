@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { youtubeNeedsReconnect } from '../../lib/server-extras';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,8 +18,27 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
 import { LENGTHS, useOptionLists } from '../../lib/pipeline-options';
 import { MAX_SOURCES, formatKeyField, validateSources } from '../../lib/brief-extras';
-import { canEditChannelProfile, formatLengthNote } from '../../lib/formats';
+import { canEditChannelProfile, formatLengthLabel, formatLengthNote } from '../../lib/formats';
 import { useAuth } from '../../lib/auth';
+import { DropdownField } from '../../components/DropdownField';
+import { CostBlock } from '../../components/CostBlock';
+import { useDebouncedValue } from '../../lib/use-debounced-value';
+import {
+  DEFAULT_LONG_MINUTES,
+  LENGTH_HELPER,
+  LENGTH_PRESETS,
+  TYPE_OPTIONS,
+  longRunFields,
+  maxSpendError as validateMaxSpend,
+  maxSpendText,
+  minutesError,
+  parseMinutes,
+  parseMoney,
+  placeServerError,
+  weeklyBudgetBlocked,
+  type ServerErrorPlace,
+  type VideoKind,
+} from '../../lib/long-brief';
 
 // Task 6/E4 "Edit brief & run again" pre-fills these from an ended run's own
 // briefText/channelId/creationOptions — read once on mount, matched against
@@ -32,6 +51,7 @@ type PrefillParams = {
   visualSource?: string;
   audioLayer?: string;
   targetDurationSec?: string;
+  videoKind?: string;
 };
 
 export default function NewBriefScreen() {
@@ -67,10 +87,25 @@ export default function NewBriefScreen() {
   const [sources, setSources] = useState<string[]>([]);
   const [formatKey, setFormatKey] = useState<string | null>(null);
   const [formatsOpen, setFormatsOpen] = useState(false);
-  // Only this channel's formats (its profile's offeredFormatKeys, in the profile's order). The Type field arrives
-  // in Frontend Task 4, so for now the picker is Shorts. The channel is part of the query key: a new channel refetches.
+  // Sprint 4 FE N3 R1 — Type (Shorts | Video), the Video length and the Video's spend limit.
+  const [kind, setKind] = useState<VideoKind>(() => (params.videoKind === 'long' ? 'long' : 'short'));
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [lengthOpen, setLengthOpen] = useState(false);
+  const [minutesText, setMinutesText] = useState(() => {
+    const fromRun = Number(params.targetDurationSec) / 60;
+    return params.videoKind === 'long' && parseMinutes(String(fromRun)) !== null ? String(fromRun) : String(DEFAULT_LONG_MINUTES);
+  });
+  // null = not edited yet: Max spend follows each new suggestion. Once edited it stays and is re-validated.
+  const [maxSpendEdited, setMaxSpendEdited] = useState<string | null>(null);
+  const [serverPlace, setServerPlace] = useState<ServerErrorPlace>('general');
+  const minutesRef = useRef<TextInput>(null);
+  const isLong = kind === 'long';
+  // Only this channel's formats (its profile's offeredFormatKeys, in the profile's order) for the chosen Type.
+  // The channel and the Type are part of the query key: either change refetches.
   const formatsQuery = useQuery(
-    trpc.channels.listFormats.queryOptions(selectedChannelId ? { channelId: selectedChannelId, videoKind: 'short' } : skipToken),
+    trpc.channels.listFormats.queryOptions(
+      selectedChannelId ? { channelId: selectedChannelId, videoKind: isLong ? 'long' : 'short' } : skipToken,
+    ),
   );
   // Task 4/E7 — live from options.list (B9), falling back to the static
   // lists in pipeline-options.ts while it loads or on error.
@@ -95,6 +130,36 @@ export default function NewBriefScreen() {
   const activeKey = format?.key ?? null;
   // Only once the answer is in: a loading or failed query must not claim "no formats".
   const noFormats = formatsQuery.isSuccess && formats.length === 0;
+
+  // Video length and cost. A chosen format sets the length (the estimate is asked for that length; the create
+  // request sends none, so the server takes it from the format).
+  const minutes = parseMinutes(minutesText);
+  const formatLocksLength = isLong && format !== undefined;
+  const lengthSec = formatLocksLength ? format.targetSeconds : minutes !== null ? minutes * 60 : null;
+  const lengthErr = isLong && !formatLocksLength ? minutesError(minutesText) : null;
+  // At most one estimate request every 500 ms while Type, Length, format or channel change.
+  const estimateKey = isLong && selectedChannelId && lengthSec !== null ? `${selectedChannelId}|${lengthSec}` : null;
+  const settledKey = useDebouncedValue(estimateKey, 500);
+  const estimateQuery = useQuery({
+    ...trpc.runs.estimateCost.queryOptions(
+      estimateKey && settledKey === estimateKey && selectedChannelId && lengthSec !== null
+        ? { channelId: selectedChannelId, videoKind: 'long', targetDurationSec: lengthSec }
+        : skipToken,
+    ),
+    retry: false,
+  });
+  const estimate = estimateQuery.data;
+  const estimating = estimateKey !== null && (settledKey !== estimateKey || estimateQuery.isFetching);
+  const estimateFailed = estimateKey !== null && !estimating && estimateQuery.isError;
+  const costState: 'estimating' | 'failed' | 'ready' = estimating ? 'estimating' : estimateFailed ? 'failed' : 'ready';
+  const maxSpend = maxSpendText(maxSpendEdited, estimate);
+  const spendErr = isLong && (estimate || maxSpendEdited !== null) ? validateMaxSpend(maxSpend, estimate) : null;
+  const budgetErr = isLong && estimate !== undefined && !estimating && weeklyBudgetBlocked(estimate);
+  // Red items hold Create run back; so do an estimate that is loading or failed (Video only, Shorts never wait).
+  const hasRedItems = lengthErr !== null || spendErr !== null || budgetErr || estimateFailed;
+  const longNotReady = isLong && (lengthSec === null || estimate === undefined || estimating || estimateFailed);
+  const createBlocked = isLong && (hasRedItems || longNotReady);
+  const clearServerError = () => setError(null);
   // Bugs Task 8 (R1) — runs.create refuses an unlinked channel; say so up front.
   const needsYoutube = selected !== undefined && !selected.hasYoutubeCredential;
   // R13: the credential exists but Google rejected it; the run would fail at upload, so say so up front (not blocked).
@@ -110,7 +175,11 @@ export default function NewBriefScreen() {
         await queryClient.invalidateQueries({ queryKey: trpc.runs.list.queryKey() });
         router.replace(`/run/${run.id}`);
       },
-      onError: (err) => setError(err.message),
+      // The server's words, under the field they belong to for a Video; a Short's error stays above Create run.
+      onError: (err) => {
+        setServerPlace(isLong ? placeServerError(err.message) : 'general');
+        setError(err.message);
+      },
     }),
   );
 
@@ -135,6 +204,7 @@ export default function NewBriefScreen() {
 
   const handleSubmit = () => {
     setError(null);
+    setServerPlace('general');
     if (!selectedChannelId) {
       setError('Pick a channel first.');
       return;
@@ -155,18 +225,23 @@ export default function NewBriefScreen() {
     // originates from that same server list or its static fallback.
     const checked = validateSources(sources);
     if (checked.error) {
+      setServerPlace('general');
       setError(checked.error);
       return;
     }
+    if (createBlocked) return;
     createRun.mutate({
       channelId: selectedChannelId,
       briefText: briefText.trim(),
       ...(checked.sources.length > 0 ? { sources: checked.sources } : {}),
       ...(formatKeyField(activeKey, formats) as { formatKey?: never }),
       ...(voice ? { voice: voice as never } : {}),
-      ...(visual !== 'auto' ? { visualSource: visual as never } : {}),
+      // A Video is AI images only, so it never sends a visual source.
+      ...(!isLong && visual !== 'auto' ? { visualSource: visual as never } : {}),
       ...(music ? { audioLayer: music as never } : {}),
-      ...(!format && flags.briefLength && length !== 'auto' ? ({ targetDurationSec: length } as object) : {}),
+      ...(!isLong && !format && flags.briefLength && length !== 'auto' ? ({ targetDurationSec: length } as object) : {}),
+      // A Short adds none of these: its request body is exactly as before.
+      ...longRunFields({ kind, minutes, formatLocksLength, maxSpendUsd: parseMoney(maxSpend) }),
     });
   };
 
@@ -215,12 +290,20 @@ export default function NewBriefScreen() {
         </View>
       )}
 
+      <Text style={styles.label}>Type</Text>
+      <DropdownField
+        value={TYPE_OPTIONS.find((t) => t.value === kind)!.label}
+        onPress={() => setTypeOpen(true)}
+        accessibilityLabel="Type"
+      />
+      <Text style={styles.tip}>{TYPE_OPTIONS.find((t) => t.value === kind)!.helper}</Text>
+
       <Text style={styles.label}>Format</Text>
       {/* Freeform first, then this channel's formats; more than about 4 chips scroll sideways. */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        <FormatChip label="Freeform" active={activeKey === null} onPress={() => setFormatKey(null)} />
+        <FormatChip label="Freeform" active={activeKey === null} onPress={() => { setFormatKey(null); setError(null); }} />
         {formats.map((f) => (
-          <FormatChip key={f.key} label={f.label} active={activeKey === f.key} onPress={() => setFormatKey(f.key)} />
+          <FormatChip key={f.key} label={f.label} active={activeKey === f.key} onPress={() => { setFormatKey(f.key); setError(null); }} />
         ))}
         {formats.length > 0 ? (
           <FormatChip
@@ -232,6 +315,8 @@ export default function NewBriefScreen() {
       </ScrollView>
       {format ? (
         <Text style={styles.tip}>{format.scriptStructure}</Text>
+      ) : isLong && !noFormats ? (
+        <Text style={styles.tip}>Only formats made for videos are shown.</Text>
       ) : noFormats ? (
         // Board FmtBriefFreeformOnly: only Freeform shows. The link is for users who can edit the profile.
         <View>
@@ -246,7 +331,7 @@ export default function NewBriefScreen() {
         <Text style={styles.tip}>Freeform is the default. The chips are the formats this channel uses (set in Content profile).</Text>
       )}
 
-      <Text style={styles.label}>What&apos;s the short about?</Text>
+      <Text style={styles.label}>{isLong ? "What's the video about?" : "What's the short about?"}</Text>
       <TextInput
         selectionColor={color.accent}
         cursorColor={color.accent}
@@ -255,7 +340,12 @@ export default function NewBriefScreen() {
         onChangeText={setBriefText}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder={format?.briefTemplate ?? 'Topic, angle and length — e.g. "30 sec on why octopuses have three hearts"'}
+        placeholder={
+          format?.briefTemplate ??
+          (isLong
+            ? 'Topic, angle and the facts to use — e.g. “Why the Great Wall isn’t visible from space”, plus your sources'
+            : 'Topic, angle and length — e.g. "30 sec on why octopuses have three hearts"')
+        }
         placeholderTextColor={color.muted}
         multiline
         scrollEnabled
@@ -303,12 +393,12 @@ export default function NewBriefScreen() {
           {needsYoutube
             ? 'Available once connected'
             : format
-              ? `Length: ${format.targetSeconds}s (from format)`
+              ? `Length: ${isLong ? formatLengthLabel(format.targetSeconds) : `${format.targetSeconds}s`} (from format)`
               : 'Channel defaults unless changed'}
         </Text>
       </View>
       <View style={needsYoutube ? styles.optionsDimmed : undefined} pointerEvents={needsYoutube ? 'none' : 'auto'}>
-        {!format && flags.briefLength ? (
+        {!isLong && !format && flags.briefLength ? (
           <>
             <Text style={styles.label}>Length</Text>
             <SegmentedControl
@@ -318,7 +408,7 @@ export default function NewBriefScreen() {
             />
           </>
         ) : null}
-        {format ? (
+        {!isLong && format ? (
           <>
             <Text style={styles.label}>Length</Text>
             <View style={styles.lengthLocked} accessibilityState={{ disabled: true }}>
@@ -326,12 +416,22 @@ export default function NewBriefScreen() {
             </View>
           </>
         ) : null}
-        <Text style={styles.label}>Visuals</Text>
-        <SegmentedControl
-          options={[{ value: 'auto' as const, label: 'Auto' }, ...VISUAL_SOURCES]}
-          value={visual}
-          onChange={setVisual}
-        />
+        {isLong ? (
+          <>
+            <Text style={styles.label}>Visuals</Text>
+            <SegmentedControl options={[{ value: 'ai-stills' as const, label: 'AI images' }]} value="ai-stills" onChange={() => {}} />
+            <Text style={styles.tip}>Stock footage isn&apos;t available for videos.</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>Visuals</Text>
+            <SegmentedControl
+              options={[{ value: 'auto' as const, label: 'Auto' }, ...VISUAL_SOURCES]}
+              value={visual}
+              onChange={setVisual}
+            />
+          </>
+        )}
         <Pressable style={styles.optionRow} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
           <Feather name="mic" size={20} color={color.muted} />
           <View style={styles.channelText}>
@@ -348,16 +448,83 @@ export default function NewBriefScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={color.muted} />
         </Pressable>
+        {isLong ? (
+          <>
+            <Text style={styles.label}>Length</Text>
+            <View style={styles.lengthRow}>
+              <DropdownField
+                style={styles.lengthDropdown}
+                value={
+                  formatLocksLength
+                    ? formatLengthLabel(format.targetSeconds)
+                    : minutes !== null && (LENGTH_PRESETS as readonly number[]).includes(minutes)
+                      ? `${minutes} min`
+                      : 'Custom'
+                }
+                onPress={() => setLengthOpen(true)}
+                disabled={formatLocksLength}
+                invalid={lengthErr !== null}
+                accessibilityLabel="Length"
+              />
+              <View
+                style={[
+                  styles.minutesField,
+                  lengthErr !== null && styles.minutesFieldError,
+                  formatLocksLength && styles.minutesFieldLocked,
+                ]}
+              >
+                <TextInput
+                  ref={minutesRef}
+                  style={[styles.minutesInput, formatLocksLength && styles.minutesTextLocked]}
+                  value={formatLocksLength ? String(format.targetSeconds / 60) : minutesText}
+                  onChangeText={(t) => {
+                    setMinutesText(t.replace(/[^\d]/g, '').slice(0, 3));
+                    clearServerError();
+                  }}
+                  editable={!formatLocksLength}
+                  keyboardType="number-pad"
+                  selectionColor={color.accent}
+                  cursorColor={color.accent}
+                  accessibilityLabel="Length in minutes"
+                />
+                <Text style={styles.minutesSuffix}>min</Text>
+              </View>
+            </View>
+            {formatLocksLength ? (
+              <Text style={styles.tip}>{formatLengthNote(format.targetSeconds)}</Text>
+            ) : lengthErr ? (
+              <Text style={styles.fieldError}>{lengthErr}</Text>
+            ) : (
+              <Text style={styles.tip}>{LENGTH_HELPER}</Text>
+            )}
+            {error && serverPlace === 'length' ? <Text style={styles.fieldError}>{error}</Text> : null}
+            <CostBlock
+              state={costState}
+              estimate={estimate}
+              maxSpend={maxSpend}
+              maxSpendError={spendErr}
+              onChangeMaxSpend={(t) => {
+                setMaxSpendEdited(t);
+                clearServerError();
+              }}
+              onRetry={() => estimateQuery.refetch()}
+              budgetServerError={error && serverPlace === 'budget' ? error : null}
+              maxSpendServerError={error && serverPlace === 'maxSpend' ? error : null}
+            />
+          </>
+        ) : null}
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error && serverPlace === 'general' ? <Text style={styles.error}>{error}</Text> : null}
 
+      {createBlocked && hasRedItems ? <Text style={styles.tip}>Fix the items in red to continue.</Text> : null}
       <PrimaryButton
         label="Create run"
         onPress={handleSubmit}
         loading={createRun.isPending}
-        disabled={needsYoutube}
-        style={needsYoutube ? styles.createRunDisabled : undefined}
+        disabled={needsYoutube || createBlocked}
+        style={needsYoutube ? styles.createRunDisabled : createBlocked ? styles.createRunBlocked : undefined}
+        labelStyle={createBlocked && !needsYoutube ? styles.createRunBlockedLabel : undefined}
       />
       {needsYoutube ? (
         <Text style={styles.tip}>Connect YouTube or pick another channel to continue.</Text>
@@ -373,6 +540,39 @@ export default function NewBriefScreen() {
         selected={activeKey}
         onSelect={setFormatKey}
         onEditProfile={canEditProfile ? openProfile : undefined}
+      />
+      <OptionSheet
+        visible={typeOpen}
+        onClose={() => setTypeOpen(false)}
+        title="Type"
+        options={TYPE_OPTIONS.map((t) => ({ value: t.value, label: t.label, caption: t.helper }))}
+        selected={kind}
+        onSelect={(v) => {
+          if (!v || v === kind) return;
+          setKind(v);
+          // A chosen format that does not match the new Type is dropped (the list refetches for the new Type).
+          setFormatKey(null);
+          setError(null);
+        }}
+      />
+      <OptionSheet
+        visible={lengthOpen}
+        onClose={() => setLengthOpen(false)}
+        title="Length"
+        options={[...LENGTH_PRESETS.map((m) => ({ value: String(m), label: `${m} min` })), { value: 'custom', label: 'Custom' }]}
+        selected={
+          minutes !== null && (LENGTH_PRESETS as readonly number[]).includes(minutes) ? String(minutes) : 'custom'
+        }
+        onSelect={(v) => {
+          if (!v) return;
+          clearServerError();
+          if (v === 'custom') {
+            setMinutesText('');
+            setTimeout(() => minutesRef.current?.focus(), 0);
+          } else {
+            setMinutesText(v);
+          }
+        }}
       />
       <OptionSheet
         visible={voiceOpen}
@@ -500,6 +700,28 @@ const styles = StyleSheet.create({
   connectButtonText: { fontFamily: font.bold, fontSize: 13, color: color.onAccent },
   optionsDimmed: { opacity: 0.4 },
   createRunDisabled: { backgroundColor: color.surface2 },
+  createRunBlocked: { backgroundColor: color.border, opacity: 1 },
+  createRunBlockedLabel: { color: '#8A8A8A' },
+  lengthRow: { flexDirection: 'row', gap: space.sm },
+  lengthDropdown: { flex: 1 },
+  minutesField: {
+    width: 128,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: color.ink,
+    backgroundColor: color.surface,
+  },
+  minutesFieldError: { borderWidth: 2, borderColor: color.danger },
+  minutesFieldLocked: { borderColor: color.border, backgroundColor: color.surface2 },
+  minutesInput: { flex: 1, minWidth: 0, paddingVertical: 8, fontFamily: font.bold, fontSize: 15, color: color.ink },
+  minutesTextLocked: { color: color.muted },
+  minutesSuffix: { fontFamily: font.regular, fontSize: 13, color: color.muted },
+  fieldError: { ...type.meta, fontSize: 12, lineHeight: 17, color: color.danger },
   channelText: { flex: 1 },
   channelName: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
   channelMeta: { ...type.meta, fontSize: 12 },
