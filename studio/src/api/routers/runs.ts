@@ -41,11 +41,14 @@ import { isValidDuration, durationErrorMessage, resolveRequestedVideoKind } from
 import { resolveChannelConfig } from '../../channel-profile';
 import { findActiveProfileForChannel } from '../../models/repositories/channel-profile-version.repository';
 import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
+import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
+import { sumUsageCostForRun } from '../../models/repositories/usage-event.repository';
+import type { ChannelProfileData } from '../../channel-profile';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
-import type { Channel, PipelineRun, PipelineStage } from '../../types';
+import type { Channel, PipelineRun, PipelineStage, ReviewLog } from '../../types';
 import { withQualityRows } from '../../agents/video-intelligence/quality-metrics';
 import { qualityProfileFor, type QualityMetrics, type QualityProfile } from '../../agents/video-generation/quality-spec';
 import { deriveLongFormRunFields, LINK_TTL_SECONDS } from '../../long-form/run-fields';
@@ -67,29 +70,55 @@ type LastGateDecision = {
   decidedAt: Date;
 };
 
+function completedGateStages(stages: PipelineStage[]) {
+  return stages.filter(
+    (s): s is PipelineStage & { stageName: 'gate1' | 'gate2' } =>
+      (s.stageName === 'gate1' || s.stageName === 'gate2') && s.status === 'completed' && s.output !== null,
+  );
+}
+
+function normalizeGateStage(stage: PipelineStage & { stageName: 'gate1' | 'gate2' }): LastGateDecision | null {
+  const output = stage.output as { outcome?: string; reason?: string; privacyStatus?: string; notes?: string };
+  if (!output.outcome) return null;
+  return {
+    gate: stage.stageName === 'gate1' ? 1 : 2,
+    outcome: output.outcome as LastGateDecision['outcome'],
+    ...(output.privacyStatus !== undefined && { privacyStatus: output.privacyStatus }),
+    ...(output.reason !== undefined && { reason: output.reason }),
+    ...(output.notes !== undefined && { notes: output.notes }),
+    decidedAt: stage.completedAt ?? stage.updatedAt,
+  };
+}
+
 function deriveLastGateDecision(stages: PipelineStage[]): LastGateDecision | null {
   // `stages` is ordered oldest-first (listStagesForRun's own orderBy) — the
   // latest completed gate1/gate2 row, whichever gate it belongs to, is
   // whichever one of these matches comes last in that order (gate2 always
   // sorts after the gate1 that necessarily preceded it on the same run).
-  const gateStages = stages.filter(
-    (s): s is PipelineStage & { stageName: 'gate1' | 'gate2' } =>
-      (s.stageName === 'gate1' || s.stageName === 'gate2') && s.status === 'completed' && s.output !== null,
-  );
+  const gateStages = completedGateStages(stages);
   const latest = gateStages[gateStages.length - 1];
-  if (!latest) return null;
+  return latest ? normalizeGateStage(latest) : null;
+}
 
-  const output = latest.output as { outcome?: string; reason?: string; privacyStatus?: string; notes?: string };
-  if (!output.outcome) return null;
+// Sprint 4 Task 12 (R2): every decided gate attempt, oldest first, same normalising as
+// lastGateDecision. A gate the channel turned off still leaves a completed gate row, written with
+// a `system` review log of verdict 'auto-approve' on that stage (state-machine.ts), which is how
+// `decidedBy: 'auto'` is told apart from a person's decision. Absent when no gate was decided.
+export type GateDecisionEntry = LastGateDecision & { decidedBy: 'user' | 'auto' };
 
-  return {
-    gate: latest.stageName === 'gate1' ? 1 : 2,
-    outcome: output.outcome as LastGateDecision['outcome'],
-    ...(output.privacyStatus !== undefined && { privacyStatus: output.privacyStatus }),
-    ...(output.reason !== undefined && { reason: output.reason }),
-    ...(output.notes !== undefined && { notes: output.notes }),
-    decidedAt: latest.completedAt ?? latest.updatedAt,
-  };
+export function deriveGateDecisions(
+  stages: PipelineStage[],
+  reviewLogs: Pick<ReviewLog, 'stageId' | 'agent' | 'verdict'>[],
+): GateDecisionEntry[] | undefined {
+  const autoStageIds = new Set(
+    reviewLogs.filter((l) => l.agent === 'system' && l.verdict === 'auto-approve' && l.stageId).map((l) => l.stageId),
+  );
+  const entries: GateDecisionEntry[] = [];
+  for (const stage of completedGateStages(stages)) {
+    const decision = normalizeGateStage(stage);
+    if (decision) entries.push({ ...decision, decidedBy: autoStageIds.has(stage.id) ? 'auto' : 'user' });
+  }
+  return entries.length > 0 ? entries : undefined;
 }
 
 // Sprint 3 Task 11 (R2/B13) — string-matching on `lastError`, not a
@@ -224,6 +253,7 @@ async function resolveVideoRequest(
   targetSeconds: number;
   secondsPerStill: number | null;
   offeredFormatKeys: string[];
+  profile: ChannelProfileData | null;
 }> {
   const { videoKind, conflict } = resolveRequestedVideoKind(input);
   if (conflict) {
@@ -246,6 +276,7 @@ async function resolveVideoRequest(
     targetSeconds: config.targetSeconds,
     secondsPerStill: config.visualSecondsPerStill,
     offeredFormatKeys: config.offeredFormatKeys,
+    profile,
   };
 }
 
@@ -260,10 +291,11 @@ async function getRunDetail(id: string, ctx: Context) {
       message: `You are not allowed to view run ${id}`,
     });
   }
-  const [channel, stages, reviewLogs] = await Promise.all([
+  const [channel, stages, reviewLogs, spentUsd] = await Promise.all([
     findChannelById(run.channelId),
     listStagesForRun(id),
     listReviewLogsForRun(id),
+    sumUsageCostForRun(id),
   ]);
   // Sprint 3 Task 11 (R2/B13) — computed at read time, not stored (no schema
   // change): both derive purely from data `getRunDetail` already fetched.
@@ -290,6 +322,7 @@ async function getRunDetail(id: string, ctx: Context) {
       }),
     );
   }
+  const gateDecisions = deriveGateDecisions(stages, reviewLogs);
   return {
     run,
     channel,
@@ -299,6 +332,14 @@ async function getRunDetail(id: string, ctx: Context) {
     targetSeconds: resolved.targetSeconds,
     ...longForm,
     lastGateDecision: deriveLastGateDecision(stages),
+    // Sprint 4 Task 12 (R2): every decided gate, oldest first; absent when none was decided.
+    ...(gateDecisions && { gateDecisions }),
+    // Sprint 4 Task 12 (R3): everything this run has spent (all stages and attempts), USD to 4 decimals,
+    // and the run's spend limit when it has one.
+    spentUsd: Math.round(spentUsd * 10000) / 10000,
+    ...(run.creationOptions?.maxCostUsd !== undefined && { maxCostUsd: run.creationOptions.maxCostUsd }),
+    // Sprint 4 Task 12 (R1): the settings the run used and where each came from; absent on older runs.
+    ...(run.creationOptions?.resolvedOptions && { resolvedOptions: run.creationOptions.resolvedOptions }),
     // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
     // stable place (derived from stage output and creationOptions, not stored).
     scriptReview: deriveScriptReview(run, stages),
@@ -484,20 +525,26 @@ export const runsRouter = router({
         }
       }
 
-      const creationOptions =
-        input.voice || input.visualSource || input.audioLayer || input.targetDurationSec || input.sources?.length || input.formatKey || isLong
-          ? {
-              ...(input.voice && { voice: input.voice }),
-              ...(input.visualSource && { visualSource: input.visualSource }),
-              ...(input.audioLayer && { audioLayer: input.audioLayer }),
-              // A long run stores the resolved length (default 600), so every stage reads one value.
-              ...((isLong || input.targetDurationSec) && { targetDurationSec: isLong ? request.targetSeconds : input.targetDurationSec }),
-              ...(isLong && { videoKind: 'long' as const }),
-              ...(maxCostUsd !== undefined && { maxCostUsd }),
-              ...(input.sources?.length && { sources: input.sources }),
-              ...(input.formatKey && { formatKey: input.formatKey }),
-            }
-          : undefined;
+      // Sprint 4 Task 12 (R1): the settings this run will use and where each came from, written once
+      // with the picks. Built from what the user picked, before any default is filled in.
+      const resolvedOptions = buildResolvedOptions({
+        picks: { ...input, videoKind: request.videoKind },
+        profile: request.profile,
+        legacyStyleGuide: channel.styleGuide,
+        legacyDefaultVoice: channel.defaultVoice,
+      });
+      const creationOptions = {
+        ...(input.voice && { voice: input.voice }),
+        ...(input.visualSource && { visualSource: input.visualSource }),
+        ...(input.audioLayer && { audioLayer: input.audioLayer }),
+        // A long run stores the resolved length (default 600), so every stage reads one value.
+        ...((isLong || input.targetDurationSec) && { targetDurationSec: isLong ? request.targetSeconds : input.targetDurationSec }),
+        ...(isLong && { videoKind: 'long' as const }),
+        ...(maxCostUsd !== undefined && { maxCostUsd }),
+        ...(input.sources?.length && { sources: input.sources }),
+        ...(input.formatKey && { formatKey: input.formatKey }),
+        resolvedOptions,
+      };
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
       // MVP_TENANT_ID. Now guaranteed to match channel.tenantId by the
       // check above (Sprint 3 Hardening).
@@ -901,14 +948,26 @@ export const runsRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
     }
     await assertChannelCanRun(channel);
+    // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
+    const picks = sourceRun.creationOptions
+      ? (({ manualRetries: _m, videoFallbackUsed: _v, resolvedOptions: _r, ...kept }) => kept)(sourceRun.creationOptions)
+      : undefined;
+    // Sprint 4 Task 12 (R1): recomputed against the channel's current profile. A long run stores its
+    // resolved length, so the length counts as a pick only if the source said it was one.
+    const sourceLength = sourceRun.creationOptions?.resolvedOptions?.targetSeconds;
+    const lengthWasPicked = sourceLength ? sourceLength.from === 'run' : picks?.videoKind !== 'long';
+    const profile = (await findActiveProfileForChannel(channel.id))?.data ?? null;
+    const resolvedOptions = buildResolvedOptions({
+      picks: { ...picks, targetDurationSec: lengthWasPicked ? picks?.targetDurationSec : undefined },
+      profile,
+      legacyStyleGuide: channel.styleGuide,
+      legacyDefaultVoice: channel.defaultVoice,
+    });
     const run = await createRun({
       tenantId: ctx.tenantId,
       channelId: sourceRun.channelId,
       briefText: sourceRun.briefText,
-      // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
-      creationOptions: sourceRun.creationOptions
-        ? (({ manualRetries: _m, videoFallbackUsed: _v, ...picks }) => picks)(sourceRun.creationOptions)
-        : undefined,
+      creationOptions: { ...picks, resolvedOptions },
     });
     startPipelineInBackground(run.id);
     return run;

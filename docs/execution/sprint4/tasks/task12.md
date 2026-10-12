@@ -12,7 +12,7 @@
 
 ## Delivery: two PRs, so nobody waits
 - **PR A (`SPRINT4_TASK12A_BE`), independent, ship first:** R1, R2, R3. These read existing data; they do not touch Task 9 or 10 code.
-- **PR B (`SPRINT4_TASK12B_BE`):** R4, R5, R6. They sit on Task 9's stills loop and Task 10's quality profile. Build now against `main`, rebase when those land. If a Task 10 item already provides what R5 or R6 asks for, say so in the report and skip it.
+- **PR B (`SPRINT4_TASK12B_BE`):** R4 and R6 (R5 is covered by Task 10, see below). They sit on Task 9's stills loop and Task 10's quality profile, both now on `main`. If a Task 10 item already provides what R4 or R6 asks for, say so in the report and skip it.
 
 ## R0. Read the code first
 
@@ -61,7 +61,9 @@ gateDecisions?: { gate: 1 | 2; outcome: 'approve' | 'edit' | 'reject' | 'revise'
 **Change**: while the image stage runs, add optional `done` and `total`: stills finished (including stills served from Task 9's disk cache) and stills planned. Keep a counter on the stage row's existing output or metadata JSON, updated after each still or at most every 5 seconds; `progress` reads it. No new column. For every other stage the fields are absent. **No percentage.**
 **Verify**: a real long run (2 minutes is enough) polled while generating shows `done` rising to `total`; a Short with AI stills also shows it.
 
-## R5. Chapter warning (`chapterWarning`)
+## R5. Chapter warning (`chapterWarning`): covered by Task 10 (PR #72), skip
+
+**Update 2026-10-13.** Task 10 (PR #72) already returns `chapterWarning` from `runs.get` (also on the `video_review` stage output), built from the same chapter-list rule the publish step uses. Nothing to build here. Confirm it in the R0 table and move on. The text below is the original request, kept for the record.
 
 **What exists** (verify): Task 10 R4.1 publishes the description without a chapter list when YouTube's rules fail (first stamp at 00:00, at least 3 chapters, each at least 10 seconds) and "adds a warning to the Gate 2 message", but no field says so.
 **Change**: expose the rule as one pure function used by both the publish step and `runs.get`. For a long run at Gate 2, `runs.get` returns `chapterWarning?: string` (plain sentence, for example "A chapter is shorter than 10 seconds"), present only when the rule fails. The Gate 2 screen shows "Chapters won't be added to the description: {chapterWarning}."
@@ -77,7 +79,7 @@ spec?: { loudnessLufs: { target: number; tolerance: number }; truePeakMaxDb: num
          durationSec?: { target: number; tolerance: number } /* long only */ }
 ```
 
-and, for a long run, a `rows.duration = { warn, message }` row (measured length against target, from Task 10 R2). Absent, not false, when not applicable (same rule as PR #64). Shorts get `spec` too; the other fields stay as they are.
+and, for a long run, a `rows.duration = { warn, message }` row (measured length against target, from Task 10 R2). **Update 2026-10-13:** long runs already have `qualityMetrics.rows` with the Shorts keys and no `captions` row. Take every number in `spec` from Task 10's long-form quality profile constants (`LONG_FORM_SPEC` / `qualityProfileFor('long')`), not from new ones. The allowed length window is 96 to 918 seconds, within 20 percent of the target. Absent, not false, when not applicable (same rule as PR #64). Shorts get `spec` too; the other fields stay as they are.
 
 ## Schema Impact
 None expected: everything lives in existing JSON or is computed at read time. If R0 shows otherwise, add one migration, sorted after `main`'s newest, and list it in the report. Update `BUSINESS_LOGIC.md` with the new fields.

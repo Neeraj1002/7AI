@@ -48,7 +48,13 @@ const caller = () => runsRouter.createCaller(ctx);
 const base = { channelId: CHANNEL_ID, briefText: 'a brief' };
 
 const profile = (offeredFormatKeys?: string[]) => ({ data: offeredFormatKeys ? { offeredFormatKeys } : {} });
-const createdOptions = () => mocks.createRun.mock.calls[0]![0].creationOptions;
+const createdAll = () => mocks.createRun.mock.calls[0]![0].creationOptions;
+// The user's picks as stored, without the Task 12 resolvedOptions (checked in runs.run-screen-data.test.ts).
+const createdOptions = () => {
+  const picks = { ...createdAll() };
+  delete picks.resolvedOptions;
+  return Object.keys(picks).length > 0 ? picks : undefined;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
