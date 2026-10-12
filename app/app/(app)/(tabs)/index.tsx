@@ -13,6 +13,9 @@ import { endedChip, humanizeRunError, queueChip, relativeTime, runTopic, started
 import { ENDED_STATUSES, QUEUE_POLL_MS, QUEUE_STATUSES } from '../../../lib/run-queries';
 import { filterRuns, matchesStatusFilter, STATUS_FILTERS, type StatusFilter } from '../../../lib/queue-filter';
 import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
+import { VideoChip } from '../../../components/VideoChip';
+import { imageStageFraction, imageStageLine } from '../../../lib/long-video';
+import { chipFromRun } from '../../../lib/run-video';
 
 const FAB_HEIGHT = 52;
 const ENDED_PAGE_SIZE = 20;
@@ -182,12 +185,13 @@ export default function QueueScreen() {
                     </Text>
                     {item.cancelRequested ? <StatusChip kind="neutral" label="Cancelling…" /> : <Text style={styles.time}>{relativeTime(item.updatedAt)}</Text>}
                   </View>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${(stepIndex / 7) * 100}%` }]} />
-                  </View>
-                  <Text style={styles.meta} numberOfLines={1}>
-                    {stageLabelFor(item.currentStage)} · {channel?.name ?? 'Deleted channel'} · {startedLabel(item.createdAt)}
-                  </Text>
+                  <LongRowProgress runId={item.id} chip={chipFromRun(item)} fallbackFraction={stepIndex / 7}>
+                    {(stageText) => (
+                      <Text style={styles.meta} numberOfLines={1}>
+                        {stageText ?? stageLabelFor(item.currentStage)} · {channel?.name ?? 'Deleted channel'} · {startedLabel(item.createdAt)}
+                      </Text>
+                    )}
+                  </LongRowProgress>
                 </Pressable>
               );
             }
@@ -211,6 +215,7 @@ export default function QueueScreen() {
                   <Text style={styles.brief} numberOfLines={2}>
                     {runTopic(item)}
                   </Text>
+                  <VideoChip {...chipFromRun(item)} />
                   <View style={styles.metaLine}>
                     <View style={[styles.dot, { backgroundColor: channelDot(item.channelId) }]} />
                     <Text style={styles.meta} numberOfLines={1}>
@@ -248,6 +253,7 @@ export default function QueueScreen() {
                       <Text style={styles.recentTitle} numberOfLines={2}>
                         {runTopic(run)}
                       </Text>
+                      <VideoChip {...chipFromRun(run)} />
                       <Text style={styles.meta} numberOfLines={1}>
                         {channelById(run.channelId)?.name ?? 'Deleted channel'} · {relativeTime(run.createdAt)}
                       </Text>
@@ -278,6 +284,42 @@ export default function QueueScreen() {
         </View>
       ) : null}
     </FormScreen>
+  );
+}
+
+// An in-progress row. A long video also shows the black "Video · n min" chip and, while its stills are made, the
+// image count from `runs.progress` (one cheap call per long row; Shorts rows make none). The bar follows the count when
+// the server sends one, else the step position it always used.
+function LongRowProgress({
+  runId,
+  chip,
+  fallbackFraction,
+  children,
+}: {
+  runId: string;
+  chip: { videoKind: string | undefined; targetSeconds: number | undefined };
+  fallbackFraction: number;
+  children: (stageText: string | null) => React.ReactNode;
+}) {
+  const trpc = useTRPC();
+  const isLong = chip.videoKind === 'long';
+  const progress = useQuery(trpc.runs.progress.queryOptions({ runId }, { enabled: isLong, refetchInterval: QUEUE_POLL_MS }));
+  const counted = isLong ? imageStageFraction(progress.data) : null;
+  const stageText = counted !== null ? imageStageLine(progress.data) : null;
+  return (
+    <>
+      {/* Board "Queue — long-video row": chip and stage line side by side, then the bar. A Short keeps its layout. */}
+      {isLong ? (
+        <View style={styles.longLine}>
+          <VideoChip {...chip} />
+          {children(stageText)}
+        </View>
+      ) : null}
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${(counted ?? fallbackFraction) * 100}%` }]} />
+      </View>
+      {isLong ? null : children(stageText)}
+    </>
   );
 }
 
@@ -330,6 +372,7 @@ const styles = StyleSheet.create({
   rowWrap: { marginBottom: space.md },
   progressRow: { backgroundColor: color.surface2, borderRadius: radius.xl, padding: space.lg, gap: space.sm },
   progressBrief: { fontFamily: font.bold, fontSize: 14, color: color.ink, flexShrink: 1 },
+  longLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: color.border, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: 3, backgroundColor: color.accent },
   topLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
