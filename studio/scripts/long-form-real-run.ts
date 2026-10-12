@@ -29,6 +29,25 @@ Use only these facts:
 - Eiffel saved it by turning it into a scientific tool: he used it for meteorological and aerodynamic experiments and a radio antenna, so the city kept it.
 Chapters should follow: why build it, how it went up, why it was almost lost, why it stayed.`;
 
+// A fuller facts brief for a 10-minute video: a long script needs enough material that the model is not
+// tempted to invent any.
+const BRIEF_LONG = `A 10-minute explainer: how the Eiffel Tower was built, why people hated it, and why it was not torn down.
+Use only these facts:
+- The tower was built for the 1889 World's Fair in Paris (the Exposition Universelle), which marked 100 years since the French Revolution.
+- More than 100 designs were submitted to the 1886 competition for a monument for the fair; the design from Gustave Eiffel's company won.
+- The first sketch came from Maurice Koechlin and Emile Nouguier, engineers at Eiffel's company; the architect Stephen Sauvestre shaped its look, including the arches at the base.
+- Construction began on 28 January 1887 and the tower opened on 31 March 1889: 2 years, 2 months and 5 days.
+- About 300 workers built it on site. The parts were made in advance at Eiffel's factory in Levallois-Perret and joined on site.
+- It is made of 18,038 pieces of wrought iron held together by 2.5 million rivets, and the metal structure weighs about 7,300 tonnes.
+- At 300 metres it was the tallest man-made structure in the world until the Chrysler Building passed it in 1930.
+- In 1887 a group of artists and writers, including Guy de Maupassant, Charles Gounod and Charles Garnier, signed a protest letter calling the tower useless and monstrous.
+- Its permit was for 20 years, so it could have been dismantled in 1909.
+- Eiffel made it useful: he ran meteorological and aerodynamic experiments there, including a wind tunnel at its foot, and it became a radio antenna. That is why the city kept it.
+- Gustave Eiffel's company also built the iron framework inside the Statue of Liberty.
+- The tower is repainted about every seven years and needs about 60 tonnes of paint each time.
+- In hot weather the iron expands and the tower grows by up to about 15 centimetres.
+Chapters should follow: the fair and the competition, the design and who made it, building it, the protest, why it was nearly lost, why it stayed.`;
+
 const SOURCES = ['https://www.toureiffel.paris/en/the-monument/history', 'https://en.wikipedia.org/wiki/Eiffel_Tower'];
 
 async function main(): Promise<void> {
@@ -49,7 +68,7 @@ async function main(): Promise<void> {
     : await createRun({
     tenantId: channel.tenantId,
     channelId: channel.id,
-    briefText: BRIEF,
+    briefText: seconds >= 300 ? BRIEF_LONG : BRIEF,
     creationOptions: {
       videoKind: 'long',
       targetDurationSec: seconds,
