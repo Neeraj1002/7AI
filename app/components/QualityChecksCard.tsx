@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { color, font, type } from '../lib/theme';
 import { Card } from './Card';
-import { parseQualityMetrics, type QualityRowStatus } from '../lib/quality-checks';
+import { parseQualityMetrics, type QualityRow, type QualityRowStatus } from '../lib/quality-checks';
 
 // Board "Gate 2 — quality checks": a 20px filled circle with ✓ / ! / ✕, the value on the right in the same colour.
 const BADGE: Record<QualityRowStatus, { glyph: string; bg: string; fg: string }> = {
@@ -11,38 +11,63 @@ const BADGE: Record<QualityRowStatus, { glyph: string; bg: string; fg: string }>
   fail: { glyph: '✕', bg: color.danger, fg: color.danger },
 };
 
+function CheckRow({ row }: { row: QualityRow }) {
+  const badge = BADGE[row.status];
+  return (
+    <View style={styles.rowWrap}>
+      <View style={styles.row} accessible accessibilityLabel={`${row.label}: ${row.value}`}>
+        <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+          <Text style={styles.badgeGlyph}>{badge.glyph}</Text>
+        </View>
+        <Text style={styles.label}>{row.label}</Text>
+        <View style={styles.valueCol}>
+          <Text style={[styles.value, { color: badge.fg }]}>{row.value}</Text>
+          {row.target ? <Text style={styles.target}>{row.target}</Text> : null}
+        </View>
+      </View>
+      {row.message ? <Text style={styles.message}>{row.message}</Text> : null}
+    </View>
+  );
+}
+
 // Sprint 4 FE E1 — Gate 2 "Quality checks", from `runs.get().qualityMetrics`. Colours and messages come from
 // the server's per-row `{ warn, message }`; rows the server omits are not applicable and are hidden.
 // Renders nothing when there are no measured metrics (older runs).
-export function QualityChecksCard({ qualityMetrics }: { qualityMetrics: unknown }) {
+export function QualityChecksCard({ qualityMetrics, embedded }: { qualityMetrics: unknown; embedded?: boolean }) {
   const checks = parseQualityMetrics(qualityMetrics);
+  const [showTechnical, setShowTechnical] = useState(false);
   if (!checks) return null;
+  const Wrapper = embedded ? View : Card;
   return (
-    <Card>
+    <Wrapper style={embedded ? styles.embedded : undefined}>
       <Text style={styles.title}>Quality checks</Text>
       <Text style={styles.intro}>
         Measured on the final file. Red items block the video automatically; amber items are for your judgement.
       </Text>
-      {checks.rows.map((row) => {
-        const badge = BADGE[row.status];
-        return (
-          <View key={row.key} style={styles.rowWrap}>
-            <View style={styles.row} accessible accessibilityLabel={`${row.label}: ${row.value}`}>
-              <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                <Text style={styles.badgeGlyph}>{badge.glyph}</Text>
-              </View>
-              <Text style={styles.label}>{row.label}</Text>
-              <Text style={[styles.value, { color: badge.fg }]}>{row.value}</Text>
-            </View>
-            {row.message ? <Text style={styles.message}>{row.message}</Text> : null}
-          </View>
-        );
-      })}
-    </Card>
+      {checks.rows.map((row) => (
+        <CheckRow key={row.key} row={row} />
+      ))}
+      {checks.technical.length > 0 ? (
+        <>
+          <Pressable
+            onPress={() => setShowTechnical((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showTechnical }}
+            accessibilityLabel={checks.technicalWarn ? 'Technical details, one or more items need a look' : 'Technical details'}
+            style={styles.techLink}
+          >
+            <Text style={styles.techLinkText}>Technical details {showTechnical ? '⌄' : '›'}</Text>
+            {checks.technicalWarn ? <View style={styles.techDot} /> : null}
+          </Pressable>
+          {showTechnical ? checks.technical.map((row) => <CheckRow key={row.key} row={row} />) : null}
+        </>
+      ) : null}
+    </Wrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  embedded: { gap: 8 },
   title: { ...type.sectionTitle, color: color.ink },
   intro: { ...type.meta, lineHeight: 19 },
   rowWrap: { borderTopWidth: 1, borderTopColor: color.border, paddingVertical: 7, gap: 2 },
@@ -50,6 +75,11 @@ const styles = StyleSheet.create({
   badge: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   badgeGlyph: { fontFamily: font.black, fontSize: 12, color: color.onAccent },
   label: { flex: 1, fontFamily: font.regular, fontSize: 14, color: color.ink },
+  valueCol: { alignItems: 'flex-end' },
+  target: { fontFamily: font.regular, fontSize: 11, color: color.muted },
   value: { fontFamily: font.bold, fontSize: 13 },
+  techLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: color.border },
+  techLinkText: { fontFamily: font.black, fontSize: 13, color: color.accent },
+  techDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: color.amber },
   message: { ...type.meta, fontSize: 12, color: color.warnText, paddingLeft: 30 },
 });
