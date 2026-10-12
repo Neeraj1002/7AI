@@ -50,6 +50,8 @@ export type LongVideoParams = {
   // The channel's weekly budget gate, awaited before the image stage and before the render (as a
   // Short's is before its render). Throws to stop the run.
   weeklyGate?: () => Promise<void>;
+  // Sprint 4 Task 12 (R4): stills finished so far (cache hits included), for runs.progress.
+  onStillsProgress?: (progress: { done: number; total: number }) => void;
 };
 
 export async function generateLongVideo(params: LongVideoParams): Promise<VideoGenerationResult> {
@@ -125,6 +127,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       scenePrompts: styled,
       size: STILL_SIZE_LANDSCAPE,
       cacheDir: stillsCacheDir(params.pipelineRunId),
+      onProgress: params.onStillsProgress,
       onStillGenerated: async (info) => {
         if (spend) {
           spend.stillsModel = info.model;

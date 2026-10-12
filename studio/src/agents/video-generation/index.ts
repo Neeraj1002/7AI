@@ -408,6 +408,8 @@ export async function generateVideo(params: {
   // Bugs Closure 2 (P5) - filled in as each paid call completes, so the caller can
   // book the real cost of a render that fails part-way (see spend.ts).
   spend?: VideoSpend;
+  // Sprint 4 Task 12 (R4): stills finished so far, for runs.progress.
+  onStillsProgress?: (progress: { done: number; total: number }) => void;
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -494,6 +496,7 @@ export async function generateVideo(params: {
       // Sprint 4 Task 3 (R9/R11): style, negative and safety text ride on each scene prompt.
       stills = await generateStills({
         scenePrompts: buildStyledScenePrompts(scenePrompts, params.sceneStyle ?? {}),
+        onProgress: params.onStillsProgress,
       });
     } catch (error) {
       // Stills generated before the failure were billed (ai-visuals/client.ts reports them).

@@ -49,6 +49,7 @@ export async function stubGenerateStills(params: GenerateStillsParams): Promise<
   const imagePaths: string[] = [];
   const size = params.size ?? STILL_SIZE_PORTRAIT;
 
+  params.onProgress?.({ done: 0, total: params.scenePrompts.length });
   for (let i = 0; i < params.scenePrompts.length; i += 1) {
     const imageFilename = `${randomUUID()}.png`;
     // A solid, per-still-distinct color background with the real scene
@@ -86,6 +87,7 @@ export async function stubGenerateStills(params: GenerateStillsParams): Promise<
       { cwd: AI_VISUALS_TMP_DIR },
     );
     imagePaths.push(path.join(AI_VISUALS_TMP_DIR, imageFilename));
+    params.onProgress?.({ done: i + 1, total: params.scenePrompts.length });
   }
 
   return {

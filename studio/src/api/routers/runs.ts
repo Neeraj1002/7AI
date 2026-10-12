@@ -44,13 +44,14 @@ import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
 import { sumUsageCostForRun } from '../../models/repositories/usage-event.repository';
 import type { ChannelProfileData } from '../../channel-profile';
+import { readStillsProgress } from '../../run-pipeline/stills-progress';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, PipelineRun, PipelineStage, ReviewLog } from '../../types';
-import { withQualityRows } from '../../agents/video-intelligence/quality-metrics';
-import { qualityProfileFor, type QualityMetrics, type QualityProfile } from '../../agents/video-generation/quality-spec';
+import { withQualityRows, withQualitySpec } from '../../agents/video-intelligence/quality-metrics';
+import { qualityProfileFor, SHORT_PROFILE, type QualityMetrics, type QualityProfile } from '../../agents/video-generation/quality-spec';
 import { deriveLongFormRunFields, LINK_TTL_SECONDS } from '../../long-form/run-fields';
 
 // Sprint 3 Task 11 (R2/B13) — the one place that normalizes gate1/gate2's
@@ -175,6 +176,7 @@ function intakeRepeatTopic(
 export function deriveQualityMetrics(
   stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'input' | 'output'>[],
   profile?: QualityProfile,
+  targetSeconds?: number,
 ): QualityMetrics | null {
   const review = stages
     .filter((s) => s.stageName === 'video_review' && s.status === 'completed')
@@ -182,7 +184,9 @@ export function deriveQualityMetrics(
   const metrics = (review?.output as { qualityMetrics?: QualityMetrics } | null | undefined)?.qualityMetrics;
   if (!review || !metrics) return null;
   const source = (review.input as { visualSource?: string } | null | undefined)?.visualSource;
-  return withQualityRows(metrics, source === 'ai-stills' || source === 'stock-footage' ? source : undefined, profile);
+  const withRows = withQualityRows(metrics, source === 'ai-stills' || source === 'stock-footage' ? source : undefined, profile);
+  // Sprint 4 Task 12 (R6): the numbers the checks used, and the Length row of a long video.
+  return withQualitySpec(withRows, profile ?? SHORT_PROFILE, targetSeconds);
 }
 
 // Sprint 4 Task 2: the latest completed script_review attempt's concerns and
@@ -348,6 +352,7 @@ async function getRunDetail(id: string, ctx: Context) {
     qualityMetrics: deriveQualityMetrics(
       stages,
       resolved.videoKind === 'long' ? qualityProfileFor('long', resolved.visualSecondsPerStill) : undefined,
+      resolved.targetSeconds,
     ),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
@@ -637,7 +642,13 @@ export const runsRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
     }
     const currentStageAttempt = run.currentStage ? await findLatestAttempt(input.runId, run.currentStage) : null;
-    return { stage: run.currentStage, attemptNo: currentStageAttempt?.attemptNumber ?? null };
+    // Sprint 4 Task 12 (R4): while the stills of a video are being made, how many are finished and
+    // how many are planned. Absent for every other stage, and before the first count is stored.
+    const stills =
+      run.currentStage === 'video_generation' && currentStageAttempt?.status === 'running'
+        ? readStillsProgress(currentStageAttempt.output)
+        : undefined;
+    return { stage: run.currentStage, attemptNo: currentStageAttempt?.attemptNumber ?? null, ...stills };
   }),
 
   // Sprint 3 Task 12 (R5) — mints a fresh 24h presigned R2 URL on demand, so
