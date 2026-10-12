@@ -52,6 +52,10 @@ export const VideoGenerationOutputSchema = z.object({
   frameCount: z.number().nullable().optional(),
   chapterTimings: z.array(z.object({ title: z.string(), startSec: z.number(), endSec: z.number() })).optional(),
   subtitlesPath: z.string().optional(),
+  // Long-form: the narration pace actually measured, to keep the script-length target calibrated.
+  scriptWordCount: z.number().optional(),
+  narrationSeconds: z.number().optional(),
+  measuredWordsPerMinute: z.number().optional(),
   bedCredits: z.array(z.string()).optional(),
 });
 export type VideoGenerationOutput = z.infer<typeof VideoGenerationOutputSchema>;
@@ -95,6 +99,7 @@ export type VideoGenerationUsage = {
     videoKind?: 'short' | 'long';
     costsBookedSeparately?: boolean;
     narrationCostUsd?: string;
+    measuredWordsPerMinute?: number;
     // Sprint 2 Task 3 (F1) — always present ('none' is a real, valid value,
     // not an absent field). No real cost: the audio-bed library is local
     // and free, unlike every other per-run media cost here.

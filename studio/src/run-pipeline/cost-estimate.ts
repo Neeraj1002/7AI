@@ -2,6 +2,7 @@ import { resolvePurpose, resolvePricing } from '../llm';
 import { resolveMediaPurpose, resolveTtsPricing, resolveTranscriptionPricing } from '../media';
 import { resolveAiVisualsPurpose, resolveImagePricing } from '../ai-visuals/registry';
 import type { VideoKind } from '../formats/manifest';
+import { LONG_WORDS_PER_MINUTE } from '../agents/script-generation/long-form';
 import { longStillCount } from '../agents/video-generation/plan-long';
 
 // Sprint 4 Task 9 (R7): a pre-flight cost estimate from the real unit prices
@@ -10,7 +11,8 @@ import { longStillCount } from '../agents/video-generation/plan-long';
 // character counts are planning assumptions. Checked against the real 2-minute run of
 // 2026-10-11: estimated $0.4125, actually paid $0.4032 (reports/task9.md).
 
-export const LONG_WORDS_PER_MINUTE = 145;
+// One pace for the script target and the estimate (calibrated from a real run; see long-form.ts).
+export { LONG_WORDS_PER_MINUTE };
 const SHORT_WORDS_PER_MINUTE = 150;
 const CHARS_PER_WORD = 6; // average English word plus its space
 const TOKENS_PER_WORD = 1.4;
