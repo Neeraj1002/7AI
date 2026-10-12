@@ -1,4 +1,4 @@
-// Sprint 4 FE E3/E4 — New brief helpers: source-link validation and the "recent formats" chips.
+// Sprint 4 FE E3 / N2 — New brief helpers: source-link validation and the run input (Freeform sends no formatKey).
 
 export const MAX_SOURCES = 20;
 const MAX_SOURCE_LENGTH = 500; // matches runs.create's sources[] schema
@@ -28,26 +28,8 @@ export function validateSources(rows: string[]): SourcesResult {
   return { sources, error: null };
 }
 
-type FormatLite = { key: string };
-type ComparisonChannelLite = { channelId: string; byFormat: { formatKey: string | null; videoCount: number }[] } | undefined;
-
-// Two chips next to Freeform: the channel's most-used formats (from real run history), topped up with the
-// first formats of the library. A format picked from the sheet is always shown, replacing the last chip.
-export function chipFormatKeys(
-  formats: FormatLite[],
-  channel: ComparisonChannelLite,
-  selected: string | null,
-): string[] {
-  const known = new Set(formats.map((f) => f.key));
-  const used = (channel?.byFormat ?? [])
-    .filter((r): r is { formatKey: string; videoCount: number } => r.formatKey !== null && known.has(r.formatKey))
-    .sort((a, b) => b.videoCount - a.videoCount)
-    .map((r) => r.formatKey);
-  const chips: string[] = [];
-  for (const k of [...used, ...formats.map((f) => f.key)]) {
-    if (chips.length >= 2) break;
-    if (!chips.includes(k)) chips.push(k);
-  }
-  if (selected && known.has(selected) && !chips.includes(selected)) chips[chips.length - 1] = selected;
-  return chips;
+// Freeform is "no formatKey": the key is only present when a format is picked. A picked key the channel does not
+// offer (e.g. after switching channel) is treated as Freeform rather than sent.
+export function formatKeyField(formatKey: string | null, offered: { key: string }[]): { formatKey?: string } {
+  return formatKey !== null && offered.some((f) => f.key === formatKey) ? { formatKey } : {};
 }
