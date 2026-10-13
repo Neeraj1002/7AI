@@ -1,4 +1,4 @@
-import type { Purpose, LLMProvider } from './types';
+import type { LLMProvider, Purpose } from "./types";
 
 export type RegistryEntry = {
   provider: LLMProvider;
@@ -31,12 +31,26 @@ export type RegistryEntry = {
 // precedent. Flagged in both tasks' reports as a judgment call, same
 // treatment as `intake-parsing`'s tier before it.
 export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
-  'intake-parsing': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-  'script-generation': { provider: 'anthropic', model: 'claude-sonnet-5' },
-  'script-review': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-  'video-intelligence-own-draft': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-  'video-production-planning': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-  'metadata-generation': { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  "intake-parsing": { provider: "anthropic", model: "claude-haiku-4-5" },
+
+  // The Storyteller: Handles narrative weight, dramatic loops, and pacing cues
+  "script-generation": { provider: "anthropic", model: "claude-sonnet-5" },
+
+  "script-review": { provider: "anthropic", model: "claude-haiku-4-5" },
+
+  "video-intelligence-own-draft": {
+    provider: "anthropic",
+    model: "claude-haiku-4-5",
+  },
+
+  // ⭐️ UPGRADED: The Visual Director. Takes Sonnet's script and creates
+  // hyper-realistic, dark, cinematic prompts for the video generation API.
+  "video-production-planning": {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+  },
+
+  "metadata-generation": { provider: "anthropic", model: "claude-haiku-4-5" },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {
@@ -54,14 +68,16 @@ export type PricingEntry = {
 };
 
 export const MODEL_PRICING: Record<string, PricingEntry> = {
-  'claude-sonnet-5': { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
-  'claude-haiku-4-5': { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
+  "claude-sonnet-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
+  "claude-haiku-4-5": { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
 };
 
 export function resolvePricing(model: string): PricingEntry {
   const entry = MODEL_PRICING[model];
   if (!entry) {
-    throw new Error(`No pricing entry for model '${model}' — add one to registry.ts's MODEL_PRICING.`);
+    throw new Error(
+      `No pricing entry for model '${model}' — add one to registry.ts's MODEL_PRICING.`,
+    );
   }
   return entry;
 }
