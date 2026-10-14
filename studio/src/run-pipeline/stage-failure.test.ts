@@ -21,4 +21,11 @@ describe('failureOutputFromError', () => {
     expect((out.rawReply as string).length).toBe(8000);
     expect(out.rawReplyTruncated).toBe(true);
   });
+
+  it('persists output exhaustion separately from JSON diagnostics with the failed scene range', () => {
+    const out = failureOutputFromError(new NonTransientStageError('cap', undefined, {
+      rawReply: '{', stopReason: 'length', failureKind: 'output_token_exhaustion', sceneOffset: 12, sceneCount: 1,
+    }));
+    expect(out).toMatchObject({ failureKind: 'output_token_exhaustion', sceneOffset: 12, sceneCount: 1 });
+  });
 });

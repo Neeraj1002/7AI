@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { MOOD_TAGS } from "../../audio-bed";
 import {
   callLLM,
   describeJsonError,
   extractJsonObjectText,
   type LLMResponse,
+  resolvePurpose,
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
 import { llmUsageContext } from "../../run-pipeline/stage-failure";
@@ -17,17 +19,18 @@ import {
 } from "./plan";
 
 // Sprint 4 Task 9 (R5.2/R5.3): the production plan for a long-form video. Long-form uses AI stills
-// only, so there is no visual-source or caption-style decision to make. The planner is called once
-// per chapter (so each reply stays small and a failure costs one chapter, not the plan), is told how
+// only, so there is no visual-source or caption-style decision to make. The planner uses bounded
+// batches with full chapter context, checkpoints completed scenes, and is told how
 // many stills that chapter gets, and must tie every still to the opening words of the narration it
 // illustrates. The still total comes from the target length, never from a fixed cap of 20.
 
 export const LONG_STILL_MIN = 12;
 export const LONG_STILL_MAX = 200;
 export const LONG_DEFAULT_SECONDS_PER_STILL = 5;
-// A detailed long-form chapter can contain dozens of scene prompts. The
-// previous 4,096-token cap repeatedly truncated planner JSON in production.
+// Sonnet 5 supports 128K output tokens, but small replies bound recovery cost.
+// Keep the existing per-call budget; split further if a batch exhausts it.
 export const LONG_CHAPTER_PLAN_MAX_TOKENS = 8192;
+export const LONG_SCENES_PER_BATCH = 12;
 
 export function longStillCount(
   targetSeconds: number,
@@ -76,10 +79,28 @@ export function allocateStillsToChapters(
 
 const ChapterScenesReplySchema = z.object({
   scenes: z
-    .array(z.object({ words: z.string().min(1), prompt: z.string().min(1) }))
+    .array(z.object({ words: z.string().min(1), prompt: z.string().trim().min(1) }))
     .min(1),
-  audioLayer: z.string().optional(),
+  audioLayer: z.enum(AUDIO_LAYERS).optional(),
 });
+
+export const LongPlanningCheckpointSchema = z.object({
+  inputHash: z.string(),
+  scenes: z.record(z.string(), z.object({ words: z.string().trim().min(1), prompt: z.string().trim().min(1) })),
+  audioLayer: z.enum(AUDIO_LAYERS).optional(),
+});
+export type LongPlanningCheckpoint = z.infer<typeof LongPlanningCheckpointSchema>;
+class PlanningOutputExhausted extends NonTransientStageError {}
+
+// Fixed narration anchors span the full chapter and make recovery deterministic.
+function sceneAnchors(text: string, count: number): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) throw new NonTransientStageError("Cannot plan empty chapter narration");
+  return Array.from({ length: count }, (_, i) => {
+    const start = Math.floor(i * words.length / count);
+    return words.slice(start, start + 6).join(" ");
+  });
+}
 
 function buildSystemPrompt(params: {
   visualStyle?: string | null;
@@ -95,9 +116,9 @@ function buildSystemPrompt(params: {
 Plan a sequence of moving AI-generated video clips for that chapter: a new dynamic clip roughly every few seconds to keep pacing high.
 
 Respond with ONLY a JSON object: {"scenes": [{"words": string, "prompt": string}]${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
-- "scenes" has EXACTLY the number of scenes requested, in narration order, spread across the whole chapter.
-- "words" is the first 4 to 8 words of the narration that scene illustrates, copied EXACTLY from the chapter text, so the clip appears exactly when those words are spoken. The first scene must start at the first words of the chapter.
-- "prompt" is a highly detailed, cinematic video-generation prompt tailored for advanced video models (like HunyuanVideo or Runway). It must describe a concrete, visually distinct scene composed for a wide landscape frame.
+- "scenes" has EXACTLY the number of scenes requested, in the supplied anchor order. Plan only this batch, using the full chapter as context.
+- "words" must copy the corresponding supplied narration anchor EXACTLY. Each prompt illustrates the narration from that anchor until the next anchor (or chapter end).
+- "prompt" is a detailed, cinematic video-generation prompt tailored for advanced video models (like HunyuanVideo or Runway). Describe a concrete, visually distinct scene composed for a wide landscape frame in about 80 to 140 words; avoid repeating generic instructions.
 - ${audio}
 
 Rules for video prompts:
@@ -117,15 +138,23 @@ async function planChapter(params: {
   chapterCount: number;
   titles: string[];
   count: number;
+  anchors: string[];
+  offset: number;
+  totalCount: number;
+  allAnchors: string[];
   fixNotes?: string;
   calls: LLMResponse[];
   onCall?: (llm: LLMResponse) => Promise<void>;
+  beforeCall?: () => Promise<void>;
 }): Promise<z.infer<typeof ChapterScenesReplySchema>> {
   const user = [
     `Topic: ${params.topic}`,
     `Chapters in order: ${params.titles.map((t, i) => `${i + 1}. ${t}`).join("; ")}`,
     `This is chapter ${params.index + 1} of ${params.chapterCount}: "${params.chapter.title}"`,
-    `Number of scenes to plan for this chapter: ${params.count}`,
+    `Number of scenes to plan for this batch: ${params.count}`,
+    `Chapter scene range: ${params.offset + 1}-${params.offset + params.count} of ${params.totalCount}`,
+    `All chapter narration anchors (context and beat boundaries): ${JSON.stringify(params.allAnchors)}`,
+    `Required batch anchors in order: ${JSON.stringify(params.anchors)}`,
     `Chapter narration:\n${params.chapter.text}`,
     params.fixNotes
       ? `The previous video attempt failed review for this reason; change whatever caused it:\n${params.fixNotes}`
@@ -136,6 +165,7 @@ async function planChapter(params: {
   let lastError = "";
   let firstFailure: { llm: LLMResponse; parseError: string } | undefined;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await params.beforeCall?.();
     const llm = await callLLM({
       purpose: "video-production-planning",
       system: params.system,
@@ -157,10 +187,10 @@ async function planChapter(params: {
     params.calls.push(llm);
     // Booked the moment the call returns, so a later chapter failing never loses this call's spend.
     await params.onCall?.(llm);
-    if (llm.stopReason === "length") {
+    if (llm.stopReason === "length" || llm.usage.outputTokens >= LONG_CHAPTER_PLAN_MAX_TOKENS) {
       const parseError = `output cap reached (maxTokens ${LONG_CHAPTER_PLAN_MAX_TOKENS})`;
-      throw new NonTransientStageError(
-        `Video production planning for chapter ${params.index + 1} ("${params.chapter.title}") was cut off at the output cap (maxTokens=${LONG_CHAPTER_PLAN_MAX_TOKENS}, outputTokens=${llm.usage.outputTokens}). Reduce the chapter scene count or increase the planner output budget.`,
+      throw new PlanningOutputExhausted(
+        `Video production planning for chapter ${params.index + 1} ("${params.chapter.title}"), scenes ${params.offset + 1}-${params.offset + params.count}, was cut off at the output cap (maxTokens=${LONG_CHAPTER_PLAN_MAX_TOKENS}, outputTokens=${llm.usage.outputTokens}).`,
         undefined,
         {
           ...llmUsageContext(llm),
@@ -168,6 +198,9 @@ async function planChapter(params: {
           replyLength: llm.text.length,
           parseError,
           attempts: attempt,
+          failureKind: "output_token_exhaustion",
+          sceneOffset: params.offset,
+          sceneCount: params.count,
         },
       );
     }
@@ -177,12 +210,11 @@ async function planChapter(params: {
       );
       if (!parsed.success) throw new Error(parsed.error.message.slice(0, 200));
       const n = parsed.data.scenes.length;
-      if (n < Math.max(1, Math.ceil(params.count * 0.6)))
-        throw new Error(`only ${n} scenes, ${params.count} were requested`);
-      return {
-        ...parsed.data,
-        scenes: parsed.data.scenes.slice(0, Math.ceil(params.count * 1.4)),
-      };
+      if (n !== params.count)
+        throw new Error(`received ${n} scenes, exactly ${params.count} were requested`);
+      if (parsed.data.scenes.some((scene, i) => scene.words !== params.anchors[i]))
+        throw new Error("scene anchors must match the supplied anchors in order");
+      return parsed.data;
     } catch (error) {
       lastError =
         error instanceof SyntaxError
@@ -229,46 +261,63 @@ export async function planLongVideoProduction(params: {
   scriptGuide?: string | null;
   fixNotes?: string;
   onCall?: (llm: LLMResponse) => Promise<void>;
+  beforeCall?: () => Promise<void>;
+  checkpoint?: unknown;
+  onCheckpoint?: (checkpoint: LongPlanningCheckpoint) => Promise<void>;
 }): Promise<{ plan: ProductionPlan; calls: LLMResponse[] }> {
   const calls: LLMResponse[] = [];
   const total = longStillCount(params.targetSeconds, params.secondsPerStill);
   const counts = allocateStillsToChapters(params.chapters, total);
-  const system = buildSystemPrompt({
-    visualStyle: params.visualStyle,
-    scriptGuide: params.scriptGuide,
-    audioLayerOverride: params.audioLayerOverride,
-  });
   const titles = params.chapters.map((c) => c.title);
-
-  const scenes: Array<{ chapterIndex: number; words: string; prompt: string }> =
-    [];
-  let audioLayer: AudioLayer | undefined = params.audioLayerOverride;
+  const inputHash = createHash("sha256").update(JSON.stringify({
+    version: 2, chapters: params.chapters, topic: params.topic, counts,
+    visualStyle: params.visualStyle ?? null, scriptGuide: params.scriptGuide ?? null,
+    fixNotes: params.fixNotes ?? null, audioLayerOverride: params.audioLayerOverride ?? null,
+    model: resolvePurpose("video-production-planning"),
+  })).digest("hex");
+  const saved = LongPlanningCheckpointSchema.safeParse(params.checkpoint);
+  const checkpoint: LongPlanningCheckpoint = saved.success && saved.data.inputHash === inputHash
+    ? saved.data : { inputHash, scenes: {} };
+  const scenes: Array<{ chapterIndex: number; words: string; prompt: string }> = [];
+  let audioLayer: AudioLayer | undefined = params.audioLayerOverride ?? checkpoint.audioLayer;
   for (let i = 0; i < params.chapters.length; i += 1) {
-    const reply = await planChapter({
-      system,
-      topic: params.topic,
-      chapter: params.chapters[i],
-      index: i,
-      chapterCount: params.chapters.length,
-      titles,
-      count: counts[i],
-      fixNotes: params.fixNotes,
-      calls,
-      onCall: params.onCall,
-    });
-    for (const s of reply.scenes)
-      scenes.push({
-        chapterIndex: i,
-        words: s.words.trim(),
-        prompt: s.prompt.trim(),
+    const anchors = sceneAnchors(params.chapters[i].text, counts[i]);
+    const key = (slot: number) => i + ":" + slot;
+    const reusable = (slot: number) => checkpoint.scenes[key(slot)]?.words === anchors[slot];
+    const planBatch = async (offset: number, count: number): Promise<void> => {
+      let reply: z.infer<typeof ChapterScenesReplySchema>;
+      try {
+        reply = await planChapter({
+          system: buildSystemPrompt({ ...params, audioLayerOverride: audioLayer }),
+          topic: params.topic, chapter: params.chapters[i], index: i,
+          chapterCount: params.chapters.length, titles, count, offset,
+          totalCount: counts[i], allAnchors: anchors, anchors: anchors.slice(offset, offset + count),
+          fixNotes: params.fixNotes, calls, onCall: params.onCall, beforeCall: params.beforeCall,
+        });
+      } catch (error) {
+        if (!(error instanceof PlanningOutputExhausted) || count === 1) throw error;
+        // Never repeat an identical oversized request. Each child is smaller.
+        const left = Math.floor(count / 2);
+        await planBatch(offset, left);
+        await planBatch(offset + left, count - left);
+        return;
+      }
+      reply.scenes.forEach((scene, j) => {
+        checkpoint.scenes[key(offset + j)] = { words: scene.words.trim(), prompt: scene.prompt.trim() };
       });
-    if (
-      !audioLayer &&
-      reply.audioLayer &&
-      (AUDIO_LAYERS as readonly string[]).includes(reply.audioLayer)
-    ) {
-      audioLayer = reply.audioLayer as AudioLayer;
+      audioLayer ??= reply.audioLayer;
+      checkpoint.audioLayer = audioLayer;
+      await params.onCheckpoint?.(structuredClone(checkpoint));
+    };
+    for (let offset = 0; offset < counts[i];) {
+      if (reusable(offset)) { offset += 1; continue; }
+      let count = 1;
+      while (count < LONG_SCENES_PER_BATCH && offset + count < counts[i] && !reusable(offset + count)) count += 1;
+      await planBatch(offset, count);
+      offset += count;
     }
+    for (let slot = 0; slot < counts[i]; slot += 1)
+      scenes.push({ chapterIndex: i, ...checkpoint.scenes[key(slot)] });
   }
 
   const plan = ProductionPlanSchema.parse({
