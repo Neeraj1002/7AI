@@ -3,7 +3,7 @@ import { MOOD_TAGS } from "../../audio-bed";
 import {
   callLLM,
   describeJsonError,
-  extractJsonText,
+  extractJsonObjectText,
   type LLMResponse,
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
@@ -91,7 +91,7 @@ function buildSystemPrompt(params: {
   return `You are the cinematic video director and production planner for a long-form YouTube history video (landscape 16:9). One chapter of the narration is given at a time.
 Plan a sequence of moving AI-generated video clips for that chapter: a new dynamic clip roughly every few seconds to keep pacing high.
 
-Respond with ONLY a JSON object: {"scenes": [{"words": string, "prompt": string}]\${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
+Respond with ONLY a JSON object: {"scenes": [{"words": string, "prompt": string}]${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
 - "scenes" has EXACTLY the number of scenes requested, in narration order, spread across the whole chapter.
 - "words" is the first 4 to 8 words of the narration that scene illustrates, copied EXACTLY from the chapter text, so the clip appears exactly when those words are spoken. The first scene must start at the first words of the chapter.
 - "prompt" is a highly detailed, cinematic video-generation prompt tailored for advanced video models (like HunyuanVideo or Runway). It must describe a concrete, visually distinct scene composed for a wide landscape frame.
@@ -145,13 +145,17 @@ async function planChapter(params: {
         },
       ],
       maxTokens: 4096,
+      // Schema-constrained output keeps quotation marks and control characters in
+      // scene prompts JSON-escaped by the provider. The parser below remains as
+      // a fallback for an unusable response so the existing retry can recover.
+      outputSchema: ChapterScenesReplySchema,
     });
     params.calls.push(llm);
     // Booked the moment the call returns, so a later chapter failing never loses this call's spend.
     await params.onCall?.(llm);
     try {
       const parsed = ChapterScenesReplySchema.safeParse(
-        JSON.parse(extractJsonText(llm.text)),
+        JSON.parse(extractJsonObjectText(llm.text)),
       );
       if (!parsed.success) throw new Error(parsed.error.message.slice(0, 200));
       const n = parsed.data.scenes.length;

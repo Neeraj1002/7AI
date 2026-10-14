@@ -49,6 +49,36 @@ describe('planLongVideoProduction (Sprint 4 Task 9, R5)', () => {
     expect(mocks.callLLM.mock.calls[0][0].system).not.toContain('"audioLayer": string');
   });
 
+  it('parses fenced planner JSON with prose, escaped quotes and backslashes, and raw multiline scene text', async () => {
+    const prompt = 'Archivist says "the mandate fractured" beside C:\\maps\nA second line of narration context.';
+    const firstChapter = scenes(10, 'a');
+    firstChapter.scenes[0].prompt = prompt;
+    const rawFirstReply = JSON.stringify({ ...firstChapter, audioLayer: 'mysterious' }).replace('\\nA second', '\nA second');
+    mocks.callLLM
+      .mockResolvedValueOnce(llm(`Here is the plan:\n\`\`\`json\n${rawFirstReply}\n\`\`\``))
+      .mockResolvedValueOnce(llm(JSON.stringify(scenes(10, 'b'))))
+      .mockResolvedValueOnce(llm(JSON.stringify(scenes(4, 'c'))));
+
+    const { plan } = await planLongVideoProduction({ chapters, topic: 'Terminus', targetSeconds: 120 });
+
+    expect(plan.longScenes![0].prompt).toBe(prompt);
+    expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
+  });
+
+  it('retries a chapter after an unescaped quotation mark in a scene prompt', async () => {
+    const malformed = JSON.stringify({ ...scenes(10, 'bad'), audioLayer: 'calm' }).replace('bad scene 0', 'bad "scene" 0');
+    mocks.callLLM
+      .mockResolvedValueOnce(llm(malformed))
+      .mockResolvedValueOnce(llm(JSON.stringify({ ...scenes(10, 'a'), audioLayer: 'calm' })))
+      .mockResolvedValueOnce(llm(JSON.stringify(scenes(10, 'b'))))
+      .mockResolvedValueOnce(llm(JSON.stringify(scenes(4, 'c'))));
+
+    const { plan } = await planLongVideoProduction({ chapters, topic: 'Terminus', targetSeconds: 120 });
+
+    expect(plan.longScenes).toHaveLength(24);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(4);
+  });
+
   it('retries a chapter once when too few scenes come back, then fails with the chapter named', async () => {
     mocks.callLLM.mockResolvedValue(llm(JSON.stringify(scenes(1, 'z'))));
     await expect(planLongVideoProduction({ chapters, topic: 'T', targetSeconds: 120 })).rejects.toThrow(/chapter 1 .*unusable twice/);
