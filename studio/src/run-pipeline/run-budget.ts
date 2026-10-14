@@ -10,7 +10,9 @@ export const RUN_SPEND_LIMIT_PREFIX = 'Spend limit reached';
 
 export class RunSpendLimitError extends NonTransientStageError {
   constructor(spentUsd: number, limitUsd: number) {
-    super(describeRunSpendLimit(spentUsd, limitUsd));
+    super(describeRunSpendLimit(spentUsd, limitUsd), undefined, {
+      recoveryKind: 'spend_limit',
+    });
     this.name = 'RunSpendLimitError';
   }
 }

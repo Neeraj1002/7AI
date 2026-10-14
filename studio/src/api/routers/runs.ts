@@ -29,6 +29,7 @@ import {
   MAX_MANUAL_RETRIES_PER_STAGE,
   MANUAL_RETRY_CAP_MESSAGE,
   isManualRetryCapReached,
+  isEligibleRecovery,
   manualRetriesUsed,
   recordManualRetry,
   retryTargetStage,
@@ -906,7 +907,9 @@ export const runsRouter = router({
       throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
     }
     // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
-    if (isManualRetryCapReached(run, target)) {
+    const failedTarget = await findLatestAttempt(run.id, target);
+    const eligibleRecovery = isEligibleRecovery(failedTarget);
+    if (!eligibleRecovery && isManualRetryCapReached(run, target)) {
       throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
     }
     const regenCapped = target !== run.currentStage;
@@ -932,7 +935,7 @@ export const runsRouter = router({
       newMaxCostUsd = input.maxCostUsd;
     }
     // Only a Retry that really starts a new attempt counts (budget refusal threw above).
-    await recordManualRetry(run, target);
+    if (!eligibleRecovery) await recordManualRetry(run, target);
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,

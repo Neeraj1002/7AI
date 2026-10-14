@@ -7,7 +7,7 @@ vi.mock('../config/env', () => ({ env: { ANTHROPIC_API_KEY: 'test-key' } }));
 
 import { APICallError } from 'ai';
 import { callProviderModel } from './client';
-import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
+import { getStageErrorContext, NonTransientStageError, TransientStageError, withRetryAndCircuitBreaker, recoverableFailureKind } from '../run-pipeline/retry-with-backoff';
 
 const base = {
   provider: 'anthropic' as const,
@@ -48,5 +48,40 @@ describe('callProviderModel attaches the HTTP status to the error context (Bugs 
     mocks.generateText.mockRejectedValue(new Error('socket hang up'));
     const error = await callProviderModel(base).catch((e: unknown) => e);
     expect(getStageErrorContext(error)).not.toHaveProperty('statusCode');
+  });
+});
+
+describe('provider-capacity classification and bounded backoff', () => {
+  it('stops confirmed workspace exhaustion after one call and keeps details', async () => {
+    mocks.generateText.mockRejectedValue(new APICallError({ message: 'You have reached your workspace API usage limit', url: 'https://api.example.test', requestBodyValues: {}, statusCode: 429, responseBody: 'original body' }));
+    const error = await withRetryAndCircuitBreaker(() => callProviderModel(base), { baseDelayMs: 0 }).catch((e: unknown) => e);
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(recoverableFailureKind(error)).toBe('provider_capacity');
+    expect(getStageErrorContext(error)).toMatchObject({ providerResponseBody: 'original body', statusCode: 429 });
+    expect(mocks.generateText).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 }));
+  });
+  it('ambiguous 429s retry at 500 and 1000ms, then allow manual recovery', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.generateText.mockRejectedValue(apiError(429));
+      const pending = withRetryAndCircuitBreaker(() => callProviderModel(base)).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.generateText).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(499);
+      expect(mocks.generateText).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mocks.generateText).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1000);
+      const error = await pending;
+      expect(mocks.generateText).toHaveBeenCalledTimes(3);
+      expect(recoverableFailureKind(error)).toBe('rate_limit_exhausted');
+      expect(getStageErrorContext(error)).toMatchObject({ providerErrorMessage: 'HTTP 429' });
+    } finally { vi.useRealTimers(); }
+  });
+  it.each([400, 401, 403, 422])('HTTP %i cannot acquire recovery permission from quota-like text', async (statusCode) => {
+    mocks.generateText.mockRejectedValue(new APICallError({ message: 'workspace API usage limit', url: 'https://api.example.test', requestBodyValues: {}, statusCode }));
+    const error = await withRetryAndCircuitBreaker(() => callProviderModel(base), { baseDelayMs: 0 }).catch((e: unknown) => e);
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(recoverableFailureKind(error)).toBeUndefined();
   });
 });

@@ -105,3 +105,13 @@ describe('planLongVideoProduction (Sprint 4 Task 9, R5)', () => {
     });
   });
 });
+
+describe('planner paid-call guard', () => {
+  it('checks the spend limit before every chapter call', async () => {
+    mocks.callLLM.mockReset().mockResolvedValue(llm(JSON.stringify(scenes(12, 'x'))));
+    const beforeCall = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new NonTransientStageError('Spend limit reached'));
+    await expect(planLongVideoProduction({ chapters, topic: 'T', targetSeconds: 120, beforeCall })).rejects.toThrow('Spend limit reached');
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    expect(beforeCall).toHaveBeenCalledTimes(2);
+  });
+});

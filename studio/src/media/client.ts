@@ -19,7 +19,7 @@ import { DATA_DIR } from '../config/paths';
 let client: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!client) {
-    client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+    client = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0 });
   }
   return client;
 }
@@ -35,7 +35,15 @@ async function ensureTmpDir(): Promise<void> {
 
 function mapOpenAiError(error: unknown, context: Record<string, unknown>): Error {
   if (error instanceof OpenAI.APIError) {
+    context.statusCode = error.status;
+    context.providerErrorMessage = error.message;
+    if (typeof error.code === 'string') context.providerErrorCode = error.code;
+    if (error.code === 'insufficient_quota') {
+      context.recoveryKind = 'provider_capacity';
+      return new NonTransientStageError(`OpenAI API capacity exhausted: ${error.message}`, error, context);
+    }
     if (error.status !== undefined && (error.status === 429 || error.status >= 500)) {
+      if (error.status === 429) context.recoveryKind = 'rate_limit_exhausted';
       return new TransientStageError(`OpenAI API call failed (retryable): ${error.message}`, error, context);
     }
     return new NonTransientStageError(`OpenAI API call failed: ${error.message}`, error, context);

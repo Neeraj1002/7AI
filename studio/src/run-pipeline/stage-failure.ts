@@ -1,4 +1,4 @@
-import { getStageErrorContext, NonTransientStageError, type StageErrorContext } from './retry-with-backoff';
+import { getStageErrorContext, NonTransientStageError, recoverableFailureKind, type StageErrorContext } from './retry-with-backoff';
 import type { LLMResponse } from '../llm';
 
 // Bugs Task 11 (R1) — what a failed stage row keeps beyond its one-line
@@ -9,20 +9,38 @@ export const FAILED_STAGE_RAW_REPLY_CAP = 8000;
 
 export function failureOutputFromError(error: unknown): Record<string, unknown> | undefined {
   const context = getStageErrorContext(error);
-  if (!context || typeof context.rawReply !== 'string') return undefined;
+  const recoveryKind = recoverableFailureKind(error);
+  if (!context || (typeof context.rawReply !== 'string' && !recoveryKind)) return undefined;
   return {
-    rawReply: context.rawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
-    rawReplyTruncated: context.rawReply.length > FAILED_STAGE_RAW_REPLY_CAP,
-    stopReason: context.stopReason ?? null,
-    replyLength: context.replyLength ?? null,
-    parseError: context.parseError ?? null,
-    // Bugs Task 11 (R3) — set only when the generation retried once.
-    ...(typeof context.firstRawReply === 'string'
+    ...(recoveryKind
       ? {
-          attempts: context.attempts ?? null,
-          firstParseError: context.firstParseError ?? null,
-          firstStopReason: context.firstStopReason ?? null,
-          firstRawReply: context.firstRawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
+          recovery: {
+            kind: recoveryKind,
+            message: error instanceof Error ? error.message : String(error),
+            providerErrorMessage: context.providerErrorMessage ?? null,
+            providerResponseBody: typeof context.providerResponseBody === 'string' ? context.providerResponseBody.slice(0, FAILED_STAGE_RAW_REPLY_CAP) : null,
+            provider: typeof context.provider === 'string' ? context.provider : null,
+            model: typeof context.model === 'string' ? context.model : null,
+            statusCode: typeof context.statusCode === 'number' ? context.statusCode : null,
+            providerErrorCode: typeof context.providerErrorCode === 'string' ? context.providerErrorCode : null,
+          },
+        }
+      : {}),
+    ...(typeof context.rawReply === 'string'
+      ? {
+          rawReply: context.rawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
+          rawReplyTruncated: context.rawReply.length > FAILED_STAGE_RAW_REPLY_CAP,
+          stopReason: context.stopReason ?? null,
+          replyLength: context.replyLength ?? null,
+          parseError: context.parseError ?? null,
+          ...(typeof context.firstRawReply === 'string'
+            ? {
+                attempts: context.attempts ?? null,
+                firstParseError: context.firstParseError ?? null,
+                firstStopReason: context.firstStopReason ?? null,
+                firstRawReply: context.firstRawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
+              }
+            : {}),
         }
       : {}),
   };

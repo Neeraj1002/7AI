@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { failureOutputFromError, FAILED_STAGE_RAW_REPLY_CAP } from './stage-failure';
-import { NonTransientStageError } from './retry-with-backoff';
+import { CircuitBreakerTrippedError, TransientStageError, NonTransientStageError } from './retry-with-backoff';
 
 describe('failureOutputFromError', () => {
   it('is undefined for an error with no raw reply (failed rows keep a null output)', () => {
@@ -20,5 +20,15 @@ describe('failureOutputFromError', () => {
     const out = failureOutputFromError(new NonTransientStageError('x', undefined, { rawReply: long }))!;
     expect((out.rawReply as string).length).toBe(8000);
     expect(out.rawReplyTruncated).toBe(true);
+  });
+});
+
+describe('recovery diagnostics', () => {
+  it('does not mark an unexhausted temporary 429', () => {
+    expect(failureOutputFromError(new TransientStageError('temporary', undefined, { recoveryKind: 'rate_limit_exhausted' }))).toBeUndefined();
+  });
+  it('preserves the provider details after bounded retries', () => {
+    const original = new TransientStageError('HTTP 429', undefined, { recoveryKind: 'rate_limit_exhausted', statusCode: 429, providerErrorMessage: 'try later' });
+    expect(failureOutputFromError(new CircuitBreakerTrippedError('exhausted', original))).toMatchObject({ recovery: { kind: 'rate_limit_exhausted', statusCode: 429, providerErrorMessage: 'try later' } });
   });
 });

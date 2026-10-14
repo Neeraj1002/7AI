@@ -120,6 +120,7 @@ async function planChapter(params: {
   fixNotes?: string;
   calls: LLMResponse[];
   onCall?: (llm: LLMResponse) => Promise<void>;
+  beforeCall?: () => Promise<void>;
 }): Promise<z.infer<typeof ChapterScenesReplySchema>> {
   const user = [
     `Topic: ${params.topic}`,
@@ -136,6 +137,7 @@ async function planChapter(params: {
   let lastError = "";
   let firstFailure: { llm: LLMResponse; parseError: string } | undefined;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await params.beforeCall?.();
     const llm = await callLLM({
       purpose: "video-production-planning",
       system: params.system,
@@ -229,6 +231,7 @@ export async function planLongVideoProduction(params: {
   scriptGuide?: string | null;
   fixNotes?: string;
   onCall?: (llm: LLMResponse) => Promise<void>;
+  beforeCall?: () => Promise<void>;
 }): Promise<{ plan: ProductionPlan; calls: LLMResponse[] }> {
   const calls: LLMResponse[] = [];
   const total = longStillCount(params.targetSeconds, params.secondsPerStill);
@@ -255,6 +258,7 @@ export async function planLongVideoProduction(params: {
       fixNotes: params.fixNotes,
       calls,
       onCall: params.onCall,
+      beforeCall: params.beforeCall,
     });
     for (const s of reply.scenes)
       scenes.push({

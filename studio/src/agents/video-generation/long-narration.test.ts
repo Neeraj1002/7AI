@@ -68,4 +68,15 @@ describe('narrateChapters (Sprint 4 Task 9, R3)', () => {
     expect(n.ttsCostUsd).toBe(0);
     expect(n.words.length).toBeGreaterThan(100);
   }, 120_000);
+
+  it('regenerates only a missing cached narration chunk', async () => {
+    const args = { chapters, workDir: path.join(dir, 'work'), outputPath: path.join(dir, 'c.mp3') };
+    const first = await narrateChapters(args);
+    await fs.rm(first.chunks[0].audioPath);
+    const paid = vi.fn();
+    const resumed = await narrateChapters({ ...args, outputPath: path.join(dir, 'd.mp3'), onPaid: paid });
+    expect(resumed.cachedChunks).toBe(3);
+    expect(paid).toHaveBeenCalledTimes(2); // TTS and transcription for the missing chunk.
+    expect(paid.mock.calls.every(([p]) => p.chapterIndex === 0 && p.chunkIndex === 0)).toBe(true);
+  }, 120_000);
 });
