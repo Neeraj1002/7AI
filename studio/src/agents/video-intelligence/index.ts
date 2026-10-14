@@ -110,6 +110,9 @@ export async function runDeterministicChecks(
     // Task 10: planned seconds per still (sets the longest-shot allowance) and the narration length
     // the video must follow within 2%.
     secondsPerStill?: number | null;
+    // Optional long-form AI-stills pacing gate. Omitted callers retain the
+    // warning-only behavior shown at Gate 2.
+    enforceLongShotPacing?: boolean;
     narrationSeconds?: number;
   } = {},
 ): Promise<DeterministicCheckResult> {
@@ -151,7 +154,7 @@ export async function runDeterministicChecks(
   const hardFailure = hardFailureReason(metrics, profile, {
     videoSeconds: meta.durationSeconds,
     narrationSeconds: options.narrationSeconds,
-  });
+  }, { enforceLongShotPacing: options.enforceLongShotPacing && options.visualSource === 'ai-stills' });
   if (hardFailure) {
     return { passed: false, reason: hardFailure, metrics };
   }
@@ -302,6 +305,9 @@ export async function reviewVideo(params: {
   // Sprint 4 Task 10 (R2): long-form only. Absent for a Short, which then behaves exactly as before.
   videoKind?: "short" | "long";
   secondsPerStill?: number | null;
+  // Opt-in: fail an overlong AI-stills shot so the bounded regen can adjust
+  // scene placement. Defaults off for existing callers.
+  enforceLongShotPacing?: boolean;
   chapterTimings?: ChapterTiming[];
   narrationSeconds?: number;
 }): Promise<VideoIntelligenceOutcome> {
@@ -310,6 +316,7 @@ export async function reviewVideo(params: {
     visualSource: params.visualSource,
     videoKind: params.videoKind,
     secondsPerStill: params.secondsPerStill,
+    enforceLongShotPacing: params.enforceLongShotPacing,
     narrationSeconds: params.narrationSeconds,
   });
   if (!deterministic.passed) {

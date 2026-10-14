@@ -68,6 +68,7 @@ export function hardFailureReason(
   m: QualityMetrics,
   profile: QualityProfile = SHORT_PROFILE,
   durations?: { videoSeconds?: number; narrationSeconds?: number },
+  options: { enforceLongShotPacing?: boolean } = {},
 ): string | null {
   if (!m.hasAudio) return 'Video has no audio track';
   const { width, height, fps } = profile;
@@ -85,6 +86,17 @@ export function hardFailureReason(
   const { targetLufs, hardToleranceLufs } = QUALITY_SPEC.loudness;
   if (m.integratedLufs === null || Math.abs(m.integratedLufs - targetLufs) > hardToleranceLufs) {
     return `Loudness ${m.integratedLufs === null ? 'unmeasurable' : `${m.integratedLufs.toFixed(1)} LUFS`} is outside the ${targetLufs} ±${hardToleranceLufs} LUFS band`;
+  }
+  // Long-form AI-stills can opt into turning the existing pacing warning into
+  // a bounded regeneration signal. Shorts and other callers keep the historic
+  // warning-only behavior unless they explicitly enable this check.
+  if (
+    options.enforceLongShotPacing &&
+    profile.videoKind === 'long' &&
+    m.longestShotSeconds !== null &&
+    m.longestShotSeconds > profile.maxShotSeconds
+  ) {
+    return `Longest AI still shot is ${m.longestShotSeconds.toFixed(1)}s (pacing limit: ${profile.maxShotSeconds}s); redistribute scene starts more evenly across the narration`;
   }
   // Sprint 4 Task 10 (R2): long-form length bounds, and the video must follow the narration.
   const video = durations?.videoSeconds;
