@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Prisma } from '@prisma/client';
+const cleanup = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('../../ai-visuals/cache', () => ({ removeRunWorkFiles: cleanup }));
+
 import { updatePipelineRun, CANCELLED_BY_USER } from './pipeline-run.repository';
 
 // Bugs Task 10 (R1, step 7) — a late stage must not resurrect a cancelled run.
@@ -28,6 +31,7 @@ describe('updatePipelineRun cancelled-run guard', () => {
     const update = vi.fn().mockResolvedValue(fakeRow());
     await updatePipelineRun('r1', { status: 'failed', lastError: CANCELLED_BY_USER }, { pipelineRun: { update, findUnique: vi.fn() } } as never);
     expect(update.mock.calls[0][0].where).toEqual({ id: 'r1' });
+    expect(cleanup).toHaveBeenCalledWith('r1');
   });
 
   it('rethrows other errors', async () => {

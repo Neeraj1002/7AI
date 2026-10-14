@@ -78,6 +78,7 @@ export async function callProviderModel(params: {
       system: params.system,
       messages: toModelMessages(params.messages),
       maxOutputTokens: params.maxTokens,
+      maxRetries: 0, // The stage wrapper owns bounded retries and capacity stops.
       // Bugs Task 11 (R3) — schema-constrained decoding where the provider supports
       // it for this model (the SDK moves constraints the provider's schema
       // dialect lacks, e.g. minLength, into the schema description).
@@ -122,7 +123,23 @@ export async function callProviderModel(params: {
       // Bugs Task 11 (R3) — the HTTP status, so a caller can tell a request the
       // provider refused (400/422) from an outage (5xx) without parsing text.
       if (typeof error.statusCode === 'number') context.statusCode = error.statusCode;
+      // Anthropic documents both temporary throttling and workspace spend
+      // limits as 429/rate_limit_error. The SDK does not expose a stable
+      // sub-code for the latter, so recognise only the provider's verified,
+      // specific workspace-limit message; ambiguous 429s still get bounded
+      // automatic retry and become manually resumable only if that is spent.
+      context.providerErrorMessage = error.message;
+      context.providerResponseBody = error.responseBody;
+      const detail = `${error.message} ${error.responseBody ?? ""}`.toLowerCase();
+      if (
+        params.provider === 'anthropic' && error.statusCode === 429 &&
+        detail.includes('workspace api usage limit')
+      ) {
+        context.recoveryKind = 'provider_capacity';
+        throw new NonTransientStageError(`LLM provider capacity exhausted: ${error.message}`, error, context);
+      }
       if (error.isRetryable) {
+        if (error.statusCode === 429) context.recoveryKind = 'rate_limit_exhausted';
         throw new TransientStageError(`LLM provider call failed (retryable): ${error.message}`, error, context);
       }
       throw new NonTransientStageError(`LLM provider call failed: ${error.message}`, error, context);

@@ -7,6 +7,16 @@
 // row on failure (Week 2 Task 4) doesn't have to re-resolve the registry.
 export type StageErrorContext = Record<string, unknown>;
 
+// Persisted by stage-failure.ts when a stopped attempt can safely be resumed
+// after an operator changes capacity or a run limit. This is deliberately a
+// narrow recovery affordance, not a general "retry forever" flag.
+export const RECOVERABLE_FAILURE_KINDS = [
+  'spend_limit',
+  'provider_capacity',
+  'rate_limit_exhausted',
+] as const;
+export type RecoverableFailureKind = (typeof RECOVERABLE_FAILURE_KINDS)[number];
+
 // Transient failures (timeout, rate limit, 5xx) retry with exponential backoff.
 export class TransientStageError extends Error {
   constructor(message: string, readonly cause?: unknown, readonly context?: StageErrorContext) {
@@ -43,7 +53,18 @@ export function getStageErrorContext(error: unknown): StageErrorContext | undefi
   if (error instanceof TransientStageError || error instanceof NonTransientStageError) {
     return error.context;
   }
+  if (error instanceof CircuitBreakerTrippedError) {
+    return getStageErrorContext(error.lastError);
+  }
   return undefined;
+}
+
+export function recoverableFailureKind(error: unknown): RecoverableFailureKind | undefined {
+  const value = getStageErrorContext(error)?.recoveryKind;
+  if (value === 'rate_limit_exhausted' && !(error instanceof CircuitBreakerTrippedError)) return undefined;
+  return typeof value === 'string' && (RECOVERABLE_FAILURE_KINDS as readonly string[]).includes(value)
+    ? value as RecoverableFailureKind
+    : undefined;
 }
 
 export const MAX_RETRIES_PER_STAGE = 3;

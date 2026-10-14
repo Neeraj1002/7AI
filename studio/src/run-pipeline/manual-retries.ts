@@ -1,5 +1,5 @@
 import { updatePipelineRun } from '../models/repositories/pipeline-run.repository';
-import type { PipelineRun, StageName } from '../types';
+import type { PipelineRun, PipelineStage, StageName } from '../types';
 
 // Bugs Task 12 (R2) - the one place the number lives.
 export const MAX_MANUAL_RETRIES_PER_STAGE = 3;
@@ -13,6 +13,14 @@ export function manualRetriesUsed(run: Pick<PipelineRun, 'creationOptions'>, sta
 
 export function isManualRetryCapReached(run: Pick<PipelineRun, 'creationOptions'>, stage: StageName): boolean {
   return manualRetriesUsed(run, stage) >= MAX_MANUAL_RETRIES_PER_STAGE;
+}
+
+// This must inspect the failed attempt itself, not a run-wide flag: a new
+// processing failure replaces the marker and is subject to the normal cap.
+export function isEligibleRecovery(stage: Pick<PipelineStage, 'status' | 'output'> | null): boolean {
+  if (stage?.status !== 'failed') return false;
+  const kind = (stage.output as { recovery?: { kind?: unknown } } | null)?.recovery?.kind;
+  return kind === 'spend_limit' || kind === 'provider_capacity' || kind === 'rate_limit_exhausted';
 }
 
 export const MANUAL_RETRY_CAP_MESSAGE = `Retry limit reached for this step (${MAX_MANUAL_RETRIES_PER_STAGE}). Edit the brief and run again, or cancel.`;

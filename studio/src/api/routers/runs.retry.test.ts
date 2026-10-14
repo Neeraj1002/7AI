@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  findLatestAttempt: vi.fn(),
   findPipelineRunById: vi.fn(),
   updatePipelineRun: vi.fn(),
   findChannelById: vi.fn(),
@@ -29,6 +30,10 @@ vi.mock('../../notifications', async (orig) => ({
   resolvePendingApproval: mocks.resolvePendingApproval,
 }));
 
+vi.mock('../../models/repositories/pipeline-stage.repository', async (orig) => ({
+  ...(await orig<object>()), findLatestAttempt: mocks.findLatestAttempt,
+}));
+
 import { runsRouter } from './runs';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
@@ -45,6 +50,7 @@ const used = (n: number) => ({ manualRetries: { video_generation: n } });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.findLatestAttempt.mockResolvedValue(null);
   mocks.findChannelById.mockResolvedValue({ id: 'c1', tenantId: 't1', ownerUserId: 'u1', isActive: true, platform: 'youtube', defaultPrivacyStatus: 'private' });
   mocks.checkBudget.mockResolvedValue({ ok: true });
   mocks.updatePipelineRun.mockResolvedValue({});
@@ -104,4 +110,33 @@ describe('runs.gate2 revise manual cap', () => {
     expect(mocks.resolvePendingApproval).not.toHaveBeenCalled();
     expect(mocks.updatePipelineRun).not.toHaveBeenCalled();
   });
+});
+
+describe('eligible recovery at the ordinary retry cap', () => {
+  it.each(['spend_limit', 'provider_capacity', 'rate_limit_exhausted'])('%s resumes without incrementing the counter', async (kind) => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: used(3) }));
+    mocks.findLatestAttempt.mockResolvedValue({ status: 'failed', output: { recovery: { kind } } });
+    await caller().retry({ runId: RUN_ID });
+    expect(mocks.updatePipelineRun).not.toHaveBeenCalledWith(RUN_ID, expect.objectContaining({ creationOptionsMerge: expect.objectContaining({ manualRetries: expect.anything() }) }));
+    expect(mocks.continuePipelineInBackground).toHaveBeenCalledWith(RUN_ID);
+  });
+  it('still refuses the application budget', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: used(3) }));
+    mocks.findLatestAttempt.mockResolvedValue({ status: 'failed', output: { recovery: { kind: 'provider_capacity' } } });
+    mocks.checkBudget.mockResolvedValue({ ok: false });
+    await expect(caller().retry({ runId: RUN_ID })).rejects.toThrow(/Weekly budget/);
+    expect(mocks.continuePipelineInBackground).not.toHaveBeenCalled();
+  });
+  it.each(['authentication', 'invalid_request', 'render'])('%s failures still hit the cap', async (kind) => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: used(3) }));
+    mocks.findLatestAttempt.mockResolvedValue({ status: 'failed', output: { recovery: { kind } } });
+    await expect(caller().retry({ runId: RUN_ID })).rejects.toThrow(/Retry limit/);
+  });
+});
+
+it('a cancelled run with a recovery checkpoint cannot resume', async () => {
+  mocks.findPipelineRunById.mockResolvedValue(run({ status: 'failed', lastError: 'Cancelled by user', creationOptions: used(3) }));
+  mocks.findLatestAttempt.mockResolvedValue({ status: 'failed', output: { recovery: { kind: 'provider_capacity' } } });
+  await expect(caller().retry({ runId: RUN_ID })).rejects.toThrow(/only be retried from Needs attention/);
+  expect(mocks.continuePipelineInBackground).not.toHaveBeenCalled();
 });

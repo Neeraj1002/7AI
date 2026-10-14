@@ -118,3 +118,15 @@ describe('rateLimitWaitMs (Sprint 4 Task 8, R6)', () => {
     expect(rateLimitWaitMs('Rate limit reached')).toBe(15_000);
   });
 });
+
+describe('confirmed image quota exhaustion', () => {
+  it('stops without entering per-still backoff', async () => {
+    imagesGenerateMock.mockReset();
+    const error = new OpenAI.APIError(undefined, undefined, 'insufficient quota', undefined);
+    Object.assign(error, { status: 429, code: 'insufficient_quota' });
+    imagesGenerateMock.mockRejectedValue(error);
+    const failure = await generateStillsViaProvider({ scenePrompts: ['scene'], model: 'gpt-image-1.5' }).catch((e: unknown) => e);
+    expect(imagesGenerateMock).toHaveBeenCalledTimes(1);
+    expect(failure).toMatchObject({ context: { recoveryKind: 'provider_capacity', statusCode: 429, providerErrorCode: 'insufficient_quota' } });
+  });
+});

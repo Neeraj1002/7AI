@@ -18,7 +18,7 @@ import { DATA_DIR } from '../config/paths';
 let client: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!client) {
-    client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+    client = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0 });
   }
   return client;
 }
@@ -31,7 +31,15 @@ async function ensureTmpDir(): Promise<void> {
 
 function mapOpenAiError(error: unknown, context: Record<string, unknown>): Error {
   if (error instanceof OpenAI.APIError) {
+    context.statusCode = error.status;
+    context.providerErrorMessage = error.message;
+    if (typeof error.code === 'string') context.providerErrorCode = error.code;
+    if (error.code === 'insufficient_quota') {
+      context.recoveryKind = 'provider_capacity';
+      return new NonTransientStageError(`OpenAI image capacity exhausted: ${error.message}`, error, context);
+    }
     if (error.status !== undefined && (error.status === 429 || error.status >= 500)) {
+      if (error.status === 429) context.recoveryKind = 'rate_limit_exhausted';
       return new TransientStageError(`OpenAI image generation failed (retryable): ${error.message}`, error, context);
     }
     return new NonTransientStageError(`OpenAI image generation failed: ${error.message}`, error, context);
@@ -72,7 +80,7 @@ async function generateOneStill(model: string, prompt: string, size: StillSize):
         n: 1,
       })) as OpenAI.Images.ImagesResponse;
     } catch (error) {
-      if (error instanceof OpenAI.APIError && error.status === 429 && attempt < RATE_LIMIT_MAX_ATTEMPTS) {
+      if (error instanceof OpenAI.APIError && error.status === 429 && error.code !== 'insufficient_quota' && attempt < RATE_LIMIT_MAX_ATTEMPTS) {
         const waitMs = rateLimitWaitMs(error.message);
         console.warn(`[ai-visuals] rate limited (attempt ${attempt}/${RATE_LIMIT_MAX_ATTEMPTS}) — waiting ${(waitMs / 1000).toFixed(0)}s, keeping stills generated so far`);
         await new Promise((resolve) => setTimeout(resolve, waitMs));

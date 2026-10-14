@@ -141,16 +141,20 @@ export async function failStage(
   client: DbClient = prisma,
   // Bugs Task 11 (R1) — optional diagnostic payload for the failures that
   // have one (the raw reply of an unparseable script). Omitted for every
-  // other failure, which leaves `output` untouched exactly as before.
+  // other failure. Durable progress is retained and an old recovery marker is cleared.
   output?: Record<string, unknown>,
 ): Promise<PipelineStage> {
+  // A running stage can have durable progress (long-form plan/progress) before
+  // it fails. Failure diagnostics are additive; replacing output here would
+  // erase the very checkpoints an eligible resume needs.
+  const current = await client.pipelineStage.findUnique({ where: { id }, select: { output: true } });
   const row = await client.pipelineStage.update({
     where: { id },
     data: {
       status: 'failed',
       error,
       completedAt: new Date(),
-      ...(output ? { output: output as Prisma.InputJsonValue } : {}),
+      ...((output || current?.output) ? { output: { ...((current?.output ?? {}) as Record<string, unknown>), recovery: null, ...output } as Prisma.InputJsonValue } : {}),
     },
   });
   return toDomainStage(row);

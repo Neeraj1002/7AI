@@ -148,3 +148,13 @@ describe('bounded long-form planning', () => {
     expect((await planLongVideoProduction(params)).plan.longScenes![0].prompt).toContain('\nSecond line');
   });
 });
+
+describe('planner paid-call guard', () => {
+  it('checks the spend limit before every planner batch call', async () => {
+    mocks.callLLM.mockReset().mockImplementation(goodReply);
+    const beforeCall = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new NonTransientStageError('Spend limit reached'));
+    await expect(planLongVideoProduction({ chapters, topic: 'T', targetSeconds: 120, beforeCall })).rejects.toThrow('Spend limit reached');
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    expect(beforeCall).toHaveBeenCalledTimes(2);
+  });
+});

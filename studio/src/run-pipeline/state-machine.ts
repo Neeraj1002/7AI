@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
 import {
   createPipelineRun,
@@ -969,6 +970,16 @@ export async function runVideoGenerationStage(
     input: stageInput,
   });
 
+  // A plan is paid work. Keep it only for an eligible same-run recovery and
+  // bind it to every input that can affect planning; a revision/config/script
+  // change necessarily produces a different fingerprint and replans.
+  const planInputHash = planCheckpointHash({
+    runId, stageInput, chapters: sanctionedChapters ?? null,
+    topic: run.intakeParsed.topic, config,
+    safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED,
+  });
+  const checkpointedPlan = isLong ? reusableLongPlan(previousAttempt, planInputHash) : undefined;
+
   // Production-planning call (Week 4 Task 1) — metered as its own agent
   // ('video-production-planning'), distinct from the aggregated
   // TTS+transcription+footage row below, since it's a separate purpose that
@@ -1194,7 +1205,12 @@ export async function runVideoGenerationStage(
   };
 
   try {
-    const plan = await withRetryAndCircuitBreaker(attemptPlanOnce);
+    const plan = checkpointedPlan
+      ? checkpointedPlan
+      : await withRetryAndCircuitBreaker(attemptPlanOnce);
+    if (isLong) {
+      await patchStageOutput(stage.id, { recoveryPlan: { inputHash: planInputHash, plan } });
+    }
     const output = await withRetryAndCircuitBreaker(() => attemptVideoOnce(plan));
 
     const completedRun = await prisma.$transaction(async (tx) => {
