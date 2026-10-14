@@ -16,6 +16,9 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
     stopReason: context.stopReason ?? null,
     replyLength: context.replyLength ?? null,
     parseError: context.parseError ?? null,
+    ...(context.failureKind === 'output_token_exhaustion'
+      ? { failureKind: context.failureKind, sceneOffset: context.sceneOffset, sceneCount: context.sceneCount }
+      : {}),
     // Bugs Task 11 (R3) — set only when the generation retried once.
     ...(typeof context.firstRawReply === 'string'
       ? {
