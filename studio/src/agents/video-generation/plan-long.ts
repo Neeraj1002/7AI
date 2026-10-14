@@ -3,7 +3,7 @@ import { MOOD_TAGS } from "../../audio-bed";
 import {
   callLLM,
   describeJsonError,
-  extractJsonText,
+  extractJsonObjectText,
   type LLMResponse,
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
@@ -145,13 +145,17 @@ async function planChapter(params: {
         },
       ],
       maxTokens: 4096,
+      // Schema-constrained output keeps quotation marks and control characters in
+      // scene prompts JSON-escaped by the provider. The parser below remains as
+      // a fallback for an unusable response so the existing retry can recover.
+      outputSchema: ChapterScenesReplySchema,
     });
     params.calls.push(llm);
     // Booked the moment the call returns, so a later chapter failing never loses this call's spend.
     await params.onCall?.(llm);
     try {
       const parsed = ChapterScenesReplySchema.safeParse(
-        JSON.parse(extractJsonText(llm.text)),
+        JSON.parse(extractJsonObjectText(llm.text)),
       );
       if (!parsed.success) throw new Error(parsed.error.message.slice(0, 200));
       const n = parsed.data.scenes.length;
