@@ -33,6 +33,9 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
           stopReason: context.stopReason ?? null,
           replyLength: context.replyLength ?? null,
           parseError: context.parseError ?? null,
+          ...(context.failureKind === 'output_token_exhaustion'
+            ? { failureKind: context.failureKind, sceneOffset: context.sceneOffset, sceneCount: context.sceneCount }
+            : {}),
           ...(typeof context.firstRawReply === 'string'
             ? {
                 attempts: context.attempts ?? null,

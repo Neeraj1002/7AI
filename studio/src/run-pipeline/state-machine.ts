@@ -42,7 +42,7 @@ import { findLikelyRepeatTopic } from './repeat-topic';
 import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
 import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
 import { generateLongVideo } from '../agents/video-generation/long-form';
-import { planLongVideoProduction } from '../agents/video-generation/plan-long';
+import { planLongVideoProduction, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
 import { createStillsProgressReporter } from './stills-progress';
@@ -121,7 +121,7 @@ function describeStageError(error: unknown): string {
   return message;
 }
 
-async function failStageAndEscalate(stageId: string, runId: string, error: unknown): Promise<PipelineRun> {
+async function failStageAndEscalate(stageId: string, runId: string, error: unknown, preservedOutput?: Record<string, unknown>): Promise<PipelineRun> {
   let message = describeStageError(error);
   // Bugs Task 12 (R13) - an expired YouTube token says so in plain words (technical text kept after it)
   // and flags the channel "Reconnect needed".
@@ -132,7 +132,8 @@ async function failStageAndEscalate(stageId: string, runId: string, error: unkno
   }
   console.error(`[pipeline] run ${runId}: stage ${stageId} failed — ${message}`);
   return prisma.$transaction(async (tx) => {
-    await failStage(stageId, message, tx, failureOutputFromError(error));
+    const diagnostics = failureOutputFromError(error);
+    await failStage(stageId, message, tx, preservedOutput ? { ...preservedOutput, ...diagnostics } : diagnostics);
     return await updatePipelineRun(runId, { status: 'needs_attention', lastError: message }, tx);
   });
 }
@@ -983,16 +984,23 @@ export async function runVideoGenerationStage(
   // ('video-production-planning'), distinct from the aggregated
   // TTS+transcription+footage row below, since it's a separate purpose that
   // may not even run (forcedPlan test override).
+  // Keep completed batches across stage retries and same-input manual recovery.
+  let planningCheckpoint: unknown = (previousAttempt?.output as { longPlanningCheckpoint?: unknown } | null)?.longPlanningCheckpoint;
   const attemptPlanOnce = async (): Promise<ProductionPlan> => {
     if (testOverrides?.forcedPlan) {
       return testOverrides.forcedPlan;
     }
     if (isLong) {
-      // Chapter by chapter; every planner call is booked as it returns.
+      // Bounded scene batches; every planner call is guarded and booked as it returns.
       await runLimitGuard?.();
       const { plan } = await planLongVideoProduction({
-        chapters: sanctionedChapters as ScriptChapter[],
         beforeCall: runLimitGuard,
+        checkpoint: planningCheckpoint,
+        onCheckpoint: async (checkpoint: LongPlanningCheckpoint) => {
+          await patchStageOutput(stage.id, { longPlanningCheckpoint: checkpoint });
+          planningCheckpoint = checkpoint;
+        },
+        chapters: sanctionedChapters as ScriptChapter[],
         topic: run.intakeParsed!.topic,
         targetSeconds: config.targetSeconds,
         secondsPerStill: config.visualSecondsPerStill,
@@ -1288,7 +1296,8 @@ export async function runVideoGenerationStage(
 
     return completedRun;
   } catch (error) {
-    return await failStageAndEscalate(stage.id, runId, error);
+    return await failStageAndEscalate(stage.id, runId, error,
+      isLong && planningCheckpoint ? { longPlanningCheckpoint: planningCheckpoint } : undefined);
   }
 }
 
