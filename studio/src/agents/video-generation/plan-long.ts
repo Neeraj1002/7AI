@@ -91,7 +91,7 @@ function buildSystemPrompt(params: {
   return `You are the cinematic video director and production planner for a long-form YouTube history video (landscape 16:9). One chapter of the narration is given at a time.
 Plan a sequence of moving AI-generated video clips for that chapter: a new dynamic clip roughly every few seconds to keep pacing high.
 
-Respond with ONLY a JSON object: {"scenes": [{"words": string, "prompt": string}]\${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
+Respond with ONLY a JSON object: {"scenes": [{"words": string, "prompt": string}]${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
 - "scenes" has EXACTLY the number of scenes requested, in narration order, spread across the whole chapter.
 - "words" is the first 4 to 8 words of the narration that scene illustrates, copied EXACTLY from the chapter text, so the clip appears exactly when those words are spoken. The first scene must start at the first words of the chapter.
 - "prompt" is a highly detailed, cinematic video-generation prompt tailored for advanced video models (like HunyuanVideo or Runway). It must describe a concrete, visually distinct scene composed for a wide landscape frame.
