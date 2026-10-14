@@ -1340,6 +1340,9 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     ? {
         videoKind: 'long' as const,
         secondsPerStill: reviewConfig.visualSecondsPerStill,
+        // A long AI-stills pacing miss becomes precise fixNotes for the
+        // existing bounded regeneration path; Shorts and stock footage stay unchanged.
+        enforceLongShotPacing: visualSource === 'ai-stills',
         chapterTimings,
         narrationSeconds: chapterTimings?.[chapterTimings.length - 1]?.endSec,
       }

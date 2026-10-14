@@ -91,6 +91,21 @@ describe('long-form hard failures', () => {
     expect(hardFailureReason(metrics(), longProfile, { videoSeconds: 122.3, narrationSeconds: 120 })).toBeNull();
   });
 
+  it('keeps long-shot pacing warning-only by default and can opt into a targeted AI-stills retry', () => {
+    const overlong = metrics({ longestShotSeconds: 9.5 });
+    expect(hardFailureReason(overlong, longProfile)).toBeNull();
+    expect(hardFailureReason(overlong, longProfile, undefined, { enforceLongShotPacing: true })).toMatch(
+      /Longest AI still shot is 9\.5s.*redistribute scene starts more evenly/,
+    );
+    expect(hardFailureReason(metrics({ longestShotSeconds: 9 }), longProfile, undefined, { enforceLongShotPacing: true })).toBeNull();
+    expect(hardFailureReason(
+      metrics({ longestShotSeconds: 9.5, width: SHORT_PROFILE.width, height: SHORT_PROFILE.height }),
+      SHORT_PROFILE,
+      undefined,
+      { enforceLongShotPacing: true },
+    )).toBeNull();
+  });
+
   it('a Short ignores the long-form duration rules and still wants 1080x1920', () => {
     const short = metrics({ width: 1080, height: 1920 });
     expect(hardFailureReason(short)).toBeNull();
