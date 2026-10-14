@@ -25,7 +25,10 @@ export function legacyPlannerRecoveryCheckpoint(run: PipelineRun, stage: Pipelin
   const input = stage!.input as { scriptText?: unknown; fixNotes?: unknown } | null;
   if (!approved.success || input?.scriptText !== approved.data.sanctionedScriptText || (input.fixNotes ?? null) !== (fixNotes ?? null)) return undefined;
   const mood = config.audioDefaultMoodTag;
-  return reusableLongPlanningCheckpoint({ chapters: approved.data.chapters, topic: run.intakeParsed?.topic ?? '',
+  // Validate the persisted chapters above, but hash their original JSON property order.
+  // Zod rebuilds each object as title/text; legacy hashes used the JSONB text/title order.
+  const storedChapters = (gate.output as { chapters: typeof approved.data.chapters }).chapters;
+  return reusableLongPlanningCheckpoint({ chapters: storedChapters, topic: run.intakeParsed?.topic ?? '',
     targetSeconds: config.targetSeconds, secondsPerStill: config.visualSecondsPerStill,
     visualStyle: config.visualStylePrompt, scriptGuide: config.scriptGuide, fixNotes,
     audioLayerOverride: (AUDIO_LAYERS as readonly string[]).includes(mood ?? '') ? mood as AudioLayer : undefined,

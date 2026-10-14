@@ -15,6 +15,17 @@ describe('single release-bound legacy planner recovery',()=>{
   it('allows the capped legacy count failure only with a same-input validated checkpoint',()=>{
     expect(legacyPlannerRecoveryCheckpoint(run,stage,gate,config)?.scenes).toEqual(checkpoint.scenes);
   });
+  it('preserves the stored chapter property order when matching a legacy hash',()=>{
+    // Postgres JSONB returns chapter properties in text/title order. Zod validation
+    // reconstructs them in title/text order, which changes JSON.stringify's hash.
+    const storedChapters = [JSON.parse(JSON.stringify({text:chapters[0].text,title:chapters[0].title}))];
+    const storedGate = structuredClone(gate);
+    (storedGate.output as {chapters: typeof chapters}).chapters = storedChapters;
+    const storedStage = structuredClone(stage);
+    (storedStage.output as {longPlanningCheckpoint:typeof checkpoint}).longPlanningCheckpoint.inputHash =
+      longPlanningInputHash({...inputs,chapters:storedChapters},2);
+    expect(legacyPlannerRecoveryCheckpoint(run,storedStage,storedGate,config)?.scenes).toEqual(checkpoint.scenes);
+  });
   it.each(['used','cancelled','running','new contract','changed script','changed style','changed notes','bad checkpoint','render error','no checkpoint','unapproved gate'])('rejects %s',kind=>{
     const r=structuredClone(run), s=structuredClone(stage), g=structuredClone(gate), c={...config};
     let notes: string|undefined;
