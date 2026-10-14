@@ -32,3 +32,14 @@ describe('retryTargetStage - Retry never re-runs a gate', () => {
     expect(retryTargetStage({ currentStage: null, lastError: null })).toBeNull();
   });
 });
+
+import { isRetryBlockedByCap } from './manual-retries';
+import type { PipelineRun, PipelineStage } from '../types';
+it('shares display/API cap eligibility for provider recovery, legacy remediation, and ordinary content failures',()=>{
+  const run={status:'needs_attention',...withCount(3)} as unknown as PipelineRun;
+  const quota={status:'failed',output:{recovery:{kind:'provider_capacity'}}} as unknown as PipelineStage;
+  expect(isRetryBlockedByCap(run,'video_generation',quota)).toBe(false);
+  expect(isRetryBlockedByCap(run,'video_generation',null,true)).toBe(false);
+  expect(isRetryBlockedByCap(run,'video_generation',null)).toBe(true);
+  expect(isRetryBlockedByCap({...run,status:'failed'},'video_generation',quota)).toBe(true);
+});

@@ -59,6 +59,7 @@ export const CreationOptionsSchema = z.object({
   // Bugs Task 12 - run-owned bookkeeping, NOT user choices (stripped by runs.rerun):
   // manual Retry/Revise count per stage (R2) and the one-shot AI-stills fallback marker (R1).
   manualRetries: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  plannerContractRecoveryUsed: z.boolean().optional(),
   videoFallbackUsed: z.boolean().optional(),
   // Sprint 4 Task 12 (R1): the settings the run really used and where each came from, written once
   // when the run is created. Absent on older runs. Read-only; runs.rerun recomputes it.

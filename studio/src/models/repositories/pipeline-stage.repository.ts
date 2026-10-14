@@ -66,6 +66,7 @@ export async function createStageAttempt(params: {
   stageName: StageName;
   attemptNumber: number;
   input: Record<string, unknown>;
+  output?: Record<string, unknown>;
 }): Promise<PipelineStage> {
   const row = await prisma.pipelineStage.create({
     data: {
@@ -73,6 +74,7 @@ export async function createStageAttempt(params: {
       stageName: params.stageName,
       attemptNumber: params.attemptNumber,
       input: params.input as Prisma.InputJsonValue,
+      ...(params.output ? { output: params.output as Prisma.InputJsonValue } : {}),
       status: 'running',
       startedAt: new Date(),
     },

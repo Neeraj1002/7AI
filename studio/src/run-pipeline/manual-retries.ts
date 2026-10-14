@@ -43,3 +43,8 @@ export function retryTargetStage(run: Pick<PipelineRun, 'currentStage' | 'lastEr
   if (stage === 'video_review' && (run.lastError ?? '').includes('regen cap')) return 'video_generation';
   return stage;
 }
+
+// Shared by run detail and Retry mutation, so the app cannot hide an allowed recovery.
+export function isRetryBlockedByCap(run: PipelineRun, target: StageName, failed: PipelineStage | null, legacyRecovery = false): boolean {
+  return isManualRetryCapReached(run, target) && !(run.status === 'needs_attention' && isEligibleRecovery(failed)) && !legacyRecovery;
+}

@@ -22,8 +22,8 @@ const chapters = [{ title: 'Commute', text: Array.from({ length: 240 }, (_, i) =
 let previous: { attemptNumber: number; status: string; output: Record<string, unknown> } | null;
 let output: Record<string, unknown>;
 function goodReply(req: { messages: { content: string }[] }) {
-  const anchors: string[] = JSON.parse(req.messages[0].content.match(/Required batch anchors in order: (\[[^\n]*\])/)![1]);
-  return { text: JSON.stringify({ scenes: anchors.map(words => ({ words, prompt: `Camera tracks ${words}` })), audioLayer: 'calm' }), stopReason: 'stop', usage: { inputTokens: 500, outputTokens: 400 }, costUsd: '0.001', provider: 'anthropic', model: 'claude-sonnet-5' };
+  const slots: {id:string;anchor:string}[] = JSON.parse(req.messages[0].content.match(/Required scene slots: (\[[^\n]*\])/)![1]);
+  return { text: JSON.stringify({ scenes: Object.fromEntries(slots.map(slot => [slot.id, { prompt: `Camera tracks ${slot.anchor}` }])), audioLayer: 'calm' }), stopReason: 'stop', usage: { inputTokens: 500, outputTokens: 400 }, costUsd: '0.001', provider: 'anthropic', model: 'claude-sonnet-5' };
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,15 +43,15 @@ beforeEach(() => {
 });
 describe('long planning stage checkpoints', () => {
   it('persists completed batches through malformed reply failure and resumes only missing work', async () => {
-    mocks.callLLM.mockImplementationOnce(goodReply).mockResolvedValueOnce({ ...goodReply({ messages: [{ content: 'Required batch anchors in order: []' }] }), text: '{bad' }).mockResolvedValueOnce({ ...goodReply({ messages: [{ content: 'Required batch anchors in order: []' }] }), text: '{bad' });
+    mocks.callLLM.mockImplementationOnce(goodReply).mockImplementation(() => ({ text: '{bad', stopReason: 'stop', usage: {inputTokens:500,outputTokens:400}, costUsd:'0.001',provider:'anthropic',model:'claude-sonnet-5' }));
     await runVideoGenerationStage('run');
-    expect(mocks.callLLM).toHaveBeenCalledTimes(3);
+    expect(mocks.callLLM).toHaveBeenCalledTimes(9);
     expect(mocks.patchStageOutput).toHaveBeenCalledTimes(1);
     expect(output).toMatchObject({ rawReply: '{bad', longPlanningCheckpoint: { scenes: expect.any(Object) } });
     const saved = output.longPlanningCheckpoint as LongPlanningCheckpoint;
     expect(Object.keys(saved.scenes)).toHaveLength(12);
     previous = { attemptNumber: 1, status: 'failed', output };
-    mocks.callLLM.mockClear();
+    mocks.callLLM.mockClear().mockImplementation(goodReply);
     await runVideoGenerationStage('run');
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);
     expect(mocks.callLLM.mock.calls[0][0].messages[0].content).toContain('Chapter scene range: 13-24');
@@ -59,4 +59,16 @@ describe('long planning stage checkpoints', () => {
     expect(mocks.generateLongVideo.mock.calls[0][0].plan.longScenes[0]).toMatchObject(saved.scenes['0:0']);
     expect(output).toHaveProperty('longPlanningCheckpoint');
   });
+});
+
+it('records the checkpoint in the stage INSERT before a restart can hide its predecessor',async()=>{
+  mocks.callLLM.mockImplementationOnce(goodReply).mockImplementation(()=>({text:'{bad',stopReason:'stop',usage:{inputTokens:1,outputTokens:1},costUsd:'0',provider:'anthropic',model:'claude-sonnet-5'}));
+  await runVideoGenerationStage('run');
+  previous={attemptNumber:1,status:'failed',output};
+  mocks.createStageAttempt.mockClear();mocks.callLLM.mockReset().mockImplementation(goodReply);
+  await runVideoGenerationStage('run');
+  const initial=mocks.createStageAttempt.mock.calls[0][0].output.longPlanningCheckpoint;
+  expect(Object.keys(initial.scenes)).toHaveLength(12);
+  expect(initial.contractVersion).toBe(3);
+  expect(mocks.callLLM).toHaveBeenCalledTimes(1);
 });

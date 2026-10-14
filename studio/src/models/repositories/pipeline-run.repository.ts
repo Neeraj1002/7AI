@@ -189,3 +189,17 @@ export async function updatePipelineRun(
     throw error;
   }
 }
+
+// Compare-and-set: two callers cannot consume the same allowance or resurrect a cancelled run.
+export async function claimPlannerContractRecovery(run: PipelineRun, maxCostUsd?: number): Promise<PipelineRun | undefined> {
+  const options = { ...run.creationOptions, plannerContractRecoveryUsed: true,
+    ...(maxCostUsd !== undefined ? { maxCostUsd } : {}) };
+  const claimed = await prisma.pipelineRun.updateMany({
+    where: { id: run.id, status: 'needs_attention', currentStage: 'video_generation',
+      creationOptions: { equals: run.creationOptions as Prisma.InputJsonValue } },
+    data: { status: 'running', lastError: null, creationOptions: options as Prisma.InputJsonValue },
+  });
+  if (claimed.count !== 1) return undefined;
+  const updated = await findPipelineRunById(run.id);
+  return updated?.status === 'running' ? updated : undefined;
+}

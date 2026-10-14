@@ -11,7 +11,9 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
   const context = getStageErrorContext(error);
   const recoveryKind = recoverableFailureKind(error);
   if (!context || (typeof context.rawReply !== 'string' && !recoveryKind)) return undefined;
+  const replyCap = context.contractVersion === 3 ? 32000 : FAILED_STAGE_RAW_REPLY_CAP;
   return {
+    ...(context.contractVersion === 3 ? { plannerContractVersion: 3, failureKind: context.failureKind, chapterIndex: context.chapterIndex, sceneOffset: context.sceneOffset, sceneCount: context.sceneCount, requestHash: context.requestHash, requestKind: context.requestKind, recoveryStrategy: context.recoveryStrategy, maxTokens: context.maxTokens, reusedSceneCount: context.reusedSceneCount } : {}),
     ...(recoveryKind
       ? {
           recovery: {
@@ -28,8 +30,9 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
       : {}),
     ...(typeof context.rawReply === 'string'
       ? {
-          rawReply: context.rawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
-          rawReplyTruncated: context.rawReply.length > FAILED_STAGE_RAW_REPLY_CAP,
+          rawReply: context.rawReply.slice(0, replyCap),
+          rawReplyTruncated: context.rawReply.length > replyCap,
+          ...(context.contractVersion === 3 && context.rawReply.length > replyCap ? { rawReplyTail: context.rawReply.slice(-4000) } : {}),
           stopReason: context.stopReason ?? null,
           replyLength: context.replyLength ?? null,
           parseError: context.parseError ?? null,
@@ -40,8 +43,9 @@ export function failureOutputFromError(error: unknown): Record<string, unknown> 
             ? {
                 attempts: context.attempts ?? null,
                 firstParseError: context.firstParseError ?? null,
+                ...(context.contractVersion === 3 ? { firstReplyLength: context.firstReplyLength, firstRawReplyTruncated: context.firstRawReply.length > replyCap, ...(context.firstRawReply.length > replyCap ? { firstRawReplyTail: context.firstRawReply.slice(-4000) } : {}) } : {}),
                 firstStopReason: context.firstStopReason ?? null,
-                firstRawReply: context.firstRawReply.slice(0, FAILED_STAGE_RAW_REPLY_CAP),
+                firstRawReply: context.firstRawReply.slice(0, replyCap),
               }
             : {}),
         }

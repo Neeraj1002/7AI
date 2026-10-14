@@ -1,7 +1,11 @@
+vi.mock('../../run-pipeline/resolved-config',()=>({loadResolvedConfig:mocks.loadResolvedConfig}));
+vi.mock('../../models/repositories/review-log.repository',async orig=>({...await orig<object>(),listReviewLogsForRun:async()=>[]}));
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   findLatestAttempt: vi.fn(),
+  claimPlannerContractRecovery: vi.fn(),
+  loadResolvedConfig: vi.fn(),
   findPipelineRunById: vi.fn(),
   updatePipelineRun: vi.fn(),
   findChannelById: vi.fn(),
@@ -13,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../models/repositories/pipeline-run.repository', () => ({
   findPipelineRunById: mocks.findPipelineRunById,
   updatePipelineRun: mocks.updatePipelineRun,
+  claimPlannerContractRecovery: mocks.claimPlannerContractRecovery,
   listRuns: vi.fn(),
   CANCELLED_BY_USER: 'Cancelled by user',
 }));
@@ -35,6 +40,7 @@ vi.mock('../../models/repositories/pipeline-stage.repository', async (orig) => (
 }));
 
 import { runsRouter } from './runs';
+import { longPlanningInputHash } from '../../agents/video-generation/plan-long';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const ctx = { tenantId: 't1', userId: 'u1', role: 'owner' } as never;
@@ -139,4 +145,37 @@ it('a cancelled run with a recovery checkpoint cannot resume', async () => {
   mocks.findLatestAttempt.mockResolvedValue({ status: 'failed', output: { recovery: { kind: 'provider_capacity' } } });
   await expect(caller().retry({ runId: RUN_ID })).rejects.toThrow(/only be retried from Needs attention/);
   expect(mocks.continuePipelineInBackground).not.toHaveBeenCalled();
+});
+
+const legacyChapters = [{title:'Merchant',text:Array.from({length:240},(_,i)=>'word'+i).join(' ')}];
+
+describe('legacy contract recovery API',()=>{
+  beforeEach(()=>{
+    mocks.findPipelineRunById.mockResolvedValue(run({intakeParsed:{topic:'Market'},creationOptions:used(3)}));
+    mocks.loadResolvedConfig.mockResolvedValue({videoKind:'long',targetSeconds:120,audioDefaultMoodTag:'none'});
+    const checkpoint={inputHash:longPlanningInputHash({chapters:legacyChapters,topic:'Market',targetSeconds:120,audioLayerOverride:'none'},2),scenes:{'0:0':{words:'word0 word1 word2 word3 word4 word5',prompt:'paid'}}};
+    mocks.findLatestAttempt.mockImplementation(async(_id,name)=>name==='gate1'?{status:'completed',output:{sanctionedScriptText:legacyChapters[0].text,chapters:legacyChapters}}:{status:'failed',error:'Video production planning for chapter 2 ("Merchant") was unusable twice: received 13 scenes, exactly 12 were requested',input:{scriptText:legacyChapters[0].text,fixNotes:null},output:{longPlanningCheckpoint:checkpoint}});
+    mocks.claimPlannerContractRecovery.mockResolvedValue({status:'running'});
+  });
+  it('claims a validated legacy recovery without resetting or incrementing manual retries',async()=>{
+    await caller().retry({runId:RUN_ID});
+    expect(mocks.claimPlannerContractRecovery).toHaveBeenCalledTimes(1);
+    expect(mocks.updatePipelineRun).not.toHaveBeenCalled();
+    expect(mocks.continuePipelineInBackground).toHaveBeenCalledTimes(1);
+  });
+  it('does not enqueue work if another caller claimed recovery or the run changed',async()=>{
+    mocks.claimPlannerContractRecovery.mockResolvedValue(undefined);
+    await expect(caller().retry({runId:RUN_ID})).rejects.toThrow(/already started or the run changed/);
+    expect(mocks.continuePipelineInBackground).not.toHaveBeenCalled();
+  });
+  it('does not consume the allowance when the weekly budget refuses it',async()=>{
+    mocks.checkBudget.mockResolvedValue({ok:false});
+    await expect(caller().retry({runId:RUN_ID})).rejects.toThrow(/Weekly budget/);
+    expect(mocks.claimPlannerContractRecovery).not.toHaveBeenCalled();
+  });
+  it('refuses a second allowance and newly failed contracts at the ordinary cap',async()=>{
+    mocks.findPipelineRunById.mockResolvedValue(run({intakeParsed:{topic:'Market'},creationOptions:{...used(3),plannerContractRecoveryUsed:true}}));
+    await expect(caller().retry({runId:RUN_ID})).rejects.toThrow(/Retry limit/);
+    expect(mocks.claimPlannerContractRecovery).not.toHaveBeenCalled();
+  });
 });
