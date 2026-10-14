@@ -25,6 +25,9 @@ import {
 export const LONG_STILL_MIN = 12;
 export const LONG_STILL_MAX = 200;
 export const LONG_DEFAULT_SECONDS_PER_STILL = 5;
+// A detailed long-form chapter can contain dozens of scene prompts. The
+// previous 4,096-token cap repeatedly truncated planner JSON in production.
+export const LONG_CHAPTER_PLAN_MAX_TOKENS = 8192;
 
 export function longStillCount(
   targetSeconds: number,
@@ -131,6 +134,7 @@ async function planChapter(params: {
     .filter(Boolean)
     .join("\n\n");
   let lastError = "";
+  let firstFailure: { llm: LLMResponse; parseError: string } | undefined;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const llm = await callLLM({
       purpose: "video-production-planning",
@@ -144,7 +148,7 @@ async function planChapter(params: {
               : `${user}\n\nYour previous reply was unusable (${lastError}). Reply again with ONLY the corrected JSON object.`,
         },
       ],
-      maxTokens: 4096,
+      maxTokens: LONG_CHAPTER_PLAN_MAX_TOKENS,
       // Schema-constrained output keeps quotation marks and control characters in
       // scene prompts JSON-escaped by the provider. The parser below remains as
       // a fallback for an unusable response so the existing retry can recover.
@@ -153,6 +157,20 @@ async function planChapter(params: {
     params.calls.push(llm);
     // Booked the moment the call returns, so a later chapter failing never loses this call's spend.
     await params.onCall?.(llm);
+    if (llm.stopReason === "length") {
+      const parseError = `output cap reached (maxTokens ${LONG_CHAPTER_PLAN_MAX_TOKENS})`;
+      throw new NonTransientStageError(
+        `Video production planning for chapter ${params.index + 1} ("${params.chapter.title}") was cut off at the output cap (maxTokens=${LONG_CHAPTER_PLAN_MAX_TOKENS}, outputTokens=${llm.usage.outputTokens}). Reduce the chapter scene count or increase the planner output budget.`,
+        undefined,
+        {
+          ...llmUsageContext(llm),
+          rawReply: llm.text,
+          replyLength: llm.text.length,
+          parseError,
+          attempts: attempt,
+        },
+      );
+    }
     try {
       const parsed = ChapterScenesReplySchema.safeParse(
         JSON.parse(extractJsonObjectText(llm.text)),
@@ -172,11 +190,28 @@ async function planChapter(params: {
           : error instanceof Error
             ? error.message
             : String(error);
+      if (attempt === 1) {
+        firstFailure = { llm, parseError: lastError };
+        continue;
+      }
       if (attempt === 2) {
         throw new NonTransientStageError(
           `Video production planning for chapter ${params.index + 1} ("${params.chapter.title}") was unusable twice: ${lastError}`,
           undefined,
-          llmUsageContext(llm),
+          {
+            ...llmUsageContext(llm),
+            rawReply: llm.text,
+            replyLength: llm.text.length,
+            parseError: lastError,
+            attempts: attempt,
+            ...(firstFailure
+              ? {
+                  firstRawReply: firstFailure.llm.text,
+                  firstParseError: firstFailure.parseError,
+                  firstStopReason: firstFailure.llm.stopReason,
+                }
+              : {}),
+          },
         );
       }
     }

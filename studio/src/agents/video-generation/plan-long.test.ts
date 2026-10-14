@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mocks.callLLM }));
 
 import { planLongVideoProduction } from './plan-long';
+import { LONG_CHAPTER_PLAN_MAX_TOKENS } from './plan-long';
+import { getStageErrorContext, NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 const chapters = [
   { title: 'Why it stands', text: 'Why does the bridge still stand? ' + Array(150).fill('stone').join(' ') },
@@ -11,7 +13,7 @@ const chapters = [
   { title: 'What next', text: 'What should you look at next? ' + Array(100).fill('look').join(' ') },
 ];
 
-const llm = (text: string) => ({ text, usage: { inputTokens: 500, outputTokens: 400 }, stopReason: 'stop', costUsd: '0.001000', provider: 'anthropic', model: 'claude-haiku-4-5' });
+const llm = (text: string, extra: Record<string, unknown> = {}) => ({ text, usage: { inputTokens: 500, outputTokens: 400 }, stopReason: 'stop', costUsd: '0.001000', provider: 'anthropic', model: 'claude-haiku-4-5', ...extra });
 const scenes = (n: number, chapter: string) => ({ scenes: Array.from({ length: n }, (_, i) => ({ words: `${chapter} words ${i}`, prompt: `${chapter} scene ${i}` })) });
 
 describe('planLongVideoProduction (Sprint 4 Task 9, R5)', () => {
@@ -38,6 +40,7 @@ describe('planLongVideoProduction (Sprint 4 Task 9, R5)', () => {
     expect(plan.longScenes).toHaveLength(24);
     expect(plan.stillScenePrompts).toEqual(plan.longScenes!.map((s) => s.prompt));
     expect(plan.longScenes!.filter((s) => s.chapterIndex === 0)).toHaveLength(10);
+    expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(LONG_CHAPTER_PLAN_MAX_TOKENS);
     // The first chapter's call also asks for the mood; the others do not.
     expect(mocks.callLLM.mock.calls[0][0].system).toContain('"audioLayer": string');
   });
@@ -83,5 +86,22 @@ describe('planLongVideoProduction (Sprint 4 Task 9, R5)', () => {
     mocks.callLLM.mockResolvedValue(llm(JSON.stringify(scenes(1, 'z'))));
     await expect(planLongVideoProduction({ chapters, topic: 'T', targetSeconds: 120 })).rejects.toThrow(/chapter 1 .*unusable twice/);
     expect(mocks.callLLM).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a response cut off at the planner output cap and preserves diagnostics', async () => {
+    const reply = '{"scenes":[{"words":"cut off"';
+    mocks.callLLM.mockResolvedValue(llm(reply, { stopReason: 'length', usage: { inputTokens: 500, outputTokens: LONG_CHAPTER_PLAN_MAX_TOKENS } }));
+
+    const error = await planLongVideoProduction({ chapters, topic: 'T', targetSeconds: 120 }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(NonTransientStageError);
+    expect((error as Error).message).toContain('cut off at the output cap');
+    expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    expect(getStageErrorContext(error)).toMatchObject({
+      rawReply: reply,
+      replyLength: reply.length,
+      parseError: `output cap reached (maxTokens ${LONG_CHAPTER_PLAN_MAX_TOKENS})`,
+      stopReason: 'length',
+    });
   });
 });
