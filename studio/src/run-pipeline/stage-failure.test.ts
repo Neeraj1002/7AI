@@ -39,3 +39,15 @@ describe('recovery diagnostics', () => {
     expect(failureOutputFromError(new CircuitBreakerTrippedError('exhausted', original))).toMatchObject({ recovery: { kind: 'rate_limit_exhausted', statusCode: 429, providerErrorMessage: 'try later' } });
   });
 });
+
+it('keeps complete planner failure evidence for the incident-sized response and marks longer excerpts honestly',()=>{
+  const reply='x'.repeat(8777);
+  const error=new NonTransientStageError('bad slot',undefined,{contractVersion:3,failureKind:'schema_violation',rawReply:reply,replyLength:reply.length,firstRawReply:reply,firstReplyLength:reply.length,chapterIndex:1,sceneCount:12});
+  const output=failureOutputFromError(error)!;
+  expect(output.rawReply).toBe(reply);expect(output.rawReplyTruncated).toBe(false);
+  expect(output.firstReplyLength).toBe(8777);expect(output.firstRawReplyTruncated).toBe(false);
+  expect(output).toMatchObject({plannerContractVersion:3,failureKind:'schema_violation',chapterIndex:1,sceneCount:12});
+  const longer=failureOutputFromError(new NonTransientStageError('bad',undefined,{contractVersion:3,rawReply:'a'.repeat(40000)+'tail',replyLength:40004}))!;
+  expect((longer.rawReply as string).length).toBe(32000);
+  expect(longer.rawReplyTruncated).toBe(true);expect(longer.rawReplyTail).toMatch(/tail$/);
+});

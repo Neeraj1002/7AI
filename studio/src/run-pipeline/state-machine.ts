@@ -42,7 +42,7 @@ import { findLikelyRepeatTopic } from './repeat-topic';
 import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
 import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
 import { generateLongVideo } from '../agents/video-generation/long-form';
-import { planLongVideoProduction, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
+import { planLongVideoProduction, reusableLongPlanningCheckpoint, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
 import { createStillsProgressReporter } from './stills-progress';
@@ -963,11 +963,18 @@ export async function runVideoGenerationStage(
     });
   }
 
+  const carriedCheckpoint = isLong ? reusableLongPlanningCheckpoint({
+    chapters: sanctionedChapters as ScriptChapter[], topic: run.intakeParsed.topic,
+    targetSeconds: config.targetSeconds, secondsPerStill: config.visualSecondsPerStill,
+    audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
+    visualStyle: config.visualStylePrompt, scriptGuide: config.scriptGuide, fixNotes: fixNotes ?? undefined,
+  }, (previousAttempt?.output as { longPlanningCheckpoint?: unknown } | null)?.longPlanningCheckpoint) : undefined;
   const stage = await createStageAttempt({
     pipelineRunId: runId,
     stageName: 'video_generation',
     attemptNumber,
     input: stageInput,
+    ...(carriedCheckpoint ? { output: { longPlanningCheckpoint: carriedCheckpoint } } : {}),
   });
 
   // A plan is paid work. Keep it only for an eligible same-run recovery and
@@ -985,7 +992,7 @@ export async function runVideoGenerationStage(
   // TTS+transcription+footage row below, since it's a separate purpose that
   // may not even run (forcedPlan test override).
   // Keep completed batches across stage retries and same-input manual recovery.
-  let planningCheckpoint: unknown = (previousAttempt?.output as { longPlanningCheckpoint?: unknown } | null)?.longPlanningCheckpoint;
+  let planningCheckpoint: unknown = carriedCheckpoint;
   const attemptPlanOnce = async (): Promise<ProductionPlan> => {
     if (testOverrides?.forcedPlan) {
       return testOverrides.forcedPlan;
@@ -1008,13 +1015,14 @@ export async function runVideoGenerationStage(
         visualStyle: config.visualStylePrompt,
         scriptGuide: config.scriptGuide,
         fixNotes: fixNotes ?? undefined,
-        onCall: async (llm) => {
+        onCall: async (llm, metadata) => {
           await insertUsageEvent({
             tenantId: run.tenantId,
             channelId: run.channelId,
             pipelineRunId: runId,
             stageId: stage.id,
             agent: 'video-production-planning',
+            metadata,
             provider: llm.provider,
             model: llm.model,
             inputTokens: llm.usage.inputTokens,

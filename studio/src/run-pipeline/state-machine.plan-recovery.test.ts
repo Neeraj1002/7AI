@@ -41,7 +41,7 @@ vi.mock('../models/repositories/usage-event.repository', async (orig) => ({
   insertUsageEvent: mocks.insertUsageEvent,
 }));
 vi.mock('./budget-gate', async (orig) => ({ ...(await orig<object>()), checkBudget: mocks.checkBudget }));
-vi.mock('../agents/video-generation/plan-long', () => ({ planLongVideoProduction: mocks.planLong }));
+vi.mock('../agents/video-generation/plan-long', async orig => ({ ...(await orig<object>()), planLongVideoProduction: mocks.planLong }));
 vi.mock('../agents/video-generation/long-form', () => ({ generateLongVideo: mocks.generateLong }));
 vi.mock('./resolved-config', () => ({ loadResolvedConfig: mocks.config }));
 vi.mock('../models/repositories/review-log.repository', async (orig) => ({ ...(await orig<object>()), listReviewLogsForRun: vi.fn().mockResolvedValue([]) }));

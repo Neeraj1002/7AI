@@ -1,8 +1,9 @@
+import { isLegacyPlannerRecoveryCandidate, legacyPlannerRecoveryCheckpoint, latestPlanningFixNotes } from '../../run-pipeline/legacy-planner-recovery';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
-import { findPipelineRunById, listRuns, updatePipelineRun, CANCELLED_BY_USER } from '../../models/repositories/pipeline-run.repository';
+import { findPipelineRunById, listRuns, updatePipelineRun, claimPlannerContractRecovery, CANCELLED_BY_USER } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import {
   listStagesForRun,
@@ -29,6 +30,7 @@ import {
   MAX_MANUAL_RETRIES_PER_STAGE,
   MANUAL_RETRY_CAP_MESSAGE,
   isManualRetryCapReached,
+  isRetryBlockedByCap,
   isEligibleRecovery,
   manualRetriesUsed,
   recordManualRetry,
@@ -328,6 +330,11 @@ async function getRunDetail(id: string, ctx: Context) {
     );
   }
   const gateDecisions = deriveGateDecisions(stages, reviewLogs);
+  const retryTarget = retryTargetStage(run);
+  const failedRetryStage = stages.filter(s => s.stageName === retryTarget).sort((a, b) => b.attemptNumber - a.attemptNumber)[0] ?? null;
+  const approvedGate = stages.filter(s => s.stageName === 'gate1').sort((a, b) => b.attemptNumber - a.attemptNumber)[0] ?? null;
+  const legacyRecovery = Boolean(legacyPlannerRecoveryCheckpoint(run, failedRetryStage, approvedGate, resolved, latestPlanningFixNotes(reviewLogs)));
+
   return {
     run,
     channel,
@@ -366,7 +373,7 @@ async function getRunDetail(id: string, ctx: Context) {
       retryUsed: run.currentStage ? manualRetriesUsed(run, retryTargetStage(run) ?? run.currentStage) : 0,
       retryCapReached: (() => {
         const stage = retryTargetStage(run);
-        return stage ? isManualRetryCapReached(run, stage) : false;
+        return stage ? isRetryBlockedByCap(run, stage, failedRetryStage, legacyRecovery) : false;
       })(),
       reviseCapReached: isManualRetryCapReached(run, 'video_generation'),
       message: MANUAL_RETRY_CAP_MESSAGE,
@@ -909,7 +916,12 @@ export const runsRouter = router({
     // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
     const failedTarget = await findLatestAttempt(run.id, target);
     const eligibleRecovery = isEligibleRecovery(failedTarget);
-    if (!eligibleRecovery && isManualRetryCapReached(run, target)) {
+    let legacyRecovery = false;
+    if (isLegacyPlannerRecoveryCandidate(run, failedTarget)) {
+      const [gate, config, logs] = await Promise.all([findLatestAttempt(run.id, 'gate1'), loadResolvedConfig(run, channel), listReviewLogsForRun(run.id)]);
+      legacyRecovery = Boolean(legacyPlannerRecoveryCheckpoint(run, failedTarget, gate, config, latestPlanningFixNotes(logs)));
+    }
+    if (isRetryBlockedByCap(run, target, failedTarget, legacyRecovery)) {
       throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
     }
     const regenCapped = target !== run.currentStage;
@@ -935,6 +947,12 @@ export const runsRouter = router({
       newMaxCostUsd = input.maxCostUsd;
     }
     // Only a Retry that really starts a new attempt counts (budget refusal threw above).
+    if (legacyRecovery) {
+      const claimed = await claimPlannerContractRecovery(run, newMaxCostUsd);
+      if (!claimed) throw new TRPCError({ code: 'CONFLICT', message: 'Planner recovery was already started or the run changed. Refresh this run.' });
+      continuePipelineInBackground(run.id);
+      return claimed;
+    }
     if (!eligibleRecovery) await recordManualRetry(run, target);
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
@@ -964,7 +982,7 @@ export const runsRouter = router({
     await assertChannelCanRun(channel);
     // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
     const picks = sourceRun.creationOptions
-      ? (({ manualRetries: _m, videoFallbackUsed: _v, resolvedOptions: _r, ...kept }) => kept)(sourceRun.creationOptions)
+      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, ...kept }) => kept)(sourceRun.creationOptions)
       : undefined;
     // Sprint 4 Task 12 (R1): recomputed against the channel's current profile. A long run stores its
     // resolved length, so the length counts as a pick only if the source said it was one.
