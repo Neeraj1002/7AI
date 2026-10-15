@@ -3,6 +3,7 @@
 **Date:** 2026-10-15
 **Status:** Blocked on reliability gate R and Script Review wording ownership; fixture preparation only
 **Branch/worktree:** `SPRINT5_TASK3_BE`, `D:\Study Material\7AI-SPRINT5\task3`
+**Draft PR:** [#93](https://github.com/Neeraj1002/7AI/pull/93)
 
 ## Prerequisite and ownership record
 
