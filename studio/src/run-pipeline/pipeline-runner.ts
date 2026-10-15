@@ -13,6 +13,7 @@ import { findChannelById } from '../models/repositories/channel.repository';
 import { findPipelineRunById, updatePipelineRun, CANCELLED_BY_USER } from '../models/repositories/pipeline-run.repository';
 import { isCancellationRequested, clearCancellation, markDriven, unmarkDriven } from './cancellation-registry';
 import type { PipelineRun } from '../types';
+import { readPublishingReceipt } from '../models/repositories/publishing-recovery.repository';
 
 // Sprint 3 Task 11 (B14) — the founder's own stall guard: runPublishingStage
 // makes a real, non-repeatable external call (a YouTube upload) that could in
@@ -23,41 +24,25 @@ import type { PipelineRun } from '../types';
 // 10 minutes, per the task's own instruction.
 const PUBLISHING_STALL_TIMEOUT_MS = 10 * 60 * 1000;
 
-// Races the real call against a timer — the simplest mechanism that needs no
-// new cancellation plumbing (there is no AbortController threaded through
-// uploadVideo/generatePublishingMetadata today, and building one is out of
-// this item's scope). This does NOT cancel the real call if the timer wins:
-// runPublishingStage keeps running in the background and will still commit
-// its own result whenever it actually finishes. That's deliberately safe,
-// not just tolerated — runPublishingStage already checks for an existing
-// checkpointed `youtubeVideoId` before ever re-uploading (its own comment,
-// "Resume-safety"), so nothing here risks a duplicate upload; the only
-// residual is a benign race on which write lands last (documented in
-// reports/task11.md): if the stalled call succeeds *after* this function has
-// already moved the run to `needs_attention`, its own completion only
-// touches `currentStage` (→ 'analytics'), never `status` — so the run is
-// left at `needs_attention`/`analytics`, which `runs.retry` (already exists,
-// generic for any needs_attention run) drives forward correctly. Nothing is
-// lost, nothing double-uploads.
-async function runPublishingStageWithStallGuard(runId: string): Promise<PipelineRun> {
-  let settled = false;
-  const stall = new Promise<'stalled'>((resolve) => {
-    setTimeout(() => {
-      if (!settled) resolve('stalled');
-    }, PUBLISHING_STALL_TIMEOUT_MS);
+// The request may keep running after this timer. Its run-level claim remains the upload guard.
+export async function runPublishingStageWithStallGuard(runId: string): Promise<PipelineRun> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stall = new Promise<'stalled'>(resolve => {
+    timer = setTimeout(() => resolve('stalled'), PUBLISHING_STALL_TIMEOUT_MS);
   });
-
-  const result = await Promise.race([runPublishingStage(runId).finally(() => { settled = true; }), stall]);
-  if (result === 'stalled') {
-    console.error(
-      `[pipeline-runner] run ${runId}: publishing did not resolve within ${PUBLISHING_STALL_TIMEOUT_MS / 60000} minutes — moving to needs_attention rather than leaving the request hanging indefinitely`,
-    );
-    return await updatePipelineRun(runId, {
-      status: 'needs_attention',
-      lastError: `Publishing stalled — did not complete within ${PUBLISHING_STALL_TIMEOUT_MS / 60000} minutes. Safe to retry (no duplicate upload risk).`,
-    });
-  }
-  return result;
+  const result = await Promise.race([runPublishingStage(runId), stall]);
+  if (timer) clearTimeout(timer);
+  if (result !== 'stalled') return result;
+  const receipt = await readPublishingReceipt(runId);
+  const detail = receipt?.phase === 'ambiguous'
+    ? 'The YouTube upload outcome is unresolved; review it before retrying.'
+    : receipt?.youtubeVideoId
+      ? 'The video ID is recorded; follow-ups or stage completion may still be pending.'
+      : 'Publishing may still be in progress; another upload is blocked while its receipt is active.';
+  return updatePipelineRun(runId, {
+    status: 'needs_attention',
+    lastError: 'Publishing exceeded the ten-minute request window. ' + detail,
+  });
 }
 
 // Sprint 3 Task 8 (R3) — defense in depth for archiving a channel: before each
