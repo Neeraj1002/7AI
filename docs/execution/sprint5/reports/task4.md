@@ -3,6 +3,7 @@
 **Date:** 2026-10-16
 **Status:** Blocked on reliability gate R and existing Script Review consumer agreement; fixture preparation only
 **Branch/worktree:** `SPRINT5_TASK4_BE`, `D:\Study Material\7AI-SPRINT5\task4`
+**Draft PR:** [#94](https://github.com/Neeraj1002/7AI/pull/94)
 
 ## Prerequisite and ownership reconciliation
 

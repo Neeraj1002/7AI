@@ -190,7 +190,7 @@ Future rendered trials default to existing approved, licensed local fixtures wit
 | 1 | Planner reconciliation and run diagnostics | In Progress | Codex | `SPRINT5_TASK1_BE` | Setup owner: this Task 1 session; worktree: `D:\Study Material\7AI-SPRINT5\task1`; base main `5b04a7a`; documentation bootstrap in progress, no application work yet |
 | 2 | Durable publishing recovery | Not started | Unassigned | — | Reuse Task 1's shared root, own worktree/current main with #90; draft PR and rollout review. Proposed `SPRINT5_TASK2_BE` |
 | 3 | Still-scene contract and alignment | Blocked | Unassigned | — | Waits for R and SR wording agreement; #89/#90 baseline satisfied. Proposed `SPRINT5_TASK3_BE` |
-| 4 | Shared factual evidence inputs | Blocked | Codex | `SPRINT5_TASK4_BE` | worktree: D:\Study Material\7AI-SPRINT5\task4; pre-gate fixture preparation only; waits for R and SR consumer agreement. |
+| 4 | Shared factual evidence inputs | Blocked | Codex | `SPRINT5_TASK4_BE` | worktree: D:\Study Material\7AI-SPRINT5\task4; draft PR #94 has pre-gate fixtures only; waits for R and SR consumer agreement. |
 | 5 | Visual repair and continuity comparison | Blocked | Unassigned | — | Waits for Tasks 3/4; no paid experiment authorized. Proposed `SPRINT5_TASK5_BE` |
 
 Do not fill Branch with a planned name as if it exists. A future implementer records its actual created branch and worktree in its own row immediately. Code-complete, merged, deployed and live-verified are separate statements in reports.
