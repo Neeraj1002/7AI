@@ -20,6 +20,14 @@ function goodReply(req: Parameters<typeof anchors>[0]) {
 const capped = () => llm('{"scenes":[', { stopReason: 'length', usage: { inputTokens: 500, outputTokens: LONG_CHAPTER_PLAN_MAX_TOKENS } });
 describe('bounded long-form planning', () => {
   beforeEach(() => { mocks.callLLM.mockReset(); mocks.callLLM.mockImplementation(goodReply); });
+  it('requests renderable still compositions without generated motion or video providers', async () => {
+    await planLongVideoProduction(params);
+    const system = mocks.callLLM.mock.calls[0][0].system;
+    expect(system).toContain('meaningful frozen instant');
+    expect(system).toContain('safe crop space for FFmpeg pan/zoom');
+    expect(system).toContain('reconstruction is an illustration');
+    expect(system).not.toMatch(/Runway|Hunyuan|Think in Motion|continuous, organic physical motion|drone shot rising/i);
+  });
   it('plans a large chapter in bounded batches with exact order, context and required fields', async () => {
     const booked = vi.fn();
     const saved: LongPlanningCheckpoint[] = [];
