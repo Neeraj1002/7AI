@@ -1,4 +1,8 @@
 import path from 'node:path';
+import { decryptRefreshToken } from '../models/credential-crypto';
+import { approvedFileIdentity, metadataFingerprint } from './publishing-recovery';
+import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
+  markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
 import {
@@ -62,7 +66,7 @@ import { creditLinesForBeds, bedsUsed } from '../long-form/credits';
 import { prepareLongFormGate2Artifacts } from '../long-form/gate2-artifacts';
 import {
   generatePublishingMetadata,
-  uploadVideo,
+  uploadVideoWithSession,
   uploadCaptions,
   subtitlesFailureMessage,
   CAPTIONS_INSERT_QUOTA_UNITS,
@@ -1851,22 +1855,16 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     currentStage: 'publishing',
   });
 
-  // Resume-safety: if a prior invocation of this exact attempt already
-  // checkpointed a successful upload (recordStageProgress, below) before the
-  // process stopped, reuse it rather than uploading a second time — unlike
-  // every earlier stage, redoing this one has a real, user-visible duplicate
-  // side effect (a second YouTube upload), not just wasted spend.
+  // Reconcile legacy evidence under the run-row claim across every attempt status.
   const existingAttempt = await findLatestAttempt(runId, 'publishing');
-  const existingOutput = existingAttempt?.output as { youtubeVideoId?: string } | null;
-  if (existingAttempt && existingAttempt.status === 'running' && existingOutput?.youtubeVideoId) {
-    console.log(
-      `[publishing] run ${runId}: attempt ${existingAttempt.attemptNumber} already recorded a successful upload before the process stopped — completing the stage without uploading again`,
-    );
-    return await prisma.$transaction(async (tx) => {
-      await completeStage(existingAttempt.id, existingAttempt.output as Record<string, unknown>, tx);
-      return await updatePipelineRun(runId, { currentStage: 'analytics' }, tx);
-    });
-  }
+  const priorReceipt = await readPublishingReceipt(runId);
+  const legacyStages = await prisma.pipelineStage.findMany({
+    where: { pipelineRunId: runId, stageName: 'publishing' }, select: { output: true },
+  });
+  const legacyKnownOutput = legacyStages.map(s => s.output as {
+    youtubeVideoId?: string; metadata?: PublishingMetadata; chapterListIncluded?: boolean,
+  } | null).find(o => o?.youtubeVideoId && o.metadata);
+  const legacyMetadata = legacyKnownOutput?.metadata;
 
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
   // Sprint 4 Task 5: packaging from the run's own snapshotted profile.
@@ -1929,15 +1927,22 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     }
   };
 
+  const uploadAbort = new AbortController();
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let claimToken: string | undefined;
   try {
-    const generatedMetadata = await withRetryAndCircuitBreaker(attemptMetadataOnce);
+    // A failure in metadata generation predates any provider session.
+    await recordStageProgress(stage.id, { uploadNotStarted: true });
+    const persistedMetadata = priorReceipt?.metadata ?? legacyMetadata;
+    const generatedMetadata = persistedMetadata ?? await withRetryAndCircuitBreaker(attemptMetadataOnce);
 
     // Sprint 4 Task 10 (R4): long-form description = the generated text, a chapter list (only when
     // YouTube's three rules hold), then a credit line for every music bed that requires one. Never a
     // #shorts tag anywhere. A Short's metadata is used exactly as generated.
     let metadata = generatedMetadata;
-    let chapterListIncluded = false;
-    if (isLongForm) {
+    let chapterListIncluded = persistedMetadata
+      ? (priorReceipt?.chapterListIncluded ?? legacyKnownOutput?.chapterListIncluded ?? false) : false;
+    if (isLongForm && !persistedMetadata) {
       // Task 9 declares `bedCredits` on the output (not filled today); use it when present.
       const recordedCredits = (videoGenOutput as { bedCredits?: string[] }).bedCredits;
       const assembled = assembleLongFormMetadata({
@@ -1952,19 +1957,70 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
     // Long-form defaults to Education (27) when the channel profile sets no category.
     const categoryId = config.categoryId ?? (isLongForm ? LONG_FORM_DEFAULT_CATEGORY_ID : undefined);
-    const attemptUploadOnce = async (): Promise<UploadResult> =>
-      uploadVideo({
-        channelId: channel.id,
-        videoPath,
-        metadata,
-        privacyStatus,
-        containsSyntheticMedia,
-        // Sprint 4 Task 5 (R18): always explicit, never left to the channel's Studio defaults.
-        selfDeclaredMadeForKids: config.selfDeclaredMadeForKids,
-        ...(categoryId && { categoryId }),
-        ...(config.defaultLanguage && { defaultLanguage: config.defaultLanguage }),
+    const uploadParams = {
+      channelId: channel.id, videoPath, metadata, privacyStatus, containsSyntheticMedia,
+      selfDeclaredMadeForKids: config.selfDeclaredMadeForKids,
+      ...(categoryId && { categoryId }),
+      ...(config.defaultLanguage && { defaultLanguage: config.defaultLanguage }),
+    };
+    const fileIdentity = await approvedFileIdentity(videoPath);
+    const identity = { channelId: channel.id, ...fileIdentity, gate2Id: gate2Stage.id,
+      metadataHash: metadataFingerprint(uploadParams), metadata, chapterListIncluded };
+    const claim = await claimPublishing(runId, identity, stage.id);
+    if (claim.kind !== 'acquired') {
+      const reason = claim.kind === 'busy' ? 'A publishing worker is still active'
+        : claim.kind === 'mismatch' ? 'The approved file or publishing metadata changed'
+          : 'An earlier YouTube upload outcome is unresolved';
+      throw new NonTransientStageError(reason + '; review the publishing receipt before retrying.');
+    }
+    const token = claim.token;
+    claimToken = token;
+    heartbeat = setInterval(() => {
+      void renewPublishing(runId, token).catch(() => uploadAbort.abort());
+    }, 60_000);
+    let uploadResult: UploadResult;
+    if (claim.receipt.youtubeVideoId) {
+      uploadResult = { youtubeVideoId: claim.receipt.youtubeVideoId, privacyStatus,
+        containsSyntheticMedia, selfDeclaredMadeForKids: config.selfDeclaredMadeForKids };
+    } else {
+      const sessionUri = claim.receipt.sessionCiphertext
+        ? decryptRefreshToken(claim.receipt.sessionCiphertext) : undefined;
+      uploadResult = await uploadVideoWithSession(uploadParams, fileIdentity.fileSize, sessionUri, {
+        persistSession: async uri => {
+          try { await savePublishingSession(runId, token, uri); }
+          catch { throw new NonTransientStageError('YouTube session could not be saved; no video bytes were sent.'); }
+        },
+        beforeBytes: async () => {
+          if (uploadAbort.signal.aborted) throw new NonTransientStageError('Publishing ownership was lost.');
+          const currentFile = await approvedFileIdentity(videoPath);
+          if (currentFile.fileSha256 !== identity.fileSha256 || currentFile.fileSize !== identity.fileSize)
+            throw new NonTransientStageError('Approved rendered file changed before upload bytes were sent.');
+          const [currentRun, currentChannel] = await Promise.all([
+            findPipelineRunById(runId), findChannelById(channel.id),
+          ]);
+          if (!currentChannel?.isActive || !currentRun
+              || !['running', 'needs_attention'].includes(currentRun.status)
+              || isCancellationRequested(runId))
+            throw new NonTransientStageError('Run or channel became ineligible before upload bytes were sent.');
+          await mutatePublishingReceipt(runId, token, () => ({ phase: 'uploading', uploadStarted: true }));
+        },
+        confirmedOffset: async offset => { await mutatePublishingReceipt(runId, token,
+          () => ({ confirmedOffset: offset })); },
+        signal: uploadAbort.signal,
       });
-    const uploadResult = await withRetryAndCircuitBreaker(attemptUploadOnce);
+      // The ID write is the first action after provider success. Failure stops follow-ups.
+      try { await observePublishingSuccess(runId, identity, uploadResult.youtubeVideoId); }
+      catch {
+        throw new NonTransientStageError('YouTube returned a video ID but its durable receipt could not be confirmed; review before retrying.');
+      }
+    }
+    await recordStageProgress(stage.id, {
+      youtubeVideoId: uploadResult.youtubeVideoId, privacyStatus: uploadResult.privacyStatus,
+      containsSyntheticMedia: uploadResult.containsSyntheticMedia,
+      selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids, metadata,
+    });
+    const receipt = await readPublishingReceipt(runId);
+    if (!receipt?.youtubeVideoId) throw new Error('Publishing ID receipt was not durable');
 
     // Sprint 3 Task 12 (R3) — best-effort, same isolation posture as the
     // cover-frame step directly below: the real YouTube upload has already
@@ -1981,10 +2037,15 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     if (isR2Configured()) {
       const key = `videos/${env.NODE_ENV}/final/${run.tenantId}/${runId}.mp4`;
       try {
-        await uploadToR2({ key, filePath: videoPath, contentType: 'video/mp4' });
+        if (receipt.followups.finalArtifact !== 'succeeded') {
+          await markFollowup(runId, token, 'finalArtifact', 'started');
+          await uploadToR2({ key, filePath: videoPath, contentType: 'video/mp4' });
+          await markFollowup(runId, token, 'finalArtifact', 'succeeded');
+        }
         r2FinalKey = key;
         r2FinalUploadedAt = new Date().toISOString();
       } catch (error) {
+        await markFollowup(runId, token, 'finalArtifact', 'failed');
         console.error(
           `[publishing] run ${runId}: R2 final upload failed (non-blocking, video already uploaded to YouTube successfully) — ${
             error instanceof Error ? error.message : String(error)
@@ -2001,9 +2062,11 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     // durationSeconds from video_generation's output — falls back to
     // `coverFrameSet: false` for a pre-Sprint-2-Task-5 stage row (or if it's
     // ever missing) rather than crashing the whole stage over metadata.
-    let coverFrameSet = false;
-    if (typeof durationSeconds === 'number') {
+    let coverFrameSet = receipt.followups.thumbnail === 'succeeded';
+    if (typeof durationSeconds === 'number' && !coverFrameSet
+        && receipt.followups.thumbnail !== 'started' && receipt.followups.thumbnail !== 'uncertain') {
       try {
+        await markFollowup(runId, token, 'thumbnail', 'started');
         const framePath = await extractCoverFrame({
           videoPath,
           durationSeconds,
@@ -2011,7 +2074,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
         });
         await setThumbnail({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, imagePath: framePath });
         coverFrameSet = true;
+        await markFollowup(runId, token, 'thumbnail', 'succeeded');
       } catch (error) {
+        await markFollowup(runId, token, 'thumbnail', 'uncertain');
         console.error(
           `[publishing] run ${runId}: custom cover-frame set failed (non-blocking, video already uploaded successfully) — ${
             error instanceof Error ? error.message : String(error)
@@ -2033,10 +2098,18 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       const language = config.defaultLanguage ?? 'en';
       const trackName = languageDisplayName(language);
       try {
-        if (!srtPath) throw new Error('captions.srt was not found next to the video');
-        await uploadCaptions({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, srtPath, language, name: trackName });
+        if (receipt.followups.captions !== 'pending' && receipt.followups.captions !== 'succeeded')
+          throw new Error('Previous subtitle attempt is unresolved or failed; upload manually');
+        if (!srtPath && receipt.followups.captions === 'pending') throw new Error('captions.srt was not found next to the video');
+        if (receipt.followups.captions === 'pending') {
+          await markFollowup(runId, token, 'captions', 'started');
+          await uploadCaptions({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, srtPath: srtPath!, language, name: trackName });
+          await markFollowup(runId, token, 'captions', 'succeeded');
+        }
         longFormOutput = { subtitlesUploaded: true, subtitlesLanguage: language, subtitlesQuotaUnits: CAPTIONS_INSERT_QUOTA_UNITS, chapterListIncluded };
       } catch (error) {
+        if (receipt.followups.captions === 'pending')
+          await markFollowup(runId, token, 'captions', srtPath ? 'uncertain' : 'failed');
         const technical = error instanceof Error ? error.message : String(error);
         console.error(`[publishing] run ${runId}: subtitle upload failed (non-blocking, video already uploaded successfully): ${technical}`);
         longFormOutput = {
@@ -2079,11 +2152,20 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       await new Promise((resolve) => setTimeout(resolve, env.PUBLISHING_TEST_KILL_DELAY_MS));
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const completed = await prisma.$transaction(async (tx) => {
+      await completePublishingReceipt(runId, token, tx);
       await completeStage(stage.id, fullOutput, tx);
       return await updatePipelineRun(runId, { currentStage: 'analytics' }, tx);
     });
+    if (heartbeat) clearInterval(heartbeat);
+    return completed;
   } catch (error) {
+    if (heartbeat) clearInterval(heartbeat);
+    if (claimToken) {
+      const receipt = await readPublishingReceipt(runId);
+      if (receipt?.uploadStarted && !receipt.youtubeVideoId)
+        await parkPublishingAmbiguous(runId, claimToken);
+    }
     return await failStageAndEscalate(stage.id, runId, error);
   }
 }

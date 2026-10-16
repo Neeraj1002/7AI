@@ -68,6 +68,7 @@ export async function getRunStructureForAdmin(runId: string) {
       createdAt: true,
       updatedAt: true,
       creationOptions: true,
+      profileVersionId: true,
       channel: { select: { name: true } },
       tenant: { select: { name: true } },
     },
@@ -114,8 +115,7 @@ export async function getRunStructureForAdmin(runId: string) {
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
       creationOptionKeys: objectKeys(run.creationOptions),
-      // No column exists until Sprint 4 Task 1 (voice/profile versions) lands.
-      profileVersionId: null as string | null,
+      profileVersionId: run.profileVersionId,
     },
     stages: stages.map((s) => ({
       stageName: s.stageName,
