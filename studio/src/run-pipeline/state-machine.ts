@@ -33,6 +33,8 @@ import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
+import { evidenceRef, factualBaseline, type EvidenceRef } from '../content-evidence/packet';
+import { generationEvidenceSnapshot, reviewEvidenceSnapshot } from '../content-evidence/stage-snapshot';
 import { joinChapterTexts, parseChapterSheet } from '../agents/script-generation/long-form';
 import {
   reviewScript,
@@ -302,6 +304,9 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   // Sprint 4 Task 2: guide, length, fact policy and banned lists come from the
   // resolved config of the profile this run was created against.
   const config = await loadResolvedConfig(run, channel);
+  const evidenceSelection = generationEvidenceSnapshot({ previousInput: previousAttempt?.input,
+    previousOutput: previousAttempt?.output, briefText: run.briefText, factPolicy: config.factPolicy,
+    sources: run.creationOptions?.sources, videoKind: config.videoKind });
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: run.intakeParsed.constraints,
@@ -309,13 +314,16 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
     targetSeconds: config.targetSeconds,
     fixNotes: fixNotes ?? null,
-    briefText: run.briefText,
-    factPolicy: config.factPolicy,
+    ...(evidenceSelection.briefText !== undefined && { briefText: evidenceSelection.briefText }),
+    ...(evidenceSelection.factPolicy !== undefined && { factPolicy: evidenceSelection.factPolicy }),
+    ...(evidenceSelection.sources !== undefined && { sources: evidenceSelection.sources }),
+    ...(evidenceSelection.evidence && { evidence: evidenceSelection.evidence }),
+    evidenceProvenance: evidenceSelection.provenance,
     bannedOpeners: config.bannedOpeners,
     bannedEndings: config.bannedEndings,
     scriptStructure: config.formatScriptStructure,
     // Sprint 4 Task 9 (R2): only a long run adds these, so a Short's stage input is unchanged.
-    ...(config.videoKind === 'long' && { videoKind: 'long' as const, sources: run.creationOptions?.sources ?? [] }),
+    ...(config.videoKind === 'long' && { videoKind: 'long' as const }),
   };
 
   // Cost gate (BUSINESS_LOGIC.md Section 2) — checked before a real stage
@@ -404,7 +412,9 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         bannedOpeners: stageInput.bannedOpeners,
         bannedEndings: stageInput.bannedEndings,
         scriptStructure: stageInput.scriptStructure,
-        ...(config.videoKind === 'long' && { videoKind: 'long' as const, sources: run.creationOptions?.sources ?? [] }),
+        ...(stageInput.evidence && { evidence: stageInput.evidence }),
+        ...(stageInput.sources !== undefined && { sources: stageInput.sources }),
+        ...(config.videoKind === 'long' && { videoKind: 'long' as const }),
       });
       await bookCalls(
         calls.map((llm) => ({
@@ -415,7 +425,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
           costUsd: llm.costUsd,
         })),
       );
-      return output;
+      return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
     } catch (error) {
       await bookCalls(failureUsageEvents(error));
       throw error;
@@ -467,6 +477,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     );
   }
   const scriptOutput: ScriptGenerationOutput = ScriptGenerationStoredSchema.parse(scriptGenStage.output);
+  const reviewEvidence = reviewEvidenceSnapshot(scriptGenStage.input, scriptGenStage.output);
 
   await updatePipelineRun(runId, {
     status: 'running',
@@ -481,7 +492,9 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     captions: scriptOutput.captions,
     nicheDescription: channel.nicheDescription,
     styleGuide: config.scriptGuide,
-    briefText: run.briefText,
+    ...(reviewEvidence.briefText !== undefined && { briefText: reviewEvidence.briefText }),
+    ...(reviewEvidence.evidence && { evidence: reviewEvidence.evidence }),
+    evidenceProvenance: reviewEvidence.provenance,
     targetSeconds: config.targetSeconds,
     bannedOpeners: config.bannedOpeners,
     bannedEndings: config.bannedEndings,
@@ -502,7 +515,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
 
   // Same per-attempt metering pattern as Script Generation — every real LLM
   // call, including retries, writes its own UsageEvent row.
-  const attemptOnce = async (): Promise<ScriptReviewOutput> => {
+  const attemptOnce = async (): Promise<ScriptReviewOutput & { evidenceRef?: EvidenceRef }> => {
     try {
       const { output, llm } = await reviewScript(stageInput);
       await insertUsageEvent({
@@ -517,7 +530,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         outputTokens: llm.usage.outputTokens,
         costUsd: llm.costUsd,
       });
-      return output;
+      return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
     } catch (error) {
       await insertUsageEvent({
         tenantId: run.tenantId,
@@ -941,8 +954,12 @@ export async function runVideoGenerationStage(
 
   const previousAttempt = await findLatestAttempt(runId, 'video_generation');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
+  const generationForBaseline = await findLatestCompletedAttempt(runId, 'script_generation');
+  const baselineEvidence = generationForBaseline
+    ? reviewEvidenceSnapshot(generationForBaseline.input, generationForBaseline.output).evidence : undefined;
   const stageInput = {
     scriptText: sanctionedScriptText,
+    ...(baselineEvidence && { factualBaseline: factualBaseline(baselineEvidence, sanctionedScriptText) }),
     brandAssets: channel.brandAssets,
     fixNotes: fixNotes ?? null,
     resolvedVoice,

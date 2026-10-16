@@ -5,11 +5,11 @@
 **Binding execution workflow:** read [WORKFLOW](../WORKFLOW.md). Use `task4` under Task 1's recorded shared Sprint 5 root, current main including #90, and this task's separate draft PR. Keep draft until owner-confirmed Sprint 4 closure and latest-main conflict/acceptance checks pass. Any carried reviewer item retains its existing ownership; do not duplicate it to close Sprint 4.
 
 **Objective**: Give script generation and the existing reviewer enhancement one immutable factual-input packet, preserving policy and provenance through retries and approval.
-**Duration**: 1–2 days after gate R; SR rule implementation is separate outstanding work.
-**Depends On**: Reliability gate R for feature implementation. The owner supplied and adopted the minimal evidence-consumer v1 direction on 2026-10-16; SR-1–SR-9 rule work remains separate. Task 3's separate modules can develop concurrently; sequence shared state-machine edits afterward.
+**Duration**: 1–2 days of implementation; SR rule implementation is separate outstanding work.
+**Depends On**: #91/#92 and the completed Task 3 revision from #93 for release. The owner explicitly authorized Task 4 development before gate R on 2026-10-16. Gate R remains a release condition. Consumer v1 is adopted; SR-1–SR-9 remains separate.
 **Owning Component**: Evidence preparation/snapshot, shared evidence rendering, writer inputs, a minimal evidence-only Script Review adapter, script generation/review call-site plumbing and packet parity tests. The separate SR enhancement retains reviewer rules, factual verdict rubric and any separately approved retrieval work.
 **Success Criteria**: (1) writer/reviewer receive the same packet/hash for both video types; (2) source URLs alone are clearly unfetched; (3) existing factual policy and approved corrections are preserved; (4) regression cases measure the outstanding reviewer against the shared evidence without building another verifier.
-**Priority / status**: P1; consumer v1 direction adopted, feature implementation blocked on R. The separate SR rule enhancement remains outstanding.
+**Priority / status**: P1; implementation in draft #94 against `SPRINT5_TASK4_DEPS`. Final dependency merges, gate R, Sprint 4 closure and release checks remain outstanding.
 
 ## Task Requirement
 
@@ -25,7 +25,7 @@
 
 ### R1 — Reconcile outstanding factual work before implementation
 
-The owner supplied the additive evidence-consumer v1 direction on 2026-10-16: Task 4 owns the minimal evidence-only adapter in `script-review/index.ts` after gate R, while SR-1–SR-9 rules, scoring and accuracy evaluation remain the separate outstanding enhancement. Recheck active branches/files before editing; if new SR work overlaps the adapter, coordinate the small patch and reuse any implemented parity. The miss log owns examples/rules, not a TypeScript interface or an identified implementation branch. Record the actual owner/reuse boundary in this task's report.
+The owner supplied the additive evidence-consumer v1 direction on 2026-10-16 and explicitly authorized development before gate R. Task 4 owns the minimal evidence-only adapter in `script-review/index.ts`; SR-1–SR-9 rules, scoring and accuracy evaluation remain the separate outstanding enhancement. The miss log owns examples/rules, not the TypeScript consumer interface. Record the implementation and release boundary in this task's report.
 
 The recorded Sprint 4 Task 9 decision is founder-supplied facts with no pipeline web search. Do not override it because a search-grounded pass appears in an older wish list. Retrieval, if separately authorized in existing SR work, must supply the same approved excerpts to both consumers and preserve provenance. This task introduces no retrieval permission or provider setting.
 
@@ -120,7 +120,7 @@ Adopted packet parity and minimal reviewer adapter are integrated after R; techn
 
 ## Additional Notes — Git, Uncertainties and Approval
 
-Actual branch `SPRINT5_TASK4_BE`, worktree `D:\Study Material\7AI-SPRINT5\task4`, draft PR #94 from main `5b04a7a`; pre-gate work contains only fixtures and documentation. Feature implementation waits for R. No main merge/push. Coordinate shared source after Task 3; planning grants no deployment. The minimal consumer ownership is assigned to Task 4 by the 2026-10-16 owner direction; SR rule ownership and any retrieval producer remain separate. New retrieval infrastructure, factual-source producer, workflow/migration, paid evaluation or historical data change needs a concrete reviewed scope; they are not implied by this task. Server untracked files and existing planner retry policy remain outside ownership.
+Actual branch `SPRINT5_TASK4_BE`, worktree `D:\Study Material\7AI-SPRINT5\task4`, draft PR #94 targeted at `SPRINT5_TASK4_DEPS` (`d38a71a`). That base integrates #91/#92 through completed #93 (`81561e6`); Task 3 production wording (`7c6ef3c`) precedes this evidence adapter. Development authorization supersedes the historical pre-gate limitation, while final gate R and dependency merges remain release conditions. No deployment or main merge is authorized. SR rules and any retrieval producer remain separate. Server untracked files and planner retry policy remain outside ownership.
 
 ## Links & References
 

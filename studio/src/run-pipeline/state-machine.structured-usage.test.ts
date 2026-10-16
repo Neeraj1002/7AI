@@ -55,6 +55,7 @@ beforeEach(() => {
     id: RUN_ID,
     tenantId: 't1',
     channelId: 'c1',
+    briefText: 'Stored founder brief',
     status: 'running',
     intakeParsed: { topic: 'topic', constraints: [] },
     creationOptions: null,

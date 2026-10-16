@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   callLLM: vi.fn(), findPipelineRunById: vi.fn(), updatePipelineRun: vi.fn(),
-  findChannelById: vi.fn(), findLatestAttempt: vi.fn(), createStageAttempt: vi.fn(),
+  findChannelById: vi.fn(), findLatestAttempt: vi.fn(), findLatestCompletedAttempt: vi.fn(), createStageAttempt: vi.fn(),
   completeStage: vi.fn(), failStage: vi.fn(), patchStageOutput: vi.fn(), insertUsageEvent: vi.fn(),
   checkBudget: vi.fn(), loadResolvedConfig: vi.fn(), generateLongVideo: vi.fn(),
 }));
@@ -9,7 +9,7 @@ vi.mock('../llm', async orig => ({ ...(await orig<object>()), callLLM: mocks.cal
 vi.mock('../models/prisma-client', () => ({ prisma: { $transaction: async (fn: (tx: object) => unknown) => fn({}) } }));
 vi.mock('../models/repositories/pipeline-run.repository', async orig => ({ ...(await orig<object>()), findPipelineRunById: mocks.findPipelineRunById, updatePipelineRun: mocks.updatePipelineRun }));
 vi.mock('../models/repositories/channel.repository', async orig => ({ ...(await orig<object>()), findChannelById: mocks.findChannelById }));
-vi.mock('../models/repositories/pipeline-stage.repository', async orig => ({ ...(await orig<object>()), findLatestAttempt: mocks.findLatestAttempt, createStageAttempt: mocks.createStageAttempt, completeStage: mocks.completeStage, failStage: mocks.failStage, patchStageOutput: mocks.patchStageOutput }));
+vi.mock('../models/repositories/pipeline-stage.repository', async orig => ({ ...(await orig<object>()), findLatestAttempt: mocks.findLatestAttempt, findLatestCompletedAttempt: mocks.findLatestCompletedAttempt, createStageAttempt: mocks.createStageAttempt, completeStage: mocks.completeStage, failStage: mocks.failStage, patchStageOutput: mocks.patchStageOutput }));
 vi.mock('../models/repositories/review-log.repository', async orig => ({ ...(await orig<object>()), listReviewLogsForRun: async () => [] }));
 vi.mock('../models/repositories/usage-event.repository', async orig => ({ ...(await orig<object>()), insertUsageEvent: mocks.insertUsageEvent }));
 vi.mock('./budget-gate', async orig => ({ ...(await orig<object>()), checkBudget: mocks.checkBudget }));
@@ -23,7 +23,7 @@ let previous: { attemptNumber: number; status: string; output: Record<string, un
 let output: Record<string, unknown>;
 function goodReply(req: { messages: { content: string }[] }) {
   const slots: {id:string;anchor:string}[] = JSON.parse(req.messages[0].content.match(/Required scene slots: (\[[^\n]*\])/)![1]);
-  return { text: JSON.stringify({ scenes: Object.fromEntries(slots.map(slot => [slot.id, { prompt: `Camera tracks ${slot.anchor}` }])), audioLayer: 'calm' }), stopReason: 'stop', usage: { inputTokens: 500, outputTokens: 400 }, costUsd: '0.001', provider: 'anthropic', model: 'claude-sonnet-5' };
+  return { text: JSON.stringify({ scenes: Object.fromEntries(slots.map(slot => [slot.id, { prompt: `A still of ${slot.anchor}`, purpose: 'illustration' }])), audioLayer: 'calm' }), stopReason: 'stop', usage: { inputTokens: 500, outputTokens: 400 }, costUsd: '0.001', provider: 'anthropic', model: 'claude-sonnet-5' };
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,6 +32,7 @@ beforeEach(() => {
   mocks.findPipelineRunById.mockResolvedValue({ id: 'run', tenantId: 't', channelId: 'c', intakeParsed: { topic: 'Commute' }, creationOptions: null });
   mocks.findChannelById.mockResolvedValue({ id: 'c', platform: 'youtube', brandAssets: {} });
   mocks.findLatestAttempt.mockImplementation(async (_run, name) => name === 'gate1' ? { status: 'completed', output: { sanctionedScriptText: chapters[0].text, chapters } } : previous);
+  mocks.findLatestCompletedAttempt.mockResolvedValue(null);
   mocks.createStageAttempt.mockResolvedValue({ id: 'stage' });
   mocks.updatePipelineRun.mockImplementation(async (_id, patch) => ({ id: 'run', ...patch }));
   mocks.checkBudget.mockResolvedValue({ ok: true });
@@ -56,7 +57,10 @@ describe('long planning stage checkpoints', () => {
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);
     expect(mocks.callLLM.mock.calls[0][0].messages[0].content).toContain('Chapter scene range: 13-24');
     expect(mocks.generateLongVideo.mock.calls[0][0].plan.longScenes).toHaveLength(24);
-    expect(mocks.generateLongVideo.mock.calls[0][0].plan.longScenes[0]).toMatchObject(saved.scenes['0:0']);
+    expect(mocks.generateLongVideo.mock.calls[0][0].plan.longScenes[0]).toMatchObject({
+      words: saved.scenes['0:0'].words, prompt: saved.scenes['0:0'].prompt,
+    });
+    expect(mocks.generateLongVideo.mock.calls[0][0].plan.sceneMeanings.scenes[0].purpose).toBe('illustration');
     expect(output).toHaveProperty('longPlanningCheckpoint');
   });
 });
@@ -69,6 +73,6 @@ it('records the checkpoint in the stage INSERT before a restart can hide its pre
   await runVideoGenerationStage('run');
   const initial=mocks.createStageAttempt.mock.calls[0][0].output.longPlanningCheckpoint;
   expect(Object.keys(initial.scenes)).toHaveLength(12);
-  expect(initial.contractVersion).toBe(3);
+  expect(initial.contractVersion).toBe(4);
   expect(mocks.callLLM).toHaveBeenCalledTimes(1);
 });
