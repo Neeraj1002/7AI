@@ -4,6 +4,8 @@
 
 **Binding execution workflow:** read [WORKFLOW](../WORKFLOW.md). Use `task3` under Task 1's recorded shared Sprint 5 root, starting from current main including #90, and create this task's separate draft PR. Sprint 4 closure, latest-main integration/conflict resolution and passing acceptance precede ready-for-review. Preserve original dependency/ownership gates; shared root does not permit shared Git state.
 
+**2026-10-16 owner direction for this draft:** Task 3 development is authorized on an isolated current-main + #91/#92 composite while those PRs remain draft. Task 3 owns only Script Review's production-capability wording and focused tests; Task 4 preserves that wording when integrating its evidence adapter. Finish scene alignment, compatibility checks and a real local FFmpeg render on the composite. Keep #93 draft until final integration, Sprint 4 closure and release checks. This direction supersedes the older pre-merge development and unidentified SR wording blockers below; it does not authorize production effects.
+
 **Objective**: Plan renderable still compositions and preserve an explicit, verifiable mapping from each narration span to its actual visual asset.
 **Duration**: 1–2 days plus rendered mapping check.
 **Depends On**: Reliability gate R; reuse Task 1's shared root/current main including #90 and its #89 baseline. Coordinate production wording with the outstanding SR owner. Task 4's evidence module can develop concurrently after R; shared integrations are sequenced. Per-task PR readiness also requires Sprint 4 closure.

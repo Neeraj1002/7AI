@@ -33,6 +33,15 @@ export type VisualSource = (typeof VISUAL_SOURCES)[number];
 export const AUDIO_LAYERS = [...MOOD_TAGS, 'none'] as const;
 export type AudioLayer = (typeof AUDIO_LAYERS)[number];
 
+export const SCENE_PURPOSES = ['context', 'illustration', 'explanation', 'emphasis', 'transition', 'reconstruction', 'unspecified'] as const;
+export type ScenePurpose = (typeof SCENE_PURPOSES)[number];
+export const SceneMeaningSchema = z.object({
+  sceneId: z.string().regex(/^(0|[1-9]\d*):(0|[1-9]\d*)$/),
+  narrationSpan: z.object({ chapterIndex: z.number().int().min(0), startWord: z.number().int().min(0), endWordExclusive: z.number().int().min(0) }),
+  purpose: z.enum(SCENE_PURPOSES),
+});
+export type SceneMeaning = z.infer<typeof SceneMeaningSchema>;
+
 export const ProductionPlanSchema = z
   .object({
     visualSource: z.enum(VISUAL_SOURCES),
@@ -60,6 +69,9 @@ export const ProductionPlanSchema = z
     longScenes: z
       .array(z.object({ chapterIndex: z.number().int().min(0), words: z.string().min(1), prompt: z.string().min(1) }))
       .optional(),
+    // Optional for valid legacy plans; the application owns IDs/spans and only the model may
+    // choose a purpose from the small enum. Never use this array to allocate scene slots.
+    sceneMeanings: z.object({ version: z.literal(1), scenes: z.array(SceneMeaningSchema) }).optional(),
     captionStyle: z.enum(CAPTION_STYLES),
     audioLayer: z.enum(AUDIO_LAYERS),
     pacingNotes: z.string().min(1),
@@ -68,7 +80,34 @@ export const ProductionPlanSchema = z
   .refine(
     (plan) => plan.visualSource !== 'ai-stills' || (plan.stillScenePrompts?.length ?? 0) > 0,
     { message: 'stillScenePrompts must be a non-empty array when visualSource is "ai-stills"', path: ['stillScenePrompts'] },
-  );
+  )
+  .superRefine((plan, ctx) => {
+    if (!plan.sceneMeanings) return;
+    const scenes = plan.longScenes ?? [];
+    if (plan.sceneMeanings.scenes.length !== scenes.length || plan.stillScenePrompts?.length !== scenes.length) {
+      ctx.addIssue({ code: 'custom', path: ['sceneMeanings'], message: 'Scene meaning, long scene and flattened prompt counts must agree' });
+      return;
+    }
+    const slots = new Map<number, number>();
+    let previousChapter = -1;
+    let previousEnd = 0;
+    scenes.forEach((scene, i) => {
+      const meaning = plan.sceneMeanings!.scenes[i];
+      const slot = slots.get(scene.chapterIndex) ?? 0;
+      if (scene.chapterIndex < previousChapter
+        || meaning.sceneId !== `${scene.chapterIndex}:${slot}`
+        || meaning.narrationSpan.chapterIndex !== scene.chapterIndex
+        || meaning.narrationSpan.endWordExclusive < meaning.narrationSpan.startWord
+        || (scene.chapterIndex === previousChapter && meaning.narrationSpan.startWord !== previousEnd)
+        || (scene.chapterIndex !== previousChapter && meaning.narrationSpan.startWord !== 0)
+        || plan.stillScenePrompts![i] !== scene.prompt) {
+        ctx.addIssue({ code: 'custom', path: ['sceneMeanings', 'scenes', i], message: 'Scene ID, ordered span and prompt must match the existing scene slot' });
+      }
+      slots.set(scene.chapterIndex, slot + 1);
+      previousChapter = scene.chapterIndex;
+      previousEnd = meaning.narrationSpan.endWordExclusive;
+    });
+  });
 export type ProductionPlan = z.infer<typeof ProductionPlanSchema>;
 
 // Sprint 4 Task 8 (R6) — platform-default still count, estimated from the

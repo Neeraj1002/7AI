@@ -15,7 +15,7 @@ function anchors(req: { messages: { content: string }[] }): string[] {
   return JSON.parse(req.messages[0].content.match(/Required batch anchors in order: (\[[^\n]*\])/)![1]);
 }
 function goodReply(req: Parameters<typeof anchors>[0]) {
-  return llm(JSON.stringify({ scenes: Object.fromEntries(JSON.parse(req.messages[0].content.match(/Required scene slots: (\[[^\n]*\])/)![1]).map((slot: {id:string;anchor:string}) => [slot.id, {prompt: `Tracking camera follows ${slot.anchor}, period clothing and drifting smoke.`}])), audioLayer: 'mysterious' }));
+  return llm(JSON.stringify({ scenes: Object.fromEntries(JSON.parse(req.messages[0].content.match(/Required scene slots: (\[[^\n]*\])/)![1]).map((slot: {id:string;anchor:string}) => [slot.id, {prompt: `A still composition of ${slot.anchor}, period clothing and drifting smoke.`, purpose: 'illustration'}])), audioLayer: 'mysterious' }));
 }
 const capped = () => llm('{"scenes":[', { stopReason: 'length', usage: { inputTokens: 500, outputTokens: LONG_CHAPTER_PLAN_MAX_TOKENS } });
 describe('bounded long-form planning', () => {
@@ -36,6 +36,8 @@ describe('bounded long-form planning', () => {
     expect(plan.longScenes).toHaveLength(120);
     expect(plan.audioLayer).toBe('mysterious');
     expect(plan.stillScenePrompts).toEqual(plan.longScenes!.map(s => s.prompt));
+    expect(plan.sceneMeanings?.scenes).toHaveLength(120);
+    expect(plan.sceneMeanings?.scenes[0]).toEqual({ sceneId: '0:0', narrationSpan: { chapterIndex: 0, startWord: 0, endWordExclusive: 8 }, purpose: 'illustration' });
     let cursor = 0;
     [24, 24, 72].forEach((count, chapterIndex) => {
       const words = chapters[chapterIndex].text.split(' ');
@@ -202,8 +204,17 @@ it('carries a validated legacy checkpoint before a cancelled call and preserves 
   mocks.callLLM.mockClear();
   await expect(planLongVideoProduction({...params,checkpoint:legacy,onCheckpoint,beforeCall:async()=>{throw cancelled;}})).rejects.toBe(cancelled);
   expect(mocks.callLLM).not.toHaveBeenCalled();
-  expect(onCheckpoint.mock.calls[0][0]).toMatchObject({contractVersion:3,scenes:legacy.scenes});
+  expect(onCheckpoint.mock.calls[0][0]).toMatchObject({contractVersion:4,scenes:legacy.scenes});
   expect(reusableLongPlanningCheckpoint({...params,visualStyle:'changed'},legacy)).toBeUndefined();
+});
+
+it('reuses a version 3 fixed-slot checkpoint with explicit unknown purpose', async () => {
+  const older = { inputHash: longPlanningInputHash(params, 3), contractVersion: 3,
+    scenes: { '0:0': { words: 'opening0 opening1 opening2 opening3 opening4 opening5', prompt: 'previously paid still' } } };
+  const result = await planLongVideoProduction({ ...params, checkpoint: older });
+  expect(result.plan.longScenes?.[0].prompt).toBe('previously paid still');
+  expect(result.plan.sceneMeanings?.scenes[0]).toMatchObject({ sceneId: '0:0', purpose: 'unspecified' });
+  expect(mocks.callLLM.mock.calls[0][0].messages[0].content).toContain('Chapter scene range: 2-13');
 });
 
 // User-supplied approved narration, not an assertion of historical accuracy.
