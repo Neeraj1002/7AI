@@ -60,6 +60,7 @@ export async function uploadAttemptBundle(params: {
     // keep: transcript.json, plan.json, ffmpeg-args.json, script.txt
     candidates.splice(0, 1);
   }
+  if (a.sceneMappingPath) candidates.push({ name: 'scene-mapping.json', filePath: a.sceneMappingPath, contentType: 'application/json' });
   if (!params.longForm && a.captionsPath) candidates.push({ name: 'captions.ass', filePath: a.captionsPath, contentType: 'text/x-ssa' });
   if (!params.longForm && a.stockVideoPath) candidates.push({ name: 'stock-shotlist.mp4', filePath: a.stockVideoPath, contentType: 'video/mp4' });
   if (!params.longForm && a.stillsVideoPath) candidates.push({ name: 'stills-video.mp4', filePath: a.stillsVideoPath, contentType: 'video/mp4' });

@@ -153,13 +153,17 @@ describe('chapter segments resume after a crash (Sprint 4 Task 9, R6.3)', () => 
     const fsp = await import('node:fs/promises');
     const os = await import('node:os');
     const path = await import('node:path');
+    const crypto = await import('node:crypto');
     const { renderChapterSegments } = await import('./long-render');
     const { env } = await import('../../config/env');
     const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'segments-'));
     try {
       const img = path.join(dir, 'a.png');
       await promisify(execFile)(env.FFMPEG_PATH, ['-y', '-f', 'lavfi', '-i', 'color=c=0x336699:size=1536x1024:rate=1', '-frames:v', '1', img]);
-      const chapters = [0, 1].map((chapterIndex) => ({ chapterIndex, scenes: [{ sceneIndex: chapterIndex, imagePath: img, frames: 6 }] }));
+      const hash = async () => crypto.createHash('sha256').update(await fsp.readFile(img)).digest('hex');
+      const chapters = [0, 1].map((chapterIndex) => ({ chapterIndex, scenes: [{ sceneIndex: chapterIndex, imagePath: img, imageSha256: '', frames: 6 }] }));
+      const firstHash = await hash();
+      chapters.forEach(c => { c.scenes[0].imageSha256 = firstHash; });
       const events: string[] = [];
       const run = () =>
         renderChapterSegments({
@@ -176,6 +180,14 @@ describe('chapter segments resume after a crash (Sprint 4 Task 9, R6.3)', () => 
       const second = await run();
       expect(events).toEqual(['0:resumed', '1:rendered']);
       expect(second).toEqual(first);
+      await promisify(execFile)(env.FFMPEG_PATH, ['-y', '-f', 'lavfi', '-i', 'color=c=0xcc5533:size=1536x1024:rate=1', '-frames:v', '1', img]);
+      const changedHash = await hash();
+      expect(changedHash).not.toBe(firstHash);
+      chapters.forEach(c => { c.scenes[0].imageSha256 = changedHash; });
+      events.length = 0;
+      const third = await run();
+      expect(third).not.toEqual(first);
+      expect(events).toEqual(['0:rendered', '1:rendered']);
     } finally {
       await fsp.rm(dir, { recursive: true, force: true });
     }

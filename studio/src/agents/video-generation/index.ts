@@ -125,6 +125,7 @@ export type VideoArtifacts = {
   // Sprint 4 Task 8 (R2): the burned-in caption file is now .ass (was .srt).
   captionsPath?: string;
   planJsonPath: string;
+  sceneMappingPath?: string;
   // Sprint 4 Task 8 (R5): the assembled stock shot list (individual clips are tmp).
   stockVideoPath?: string;
   stillImagePaths?: string[];

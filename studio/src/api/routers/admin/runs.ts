@@ -11,6 +11,7 @@ import {
   readStageAttempts,
   stageHasBundle,
 } from '../../../models/repositories/admin-runs.repository';
+import { readPlannerDiagnostics } from '../../../models/repositories/admin-planner-diagnostics.repository';
 import { getObjectText, getPresignedDownloadUrl, isR2Configured } from '../../../storage/r2-client';
 
 // Keys dropped from any tenant content before it leaves the server.
@@ -48,7 +49,7 @@ export const adminRunsRouter = router({
     .input(
       z.object({
         runId: z.string().uuid(),
-        kind: z.enum(['brief', 'stage_output', 'bundle_manifest', 'bundle_file']),
+        kind: z.enum(['brief', 'stage_output', 'bundle_manifest', 'bundle_file', 'planner_diagnostics']),
         attemptNumber: z.number().int().positive().optional(),
         stageName: z.string().min(1).max(50).optional(),
         file: z.string().min(1).max(200).optional(),
@@ -87,6 +88,13 @@ export const adminRunsRouter = router({
       if (input.kind === 'brief') {
         const brief = await readRunBrief(input.runId);
         return { kind: input.kind, ...shapeContent(brief) };
+      }
+
+      if (input.kind === 'planner_diagnostics') {
+        const diagnostics = await readPlannerDiagnostics(input.runId, input.attemptNumber);
+        if (!diagnostics) throw new TRPCError({ code: 'NOT_FOUND', message: 'No video_generation attempt found for this run' });
+        // Explicit fixed projection: generic secret-key redaction would erase token COUNTS.
+        return { kind: input.kind, content: diagnostics, truncated: diagnostics.truncated };
       }
 
       const stages = await readStageAttempts(input.runId);

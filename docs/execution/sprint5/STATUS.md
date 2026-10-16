@@ -187,15 +187,15 @@ Future rendered trials default to existing approved, licensed local fixtures wit
 
 | Task | Name | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|
-| 1 | Planner reconciliation and run diagnostics | In Progress | Codex | `SPRINT5_TASK1_BE` | Setup owner: this Task 1 session; worktree: `D:\Study Material\7AI-SPRINT5\task1`; base main `5b04a7a`; documentation bootstrap in progress, no application work yet |
-| 2 | Durable publishing recovery | Not started | Unassigned | — | Reuse Task 1's shared root, own worktree/current main with #90; draft PR and rollout review. Proposed `SPRINT5_TASK2_BE` |
-| 3 | Still-scene contract and alignment | Blocked | Unassigned | — | Waits for R and SR wording agreement; #89/#90 baseline satisfied. Proposed `SPRINT5_TASK3_BE` |
-| 4 | Shared factual evidence inputs | Blocked | Codex | `SPRINT5_TASK4_BE` | worktree: D:\Study Material\7AI-SPRINT5\task4; draft PR #94 has pre-gate fixtures and adopted consumer v1 docs; feature work waits for R; SR rules remain separate. |
+| 1 | Planner reconciliation and run diagnostics | Done — action needed | Founder | `SPRINT5_TASK1_BE` | Planner deliverable code-complete 2026-10-15; [report/runbook](reports/task1.md); 87 focused tests passed (0 skipped), build/lint/typecheck pass. Draft [#91](https://github.com/Neeraj1002/7AI/pull/91); worktree: `D:\Study Material\7AI-SPRINT5\task1`; baseline `578ba530100638548a4a49af57efcb14e7962227`. Live #90: attempt 6 generation completed, needs-attention/video-review; new diagnostic kind awaits deployment. Task 2 safe-summary adapter and Sprint 4 closure/readiness gate pending |
+| 2 | Durable publishing recovery | In Progress | Claude Code | `SPRINT5_TASK2_BE` | worktree: D:\Study Material\7AI-SPRINT5\task2; draft PR #92; rollout and Sprint 4 closure review pending. |
+| 3 | Still-scene contract and alignment | In development; draft | Codex | `SPRINT5_TASK3_BE` | Isolated #91/#92 dependency composite; still-capability wording, scene mapping and local FFmpeg acceptance implemented and tested. #93 stays draft pending final main/Sprint 4 integration and release checks. See Task 3 report. |
+| 4 | Shared factual evidence inputs | In development; draft | Codex | `SPRINT5_TASK4_BE` | worktree: D:\Study Material\7AI-SPRINT5\task4; draft PR #94 adopts evidence consumer v1 and integrates #91/#92/#93 on a separate dependency base. SR rules remain separate; final release gates remain. |
 | 5 | Visual repair and continuity comparison | Blocked | Unassigned | — | Waits for Tasks 3/4; no paid experiment authorized. Proposed `SPRINT5_TASK5_BE` |
 
 Do not fill Branch with a planned name as if it exists. A future implementer records its actual created branch and worktree in its own row immediately. Code-complete, merged, deployed and live-verified are separate statements in reports.
 
-**Shared root**: `D:\Study Material\7AI-SPRINT5`, created by this Task 1 Codex session. **Setup owner**: Task 1 Codex. **Plan-baseline commit**: documentation-only bootstrap; resulting SHA will be recorded in the draft PR and next task commit. **Task PRs**: Task 1 draft to be opened after bootstrap push. **Sprint 4 closure gate**: pending owner tests/triage/closure record.
+**Shared root**: `D:\Study Material\7AI-SPRINT5`, created by this Task 1 Codex session. **Setup owner**: Task 1 Codex. **Plan-baseline commit**: `578ba530100638548a4a49af57efcb14e7962227` (documentation only, pushed). **Task PRs**: Task 1 draft [#91](https://github.com/Neeraj1002/7AI/pull/91). **Sprint 4 closure gate**: pending owner tests/triage/closure record.
 
 ## Remaining uncertainties and implementation readiness
 
