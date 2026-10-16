@@ -1,6 +1,6 @@
-# Sprint 5 Business Logic Delta — Proposed, Not Implemented
+# Sprint 5 Business Logic Delta — Task 2 Draft Implementation
 
-No production transition changed during planning. Current state-machine/status rules remain authoritative until reviewed implementations land. This page specifies interaction boundaries for the five tasks; implementation reports replace proposals with actual deltas.
+Planning changed no production transition. Task 2 is now implemented on a draft branch only; the remaining task sections still describe proposed interaction boundaries. Production behavior changes only after reviewed integration and rollout.
 
 ## Reliability gate and ownership
 
@@ -14,19 +14,15 @@ No new top-level `PipelineRun` or `PipelineStage` enum is proposed. Existing `ne
 
 Queries do not modify business state. Explicit content views still write the existing access audit before returning content. The diagnostic client permits only existing read operations/content views and fixed run IDs; it cannot retry/approve/force/resume/generate. A failed audit write returns no content. Missing metadata is typed absence, not zero. Persisted truncation is permanent evidence loss, not an excuse for generation or SQL that cannot restore it.
 
-## Task 2: upload recovery
+## Task 2: upload recovery — implemented on the draft branch
 
-Preconditions: active channel; authorized running/retry action; a completed sanctioned script, valid completed generation and appropriate Gate 2 approval; current approved artifact/metadata fingerprints. Atomic acquisition serializes publishers at the run-level receipt. No SQL transaction spans provider I/O.
+The existing channel, run-status, sanctioned-script, generated-file and Gate 2 checks remain entry preconditions. Before upload, a run-row transaction imports prior publishing IDs across attempt statuses, rejects conflicting or unverified legacy attempts, compares the approved file SHA-256/size and Gate 2/metadata identity, and claims one owner token with a revision and renewable lease. A metadata-only failure marked before any session is safe to retry. Unsupported receipt versions fail closed. The Retry API and startup/runner reach this same claim.
 
-Proposed internal phases:
+The provider now initiates a resumable YouTube session, encrypts and saves its URI before streaming bytes, queries the session's confirmed offset, and sends only the remaining range. A response lost after final bytes is reconciled against that same URI; a query that cannot establish the outcome parks the receipt as ambiguous. An expired owner can continue only the stored session. Heartbeat failure aborts the active request where supported. A late known video ID is recorded even if its original owner lost the lease; a failed ID write stops follow-ups and blocks a fresh insertion.
 
-`prepared → session_ready → uploading → uploaded → followups → complete`.
+Internal phases are prepared, session_ready, uploading, uploaded, followups, complete and ambiguous. The first known ID is saved to the run receipt and stage checkpoint before R2 final copy, thumbnail or captions. R2's fixed key can be retried; interrupted thumbnail/caption starts become uncertain and are not repeated. Completion advances publishing to analytics through the existing transaction. The ten-minute stall reports active, known-upload or unresolved state instead of promising a safe retry. The run-level receipt, session and token remain absent from domain run projections and Admin structure.
 
-Session URI is persisted before file bytes are sent; observed video ID is persisted immediately before R2/thumbnail/captions. Any uncertain completion or receipt-write failure routes to `ambiguous`/existing `needs_attention`; an unresolved upload cannot initiate another insertion. A prepared session that is provably never used may be replaced through the documented safe rule; a lost/expired session after possible final-byte submission is not proof of absence. Same-session status reconciliation precedes continuation. Known ID from an older failed attempt prevents re-upload.
-
-Lease expiry grants permission to reconcile a persisted session, not to start a competing upload. A timed-out worker must stop/abort where supported and lose write ownership; its late observations still require durable reconciliation. Epoch fencing alone cannot fence YouTube's external side effect. Task 2 tests slow original calls, duplicate Retry invocations and separate worker processes. The UI/API never promises “no duplicate risk” merely because a timeout elapsed.
-
-Completion uses the known receipt and records follow-up outcomes without re-uploading. Thumbnail/caption/R2 failure preserves current best-effort semantics; an uncertain caption insertion is recorded and not blindly repeated. Do not identify a video solely by title. Legacy uncertainty requires an explicit reconciliation decision; do not grant a broad new Admin force action.
+This is local/draft behavior, not a production claim. A previous-version worker still running during rollout would ignore this ownership protocol; drain/reconcile it before deployment. Google may leave a final provider outcome unknowable after session expiry, so ambiguity still requires a human decision.
 
 ## Task 3: scene interpretation and timing
 

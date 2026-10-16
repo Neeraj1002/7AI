@@ -4,7 +4,8 @@ import { promisify } from 'node:util';
 import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
-import { uploadVideoViaProvider, setThumbnailViaProvider, uploadCaptionsViaProvider, type CaptionsUploadParams } from './youtube-client';
+import { getOAuthClient, setThumbnailViaProvider, uploadCaptionsViaProvider, type CaptionsUploadParams } from './youtube-client';
+import { uploadResumableVideo, type SessionHooks } from './resumable-upload';
 import { stubUploadVideo, stubSetThumbnail, stubUploadCaptions } from './stub';
 import { env } from '../../config/env';
 import { buildMetadataUserMessage, scrubDescription, type PackagingParams } from './packaging';
@@ -94,14 +95,16 @@ export async function generatePublishingMetadata(
   return { metadata: { ...result.data, description: description || result.data.description }, llm };
 }
 
-// YOUTUBE_STUB=1 swaps the real upload for the stub in ./stub.ts — no
-// YOUTUBE_REFRESH_TOKEN has been available in any session so far (Week 1
-// Task 7's OAuth still open). Same pattern MEDIA_STUB/STOCK_FOOTAGE_STUB use.
-export async function uploadVideo(params: UploadParams): Promise<UploadResult> {
+export async function uploadVideoWithSession(
+  params: UploadParams, fileSize: number, sessionUri: string | undefined, hooks: SessionHooks,
+): Promise<UploadResult> {
   if (env.YOUTUBE_STUB === '1') {
+    if (!sessionUri) await hooks.persistSession('stub://upload-session');
+    await hooks.beforeBytes();
     return stubUploadVideo(params);
   }
-  return uploadVideoViaProvider(params);
+  const client = await getOAuthClient(params.channelId);
+  return uploadResumableVideo(client, params, fileSize, sessionUri, hooks);
 }
 
 // Sprint 2 Task 5 (H1) — reuses the exact frame-extraction technique

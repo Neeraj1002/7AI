@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   checkBudget: vi.fn(),
   resolvePendingApproval: vi.fn(),
   continuePipelineInBackground: vi.fn(),
+  readPublishingReceipt: vi.fn(),
 }));
 
 vi.mock('../../models/repositories/pipeline-run.repository', () => ({
@@ -20,6 +21,9 @@ vi.mock('../../models/repositories/pipeline-run.repository', () => ({
   claimPlannerContractRecovery: mocks.claimPlannerContractRecovery,
   listRuns: vi.fn(),
   CANCELLED_BY_USER: 'Cancelled by user',
+}));
+vi.mock('../../models/repositories/publishing-recovery.repository', () => ({
+  readPublishingReceipt: mocks.readPublishingReceipt,
 }));
 vi.mock('../../models/repositories/channel.repository', () => ({ findChannelById: mocks.findChannelById }));
 vi.mock('../../run-pipeline/budget-gate', () => ({
@@ -61,6 +65,7 @@ beforeEach(() => {
   mocks.checkBudget.mockResolvedValue({ ok: true });
   mocks.updatePipelineRun.mockResolvedValue({});
   mocks.resolvePendingApproval.mockReturnValue({ resolved: true });
+  mocks.readPublishingReceipt.mockResolvedValue(null);
 });
 
 describe('runs.retry manual cap', () => {
@@ -91,6 +96,27 @@ describe('runs.retry manual cap', () => {
   it('counts are per stage', async () => {
     mocks.findPipelineRunById.mockResolvedValue(run({ currentStage: 'script_generation', creationOptions: used(3) }));
     await expect(caller().retry({ runId: RUN_ID })).resolves.toBeDefined();
+  });
+});
+
+describe('publishing Retry receipt guard', () => {
+  beforeEach(() => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ currentStage: 'publishing' }));
+    mocks.findLatestAttempt.mockResolvedValue({ stageName: 'publishing', status: 'failed', output: null });
+  });
+  it.each([
+    [{ phase: 'ambiguous' }, 'unresolved'],
+    [{ phase: 'uploading', ownerToken: 'owner', leaseUntil: '2100-01-01T00:00:00.000Z' }, 'active'],
+  ])('blocks an unresolved or active upload before changing the run', async (receipt, _label) => {
+    mocks.readPublishingReceipt.mockResolvedValue(receipt);
+    await expect(caller().retry({ runId: RUN_ID })).rejects.toThrow(/Publishing is active or its YouTube outcome is unresolved/);
+    expect(mocks.continuePipelineInBackground).not.toHaveBeenCalled();
+  });
+  it('allows a known ID with no active owner to resume follow-ups', async () => {
+    mocks.readPublishingReceipt.mockResolvedValue({ phase: 'uploaded', youtubeVideoId: 'known',
+      ownerToken: null, leaseUntil: null });
+    await expect(caller().retry({ runId: RUN_ID })).resolves.toBeDefined();
+    expect(mocks.continuePipelineInBackground).toHaveBeenCalledWith(RUN_ID);
   });
 });
 

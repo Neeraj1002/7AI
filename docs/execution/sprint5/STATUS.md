@@ -188,7 +188,7 @@ Future rendered trials default to existing approved, licensed local fixtures wit
 | Task | Name | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|
 | 1 | Planner reconciliation and run diagnostics | Done — action needed | Founder | `SPRINT5_TASK1_BE` | Planner deliverable code-complete 2026-10-15; [report/runbook](reports/task1.md); 87 focused tests passed (0 skipped), build/lint/typecheck pass. Draft [#91](https://github.com/Neeraj1002/7AI/pull/91); worktree: `D:\Study Material\7AI-SPRINT5\task1`; baseline `578ba530100638548a4a49af57efcb14e7962227`. Live #90: attempt 6 generation completed, needs-attention/video-review; new diagnostic kind awaits deployment. Task 2 safe-summary adapter and Sprint 4 closure/readiness gate pending |
-| 2 | Durable publishing recovery | Not started | Unassigned | — | Reuse Task 1's shared root, own worktree/current main with #90; draft PR and rollout review. Proposed `SPRINT5_TASK2_BE` |
+| 2 | Durable publishing recovery | In Progress | Claude Code | `SPRINT5_TASK2_BE` | worktree: D:\Study Material\7AI-SPRINT5\task2; draft PR #92; rollout and Sprint 4 closure review pending. |
 | 3 | Still-scene contract and alignment | Blocked | Unassigned | — | Waits for R and SR wording agreement; #89/#90 baseline satisfied. Proposed `SPRINT5_TASK3_BE` |
 | 4 | Shared factual evidence inputs | Blocked | Unassigned | — | Waits for R and SR consumer agreement; SR rule work remains separate. Proposed `SPRINT5_TASK4_BE` |
 | 5 | Visual repair and continuity comparison | Blocked | Unassigned | — | Waits for Tasks 3/4; no paid experiment authorized. Proposed `SPRINT5_TASK5_BE` |
