@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   insertUsageEvent: vi.fn(),
   checkBudget: vi.fn(),
   generateScript: vi.fn(),
+  listReviewLogsForRun: vi.fn(),
 }));
 
 vi.mock('../models/prisma-client', () => ({
@@ -38,10 +39,15 @@ vi.mock('../models/repositories/usage-event.repository', async (orig) => ({
 }));
 vi.mock('./budget-gate', async (orig) => ({ ...(await orig<object>()), checkBudget: mocks.checkBudget }));
 vi.mock('../agents/script-generation', async (orig) => ({ ...(await orig<object>()), generateScript: mocks.generateScript }));
+vi.mock('../models/repositories/review-log.repository', async (orig) => ({
+  ...(await orig<object>()),
+  listReviewLogsForRun: mocks.listReviewLogsForRun,
+}));
 
 import { runScriptGenerationStage } from './state-machine';
 import { NonTransientStageError } from './retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from './stage-failure';
+import { buildEvidencePacket, evidenceRef } from '../content-evidence/packet';
 
 const RUN_ID = 'run-1';
 const llm = (overrides: Record<string, unknown> = {}) => ({
@@ -62,6 +68,7 @@ beforeEach(() => {
     id: RUN_ID,
     tenantId: 't1',
     channelId: 'c1',
+    briefText: 'Stored founder brief',
     status: 'running',
     intakeParsed: { topic: 'topic', constraints: [] },
     creationOptions: null,
@@ -72,6 +79,7 @@ beforeEach(() => {
   mocks.checkBudget.mockResolvedValue({ ok: true });
   mocks.updatePipelineRun.mockResolvedValue({ id: RUN_ID });
   mocks.insertUsageEvent.mockResolvedValue({});
+  mocks.listReviewLogsForRun.mockResolvedValue([]);
 });
 
 describe('runScriptGenerationStage failure path (Bugs Task 11)', () => {
@@ -139,6 +147,23 @@ describe('runScriptGenerationStage failure path (Bugs Task 11)', () => {
     expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(1);
     expect(mocks.insertUsageEvent).toHaveBeenCalledWith(expect.objectContaining({ costUsd: '0.008100', inputTokens: 1200 }));
     expect(mocks.completeStage).toHaveBeenCalled();
+  });
+
+  it('reuses the stored evidence snapshot when current run defaults have changed', async () => {
+    const packet = buildEvidencePacket({ briefText: 'Original brief', factPolicy: 'brief-only' });
+    mocks.findLatestAttempt.mockResolvedValue({
+      attemptNumber: 1,
+      input: { evidence: packet, briefText: 'Original brief', factPolicy: 'brief-only', sources: [] },
+      output: { evidenceRef: evidenceRef(packet) },
+    });
+    const call = llm();
+    mocks.generateScript.mockResolvedValue({ output: OUTPUT, llm: call, calls: [call] });
+
+    await runScriptGenerationStage(RUN_ID);
+
+    expect(mocks.createStageAttempt.mock.calls[0][0].input.evidence).toEqual(packet);
+    expect(mocks.generateScript.mock.calls[0][0].evidence).toEqual(packet);
+    expect(mocks.completeStage.mock.calls[0][1].evidenceRef).toEqual(evidenceRef(packet));
   });
 
   it('R3: a generation that retried books both calls, so the retry counts against the budget', async () => {

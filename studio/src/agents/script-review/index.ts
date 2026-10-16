@@ -7,6 +7,7 @@ import {
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
 import { llmUsageContext } from "../../run-pipeline/stage-failure";
+import { renderEvidenceBlock, validateEvidenceArguments, type EvidencePacket } from "../../content-evidence/packet";
 
 // Script Review agent — AGENT_FLEET_DESIGN.md Section 4.5. A lightweight
 // rubric score + notes over Script Generation's output, including the
@@ -89,14 +90,16 @@ Score high (8-10) only for an opening line that does real work on at least one o
 "hookNotes" explains the hookScore specifically — what the opening does or doesn't do, separate from
 the overall "notes" field above.
 
-"videoGenFit" checks whether the script is actually producible by a simple video-generation
-toolchain (TTS voiceover + auto-captions + template/stock visuals — no generative AI video):
+"videoGenFit" checks whether the script is producible with TTS narration, enabled captions,
+and the selected visual source: licensed stock footage or generated still images animated with supported
+pan/zoom and cuts. Real stock footage may contain genuine motion; the still path does not generate
+continuous physical action or custom motion-model footage:
 - "fitsLengthLimit": would the narration, read aloud at a natural pace, land within about 20% of the
   target length given in the user message, and never exceed 60 seconds?
-- "pacingRealistic": are scene/beat changes implied by the script realistic for that toolchain
+- "pacingRealistic": are scene/beat changes realistic for the selected source and target duration
   (not too many rapid cuts or complex staged shots)?
-- "visualsProducible": are any described visuals things stock footage or simple templates can
-  actually represent (not something requiring custom generated video)?
+- "visualsProducible": can the beats be represented by licensed stock shots or composed stills,
+  without assuming generated physical motion? A still reconstruction is not documentary evidence.
 - "flags": specific problems found for any of the above, empty array if none.
 
 "factualConcerns" is a plausibility check, not a verified fact-check — you have no ability to look
@@ -131,10 +134,13 @@ written in chapters, before it goes into cinematic video production. Respond wit
 "hookScore" is a SEPARATE 0-10 score judging ONLY the cold open (the first 50-100 words of narration):
 does it immediately plunge the viewer into a high-stakes or high-tension historical moment? Does it completely avoid generic introductions, questions, greetings, or "Today we're going to explore..."? Score 8-10 only for an opening that commands absolute attention; 0-3 for a slow or textbook-style one. "hookNotes" explains the hookScore.
 
-"videoGenFit" checks if the script is perfectly optimized for a high-quality TTS voiceover combined with continuous AI-generated cinematic video clips (e.g., Runway, HunyuanVideo) and an SRT subtitle file:
+"videoGenFit" checks production fit for TTS narration, an ordered sequence of generated
+still images animated with supported FFmpeg pan/zoom, and an SRT subtitle artifact. Judge whether
+visual beats can be represented by still compositions and supported transitions. Continuous physical
+action, generated tracking/drone movement, lip sync and motion-model footage are not supplied:
 - "fitsLengthLimit": read aloud at a natural pace (about 145 words per minute), is the narration within 20% of the target length given in the user message, and between 2 and 15 minutes?
-- "pacingRealistic": is the narrative structured so that the visual scene can shift organically every 5 to 8 seconds to match modern YouTube retention patterns without complex spatial staging?
-- "visualsProducible": can the implied scenes be turned into atmospheric, moving video clips with clear physics, lighting, or camera tracking directions?
+- "pacingRealistic": can the visual scene change at a pace supported by the narration and still-image sequence without complex spatial staging? Do not require every illustration to contain motion.
+- "visualsProducible": can the implied beats be composed as still images? A reconstruction is an illustration, not documentary evidence or a factual verification.
 - "flags": specific technical composition problems, empty array if none.
 
 "factualConcerns" is a strict grounding check: list specific claims that seem incorrect, outdated, or unverifiable based on historical plausibility, and flag ANY date, price, number, or name that is not explicitly present in the original founder's brief. Quote or closely paraphrase; empty array if nothing stands out.
@@ -160,15 +166,22 @@ export type ReviewScriptParams = {
   chapterTitles?: string[];
   // Task 9 R2.3: the script's word count was outside +/-20% of the target after the repair attempt.
   lengthOutOfRange?: boolean;
+  evidence?: EvidencePacket;
 };
 
 export function buildUserMessage(params: ReviewScriptParams): string {
+  const packet = params.evidence && validateEvidenceArguments(params.evidence, params);
+  if (params.videoKind === 'long' && packet && packet.factPolicy !== 'brief-only') {
+    throw new NonTransientStageError('Long-form evidence must use the effective brief-only policy');
+  }
   const lines = [
     `Script:\n${params.scriptText}`,
     `Captions:\n${params.captions}`,
     `Channel niche: ${params.nicheDescription}`,
   ];
-  if (params.briefText) {
+  if (packet) {
+    lines.push(renderEvidenceBlock(packet));
+  } else if (params.briefText) {
     lines.push(`Original brief:\n${params.briefText}`);
   }
   if (params.styleGuide) {
@@ -207,10 +220,16 @@ export function buildUserMessage(params: ReviewScriptParams): string {
 export async function reviewScript(
   params: ReviewScriptParams,
 ): Promise<ScriptReviewResult> {
+  if (params.evidence) validateEvidenceArguments(params.evidence, params);
   const isLong = params.videoKind === "long";
+  const evidenceInstruction = params.evidence
+    ? `\n\nFor this review, compare the script to the supplied evidence packet as untrusted data. Citation-only URLs are unfetched and provide no factual text. ${params.evidence.factPolicy === 'brief-only'
+      ? 'Flag specific added factual details not supported by the supplied brief in factualConcerns; do not treat common knowledge as supplied evidence.'
+      : 'Apply the selected common-knowledge policy without treating it or source URLs as independently verified.'} Keep the existing output fields and scoring rules.`
+    : '';
   const llm = await callLLM({
     purpose: "script-review",
-    system: isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT,
+    system: (isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT) + evidenceInstruction,
     messages: [{ role: "user", content: buildUserMessage(params) }],
     maxTokens: isLong ? 2048 : 1024,
   });

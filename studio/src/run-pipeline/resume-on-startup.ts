@@ -42,10 +42,8 @@ const STAGE_RESUMERS: Partial<Record<StageName, (runId: string) => Promise<Pipel
   video_generation: runVideoGenerationStage,
   video_review: runVideoReviewStage,
   gate2: runGate2Stage,
-  // publishing's resumer is safe against a mid-upload crash specifically
-  // because runPublishingStage itself checks for an already-checkpointed
-  // youtubeVideoId before ever calling uploadVideo again — see its own
-  // comment in state-machine.ts. Nothing extra is needed here.
+  // The publishing resumer enters the same durable run-level claim and
+  // existing-session reconciliation path as a manual Retry.
   publishing: runPublishingStage,
   analytics: runAnalyticsStage,
 };

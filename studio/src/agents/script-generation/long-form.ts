@@ -101,10 +101,10 @@ export function validateChapters(chapters: ScriptChapter[]): string | null {
   return null;
 }
 
-export function buildLongSystemPrompt(): string {
+export function buildLongSystemPrompt(packetMode = false): string {
   return `You are a master historical documentary filmmaker and a high-retention YouTube scriptwriter. Your writing style is immersive, suspenseful, and deeply atmospheric, similar to high-end history productions (e.g., Netflix's historical epics or premium storytelling channels).
 
-Given a topic, a founder's brief, source materials, and optional style rules, respond with ONLY a raw JSON object matching this exact shape:
+Given a topic, a founder's brief, ${packetMode ? 'an evidence packet' : 'source materials'}, and optional style rules, respond with ONLY a raw JSON object matching this exact shape:
 {"chapters": [{"title": string, "text": string}], "hashtags": string[]}
 
 Narrative Architecture & Pacing Rules:
@@ -117,7 +117,7 @@ Narrative Architecture & Pacing Rules:
 - The Climax & Outro: The final chapter must build to the ultimate historical resolution and close with a lingering, provocative thought or a cliffhanger that seamlessly bridges to a future topic. Absolute ban on generic sign-offs like "Thanks for watching."
 
 Content Restrictions & Delivery:
-- Strict Factual Grounding: Rely EXCLUSIVELY on facts explicitly provided in the brief and sources. Do not invent dates, statistics, names, or historical claims. If source material is thin, narrow the focus and intensify the dramatic depth of the existing facts rather than hallucinating details.
+- Strict Factual Grounding: ${packetMode ? 'Rely exclusively on factual text supplied in the evidence packet brief. Citation-only URLs are unfetched and provide no facts.' : 'Rely EXCLUSIVELY on facts explicitly provided in the brief and sources.'} Do not invent dates, statistics, names, or historical claims. If source material is thin, narrow the focus and intensify the dramatic depth of the existing facts rather than hallucinating details.
 - Technical Formatting: Spoken narration text only. NO stage directions, NO audio cues in brackets, and NO markdown headings inside the text strings.
 - Escape Strings Safely: Never use the straight double-quote character (") inside a text value other than as the JSON delimiter. For internal quotes or dialogue, use curly quotes (“ ”) or single quotes. Apostrophes are permitted.
 - Tags: "hashtags" must be an array of 3 to 8 relevant historical search terms, excluding the '#' character.

@@ -24,6 +24,7 @@ import {
   type ChapterSegmentPlan,
 } from './long-render';
 import type { ProductionPlan } from './plan';
+import { bindSceneAssets, createSceneMapping, validateScenePlan } from './scene-mapping';
 import type { VideoSpend } from './spend';
 import type { VideoGenerationResult } from './index';
 
@@ -61,6 +62,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
   if (plan.visualSource !== 'ai-stills' || !scenes || scenes.length === 0) {
     throw new NonTransientStageError('A long-form video needs an AI-stills plan with chapter scenes (plan.longScenes)');
   }
+  validateScenePlan(plan, params.chapters);
   for (let ci = 0; ci < params.chapters.length; ci += 1) {
     if (!scenes.some((s) => s.chapterIndex === ci)) {
       throw new NonTransientStageError(`Chapter ${ci + 1} ("${params.chapters[ci].title}") has no scenes in the production plan`);
@@ -151,25 +153,26 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
     throw error;
   }
 
-  // A scene whose prompt the provider refused reuses the previous image (the next one, for scene 0).
-  const imageFor: Array<string | undefined> = new Array<string | undefined>(scenes.length).fill(undefined);
-  (stills.promptIndexes ?? stills.imagePaths.map((_, i) => i)).forEach((promptIndex, k) => {
-    imageFor[promptIndex] = stills.imagePaths[k];
-  });
-  for (let i = 1; i < imageFor.length; i += 1) imageFor[i] ??= imageFor[i - 1];
-  for (let i = imageFor.length - 2; i >= 0; i -= 1) imageFor[i] ??= imageFor[i + 1];
+  // Bind actual image bytes to each slot, recording any moderation substitution.
+  const assets = await bindSceneAssets({ sceneCount: scenes.length, imagePaths: stills.imagePaths, promptIndexes: stills.promptIndexes });
 
   // 5. The picture: one silent segment per chapter, resumable, then joined with the finished audio.
   await guard();
   await params.weeklyGate?.();
   const totalSec = mixed.durationSeconds;
-  const timeline = buildSceneTimeline({ scenes, chapterTimings: narration.chapterTimings, words: narration.words, totalSec });
+  const timeline = buildSceneTimeline({ scenes, chapterTimings: narration.chapterTimings, words: narration.words,
+    chapters: params.chapters, meanings: plan.sceneMeanings?.scenes, totalSec });
   const frames = allocateFrames(timeline.map((t) => t.endSec), profile.fps);
+  const sceneMapping = createSceneMapping({ plan, timeline, frames, assets, styledPrompts: styled, fps: profile.fps });
+  const sceneMappingPath = path.join(outputDir, `${params.attemptNumber}.scene-mapping.json`);
+  await fs.writeFile(sceneMappingPath, JSON.stringify(sceneMapping, null, 2), 'utf-8');
+  for (const scene of sceneMapping.scenes) if (scene.warning) console.warn(`[video_generation] ${scene.warning}`);
   const chapterPlans: ChapterSegmentPlan[] = params.chapters.map((_, ci) => ({
     chapterIndex: ci,
     scenes: timeline
       .filter((t) => t.chapterIndex === ci)
-      .map((t) => ({ sceneIndex: t.sceneIndex, imagePath: imageFor[t.sceneIndex] as string, frames: frames[t.sceneIndex] })),
+      .map((t) => ({ sceneIndex: t.sceneIndex, imagePath: assets[t.sceneIndex].imagePath,
+        imageSha256: assets[t.sceneIndex].imageSha256, frames: frames[t.sceneIndex] })),
   }));
   const renderStartedAt = Date.now();
   const chapterPaths = await renderChapterSegments({
@@ -241,6 +244,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       ttsAudioPath: narration.audioPath,
       transcriptJsonPath: await writeTranscript(outputDir, params.attemptNumber, narration.words, narration.durationSeconds),
       planJsonPath: await writePlan(outputDir, params.attemptNumber, plan),
+      sceneMappingPath,
       stillImagePaths: stills.imagePaths,
       ...(bedTracks && { audioBedPath: bedTracks[0].filePath }),
       ffmpegArgsJsonPath: await writeRenderNotes(outputDir, params.attemptNumber, { frames, chapterPaths, bedChain: mixed.bedChain, bedGainDb: mixed.bedGainDb }),

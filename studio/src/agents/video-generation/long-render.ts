@@ -5,7 +5,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { env } from '../../config/env';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
-import { normalizeToken } from './captions-ass';
+import { alignSceneStarts, type SceneAlignment } from './scene-alignment';
+import type { SceneMeaning } from './plan';
 import { renderProfileFor, type RenderProfile } from './render-profile';
 import { QUALITY_SPEC } from './quality-spec';
 import {
@@ -30,65 +31,17 @@ const FFMPEG_BUFFER = 32 * 1024 * 1024;
 // ---------------------------------------------------------------------------------------------
 
 export type LongScene = { chapterIndex: number; words: string; prompt: string };
-export type TimedScene = { sceneIndex: number; chapterIndex: number; startSec: number; endSec: number };
+export type TimedScene = SceneAlignment & { endSec: number };
 
-function tokens(text: string): string[] {
-  return text.split(/\s+/).map(normalizeToken).filter((t) => t.length > 0);
-}
-
-// Finds where each scene's opening words are spoken, so each image appears with its words. A scene
-// whose words cannot be found inside its chapter is spaced evenly between its neighbours. Scenes
-// are strictly ordered, and the first scene of every chapter starts at the chapter start.
+// Match each scene against its approved chapter, with provenance for review and QA.
 export function locateSceneStarts(params: {
   scenes: LongScene[];
   chapterTimings: ChapterTiming[];
   words: TranscriptSegment[];
+  chapters?: Array<{ text: string }>;
+  meanings?: SceneMeaning[];
 }): number[] {
-  const starts: number[] = new Array<number>(params.scenes.length).fill(NaN);
-  const heard = params.words.map((w) => ({ t: normalizeToken(w.text), startSec: w.startMs / 1000 }));
-  const MIN_SCENE_SECONDS = 1;
-
-  params.chapterTimings.forEach((chapter, ci) => {
-    const idx = params.scenes.map((sc, i) => (sc.chapterIndex === ci ? i : -1)).filter((i) => i >= 0);
-    const n = idx.length;
-    if (n === 0) return;
-    const inChapter = heard.filter((w) => w.startSec >= chapter.startSec - 0.001 && w.startSec < chapter.endSec + 0.001);
-
-    // 1. Where each scene's opening words are spoken (NaN when not found). The first scene always
-    //    starts with its chapter.
-    const s: number[] = new Array<number>(n).fill(NaN);
-    s[0] = chapter.startSec;
-    let cursor = 0;
-    for (let k = 1; k < n; k += 1) {
-      const wanted = tokens(params.scenes[idx[k]].words).slice(0, 3);
-      if (wanted.length === 0) continue;
-      for (let j = cursor; j < inChapter.length; j += 1) {
-        if (wanted.every((tok, o) => inChapter[j + o]?.t === tok)) {
-          s[k] = inChapter[j].startSec;
-          cursor = j + 1;
-          break;
-        }
-      }
-    }
-    // 2. Scenes whose words were not found are spaced evenly between their known neighbours.
-    for (let k = 1; k < n; k += 1) {
-      if (Number.isFinite(s[k])) continue;
-      let p = k - 1;
-      while (!Number.isFinite(s[p])) p -= 1;
-      let q = k + 1;
-      while (q < n && !Number.isFinite(s[q])) q += 1;
-      const right = q < n ? s[q] : chapter.endSec;
-      s[k] = s[p] + ((right - s[p]) * (k - p)) / (q - p);
-    }
-    // 3. Strictly increasing with a minimum spacing, and every scene finishes before the chapter does.
-    const gap = Math.min(MIN_SCENE_SECONDS, (chapter.endSec - chapter.startSec) / n);
-    for (let k = 1; k < n; k += 1) s[k] = Math.max(s[k], s[k - 1] + gap);
-    for (let k = n - 1; k >= 1; k -= 1) s[k] = Math.min(s[k], chapter.endSec - gap * (n - k));
-    idx.forEach((sceneIdx, k) => {
-      starts[sceneIdx] = s[k];
-    });
-  });
-  return starts;
+  return alignSceneStarts(params).map(scene => scene.startSec);
 }
 
 // Each chapter's video covers its narration plus the silence after it, so chapter segments tile
@@ -98,9 +51,10 @@ export function buildSceneTimeline(params: {
   chapterTimings: ChapterTiming[];
   words: TranscriptSegment[];
   totalSec: number;
+  chapters?: Array<{ text: string }>;
+  meanings?: SceneMeaning[];
 }): TimedScene[] {
-  const starts = locateSceneStarts(params);
-  const out: TimedScene[] = params.scenes.map((s, i) => ({ sceneIndex: i, chapterIndex: s.chapterIndex, startSec: starts[i], endSec: 0 }));
+  const out: TimedScene[] = alignSceneStarts(params).map(scene => ({ ...scene, endSec: 0 }));
   if (out.length === 0) throw new NonTransientStageError('The production plan has no scenes to render');
   out[0].startSec = 0;
   for (let i = 0; i < out.length; i += 1) {
@@ -201,7 +155,7 @@ async function exists(p: string): Promise<boolean> {
 
 export type ChapterSegmentPlan = {
   chapterIndex: number;
-  scenes: Array<{ sceneIndex: number; imagePath: string; frames: number }>;
+  scenes: Array<{ sceneIndex: number; imagePath: string; imageSha256?: string; frames: number }>;
 };
 
 // One silent video file per chapter. A finished chapter file is kept (with a hash of what built it
@@ -217,7 +171,7 @@ export async function renderChapterSegments(params: {
   for (const chapter of params.chapters) {
     const signature = crypto
       .createHash('sha1')
-      .update(JSON.stringify(chapter.scenes.map((s) => [s.sceneIndex, s.imagePath, s.frames])) + JSON.stringify(params.profile))
+      .update(JSON.stringify(chapter.scenes.map((s) => [s.sceneIndex, s.imagePath, s.imageSha256, s.frames])) + JSON.stringify(params.profile))
       .digest('hex')
       .slice(0, 12);
     const chapterPath = path.join(params.workDir, `chapter-${chapter.chapterIndex}-${signature}.mp4`);

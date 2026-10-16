@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   updatePipelineRun: vi.fn(),
   findChannelById: vi.fn(),
   findLatestAttempt: vi.fn(),
+  findLatestCompletedAttempt: vi.fn(),
   createStageAttempt: vi.fn(),
   completeStage: vi.fn(),
   failStage: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../models/repositories/channel.repository', async (orig) => ({
 vi.mock('../models/repositories/pipeline-stage.repository', async (orig) => ({
   ...(await orig<object>()),
   findLatestAttempt: mocks.findLatestAttempt,
+  findLatestCompletedAttempt: mocks.findLatestCompletedAttempt,
   createStageAttempt: mocks.createStageAttempt,
   completeStage: mocks.completeStage,
   failStage: mocks.failStage,
