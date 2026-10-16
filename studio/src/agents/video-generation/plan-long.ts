@@ -16,6 +16,9 @@ import {
   ProductionPlanSchema,
   type AudioLayer,
   type ProductionPlan,
+  SCENE_PURPOSES,
+  type ScenePurpose,
+  type SceneMeaning,
 } from "./plan";
 
 // Sprint 4 Task 9 (R5.2/R5.3): the production plan for a long-form video. Long-form uses AI stills
@@ -77,7 +80,7 @@ export function allocateStillsToChapters(
   return base;
 }
 
-export const LONG_PLANNER_CONTRACT_VERSION = 3;
+export const LONG_PLANNER_CONTRACT_VERSION = 4;
 export type LongPlanningInputs = {
   chapters: ScriptChapter[]; topic: string; targetSeconds: number;
   secondsPerStill?: number | null; audioLayerOverride?: AudioLayer;
@@ -91,7 +94,7 @@ export type LongPlanningCallMetadata = {
 };
 function batchReplySchema(ids: string[]) {
   return z.object({
-    scenes: z.object(Object.fromEntries(ids.map(id => [id, z.object({ prompt: z.string().trim().min(1) }).strict()]))).strict(),
+    scenes: z.object(Object.fromEntries(ids.map(id => [id, z.object({ prompt: z.string().trim().min(1), purpose: z.enum(SCENE_PURPOSES) }).strict()]))).strict(),
     audioLayer: z.enum(AUDIO_LAYERS).optional(),
   }).strict();
 }
@@ -110,21 +113,24 @@ function rejectDuplicateSceneIds(json: string, ids: string[]): void {
 export const LongPlanningCheckpointSchema = z.object({
   inputHash: z.string(),
   contractVersion: z.number().int().optional(),
-  scenes: z.record(z.string(), z.object({ words: z.string().trim().min(1), prompt: z.string().trim().min(1) })),
+  scenes: z.record(z.string(), z.object({ words: z.string().trim().min(1), prompt: z.string().trim().min(1), purpose: z.enum(SCENE_PURPOSES).optional() })),
   audioLayer: z.enum(AUDIO_LAYERS).optional(),
 });
 export type LongPlanningCheckpoint = z.infer<typeof LongPlanningCheckpointSchema>;
 class PlanningOutputExhausted extends NonTransientStageError {}
 class PlanningReplyInvalid extends NonTransientStageError {}
 
-// Fixed narration anchors span the full chapter and make recovery deterministic.
-function sceneAnchors(text: string, count: number): string[] {
+// One application-owned slot computation for planner anchors and persisted narration spans.
+export function chapterSceneSlots(text: string, count: number): Array<{ startWord: number; endWordExclusive: number; anchor: string }> {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (!words.length) throw new NonTransientStageError("Cannot plan empty chapter narration");
   return Array.from({ length: count }, (_, i) => {
-    const start = Math.floor(i * words.length / count);
-    return words.slice(start, start + 6).join(" ");
+    const startWord = Math.floor(i * words.length / count);
+    return { startWord, endWordExclusive: Math.floor((i + 1) * words.length / count), anchor: words.slice(startWord, startWord + 6).join(" ") };
   });
+}
+function sceneAnchors(text: string, count: number): string[] {
+  return chapterSceneSlots(text, count).map((slot) => slot.anchor);
 }
 
 function buildSystemPrompt(params: {
@@ -137,20 +143,19 @@ function buildSystemPrompt(params: {
       ? `Also include "audioLayer": exactly one of ${MOOD_TAGS.join(", ")}, or "none": the music mood that best fits the whole video's tone.`
       : `Do not include "audioLayer".`;
 
-  return `You are the cinematic video director and production planner for a long-form YouTube history video (landscape 16:9). One chapter of the narration is given at a time.
-Plan a sequence of moving AI-generated video clips for that chapter: a new dynamic clip roughly every few seconds to keep pacing high.
+  return `You plan still-image compositions for a long-form landscape 16:9 YouTube video. One chapter of approved narration is given at a time. The renderer uses an ordered sequence of generated images, with supported FFmpeg pan/zoom; it does not generate moving footage.
 
-Respond with ONLY a JSON object: {"scenes": {"supplied_scene_id": {"prompt": string}}${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
+Respond with ONLY a JSON object: {"scenes": {"supplied_scene_id": {"prompt": string, "purpose": "context" | "illustration" | "explanation" | "emphasis" | "transition" | "reconstruction" | "unspecified"}}${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
 - "scenes" has EXACTLY the number of scenes requested, in the supplied anchor order. Plan only this batch, using the full chapter as context.
-- Each prompt illustrates its supplied narration span. The application attaches the exact anchor to that scene ID; do not return an anchor or narration field.
-- "prompt" is a detailed, cinematic video-generation prompt tailored for advanced video models (like HunyuanVideo or Runway). Describe a concrete, visually distinct scene composed for a wide landscape frame in about 80 to 140 words; avoid repeating generic instructions.
+- Each prompt illustrates its supplied narration span. The application attaches the exact anchor and span to that scene ID; do not return an anchor or narration field. Choose one short purpose enum value explaining the visual's role, not whether its facts are verified.
+- "prompt" describes one visually distinct, renderable still composition for a wide landscape frame in about 80 to 140 words. Use concrete subjects and details that serve the supplied narration; avoid generic repetition.
 - ${audio}
 
-Rules for video prompts:
-1. Think in Motion: Never write static or frozen prompts. Explicitly describe continuous, organic physical motion within the scene (e.g., torches flickering on damp stone walls, dust motes drifting through shafts of light, capes snapping in heavy wind, smoke rising from ancient ruins).
-2. Camera Direction: Embed active, smooth camera movements directly into every single prompt (e.g., "Slow, low-angle tracking shot moving forward," "Cinematic drone shot rising above the battlefield," "Tight macro lens panning across textured detail").
-3. Aesthetic Style: Depict detailed historical costuming, textured gear, architectural frameworks, and settings that ground the era. Use high-production phrases like "volumetric lighting," "chiaroscuro shadows," "historical epic film aesthetic," "period-accurate color palette," and "shallow depth of field." 
-4. Restrictions: Depict the era stated in the narration, including modern clothing and infrastructure for modern dates; historical does not mean ancient. Keep continuity across scenes. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The video provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus heavily on the tense atmosphere right *before* historical actions or the somber aftermath.
+Rules for still prompts:
+1. Choose a meaningful frozen instant. State the subject, its pose or implied action at that instant, the setting and the relationship to the narration beat. Leave safe crop space for FFmpeg pan/zoom.
+2. Describe framing, viewpoint, lighting and depth as image composition. Do not request continuous physical action, generated camera tracking or drone traversal, lip sync, or a video model/provider.
+3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing historical facts. A reconstruction is an illustration, never documentary evidence of an event.
+4. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The image provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus on the tense atmosphere just before a harmful action or the somber aftermath.
 
 ${params.visualStyle ? `Visual style for every image: ${params.visualStyle}\n` : ""}${params.scriptGuide ? `Channel script guide (tone/context only; do not rewrite narration or override the scene-slot JSON contract): ${params.scriptGuide}\n` : ""}Respond with raw JSON only, no markdown code fences, no commentary.`;
 }
@@ -161,14 +166,13 @@ async function planChapter(params: {
   offset: number; totalCount: number; allAnchors: string[]; fixNotes?: string;
   calls: LLMResponse[]; reusedSceneCount: number; onCall?: (llm: LLMResponse, metadata: LongPlanningCallMetadata) => Promise<void>;
   beforeCall?: () => Promise<void>;
-}): Promise<{ scenes: { words: string; prompt: string }[]; audioLayer?: AudioLayer }> {
+}): Promise<{ scenes: { words: string; prompt: string; purpose: ScenePurpose }[]; audioLayer?: AudioLayer }> {
   const ids = params.anchors.map((_, j) => "scene_" + (params.offset + j));
   const words = params.chapter.text.trim().split(/\s+/);
+  const chapterSlots = chapterSceneSlots(params.chapter.text, params.totalCount);
   const slots = ids.map((id, j) => {
-    const slot = params.offset + j;
-    const start = Math.floor(slot * words.length / params.totalCount);
-    const end = Math.floor((slot + 1) * words.length / params.totalCount);
-    return { id, anchor: params.anchors[j], narration: words.slice(start, end).join(" ") };
+    const slot = chapterSlots[params.offset + j];
+    return { id, anchor: params.anchors[j], narration: words.slice(slot.startWord, slot.endWordExclusive).join(" ") };
   });
   const user = [
     "Topic: " + params.topic,
@@ -224,7 +228,7 @@ async function planChapter(params: {
     };
     // Even rejected replies are metered with their validation/recovery outcome before throwing.
     await params.onCall?.(llm, metadata);
-    if (reply) return { scenes: ids.map((id, j) => ({ words: params.anchors[j], prompt: reply!.scenes[id].prompt })), audioLayer: reply.audioLayer };
+    if (reply) return { scenes: ids.map((id, j) => ({ words: params.anchors[j], prompt: reply!.scenes[id].prompt, purpose: reply!.scenes[id].purpose })), audioLayer: reply.audioLayer };
     const context = { ...llmUsageContext(llm), ...metadata, failureKind: outcome,
       rawReply: llm.text, replyLength: llm.text.length, parseError, attempts: attempt,
       ...(firstFailure ? { firstRawReply: firstFailure.llm.text, firstParseError: firstFailure.parseError,
@@ -249,7 +253,7 @@ export function reusableLongPlanningCheckpoint(params: LongPlanningInputs, value
   const saved = LongPlanningCheckpointSchema.safeParse(value);
   if (!saved.success || !Object.keys(saved.data.scenes).length) return undefined;
   const version = saved.data.contractVersion ?? 2;
-  if ((legacyOnly && version !== 2) || ![2, LONG_PLANNER_CONTRACT_VERSION].includes(version)
+  if ((legacyOnly && version !== 2) || ![2, 3, LONG_PLANNER_CONTRACT_VERSION].includes(version)
     || saved.data.inputHash !== longPlanningInputHash(params, version)) return undefined;
   const counts = allocateStillsToChapters(params.chapters, longStillCount(params.targetSeconds, params.secondsPerStill));
   const anchors = params.chapters.map((c, i) => sceneAnchors(c.text, counts[i]));
@@ -285,6 +289,7 @@ export async function planLongVideoProduction(params: {
   // Carry durable progress before any paid call; a crash must not hide the older attempt.
   if (saved) await params.onCheckpoint?.(structuredClone(checkpoint));
   const scenes: Array<{ chapterIndex: number; words: string; prompt: string }> = [];
+  const meanings: SceneMeaning[] = [];
   let audioLayer: AudioLayer | undefined = params.audioLayerOverride ?? checkpoint.audioLayer;
   for (let i = 0; i < params.chapters.length; i += 1) {
     const anchors = sceneAnchors(params.chapters[i].text, counts[i]);
@@ -309,7 +314,7 @@ export async function planLongVideoProduction(params: {
         return;
       }
       reply.scenes.forEach((scene, j) => {
-        checkpoint.scenes[key(offset + j)] = { words: scene.words.trim(), prompt: scene.prompt.trim() };
+        checkpoint.scenes[key(offset + j)] = { words: scene.words.trim(), prompt: scene.prompt.trim(), purpose: scene.purpose };
       });
       audioLayer ??= reply.audioLayer;
       checkpoint.audioLayer = audioLayer;
@@ -322,8 +327,12 @@ export async function planLongVideoProduction(params: {
       await planBatch(offset, count);
       offset += count;
     }
-    for (let slot = 0; slot < counts[i]; slot += 1)
-      scenes.push({ chapterIndex: i, ...checkpoint.scenes[key(slot)] });
+    const chapterSlots = chapterSceneSlots(params.chapters[i].text, counts[i]);
+    for (let slot = 0; slot < counts[i]; slot += 1) {
+      const savedScene = checkpoint.scenes[key(slot)];
+      scenes.push({ chapterIndex: i, words: savedScene.words, prompt: savedScene.prompt });
+      meanings.push({ sceneId: key(slot), narrationSpan: { chapterIndex: i, startWord: chapterSlots[slot].startWord, endWordExclusive: chapterSlots[slot].endWordExclusive }, purpose: savedScene.purpose ?? 'unspecified' });
+    }
   }
 
   const plan = ProductionPlanSchema.parse({
@@ -331,6 +340,7 @@ export async function planLongVideoProduction(params: {
     stockFootageQuery: params.topic.slice(0, 80) || "documentary",
     stillScenePrompts: scenes.map((s) => s.prompt),
     longScenes: scenes,
+    sceneMeanings: { version: 1, scenes: meanings },
     // Long-form captions are an uploaded SRT, never burned in; the field is kept for the shared schema.
     captionStyle: "sentence-grouped",
     audioLayer: audioLayer ?? "calm",

@@ -1,0 +1,61 @@
+{
+  "fixtureVersion": 1,
+  "provenance": "Synthetic narration and ASR words prepared before reliability gate R; no production transcript, image, or response tail is represented.",
+  "cases": [
+    {
+      "name": "repeated-three-word-prefix",
+      "chapters": ["the bridge carried traders before dawn the bridge carried soldiers after dusk"],
+      "transcriptByChapter": [["the", "bridge", "carried", "traders", "before", "dawn", "the", "bridge", "carried", "soldiers", "after", "dusk"]],
+      "scenes": [
+        { "sceneId": "0:0", "chapterIndex": 0, "startWord": 0, "endWordExclusive": 6, "anchor": "the bridge carried traders", "expectedTranscriptStart": 0 },
+        { "sceneId": "0:1", "chapterIndex": 0, "startWord": 6, "endWordExclusive": 12, "anchor": "the bridge carried soldiers", "expectedTranscriptStart": 6 }
+      ]
+    },
+    {
+      "name": "repeated-complete-anchor",
+      "chapters": ["the bell rang beside the river and villagers listened the bell rang beside the river after the flood"],
+      "transcriptByChapter": [["the", "bell", "rang", "beside", "the", "river", "and", "villagers", "listened", "the", "bell", "rang", "beside", "the", "river", "after", "the", "flood"]],
+      "scenes": [
+        { "sceneId": "0:0", "chapterIndex": 0, "startWord": 0, "endWordExclusive": 9, "anchor": "the bell rang beside the river", "expectedTranscriptStart": 0 },
+        { "sceneId": "0:1", "chapterIndex": 0, "startWord": 9, "endWordExclusive": 18, "anchor": "the bell rang beside the river", "expectedTranscriptStart": 9 }
+      ]
+    },
+    {
+      "name": "asr-omission-and-punctuation",
+      "chapters": ["Stone arches framed the narrow road."],
+      "transcriptByChapter": [["Stone,", "framed", "the", "narrow", "road."]],
+      "scenes": [
+        { "sceneId": "0:0", "chapterIndex": 0, "startWord": 0, "endWordExclusive": 3, "anchor": "Stone arches framed" },
+        { "sceneId": "0:1", "chapterIndex": 0, "startWord": 3, "endWordExclusive": 6, "anchor": "the narrow road", "expectedTranscriptStart": 2 }
+      ],
+      "assertion": "The omitted word cannot be reported as an exact anchor match; any bounded recovery records aligned or fallback provenance."
+    },
+    {
+      "name": "chapter-local-short-anchor",
+      "chapters": ["Why now", "Why later"],
+      "transcriptByChapter": [["Why", "now"], ["Why", "later"]],
+      "scenes": [
+        { "sceneId": "0:0", "chapterIndex": 0, "startWord": 0, "endWordExclusive": 2, "anchor": "Why", "expectedTranscriptStart": 0 },
+        { "sceneId": "1:0", "chapterIndex": 1, "startWord": 0, "endWordExclusive": 2, "anchor": "Why", "expectedTranscriptStart": 0 }
+      ]
+    },
+    {
+      "name": "legacy-without-meaning",
+      "chapters": ["A lantern marked the old crossing"],
+      "transcriptByChapter": [["A", "lantern", "marked", "the", "old", "crossing"]],
+      "legacyLongScenes": [{ "chapterIndex": 0, "words": "A lantern marked", "prompt": "Lantern at a crossing" }],
+      "assertion": "The legacy scene remains readable; application-owned identity/span may be derived, while purpose stays unspecified and semantic verification is not implied."
+    },
+    {
+      "name": "moderation-substitution-identity",
+      "chapters": ["The first crossing closed the second reopened"],
+      "transcriptByChapter": [["The", "first", "crossing", "closed", "the", "second", "reopened"]],
+      "scenes": [
+        { "sceneId": "0:0", "chapterIndex": 0, "startWord": 0, "endWordExclusive": 4, "anchor": "The first crossing" },
+        { "sceneId": "0:1", "chapterIndex": 0, "startWord": 4, "endWordExclusive": 7, "anchor": "the second reopened" }
+      ],
+      "substitution": { "targetSceneId": "0:1", "sourceSceneId": "0:0", "reason": "synthetic moderation refusal" },
+      "assertion": "The target keeps its timed scene ID and records the borrowed source asset; successful substitution does not establish visual relevance."
+    }
+  ]
+}

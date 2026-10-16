@@ -246,15 +246,15 @@ const MultimodalVerdictSchema = z.object({
 // visual style it deliberately chose).
 function visualContextInstruction(visualSource: VisualSource): string {
   if (visualSource === "ai-stills") {
-    return `the visuals are a sequence of AI-generated cinematic video clips (e.g., Runway/Hunyuan) featuring organic physical motion and active camera work — NOT static imagery. Judge whether each video clip serves as an *atmospheric, historically immersive*, on-topic backdrop for this content, matching the bar of premium documentary b-roll. Do NOT fail a frame for looking heavily stylized, cinematic, or AI-rendered — that is the intentional, expected high-end aesthetic. Only fail if a clip's frame is completely blank, visually corrupted, contains severe physical glitches, or shows content genuinely unrelated to the topic.`;
+    return `the visuals are generated still compositions animated by supported FFmpeg pan/zoom and cuts. Judge whether each sampled image is an on-topic illustration of the narration; a reconstruction is not documentary source evidence. Do not expect generated physical action or camera traversal. Stylized or AI-rendered imagery is permitted. Fail for blank/corrupted content, severe image artifacts or content genuinely unrelated to the topic, while keeping the existing overall-frame verdict policy.`;
   }
   return `the background is real licensed stock footage chosen for the topic, not a custom shoot — judge whether it's a *reasonable* backdrop for this content, not whether it's visually impressive.`;
 }
 
-// Sprint 4 Task 3 (R11): only for AI-generated video clips. Real stock footage can
+// Sprint 4 Task 3 (R11): only for AI-generated stills. Real stock footage can
 // legitimately show real people, so none of this applies there.
 export const SAFETY_CHECK_INSTRUCTION = `
-This channel enforces a strict safety and compliance rule on AI-generated clips. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.`;
+This channel enforces a strict safety and compliance rule on AI-generated stills. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.`;
 
 export function buildSystemPrompt(
   visualSource: VisualSource,
@@ -262,7 +262,7 @@ export function buildSystemPrompt(
   longForm?: { frameCount: number },
 ): string {
   const framesIntro = longForm
-    ? `You are reviewing ${longForm.frameCount} key frames, each sampled from a distinct chapter's video clip, from a long-form 16:9 cinematic YouTube video before it's approved for publishing, alongside the topic and script it's based on.`
+    ? `You are reviewing ${longForm.frameCount} key frames, one sampled within each chapter's rendered still-image sequence, from a long-form 16:9 YouTube video before publishing, alongside the topic and script it's based on.`
     : `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on.`;
 
   return `${framesIntro} Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described historical topic and dramatic tone (${visualContextInstruction(visualSource)}).
