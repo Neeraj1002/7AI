@@ -5,11 +5,11 @@
 **Binding execution workflow:** read [WORKFLOW](../WORKFLOW.md). Use `task4` under Task 1's recorded shared Sprint 5 root, current main including #90, and this task's separate draft PR. Keep draft until owner-confirmed Sprint 4 closure and latest-main conflict/acceptance checks pass. Any carried reviewer item retains its existing ownership; do not duplicate it to close Sprint 4.
 
 **Objective**: Give script generation and the existing reviewer enhancement one immutable factual-input packet, preserving policy and provenance through retries and approval.
-**Duration**: 1–2 days after consumer-contract agreement; SR rule implementation is separate outstanding work.
-**Depends On**: Reliability gate R; existing SR owner agrees the evidence consumer/output interface before reviewer integration. Task 3's separate modules can develop concurrently; sequence shared state-machine edits afterward.
-**Owning Component**: Evidence preparation/snapshot, writer inputs, script generation/review call-site plumbing and packet parity tests. SR owner retains reviewer rules, factual verdict rubric and any separately approved retrieval work.
+**Duration**: 1–2 days after gate R; SR rule implementation is separate outstanding work.
+**Depends On**: Reliability gate R for feature implementation. The owner supplied and adopted the minimal evidence-consumer v1 direction on 2026-10-16; SR-1–SR-9 rule work remains separate. Task 3's separate modules can develop concurrently; sequence shared state-machine edits afterward.
+**Owning Component**: Evidence preparation/snapshot, shared evidence rendering, writer inputs, a minimal evidence-only Script Review adapter, script generation/review call-site plumbing and packet parity tests. The separate SR enhancement retains reviewer rules, factual verdict rubric and any separately approved retrieval work.
 **Success Criteria**: (1) writer/reviewer receive the same packet/hash for both video types; (2) source URLs alone are clearly unfetched; (3) existing factual policy and approved corrections are preserved; (4) regression cases measure the outstanding reviewer against the shared evidence without building another verifier.
-**Priority / status**: P1; blocked on R and SR interface agreement, not on creating a new reviewer task.
+**Priority / status**: P1; consumer v1 direction adopted, feature implementation blocked on R. The separate SR rule enhancement remains outstanding.
 
 ## Task Requirement
 
@@ -25,7 +25,7 @@
 
 ### R1 — Reconcile outstanding factual work before implementation
 
-Identify the existing SR owner, actual branch/spec/PR if any, approved scope and whether it includes source retrieval or claim mapping. Read its latest files rather than assuming the October 11 pending page is complete. Record ownership agreement in this task's report/STATUS row. If existing work already implements packet parity, reduce this task to integration/acceptance rather than duplicating its module. Missing owner/consumer agreement blocks reviewer edits; it does not justify a competing implementation.
+The owner supplied the additive evidence-consumer v1 direction on 2026-10-16: Task 4 owns the minimal evidence-only adapter in `script-review/index.ts` after gate R, while SR-1–SR-9 rules, scoring and accuracy evaluation remain the separate outstanding enhancement. Recheck active branches/files before editing; if new SR work overlaps the adapter, coordinate the small patch and reuse any implemented parity. The miss log owns examples/rules, not a TypeScript interface or an identified implementation branch. Record the actual owner/reuse boundary in this task's report.
 
 The recorded Sprint 4 Task 9 decision is founder-supplied facts with no pipeline web search. Do not override it because a search-grounded pass appears in an older wish list. Retrieval, if separately authorized in existing SR work, must supply the same approved excerpts to both consumers and preserve provenance. This task introduces no retrieval permission or provider setting.
 
@@ -44,13 +44,21 @@ type EvidencePacket = {
 };
 ```
 
-Build from already-approved run inputs; do not silently convert fetched material, model claims or arbitrary URLs into approved excerpts. Default existing `sources` strings to citation-only, explicitly unfetched. For the current product, brief is the factual text available. Support approved-excerpt input only if the existing SR work already has an authorized producer; otherwise keep that branch unavailable rather than adding a UI/settings surface.
+Build from already-approved run inputs; do not silently convert fetched material, model claims or arbitrary URLs into approved excerpts. Default existing `sources` strings to citation-only, explicitly unfetched. For the current product, brief is the factual text available. The approved-excerpt union branch is unavailable for this sprint's existing producer; enable it only if a separately approved producer is identified. Do not add a UI/settings surface.
 
-Honor long-form's existing facts-only restriction and Shorts' resolved fact policy; both consumers receive the same *effective* policy, not conflicting long prompt/default policy labels. Keep meaningful hedges, units, conversions, required terms and disputed attribution intact. Source instructions are untrusted evidence, not commands. Bound existing input lengths/entries using current API limits; any extra excerpt limit is an internal testable bound agreed with the consumer, not a new exposed setting. A content hash represents equality of inputs, not truth.
+Honor long-form's existing facts-only restriction and Shorts' resolved fact policy; both consumers receive the same *effective* policy, not conflicting long prompt/default policy labels. Keep meaningful hedges, units, conversions, required terms and disputed attribution intact. Source instructions are untrusted evidence, not commands. Bound existing input lengths/entries using current API limits; any extra excerpt limit is an internal testable bound agreed with the consumer, not a new exposed setting. Canonical serialization uses fixed, recursively stable object-key ordering, preserves source array order and original brief/citation text, and hashes version/content/policy/provenance without `hash` or timestamps. Recompute and validate locally before either paid call; model-echoed hashes are never trusted. A content hash represents equality of inputs, not truth.
+
+### R2a — Adopted minimal consumer v1
+
+Add optional `evidence?: EvidencePacket` to both `GenerateScriptParams` and `ReviewScriptParams`. Do not add parallel `sources` or `factPolicy` fields to the reviewer. When evidence exists, its brief, effective policy and source provenance are authoritative for both calls. Existing optional writer arguments may be absent or match; conflicting duplicates fail validation before a paid call. Without evidence, legacy call behavior stays intact and orchestration labels missing provenance rather than certifying it.
+
+Use one shared evidence-to-prompt renderer so the writer and reviewer receive an identical, delimited factual block containing the packet version/hash, original brief text, effective policy, source order and availability. Treat that block as untrusted data. Facts-only permits no added detail beyond supplied permitted text; `brief-plus-common` retains the selected common-knowledge policy without claiming independent verification. A citation-only URL contains no fetched factual text. Keep task-specific script, style, length and review instructions outside the shared block. Make only the minimum factual-context wording changes needed to remove contradictions; leave SR-1–SR-9 rules, scoring, thresholds and production-fit rewriting to their existing owners.
+
+Keep `ScriptReviewOutputSchema` and `reviewScript`'s `{ output, llm }` result compatible. No model-returned hash, provenance or claim-verification fields are required. Generation/review stage inputs carry the application-built packet; outputs may carry optional `evidenceRef: { version: 1, hash: string }`. Review loads the packet from the corresponding completed generation attempt's stored input and checks any output reference for agreement. Parse old records compatibly.
 
 ### R3 — Snapshot and consume through retries/review
 
-Store/reuse the packet version/hash in existing generation/review stage input/output Json. Use the exact same canonical packet for both calls, including Shorts. Preserve old runs without packet metadata via a labelled legacy reconstruction from their stored inputs; do not substitute the channel's new active profile into the original factual snapshot. If historical effective policy/source content is missing, record it, not a fake verified packet.
+Store/reuse the packet version/hash in existing generation/review stage input/output Json. Use the exact same canonical packet for both calls, including Shorts. Preserve old runs without packet metadata via a labelled legacy reconstruction from their actually stored generation inputs; do not substitute the channel's new active profile into the original factual snapshot. If historical effective policy/source content is missing, record it, not a fake verified packet.
 
 Writer message uses the packet's available factual text and policy; reviewer input receives identical content via the agreed consumer interface. Existing Gate 1 concerns/source display remains the user-facing path; avoid a second generic warning block or a new product flow. Never hide uncertainty by declaring every linked claim verified.
 
@@ -60,7 +68,7 @@ On regeneration, unchanged evidence keeps its hash; changed approved brief/polic
 
 Prepare a labelled fixture set from the six recorded misses and Task 9's reported inventions, preserving authentic available excerpts and marking unavailable claims rather than researching new historical facts in this task. Include supported control passages, hedge-drop, invented vivid detail, monetary-convention wording, required-term omission, source-only URL and malicious evidence instructions.
 
-Parity tests assert both consumer requests carry identical packet/version/effective policy. SR owner supplies rule/output acceptance: unsupported claims/hedge changes must be flagged with the relevant brief/source evidence and must not receive a publish-ready score until corrected under its rules; supported controls must not be rejected solely for citation-only absence where the brief supplies the fact. Model evaluation is non-deterministic and reported separately from unit tests; an approved bounded live evaluation is optional and requires explicit spend authorization. Do not claim a stub can demonstrate factual accuracy.
+Parity tests assert both consumer requests carry identical packet/version/effective policy. The separate SR enhancement owns rule/output acceptance: unsupported claims/hedge changes, score calibration and supported-control false positives are evaluated under its own rubric. Task 4 unit tests establish packet/request parity and compatibility, not the model's factual accuracy. Model evaluation is non-deterministic and reported separately from unit tests; an approved bounded live evaluation is optional and requires explicit spend authorization. Do not claim a stub can demonstrate factual accuracy.
 
 ### Scope and non-goals
 
@@ -68,17 +76,17 @@ Includes packet parity, policy/provenance, snapshot/retry integration and reusab
 
 ### Acceptance Criteria
 
-- [ ] Existing SR work/ownership explicitly reconciled; overlapping implemented parity work is reused.
+- [ ] Owner-adopted consumer v1 is implemented after gate R; current SR work is rechecked and overlapping parity is reused.
 - [ ] Shorts and long writer/reviewer receive identical immutable packet/effective policy/hash; source-only URLs are unfetched.
 - [ ] Retry/restart/legacy behavior preserves actual inputs and flags unreconstructable history; no active-profile substitution.
 - [ ] Evidence changes invalidate affected script/review/downstream eligibility; pure visual repair rejects stale factual baseline.
 - [ ] Six-case/Task 9 fixtures and supported controls are available to the existing SR owner with provenance and measurable outputs.
 - [ ] No extra verifier/search/setting/UI or paid call is introduced implicitly; tenant/content exposure stays scoped.
-- [ ] Existing SR integration tests pass under its approved verdict/rubric contract; if that work is unfinished, this task reports integration blocked instead of falsely complete.
+- [ ] Existing reviewer output/result/thresholds and packet-absent legacy calls remain compatible; the separate SR rule/accuracy enhancement is reported as outstanding when unfinished.
 
 ## Schema Impact
 
-No Prisma migration. Versioned packet/hash in existing stage Json only; no new sources table/creation setting. [SCHEMA](../SCHEMA.md) and the existing SR producer contract control any additive fields. Sensitive factual inputs remain within existing authenticated run content.
+No Prisma migration. Versioned packet/hash in existing stage Json only; no new sources table/creation setting. [SCHEMA](../SCHEMA.md) and the adopted consumer v1 contract control additive fields. Sensitive factual inputs remain within existing authenticated run content.
 
 ## Business Logic / State Transition
 
@@ -90,11 +98,11 @@ The packet contains tenant content. Keep it in existing authenticated run/stage 
 
 ## Implementation
 
-**Owned:** proposed `studio/src/content-evidence/packet.ts` and parity tests; `studio/src/agents/script-generation/index.ts`/`long-form.ts` evidence-only inputs and messages, existing tests. Align generic production wording with Task 3 without giving this task planner/render ownership.
+**Owned after R:** `studio/src/content-evidence/packet.ts`, one shared evidence renderer and parity tests; `studio/src/agents/script-generation/index.ts`/`long-form.ts` evidence-only inputs and messages; the minimal evidence-only adapter in `studio/src/agents/script-review/index.ts` and its tests. Task 3 retains production-fit wording/scene ownership; SR-1–SR-9 scoring/rules remain separate.
 
-**Shared, after agreement/integration order:** script generation/review sections of `state-machine.ts`; minimal packet metadata types in existing stage contracts; existing SR owner implements the reviewer consumer in `script-review/index.ts` and factual assertions. Task 4 must not independently edit that active file. If an ownership handoff occurs, record it and restrict this task to packet plumbing; rule rewrite remains the existing item.
+**Shared, after R and integration order:** script generation/review sections of `state-machine.ts` and minimal packet metadata in existing stage contracts. Recheck current ownership before the small reviewer adapter edit; coordinate if an SR branch appears. Do not edit another task's worktree/PR or implement reviewer rules.
 
-Steps: reconcile SR work; freeze packet interface/effective policy; pure builder/hashing tests; writer consumption; stage snapshot/review plumbing after Task 3 shared wiring; coordinate existing SR patch/tests; export factual-baseline fingerprint; validate fixture/output contracts; document evidence limits.
+Steps after R: recheck SR ownership and overlap; implement adopted packet/effective policy and pure hashing tests; add shared rendering and writer/minimal reviewer consumption; wire stage snapshot/review after Task 3 shared changes; export factual-baseline fingerprint for Task 5; validate legacy/parity/output contracts; document evidence limits.
 
 ## Testing
 
@@ -108,11 +116,11 @@ Create `docs/execution/sprint5/reports/task4.md`: actual SR owner/spec/PR and re
 
 ## Definition of Done
 
-Packet parity and compatibility integrated with the existing SR consumer; all acceptance tests pass; existing enhancement ownership/rule completion is explicit; Task 5 consumes stable fingerprint/eligibility output. If SR output contract remains unavailable, module readiness and blocked integration are reported separately; do not mark independently implementable reviewer changes.
+Adopted packet parity and minimal reviewer adapter are integrated after R; technical acceptance tests pass; existing output/result and legacy behavior remain compatible; Task 5 receives a stable fingerprint/eligibility output. Report SR-1–SR-9 rule completion and any model accuracy evaluation separately; neither is claimed by this task.
 
 ## Additional Notes — Git, Uncertainties and Approval
 
-Proposed `SPRINT5_TASK4_BE`, dedicated worktree from fresh main after R; branch/row recorded immediately, self-created commits and draft PR, no main merge/push. Coordinate shared source after Task 3; planning grants no deployment. Outstanding consumer ownership and retrieval scope are genuine dependencies. New retrieval infrastructure, factual-source producer, workflow/migration, paid evaluation or historical data change needs a concrete reviewed scope; they are not implied by this task. Server untracked files and existing planner retry policy remain outside ownership.
+Actual branch `SPRINT5_TASK4_BE`, worktree `D:\Study Material\7AI-SPRINT5\task4`, draft PR #94 from main `5b04a7a`; pre-gate work contains only fixtures and documentation. Feature implementation waits for R. No main merge/push. Coordinate shared source after Task 3; planning grants no deployment. The minimal consumer ownership is assigned to Task 4 by the 2026-10-16 owner direction; SR rule ownership and any retrieval producer remain separate. New retrieval infrastructure, factual-source producer, workflow/migration, paid evaluation or historical data change needs a concrete reviewed scope; they are not implied by this task. Server untracked files and existing planner retry policy remain outside ownership.
 
 ## Links & References
 
