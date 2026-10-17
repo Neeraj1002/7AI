@@ -41,6 +41,9 @@ export async function executeVisualRepair(params: ExecuteRepairParams): Promise<
   await verifyFile(prepared.audioPath, baseline.audioSha256, 'mixed audio');
   await verifyFile(prepared.subtitlesPath, baseline.subtitlesSha256, 'subtitles');
   await verifyFile(prepared.transcriptPath, baseline.transcriptSha256, 'transcript');
+  for (const segment of prepared.unchangedChapters) {
+    await verifyFile(segment.path, segment.sha256, 'unchanged chapter');
+  }
   for (const scene of mapping.scenes) {
     const image = await assertActualUnder(assetRoot, scene.imagePath);
     if (await inspect(image, { width: 1536, height: 1024 }) !== scene.imageSha256) {
@@ -98,6 +101,9 @@ export async function executeVisualRepair(params: ExecuteRepairParams): Promise<
   })) satisfies ChapterSegmentPlan[];
   const chapterPaths = await renderChapterSegments({ chapters,
     workDir: path.join(outputDir, 'work', 'segments'), profile });
+  for (const segment of prepared.unchangedChapters) {
+    await verifyFile(segment.path, segment.sha256, 'unchanged chapter');
+  }
   const videoPath = path.join(outputDir, `${receipt.repairAttempt}.mp4`);
   const { frameCount } = await joinAndMux({ chapterPaths, audioPath: prepared.audioPath,
     workDir: path.join(outputDir, 'work'), outputPath: videoPath });

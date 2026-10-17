@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildEvidencePacket, factualBaseline } from '../content-evidence/packet';
 import type { ProductionPlan } from '../agents/video-generation/plan';
+import { chapterSegmentPath } from '../agents/video-generation/long-render';
+import { renderProfileFor } from '../agents/video-generation/render-profile';
 import { assertUnder, prepareVisualRepair, recoverRepairReceipt, resolveDefect,
   saveRepairReceipt, sha256Bytes, type SceneMapping } from './visual-repair';
 import { executeVisualRepair } from './visual-repair-render';
@@ -38,6 +40,11 @@ async function fixture() {
     sourceSceneId: `${i}:0`, substituted: false, frameStart: i * 30, frameEndExclusive: (i + 1) * 30,
     startSec: i, endSec: i + 1, anchor: i ? 'blue bridge' : 'red bridge',
   })) };
+  const unchangedChapterPath = chapterSegmentPath({ chapterIndex: 0,
+    scenes: [{ sceneIndex: 0, imagePath: images[0], imageSha256: mapping.scenes[0].imageSha256, frames: 30 }] },
+    path.join(out, 'work', 'segments'), renderProfileFor('long'));
+  await fs.mkdir(path.dirname(unchangedChapterPath), { recursive: true });
+  await fs.writeFile(unchangedChapterPath, 'valid unchanged chapter');
   await fs.writeFile(path.join(out, '1.scene-mapping.json'), JSON.stringify(mapping));
   await fs.writeFile(path.join(out, 'work', 'mixed-1.m4a'), 'fixed audio');
   await fs.writeFile(path.join(out, '1.srt'), 'fixed captions');
@@ -51,8 +58,9 @@ async function fixture() {
     defect: { sceneId: '1:0', timestampSeconds: 1.2, kind: 'continuity' as const,
       reason: 'blue subject changed outfit', requiredVisualConstraints: ['same coat'] },
     rootDir: root, inspect: async (file: string) => sha256Bytes(await fs.readFile(file)),
+    inspectChapter: async () => undefined,
   };
-  return { root, out, images, mapping, input };
+  return { root, out, images, mapping, unchangedChapterPath, input };
 }
 
 it('selects exactly one mapped scene and binds the immutable baseline before any replacement', async () => {
@@ -85,6 +93,21 @@ it('rejects stale evidence/script, changed voice, unknown or substituted scenes,
   await fs.writeFile(f.images[1], 'blue image');
   await fs.rm(path.join(f.out, 'work', 'mixed-1.m4a'));
   await expect(prepareVisualRepair(f.input)).rejects.toThrow(/missing/);
+});
+
+it('rejects missing or changed unchanged-chapter cache before replacement', async () => {
+  const f = await fixture();
+  await fs.rm(f.unchangedChapterPath);
+  await expect(prepareVisualRepair(f.input)).rejects.toThrow(/cached unchanged chapter is missing/);
+  await fs.writeFile(f.unchangedChapterPath, 'valid unchanged chapter');
+  const prepared = await prepareVisualRepair(f.input);
+  await fs.writeFile(f.unchangedChapterPath, 'corrupt after preflight');
+  let requested = 0;
+  await expect(executeVisualRepair({ prepared, baselineOutput: f.input.previousOutput as never,
+    sceneStyle: {}, allowedAssetRoot: f.root, inspect: f.input.inspect,
+    replacement: async () => { requested++; throw new Error('must not run'); } }))
+    .rejects.toThrow(/unchanged chapter changed after eligibility check/);
+  expect(requested).toBe(0);
 });
 
 it('persists and recovers accepted replacement, and rejects a mismatched receipt or escaped path', async () => {

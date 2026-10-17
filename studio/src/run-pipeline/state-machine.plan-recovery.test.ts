@@ -118,7 +118,7 @@ describe('persisted plan recovery in video generation', () => {
     const baselineFields = { factualFingerprint: 'a'.repeat(64), planSha256: 'b'.repeat(64),
       mappingSha256: 'c'.repeat(64), voice: 'v', renderSha256: 'd'.repeat(64), videoSha256: '2'.repeat(64),
       timingSha256: 'e'.repeat(64), audioSha256: 'f'.repeat(64), subtitlesSha256: '0'.repeat(64),
-      transcriptSha256: '3'.repeat(64) };
+      transcriptSha256: '3'.repeat(64), chapterSegmentsSha256: '4'.repeat(64) };
     const oldReceipt = { version: 1, runId: 'r', baselineAttempt: 1, repairAttempt: 2,
       sceneId: '0:0', chapterIndex: 0, defect, baseline: baselineFields,
       status: 'replacement-ready', replacement: { path: 'cached.png', sha256: '1'.repeat(64),

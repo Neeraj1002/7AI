@@ -158,6 +158,18 @@ export type ChapterSegmentPlan = {
   scenes: Array<{ sceneIndex: number; imagePath: string; imageSha256?: string; frames: number }>;
 };
 
+export function chapterSegmentSignature(chapter: ChapterSegmentPlan, profile: RenderProfile): string {
+  return crypto
+    .createHash('sha1')
+    .update(JSON.stringify(chapter.scenes.map((s) => [s.sceneIndex, s.imagePath, s.imageSha256, s.frames])) + JSON.stringify(profile))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+export function chapterSegmentPath(chapter: ChapterSegmentPlan, workDir: string, profile: RenderProfile): string {
+  return path.join(workDir, `chapter-${chapter.chapterIndex}-${chapterSegmentSignature(chapter, profile)}.mp4`);
+}
+
 // One silent video file per chapter. A finished chapter file is kept (with a hash of what built it
 // in its name), so a crash or a retry resumes at the first chapter that is not on disk.
 export async function renderChapterSegments(params: {
@@ -169,12 +181,8 @@ export async function renderChapterSegments(params: {
   await fs.mkdir(params.workDir, { recursive: true });
   const out: string[] = [];
   for (const chapter of params.chapters) {
-    const signature = crypto
-      .createHash('sha1')
-      .update(JSON.stringify(chapter.scenes.map((s) => [s.sceneIndex, s.imagePath, s.imageSha256, s.frames])) + JSON.stringify(params.profile))
-      .digest('hex')
-      .slice(0, 12);
-    const chapterPath = path.join(params.workDir, `chapter-${chapter.chapterIndex}-${signature}.mp4`);
+    const chapterPath = chapterSegmentPath(chapter, params.workDir, params.profile);
+    const signature = chapterSegmentSignature(chapter, params.profile);
     if (await exists(chapterPath)) {
       params.onChapterDone?.(chapter.chapterIndex, true);
       out.push(chapterPath);

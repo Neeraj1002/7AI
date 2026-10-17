@@ -7,7 +7,8 @@ import { z } from 'zod';
 import { env } from '../config/env';
 import { DATA_DIR } from '../config/paths';
 import { NonTransientStageError } from './retry-with-backoff';
-import { renderProfileFor } from '../agents/video-generation/render-profile';
+import { renderProfileFor, type RenderProfile } from '../agents/video-generation/render-profile';
+import { chapterSegmentPath, type ChapterSegmentPlan } from '../agents/video-generation/long-render';
 import { buildStyledScenePrompts, type SceneStyle } from '../agents/video-generation/scene-prompts';
 import { ProductionPlanSchema, type ProductionPlan } from '../agents/video-generation/plan';
 import type { FactualBaseline } from '../content-evidence/packet';
@@ -43,7 +44,7 @@ export const RepairReceiptSchema = z.object({
   defect: VisualDefectSchema,
   baseline: z.object({ factualFingerprint: hex, planSha256: hex, mappingSha256: hex,
     voice: z.string(), renderSha256: hex, timingSha256: hex, videoSha256: hex,
-    audioSha256: hex, subtitlesSha256: hex, transcriptSha256: hex }).strict(),
+    audioSha256: hex, subtitlesSha256: hex, transcriptSha256: hex, chapterSegmentsSha256: hex }).strict(),
   status: z.enum(['intent', 'replacement-ready', 'rendered']),
   replacement: z.object({ path: z.string().min(1), sha256: hex, provider: z.string(), costUsd: z.number().nonnegative() }).strict().optional(),
   videoSha256: hex.optional(),
@@ -109,6 +110,21 @@ export async function inspectImage(file: string, expected: { width: number; heig
   return sha256Bytes(data);
 }
 
+export async function inspectChapterSegment(file: string, expected: { profile: RenderProfile; frames: number }): Promise<void> {
+  try {
+    const probe = await exec(env.FFPROBE_PATH, ['-v', 'error', '-select_streams', 'v:0', '-count_frames',
+      '-show_entries', 'stream=width,height,nb_read_frames', '-of', 'json', file]);
+    const parsed = JSON.parse(probe.stdout) as { streams?: Array<{ width?: number; height?: number; nb_read_frames?: string }> };
+    const stream = parsed.streams?.[0];
+    if (stream?.width !== expected.profile.width || stream.height !== expected.profile.height ||
+      Number(stream.nb_read_frames) !== expected.frames) fail(`cached chapter frames or dimensions changed: ${path.basename(file)}`);
+    await exec(env.FFMPEG_PATH, ['-v', 'error', '-xerror', '-i', file, '-f', 'null', '-']);
+  } catch (error) {
+    if (error instanceof NonTransientStageError) throw error;
+    fail(`cached chapter cannot be decoded: ${path.basename(file)}`);
+  }
+}
+
 export type RepairBaselineInput = {
   runId: string; baselineAttempt: number; repairAttempt: number;
   previousInput: { factualBaseline?: FactualBaseline; resolvedVoice?: string };
@@ -118,10 +134,12 @@ export type RepairBaselineInput = {
   defect: VisualDefect;
   rootDir?: string;
   inspect?: typeof inspectImage;
+  inspectChapter?: typeof inspectChapterSegment;
   sceneStyle?: SceneStyle;
 };
 export type PreparedRepair = { receipt: RepairReceipt; mapping: SceneMapping; outputDir: string;
-  audioPath: string; subtitlesPath: string; transcriptPath: string; receiptPath: string };
+  audioPath: string; subtitlesPath: string; transcriptPath: string; receiptPath: string;
+  unchangedChapters: Array<{ path: string; sha256: string; frames: number }> };
 
 export async function prepareVisualRepair(input: RepairBaselineInput): Promise<PreparedRepair> {
   if (input.repairAttempt <= input.baselineAttempt || input.repairAttempt > input.baselineAttempt + 2) fail('repair exceeds the bounded revision attempt window');
@@ -167,6 +185,27 @@ export async function prepareVisualRepair(input: RepairBaselineInput): Promise<P
     const hash = await inspect(p, { width: 1536, height: 1024 });
     if (hash !== mapped.imageSha256) fail(`baseline image changed: ${mapped.sceneId}`);
   }
+  const unchangedChapters: PreparedRepair['unchangedChapters'] = [];
+  const chapterIndexes = [...new Set(mapping.scenes.map(s => s.chapterIndex))];
+  for (const chapterIndex of chapterIndexes) {
+    if (chapterIndex === scene.chapterIndex) continue;
+    const chapterScenes = mapping.scenes.flatMap((mapped, sceneIndex) => mapped.chapterIndex === chapterIndex
+      ? [{ sceneIndex, imagePath: mapped.imagePath, imageSha256: mapped.imageSha256,
+        frames: mapped.frameEndExclusive - mapped.frameStart }] : []);
+    const chapter: ChapterSegmentPlan = { chapterIndex, scenes: chapterScenes };
+    const segmentPath = chapterSegmentPath(chapter, path.join(outputDir, 'work', 'segments'), profile);
+    try { await fs.lstat(segmentPath); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') fail(`cached unchanged chapter is missing: ${chapterIndex}`);
+      throw error;
+    }
+    const safePath = await assertActualUnder(input.rootDir ?? DATA_DIR, segmentPath);
+    const sha256 = sha256Bytes(await bytes(safePath));
+    await (input.inspectChapter ?? inspectChapterSegment)(safePath, {
+      profile, frames: chapterScenes.reduce((total, item) => total + item.frames, 0) });
+    unchangedChapters.push({ path: safePath, sha256,
+      frames: chapterScenes.reduce((total, item) => total + item.frames, 0) });
+  }
   const audioPath = path.join(outputDir, 'work', `mixed-${input.baselineAttempt}.m4a`);
   const subtitlesPath = path.join(outputDir, `${input.baselineAttempt}.srt`);
   const transcriptPath = path.join(outputDir, `${input.baselineAttempt}.transcript.json`);
@@ -180,10 +219,12 @@ export async function prepareVisualRepair(input: RepairBaselineInput): Promise<P
       mappingSha256: sha256Bytes(await bytes(mappingPath)), voice,
       renderSha256: sha256Bytes(JSON.stringify(profile)), videoSha256,
       timingSha256: sha256Bytes(JSON.stringify({ scenes: mapping.scenes.map(s => [s.sceneId, s.frameStart, s.frameEndExclusive]),
-        chapters: input.previousOutput.chapterTimings })), audioSha256, subtitlesSha256, transcriptSha256 },
+        chapters: input.previousOutput.chapterTimings })), audioSha256, subtitlesSha256, transcriptSha256,
+      chapterSegmentsSha256: sha256Bytes(JSON.stringify(unchangedChapters.map(({ path: segmentPath, sha256, frames }) =>
+        [segmentPath, sha256, frames]))) },
     status: 'intent',
   };
-  return { receipt, mapping, outputDir, audioPath, subtitlesPath, transcriptPath,
+  return { receipt, mapping, outputDir, audioPath, subtitlesPath, transcriptPath, unchangedChapters,
     receiptPath: path.join(outputDir, 'work', `repair-${input.repairAttempt}.json`) };
 }
 

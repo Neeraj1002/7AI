@@ -70,13 +70,25 @@ async function main() {
     plan, videoKind: 'long' as const, width: profile.width, height: profile.height, fps: profile.fps,
     frameCount: baselineMux.frameCount, chapterTimings: [{ title: 'one', startSec: 0, endSec: 2 },
       { title: 'two', startSec: 2, endSec: 4 }], subtitlesPath: path.join(outputDir, '1.srt') };
-  const prepared = await prepareVisualRepair({ runId, baselineAttempt: 1, repairAttempt: 2,
+  const repairInput = { runId, baselineAttempt: 1, repairAttempt: 2,
     previousInput: { factualBaseline: fact, resolvedVoice: 'synthetic-fixed-audio' },
     currentInput: { factualBaseline: fact, resolvedVoice: 'synthetic-fixed-audio' },
     previousOutput: baselineOutput,
-    defect: { sceneId: '1:0', timestampSeconds: 3, kind: 'continuity',
+    defect: { sceneId: '1:0', timestampSeconds: 3, kind: 'continuity' as const,
       reason: 'second beat changes the recurring red subject to blue', requiredVisualConstraints: ['retain red color'] },
-    rootDir: root });
+    rootDir: root };
+  const validUnchangedChapter = await fs.readFile(beforeSegments[0]);
+  let corruptChapterRejected = false;
+  try {
+    await fs.writeFile(beforeSegments[0], 'nonempty but undecodable chapter');
+    await prepareVisualRepair(repairInput);
+  } catch (error) {
+    corruptChapterRejected = error instanceof Error && /cached chapter cannot be decoded/.test(error.message);
+  } finally {
+    await fs.writeFile(beforeSegments[0], validUnchangedChapter);
+  }
+  if (!corruptChapterRejected) throw new Error('corrupt unchanged chapter cache was accepted');
+  const prepared = await prepareVisualRepair(repairInput);
   // Simulate a process stopping after durable intent, before replacement.
   await saveRepairReceipt(prepared.receiptPath, prepared.receipt);
   let replacementCalls = 0;
@@ -109,7 +121,8 @@ async function main() {
     baselinePreviewSha256: await hashFile(previews[0]), variantPreviewSha256: await hashFile(previews[1]),
     audioSha256: await hashFile(audioPath), subtitlesSha256: await hashFile(path.join(outputDir, '1.srt')),
     baselineFrames: baselineMux.frameCount, variantFrames: repaired.output.frameCount,
-    replacementCalls, restartReplacementCalls, paidCalls: 0, incrementalCostUsd: '0.000000',
+    replacementCalls, restartReplacementCalls, corruptChapterRejected,
+    paidCalls: 0, incrementalCostUsd: '0.000000',
     metrics: metrics.map(m => ({ width: m.width, height: m.height, fps: m.fps,
       videoCodec: m.videoCodec, pixFmt: m.pixFmt, hasAudio: m.hasAudio, shotCount: m.shotCount })),
   };
