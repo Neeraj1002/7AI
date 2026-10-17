@@ -27,6 +27,26 @@ export async function executeVisualRepair(params: ExecuteRepairParams): Promise<
   const { prepared } = params;
   const { receiptPath, outputDir, mapping } = prepared;
   const inspect = params.inspect ?? inspectImage;
+  const baseline = prepared.receipt.baseline;
+  const assetRoot = params.allowedAssetRoot ?? DATA_DIR;
+  const verifyFile = async (file: string, expected: string, label: string) => {
+    const resolved = await assertActualUnder(assetRoot, file);
+    if (sha256Bytes(await fs.readFile(resolved)) !== expected) {
+      throw new NonTransientStageError(`Visual repair baseline ${label} changed after eligibility check`);
+    }
+  };
+  await verifyFile(params.baselineOutput.videoPath, baseline.videoSha256, 'video');
+  await verifyFile(path.join(outputDir, `${prepared.receipt.baselineAttempt}.scene-mapping.json`),
+    baseline.mappingSha256, 'scene mapping');
+  await verifyFile(prepared.audioPath, baseline.audioSha256, 'mixed audio');
+  await verifyFile(prepared.subtitlesPath, baseline.subtitlesSha256, 'subtitles');
+  await verifyFile(prepared.transcriptPath, baseline.transcriptSha256, 'transcript');
+  for (const scene of mapping.scenes) {
+    const image = await assertActualUnder(assetRoot, scene.imagePath);
+    if (await inspect(image, { width: 1536, height: 1024 }) !== scene.imageSha256) {
+      throw new NonTransientStageError(`Visual repair baseline image changed after eligibility check: ${scene.sceneId}`);
+    }
+  }
   const sceneIndex = mapping.scenes.findIndex(s => s.sceneId === prepared.receipt.sceneId);
   if (sceneIndex < 0) throw new NonTransientStageError('Repair scene disappeared from baseline mapping');
   const baselineScene = mapping.scenes[sceneIndex];

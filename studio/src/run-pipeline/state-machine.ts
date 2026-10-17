@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { isDeepStrictEqual } from 'node:util';
 import { decryptRefreshToken } from '../models/credential-crypto';
 import { approvedFileIdentity, metadataFingerprint } from './publishing-recovery';
 import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
@@ -1005,7 +1006,7 @@ export async function runVideoGenerationStage(
           const carried = RepairReceiptSchema.safeParse(oldOutput?.visualRepairReceipt);
           if (carried.success && carried.data.baselineAttempt === completedBaseline.attemptNumber &&
               carried.data.sceneId === repairPrepared.receipt.sceneId &&
-              JSON.stringify(carried.data.baseline) === JSON.stringify(repairPrepared.receipt.baseline) &&
+              isDeepStrictEqual(carried.data.baseline, repairPrepared.receipt.baseline) &&
               carried.data.replacement) {
             repairPrepared.receipt = { ...repairPrepared.receipt, status: 'replacement-ready',
               replacement: carried.data.replacement };

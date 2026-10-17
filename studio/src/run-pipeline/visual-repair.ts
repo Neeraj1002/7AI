@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
+import { isDeepStrictEqual, promisify } from 'node:util';
 import { z } from 'zod';
 import { env } from '../config/env';
 import { DATA_DIR } from '../config/paths';
@@ -42,7 +42,8 @@ export const RepairReceiptSchema = z.object({
   repairAttempt: z.number().int().positive(), sceneId: z.string().min(1), chapterIndex: z.number().int().nonnegative(),
   defect: VisualDefectSchema,
   baseline: z.object({ factualFingerprint: hex, planSha256: hex, mappingSha256: hex,
-    voice: z.string(), renderSha256: hex, timingSha256: hex, audioSha256: hex, subtitlesSha256: hex }).strict(),
+    voice: z.string(), renderSha256: hex, timingSha256: hex, videoSha256: hex,
+    audioSha256: hex, subtitlesSha256: hex, transcriptSha256: hex }).strict(),
   status: z.enum(['intent', 'replacement-ready', 'rendered']),
   replacement: z.object({ path: z.string().min(1), sha256: hex, provider: z.string(), costUsd: z.number().nonnegative() }).strict().optional(),
   videoSha256: hex.optional(),
@@ -159,7 +160,7 @@ export async function prepareVisualRepair(input: RepairBaselineInput): Promise<P
   if (!baselineVideo || await assertActualUnder(input.rootDir ?? DATA_DIR, baselineVideo) !== path.join(outputDir, `${input.baselineAttempt}.mp4`)) {
     return fail('completed baseline video path is missing or unexpected');
   }
-  await bytes(baselineVideo);
+  const videoSha256 = sha256Bytes(await bytes(baselineVideo));
   const inspect = input.inspect ?? inspectImage;
   for (const mapped of mapping.scenes) {
     const p = await assertActualUnder(input.rootDir ?? DATA_DIR, mapped.imagePath);
@@ -171,15 +172,15 @@ export async function prepareVisualRepair(input: RepairBaselineInput): Promise<P
   const transcriptPath = path.join(outputDir, `${input.baselineAttempt}.transcript.json`);
   const audioSha256 = sha256Bytes(await bytes(audioPath));
   const subtitlesSha256 = sha256Bytes(await bytes(subtitlesPath));
-  await bytes(transcriptPath);
+  const transcriptSha256 = sha256Bytes(await bytes(transcriptPath));
   const receipt: RepairReceipt = {
     version: 1, runId: input.runId, baselineAttempt: input.baselineAttempt,
     repairAttempt: input.repairAttempt, sceneId: scene.sceneId, chapterIndex: scene.chapterIndex, defect,
     baseline: { factualFingerprint: current.fingerprint, planSha256: sha256Bytes(JSON.stringify(plan)),
       mappingSha256: sha256Bytes(await bytes(mappingPath)), voice,
-      renderSha256: sha256Bytes(JSON.stringify(profile)),
+      renderSha256: sha256Bytes(JSON.stringify(profile)), videoSha256,
       timingSha256: sha256Bytes(JSON.stringify({ scenes: mapping.scenes.map(s => [s.sceneId, s.frameStart, s.frameEndExclusive]),
-        chapters: input.previousOutput.chapterTimings })), audioSha256, subtitlesSha256 },
+        chapters: input.previousOutput.chapterTimings })), audioSha256, subtitlesSha256, transcriptSha256 },
     status: 'intent',
   };
   return { receipt, mapping, outputDir, audioPath, subtitlesPath, transcriptPath,
@@ -194,11 +195,19 @@ export async function saveRepairReceipt(file: string, receipt: RepairReceipt): P
   await fs.rename(temp, file);
 }
 export async function recoverRepairReceipt(file: string, intent: RepairReceipt): Promise<RepairReceipt> {
-  let saved: RepairReceipt;
-  try { saved = RepairReceiptSchema.parse(JSON.parse(await fs.readFile(file, 'utf8'))); }
-  catch { return intent; }
-  if (JSON.stringify({ ...saved, status: 'intent', replacement: undefined, videoSha256: undefined }) !==
-      JSON.stringify({ ...intent, status: 'intent', replacement: undefined, videoSha256: undefined })) {
+  let raw: string;
+  try { raw = await fs.readFile(file, 'utf8'); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return intent;
+    return fail('stored repair receipt cannot be read');
+  }
+  const parsed = RepairReceiptSchema.safeParse((() => {
+    try { return JSON.parse(raw) as unknown; } catch { return undefined; }
+  })());
+  if (!parsed.success) return fail('stored repair receipt is corrupt or incompatible');
+  const saved = parsed.data;
+  if (!isDeepStrictEqual({ ...saved, status: 'intent', replacement: undefined, videoSha256: undefined },
+      { ...intent, status: 'intent', replacement: undefined, videoSha256: undefined })) {
     return fail('stored repair receipt does not match the current baseline');
   }
   return saved;

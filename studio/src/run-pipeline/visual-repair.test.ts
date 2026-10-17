@@ -98,6 +98,33 @@ it('persists and recovers accepted replacement, and rejects a mismatched receipt
   expect(() => assertUnder(f.root, path.resolve(f.root, '..', 'outside.png'))).toThrow(/escapes/);
 });
 
+it('treats only an absent receipt as fresh intent and refuses corrupt checkpoints', async () => {
+  const f = await fixture();
+  const prepared = await prepareVisualRepair(f.input);
+  expect(await recoverRepairReceipt(prepared.receiptPath, prepared.receipt)).toEqual(prepared.receipt);
+  await fs.writeFile(prepared.receiptPath, '{broken');
+  await expect(recoverRepairReceipt(prepared.receiptPath, prepared.receipt)).rejects.toThrow(/corrupt/);
+  await fs.writeFile(prepared.receiptPath, '{}');
+  await expect(recoverRepairReceipt(prepared.receiptPath, prepared.receipt)).rejects.toThrow(/incompatible/);
+});
+
+it.each([
+  ['video', (f: Awaited<ReturnType<typeof fixture>>) => path.join(f.out, '1.mp4')],
+  ['transcript', (f: Awaited<ReturnType<typeof fixture>>) => path.join(f.out, '1.transcript.json')],
+  ['mixed audio', (f: Awaited<ReturnType<typeof fixture>>) => path.join(f.out, 'work', 'mixed-1.m4a')],
+  ['image', (f: Awaited<ReturnType<typeof fixture>>) => f.images[0]],
+])('refuses changed baseline %s before requesting a replacement', async (_label, fileFor) => {
+  const f = await fixture();
+  const prepared = await prepareVisualRepair(f.input);
+  await fs.writeFile(fileFor(f), 'changed after preflight');
+  let requested = 0;
+  await expect(executeVisualRepair({ prepared, baselineOutput: f.input.previousOutput as never,
+    sceneStyle: {}, allowedAssetRoot: f.root, inspect: f.input.inspect,
+    replacement: async () => { requested++; throw new Error('must not run'); } }))
+    .rejects.toThrow(/changed after eligibility check/);
+  expect(requested).toBe(0);
+});
+
 it('keeps a moderation-refused scene unresolved after durable intent', async () => {
   const f = await fixture();
   const prepared = await prepareVisualRepair(f.input);
