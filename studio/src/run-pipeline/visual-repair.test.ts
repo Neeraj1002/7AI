@@ -34,7 +34,7 @@ async function fixture() {
   await fs.writeFile(images[0], 'red image'); await fs.writeFile(images[1], 'blue image');
   const mapping: SceneMapping = { version: 1, fps: 30, scenes: images.map((imagePath, i) => ({
     sceneId: `${i}:0`, chapterIndex: i, imagePath, imageSha256: sha256Bytes(i ? 'blue image' : 'red image'),
-    promptSha256: sha256Bytes(i ? 'blue bridge' : 'red bridge'), styledPromptSha256: sha256Bytes('styled'),
+    promptSha256: sha256Bytes(i ? 'blue bridge' : 'red bridge'), styledPromptSha256: sha256Bytes(i ? 'blue bridge' : 'red bridge'),
     sourceSceneId: `${i}:0`, substituted: false, frameStart: i * 30, frameEndExclusive: (i + 1) * 30,
     startSec: i, endSec: i + 1, anchor: i ? 'blue bridge' : 'red bridge',
   })) };
@@ -72,6 +72,7 @@ it('rejects stale evidence/script, changed voice, unknown or substituted scenes,
   await expect(prepareVisualRepair({ ...f.input, currentInput: { ...f.input.currentInput,
     factualBaseline: factualBaseline(buildEvidencePacket({ briefText: 'Approved bridge fact.', factPolicy: 'brief-only' }), 'Changed script') } })).rejects.toThrow(/fingerprint/);
   await expect(prepareVisualRepair({ ...f.input, currentInput: { ...f.input.currentInput, resolvedVoice: 'voice-b' } })).rejects.toThrow(/voice/);
+  await expect(prepareVisualRepair({ ...f.input, sceneStyle: { stylePrompt: 'new style' } })).rejects.toThrow(/style/);
   await expect(prepareVisualRepair({ ...f.input, previousOutput: { ...f.input.previousOutput, frameCount: 59 } })).rejects.toThrow(/frame total/);
   await expect(prepareVisualRepair({ ...f.input, defect: { ...f.input.defect, sceneId: '9:0' } })).rejects.toThrow(/unknown scene/);
   f.mapping.scenes[1].substituted = true;

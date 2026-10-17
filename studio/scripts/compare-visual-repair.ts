@@ -17,7 +17,7 @@ import { prepareVisualRepair, saveRepairReceipt, sha256Bytes, type RepairReceipt
 import { executeVisualRepair } from '../src/run-pipeline/visual-repair-render';
 
 const exec = promisify(execFile);
-const root = path.join(DATA_DIR, 'task5-comparison-final');
+const root = path.join(DATA_DIR, 'task5-comparison-final2');
 const runId = 'synthetic-continuity';
 const outputDir = path.join(root, runId);
 const assetsDir = path.join(root, 'approved-local-assets');

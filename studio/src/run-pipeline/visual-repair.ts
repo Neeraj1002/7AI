@@ -8,6 +8,7 @@ import { env } from '../config/env';
 import { DATA_DIR } from '../config/paths';
 import { NonTransientStageError } from './retry-with-backoff';
 import { renderProfileFor } from '../agents/video-generation/render-profile';
+import { buildStyledScenePrompts, type SceneStyle } from '../agents/video-generation/scene-prompts';
 import { ProductionPlanSchema, type ProductionPlan } from '../agents/video-generation/plan';
 import type { FactualBaseline } from '../content-evidence/packet';
 
@@ -116,6 +117,7 @@ export type RepairBaselineInput = {
   defect: VisualDefect;
   rootDir?: string;
   inspect?: typeof inspectImage;
+  sceneStyle?: SceneStyle;
 };
 export type PreparedRepair = { receipt: RepairReceipt; mapping: SceneMapping; outputDir: string;
   audioPath: string; subtitlesPath: string; transcriptPath: string; receiptPath: string };
@@ -131,6 +133,7 @@ export async function prepareVisualRepair(input: RepairBaselineInput): Promise<P
   if (input.previousOutput.videoKind !== 'long' || !plan || plan.visualSource !== 'ai-stills' || !plan.longScenes?.length) return fail('baseline is not a long-form AI-stills render');
   if (!ProductionPlanSchema.safeParse(plan).success || !plan.sceneMeanings) return fail('baseline lacks a valid stable scene contract');
   const planScenes = plan.longScenes;
+  const styledPrompts = buildStyledScenePrompts(planScenes.map(s => s.prompt), input.sceneStyle ?? {});
   const outputDir = path.resolve(input.rootDir ?? path.join(DATA_DIR, 'videos'), input.runId);
   const mappingPath = path.join(outputDir, `${input.baselineAttempt}.scene-mapping.json`);
   let mapping: SceneMapping;
@@ -147,7 +150,8 @@ export async function prepareVisualRepair(input: RepairBaselineInput): Promise<P
   for (const [i, mapped] of mapping.scenes.entries()) {
     if (mapped.frameStart !== lastFrame || mapped.frameEndExclusive <= mapped.frameStart ||
       mapped.chapterIndex !== planScenes[i].chapterIndex || mapped.anchor !== planScenes[i].words ||
-      mapped.promptSha256 !== sha256Bytes(planScenes[i].prompt)) fail('baseline scene timing or prompt is incompatible');
+      mapped.promptSha256 !== sha256Bytes(planScenes[i].prompt) ||
+      mapped.styledPromptSha256 !== sha256Bytes(styledPrompts[i])) fail('baseline scene timing, style or prompt is incompatible');
     lastFrame = mapped.frameEndExclusive;
   }
   if (input.previousOutput.frameCount !== lastFrame) fail('baseline frame total changed');

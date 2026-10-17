@@ -996,7 +996,9 @@ export async function runVideoGenerationStage(
         repairPrepared = await prepareVisualRepair({ runId, baselineAttempt: completedBaseline.attemptNumber,
           repairAttempt: attemptNumber, previousInput: completedBaseline.input as typeof stageInput,
           currentInput: stageInput, previousOutput: completedBaseline.output as VideoGenerationOutput,
-          defect: reviewOutput.visualDefects[0] });
+          defect: reviewOutput.visualDefects[0],
+          sceneStyle: { stylePrompt: config.visualStylePrompt, negativePrompt: config.visualNegativePrompt,
+            safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1' } });
         repairBaselineOutput = completedBaseline.output as VideoGenerationOutput;
         if (previousAttempt.status !== 'completed') {
           const oldOutput = previousAttempt.output as { visualRepairReceipt?: unknown } | null;
