@@ -9,7 +9,7 @@
 **Depends On**: Tasks 3/4 stable scene/mapping and evidence fingerprints for development; their merges, reliability gate R and Sprint 4 closure remain release conditions. The owner authorized isolated Task 5 implementation on 2026-10-17 against the Task 1–4 dependency integration. Integrates last in video generation/review call sites.
 **Owning Component**: Bounded visual-repair orchestration/receipt, reuse/integrity integration and one offline rendered comparison. Not generic factual verification, script repair, upload recovery or new production modalities.
 **Success Criteria**: (1) only eligible named visual scenes change; (2) unaffected narration/images/chapter segments remain valid and reused; (3) restart retains repair intent/paid assets; (4) changed final/preview re-enter review/Gate 2; (5) a controlled rendered comparison documents improved, worse or inconclusive continuity with cost/reuse evidence.
-**Priority / status**: P1; implemented in isolated `SPRINT5_TASK5_BE` draft work. Synthetic mechanics comparison completed; production creative acceptance and release conditions remain. This is the only creative experiment in the planned sprint.
+**Priority / status**: P1; implemented in isolated `SPRINT5_TASK5_BE` draft PR #95. Synthetic mechanics comparison completed; production creative acceptance and release conditions remain. This is the only creative experiment in the planned sprint.
 
 ## Task Requirement
 

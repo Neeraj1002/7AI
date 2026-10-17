@@ -4,6 +4,7 @@
 **Status:** Isolated implementation and synthetic mechanics trial complete; draft, not release accepted
 **Worktree/branch:** `D:\Study Material\7AI-SPRINT5\task5`, `SPRINT5_TASK5_BE`
 **Development base:** fetched main `5b04a7a`; own Task 1–4 integration merge `9111b821575e5ac3a74d1e023b3d21cc00b27a38`, including Task 4 `f1582ac` and Task 3 `81561e6`/wording `7c6ef3c`
+**Tested implementation commit:** `76c966b` (draft PR [#95](https://github.com/Neeraj1002/7AI/pull/95), base `SPRINT5_TASK5_DEPS` at `9111b82`)
 
 ## Implemented behavior
 
