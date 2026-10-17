@@ -52,4 +52,18 @@ describe('runPublishingStage cancel guard', () => {
     expect(mocks.findLatestAttempt).not.toHaveBeenCalled();
     expect(mocks.updatePipelineRun).not.toHaveBeenCalled();
   });
+
+  it('refuses an old Gate 2 approval for a newly repaired video before upload work', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(run('running'));
+    mocks.findLatestAttempt.mockImplementation(async (_id, stage) => {
+      if (stage === 'gate2') return { status: 'completed', input: { videoPath: 'old.mp4' },
+        output: { outcome: 'approve', privacyStatus: 'private' } };
+      if (stage === 'video_generation') return { status: 'completed', output: {
+        videoPath: 'repaired.mp4', visualRepairReceipt: { status: 'rendered' }, plan: { visualSource: 'ai-stills' } } };
+      if (stage === 'video_review') return { status: 'completed', input: { videoPath: 'repaired.mp4' }, output: { verdict: 'pass' } };
+      return null;
+    });
+    await expect(runPublishingStage(RUN_ID)).rejects.toThrow(/matching fresh review and Gate 2 approval/);
+    expect(mocks.updatePipelineRun).not.toHaveBeenCalled();
+  });
 });

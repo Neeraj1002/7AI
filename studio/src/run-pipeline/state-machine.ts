@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { decryptRefreshToken } from '../models/credential-crypto';
 import { approvedFileIdentity, metadataFingerprint } from './publishing-recovery';
 import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
@@ -81,6 +82,13 @@ import {
 } from '../agents/publishing';
 import { recordSnapshot } from '../agents/performance-analytics';
 import { env } from '../config/env';
+import { DATA_DIR } from '../config/paths';
+import { SceneMappingSchema, RepairReceiptSchema, prepareVisualRepair, inspectImage,
+  type PreparedRepair, type VisualDefect } from './visual-repair';
+import { executeVisualRepair } from './visual-repair-render';
+import { generateStills } from '../ai-visuals';
+import { stillsCacheDir } from '../ai-visuals/cache';
+import { STILL_SIZE_LANDSCAPE } from '../ai-visuals/sizes';
 import { STAGE_NAMES } from '../types';
 import type { CreatePipelineRunInput, IntakeParsed, PipelineRun, StageName } from '../types';
 
@@ -966,6 +974,50 @@ export async function runVideoGenerationStage(
     ...(isLong && { videoKind: 'long' as const }),
   };
 
+  // A located failure can select one visual-only revision. Eligibility is
+  // checked before stage creation or a provider call. Missing/stale assets
+  // leave the existing bounded full-generation path in place.
+  let repairPrepared: PreparedRepair | undefined;
+  let repairBaselineOutput: VideoGenerationOutput | undefined;
+  let repairUnavailable: string | undefined;
+  if (isLong && previousAttempt && attemptNumber <= MAX_VIDEO_REGEN_ATTEMPTS + 1) {
+    const previousReview = await findLatestAttempt(runId, 'video_review');
+    const reviewOutput = previousReview?.status === 'completed' ? previousReview.output as
+      { verdict?: string; visualDefects?: VisualDefect[] } | null : null;
+    if (reviewOutput?.verdict === 'fail' && reviewOutput.visualDefects?.length === 1) {
+      try {
+        const completedBaseline = previousAttempt.status === 'completed'
+          ? previousAttempt : await findLatestCompletedAttempt(runId, 'video_generation');
+        if (!completedBaseline) throw new NonTransientStageError('No completed baseline for visual repair');
+        if ((previousReview?.input as { videoPath?: string } | null)?.videoPath !==
+            (completedBaseline.output as VideoGenerationOutput | null)?.videoPath) {
+          throw new NonTransientStageError('Visual defect review does not belong to the completed baseline video');
+        }
+        repairPrepared = await prepareVisualRepair({ runId, baselineAttempt: completedBaseline.attemptNumber,
+          repairAttempt: attemptNumber, previousInput: completedBaseline.input as typeof stageInput,
+          currentInput: stageInput, previousOutput: completedBaseline.output as VideoGenerationOutput,
+          defect: reviewOutput.visualDefects[0] });
+        repairBaselineOutput = completedBaseline.output as VideoGenerationOutput;
+        if (previousAttempt.status !== 'completed') {
+          const oldOutput = previousAttempt.output as { visualRepairReceipt?: unknown } | null;
+          const carried = RepairReceiptSchema.safeParse(oldOutput?.visualRepairReceipt);
+          if (carried.success && carried.data.baselineAttempt === completedBaseline.attemptNumber &&
+              carried.data.sceneId === repairPrepared.receipt.sceneId &&
+              JSON.stringify(carried.data.baseline) === JSON.stringify(repairPrepared.receipt.baseline) &&
+              carried.data.replacement) {
+            repairPrepared.receipt = { ...repairPrepared.receipt, status: 'replacement-ready',
+              replacement: carried.data.replacement };
+          }
+        }
+      } catch (error) {
+        repairUnavailable = error instanceof Error ? error.message : String(error);
+      }
+    }
+  }
+  const effectiveStageInput = { ...stageInput,
+    ...(repairPrepared && { visualRepairIntent: repairPrepared.receipt }),
+    ...(repairUnavailable && { visualRepairUnavailable: repairUnavailable }) };
+
   // Cost gate (BUSINESS_LOGIC.md Section 1) — same soft-ceiling pattern as
   // Script Generation, now also covering the pipeline's most expensive stage.
   const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
@@ -975,7 +1027,7 @@ export async function runVideoGenerationStage(
       pipelineRunId: runId,
       stageName: 'video_generation',
       attemptNumber,
-      input: stageInput,
+      input: effectiveStageInput,
       reason: budgetText,
     });
     return await updatePipelineRun(runId, {
@@ -994,7 +1046,7 @@ export async function runVideoGenerationStage(
     pipelineRunId: runId,
     stageName: 'video_generation',
     attemptNumber,
-    input: stageInput,
+    input: effectiveStageInput,
     ...(carriedCheckpoint ? { output: { longPlanningCheckpoint: carriedCheckpoint } } : {}),
   });
 
@@ -1002,7 +1054,7 @@ export async function runVideoGenerationStage(
   // bind it to every input that can affect planning; a revision/config/script
   // change necessarily produces a different fingerprint and replans.
   const planInputHash = planCheckpointHash({
-    runId, stageInput, chapters: sanctionedChapters ?? null,
+    runId, stageInput: effectiveStageInput, chapters: sanctionedChapters ?? null,
     topic: run.intakeParsed.topic, config,
     safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED,
   });
@@ -1015,6 +1067,7 @@ export async function runVideoGenerationStage(
   // Keep completed batches across stage retries and same-input manual recovery.
   let planningCheckpoint: unknown = carriedCheckpoint;
   const attemptPlanOnce = async (): Promise<ProductionPlan> => {
+    if (repairPrepared) return repairBaselineOutput!.plan as ProductionPlan;
     if (testOverrides?.forcedPlan) {
       return testOverrides.forcedPlan;
     }
@@ -1153,7 +1206,36 @@ export async function runVideoGenerationStage(
           costUsd: fields.costUsd.toFixed(6),
           metadata: { ...fields.metadata, stubFlags: spend.stubFlags },
         });
-      const { output, usage, artifacts } = isLong
+      const { output, usage, artifacts } = repairPrepared
+        ? await executeVisualRepair({ prepared: repairPrepared,
+            baselineOutput: repairBaselineOutput!, sceneStyle,
+            guard: async () => {
+              await runLimitGuard?.();
+              const liveRun = await findPipelineRunById(runId);
+              const liveChannel = await findChannelById(channel.id);
+              if (liveRun?.status !== 'running' || liveChannel?.isActive === false) {
+                throw new NonTransientStageError('Visual repair stopped: run cancelled or channel archived');
+              }
+              const allowance = await checkBudget(run.tenantId, channel.id, channel.platform);
+              if (!allowance.ok) throw new NonTransientStageError(`Visual repair stopped: ${describeBudgetRefusal(allowance)}`);
+            },
+            onReceipt: async receipt => { await patchStageOutput(stage.id, { visualRepairReceipt: receipt }); },
+            replacement: async (styledPrompt, sceneIndex) => {
+              const stills = await generateStills({ scenePrompts: [styledPrompt], size: STILL_SIZE_LANDSCAPE,
+                cacheDir: stillsCacheDir(runId),
+                validateCachedStill: async file => inspectImage(file, { width: 1536, height: 1024 }).then(() => true).catch(() => false),
+                onStillGenerated: async info => {
+                  await bookPaidCall({ model: info.model, costUsd: info.costUsd,
+                    metadata: { part: 'visual-repair-still', sceneIndex } });
+                  await runLimitGuard?.();
+                } });
+              if (stills.skippedPromptCount || stills.imagePaths.length !== 1) {
+                throw new NonTransientStageError('Visual repair still was refused; defect remains unresolved');
+              }
+              return { path: stills.imagePaths[0], provider: stills.provider, model: stills.model,
+                costUsd: Number(stills.costUsd), cached: stills.cachedCount === 1 };
+            } })
+        : isLong
         ? await generateLongVideo({
             pipelineRunId: runId,
             attemptNumber,
@@ -1234,16 +1316,18 @@ export async function runVideoGenerationStage(
   };
 
   try {
-    const plan = checkpointedPlan
+    const plan = repairPrepared ? repairBaselineOutput!.plan as ProductionPlan : checkpointedPlan
       ? checkpointedPlan
       : await withRetryAndCircuitBreaker(attemptPlanOnce);
     if (isLong) {
       await patchStageOutput(stage.id, { recoveryPlan: { inputHash: planInputHash, plan } });
     }
     const output = await withRetryAndCircuitBreaker(() => attemptVideoOnce(plan));
+    const finalRepairReceipt = repairPrepared
+      ? RepairReceiptSchema.parse(JSON.parse(await fs.readFile(repairPrepared.receiptPath, 'utf8'))) : undefined;
 
     const completedRun = await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, { ...output, plan }, tx);
+      await completeStage(stage.id, { ...output, plan, ...(finalRepairReceipt && { visualRepairReceipt: finalRepairReceipt }) }, tx);
       return await updatePipelineRun(runId, { currentStage: 'video_review' }, tx);
     });
 
@@ -1391,6 +1475,11 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   const reviewConfig = await loadResolvedConfig(run, channel);
   const isLongForm = reviewConfig.videoKind === 'long';
   const chapterTimings = isLongForm ? readChapterTimings(videoGenStage.output) : undefined;
+  const sceneMap = isLongForm && visualSource === 'ai-stills'
+    ? await fs.readFile(path.join(DATA_DIR, 'videos', runId, `${videoGenStage.attemptNumber}.scene-mapping.json`), 'utf8')
+        .then(text => SceneMappingSchema.parse(JSON.parse(text)).scenes.map(s => ({ sceneId: s.sceneId,
+          startSec: s.startSec, endSec: s.endSec }))).catch(() => undefined)
+    : undefined;
   const longFormReview = isLongForm
     ? {
         videoKind: 'long' as const,
@@ -1413,6 +1502,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       captionsEnabled: isLongForm ? false : channel.brandAssets.captionsEnabled !== false,
       safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
       ...(isLongForm && longFormReview),
+      ...(sceneMap && { sceneMap }),
     });
 
     // Sprint 4 Task 10 (R3): the Gate 2 preview copy and the subtitle file are made before the run
@@ -1524,6 +1614,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
           verdict: outcome.verdict,
           rationale: outcome.rationale,
           ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
+          ...(outcome.visualDefects?.length && { visualDefects: outcome.visualDefects }),
           ...(longFormArtifacts && longFormArtifacts),
           // Named field: why this long video will publish without a chapter list (also shown at Gate 2).
           ...(isLongForm && (() => { const l = buildChapterList(chapterTimings); return l.ok ? {} : { chapterWarning: l.warning }; })()),
@@ -1625,6 +1716,10 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   };
   if (!reviewOutput.verdict || !reviewOutput.rationale) {
     throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
+  }
+  if ((videoGenStage.output as { visualRepairReceipt?: unknown }).visualRepairReceipt &&
+      ((videoReviewStage.input as { videoPath?: string } | null)?.videoPath !== videoPath || reviewOutput.verdict !== 'pass')) {
+    throw new NonTransientStageError('Repaired video must pass a fresh review before Gate 2');
   }
 
   // Sprint 4 Task 10 (R4.1): a long run whose chapters do not meet YouTube's rules is published
@@ -1845,6 +1940,14 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   const videoPath = videoGenOutput.videoPath;
   if (!videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
+  }
+  if ((videoGenOutput as { visualRepairReceipt?: unknown }).visualRepairReceipt) {
+    const reviewed = await findLatestAttempt(runId, 'video_review');
+    if ((gate2Stage.input as { videoPath?: string } | null)?.videoPath !== videoPath ||
+        (reviewed?.input as { videoPath?: string } | null)?.videoPath !== videoPath ||
+        (reviewed?.output as { verdict?: string } | null)?.verdict !== 'pass') {
+      throw new NonTransientStageError('Repaired video has no matching fresh review and Gate 2 approval');
+    }
   }
   const durationSeconds = videoGenOutput.durationSeconds;
   // Sprint 2 Task 2 (E4) — the real YouTube disclosure-policy flag, derived

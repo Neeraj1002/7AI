@@ -21,6 +21,7 @@ import {
   type QualityMetrics,
 } from "../video-generation/quality-spec";
 import { hardFailureReason, measureQualityMetrics } from "./quality-metrics";
+import { VisualDefectSchema, type VisualDefect } from '../../run-pipeline/visual-repair';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
 // 4.2. Deterministic checks (ffprobe/FFmpeg, zero LLM cost) run first and
@@ -188,6 +189,13 @@ const SAMPLE_FRACTIONS = [0.25, 0.5, 0.75];
 // chapter goes unseen. Capped so a many-chapter video does not send an unbounded number of images;
 // when over the cap the chapters are thinned evenly (first and last always kept).
 export const MAX_REVIEW_FRAMES = 12;
+export function locatedVisualDefects(defects: VisualDefect[] | undefined, sampleTimestamps: number[],
+  sceneMap?: Array<{ sceneId: string; startSec: number; endSec: number }>): VisualDefect[] {
+  return defects?.filter(defect => defect.sceneId && defect.timestampSeconds !== undefined &&
+    sampleTimestamps.some(t => Math.abs(t - defect.timestampSeconds!) <= 0.25) &&
+    sceneMap?.some(scene => scene.sceneId === defect.sceneId &&
+      scene.startSec <= defect.timestampSeconds! && defect.timestampSeconds! < scene.endSec)) ?? [];
+}
 export function chapterSampleTimestamps(
   chapters: ChapterTiming[],
   durationSeconds: number,
@@ -237,6 +245,7 @@ async function extractSampleFramesBase64(
 const MultimodalVerdictSchema = z.object({
   verdict: z.enum(["pass", "fail"]),
   notes: z.string().min(1),
+  visualDefects: z.array(VisualDefectSchema).max(1).optional(),
 });
 
 // Sprint 2 Task 2 (E3) — the rubric was written and tuned entirely against
@@ -269,8 +278,10 @@ export function buildSystemPrompt(
 
 A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the historical topic).
 
-Respond with ONLY a JSON object: {"verdict": "pass" | "fail", "notes": string}
-"notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.
+Respond with ONLY a JSON object: ${longForm
+  ? '{"verdict": "pass" | "fail", "notes": string, "visualDefects"?: [{"sceneId"?: string, "timestampSeconds"?: number, "kind": "visual_mismatch" | "continuity" | "composition" | "artifact", "reason": string, "requiredVisualConstraints": string[]}]}'
+  : '{"verdict": "pass" | "fail", "notes": string}'}
+"notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.${longForm ? '\nOnly name one visual defect when a sampled frame clearly locates it in the supplied scene map. Include its exact scene ID and sampled timestamp. If the defect is factual, script, narration, timing, vague or unlocated, omit visualDefects. Do not infer a scene from a general chapter note.' : ''}
 Respond with raw JSON only — no markdown code fences, no commentary.${
     safetyChecks && visualSource === "ai-stills" ? SAFETY_CHECK_INSTRUCTION : ""
   }`;
@@ -284,6 +295,7 @@ export type VideoIntelligenceOutcome = {
   // Sprint 4 Task 8 (R7) — present whenever measurement ran (including on a
   // deterministic fail); undefined only when the failure came before it.
   qualityMetrics?: QualityMetrics;
+  visualDefects?: VisualDefect[];
 };
 
 export async function reviewVideo(params: {
@@ -310,6 +322,7 @@ export async function reviewVideo(params: {
   enforceLongShotPacing?: boolean;
   chapterTimings?: ChapterTiming[];
   narrationSeconds?: number;
+  sceneMap?: Array<{ sceneId: string; startSec: number; endSec: number }>;
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
@@ -342,6 +355,8 @@ export async function reviewVideo(params: {
     deterministic.meta.durationSeconds,
     chapterTimestamps,
   );
+  const sampleTimestamps = chapterTimestamps ?? SAMPLE_FRACTIONS.map(f => deterministic.meta.durationSeconds * f);
+  const sampledSceneMap = params.sceneMap?.filter(s => sampleTimestamps.some(t => s.startSec <= t && t < s.endSec));
 
   // B3 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2): only this one call is wrapped,
   // not the whole function — runDeterministicChecks above returns a result
@@ -365,7 +380,7 @@ export async function reviewVideo(params: {
       messages: [
         {
           role: "user",
-          content: `Topic: ${params.topic}\nScript: ${params.scriptText}`,
+          content: `Topic: ${params.topic}\nScript: ${params.scriptText}${sampledSceneMap ? `\nScene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}\nSampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
           attachments: framesBase64.map((dataBase64) => ({
             mediaType: "image/jpeg",
             dataBase64,
@@ -395,10 +410,12 @@ export async function reviewVideo(params: {
       llmUsageContext(llm),
     );
   }
+  const locatedDefects = locatedVisualDefects(result.data.visualDefects, sampleTimestamps, sampledSceneMap);
 
   return {
     verdict: result.data.verdict,
     rationale: result.data.notes,
+    ...(result.data.verdict === 'fail' && locatedDefects?.length && { visualDefects: locatedDefects }),
     multimodalRan: true,
     llm,
     qualityMetrics: deterministic.metrics,

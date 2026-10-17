@@ -6,10 +6,10 @@
 
 **Objective**: Correct a scene-specific visual defect while preserving valid production assets, then compare one continuity repair with its rendered baseline.
 **Duration**: 2–3 days after prerequisites; paid asset generation is not authorized by the specification.
-**Depends On**: Reliability gate R; Tasks 3/4 merged with stable scene/mapping and evidence fingerprints; existing SR baseline/consumer agreed. Integrates last in video generation/review call sites.
+**Depends On**: Tasks 3/4 stable scene/mapping and evidence fingerprints for development; their merges, reliability gate R and Sprint 4 closure remain release conditions. The owner authorized isolated Task 5 implementation on 2026-10-17 against the Task 1–4 dependency integration. Integrates last in video generation/review call sites.
 **Owning Component**: Bounded visual-repair orchestration/receipt, reuse/integrity integration and one offline rendered comparison. Not generic factual verification, script repair, upload recovery or new production modalities.
 **Success Criteria**: (1) only eligible named visual scenes change; (2) unaffected narration/images/chapter segments remain valid and reused; (3) restart retains repair intent/paid assets; (4) changed final/preview re-enter review/Gate 2; (5) a controlled rendered comparison documents improved, worse or inconclusive continuity with cost/reuse evidence.
-**Priority / status**: P1; blocked on Tasks 3/4. This is the only creative experiment in the planned sprint.
+**Priority / status**: P1; implemented in isolated `SPRINT5_TASK5_BE` draft work. Synthetic mechanics comparison completed; production creative acceptance and release conditions remain. This is the only creative experiment in the planned sprint.
 
 ## Task Requirement
 
@@ -109,7 +109,7 @@ Safe repair path and interaction tests integrated; valid asset preservation show
 
 ## Additional Notes — Git, Uncertainties and Approval
 
-Proposed `SPRINT5_TASK5_BE`, dedicated worktree after prerequisites from fresh main; record actual branch/path immediately, own commits/report/row and draft PR. Do not alter other agents' scratch/worktrees or server untracked files. Shared integrations land last; founder merge/auto-deployment remains a separate boundary.
+Actual `SPRINT5_TASK5_BE`, worktree `D:\Study Material\7AI-SPRINT5\task5`, began from fetched main and merged completed Task 1–4 draft revisions into its own branch for development. Draft PR targets an isolated dependency base so its diff is Task 5-only. Do not alter other agents' scratch/worktrees or server untracked files. Founder merge/auto-deployment remains a separate boundary.
 
 Unknown: suitable current baseline, current asset integrity, practical recurrence of continuity defects and actual editorial benefit. The offline experiment may proceed under ordinary task authorization once dependencies land; new paid replacement, production retry, service restart or public upload requires a concrete run/channel/spend/visibility approval. No model/API migration belongs here. Retain valid assets safely; if safety cannot be proven, report why reuse is unavailable.
 

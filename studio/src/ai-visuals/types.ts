@@ -21,6 +21,9 @@ export type GenerateStillsParams = {
   // Sprint 4 Task 9 (R5.4): when set, a still whose (model, size, quality, prompt) hash is already
   // in this folder is reused at no cost, and each new still is written here as it is paid for.
   cacheDir?: string;
+  // Task 5 visual repair may require full decode/dimension validation before
+  // reusing an existing cached image. Other call sites retain legacy behavior.
+  validateCachedStill?: (filePath: string) => Promise<boolean>;
   // Sprint 4 Task 9 (R5.4/R7.3): called right after each still is paid for (never for a cache hit),
   // before the next one starts, so spend is booked per still. It may throw to stop generation
   // (a spend limit); the still just paid for is already on disk in the cache.
