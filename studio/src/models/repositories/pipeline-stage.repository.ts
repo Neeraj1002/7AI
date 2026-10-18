@@ -198,3 +198,25 @@ export async function findLatestCompletedAttempt(
   });
   return row ? toDomainStage(row) : null;
 }
+
+// Sprint 5 Task 8 (R7): the measured narration pace (words per minute) of the latest finished long video
+// this tenant narrated with `voice`, or null. Read from the video_generation attempt that recorded it
+// (input.resolvedVoice, output.measuredWordsPerMinute); no new storage.
+export async function findLatestMeasuredPace(tenantId: string, voice: string): Promise<number | null> {
+  const rows = await prisma.pipelineStage.findMany({
+    where: {
+      stageName: 'video_generation',
+      status: 'completed',
+      input: { path: ['resolvedVoice'], equals: voice },
+      pipelineRun: { tenantId },
+    },
+    orderBy: { completedAt: 'desc' },
+    take: 5,
+    select: { output: true },
+  });
+  for (const row of rows) {
+    const pace = (row.output as { measuredWordsPerMinute?: unknown } | null)?.measuredWordsPerMinute;
+    if (typeof pace === 'number' && Number.isFinite(pace)) return pace;
+  }
+  return null;
+}

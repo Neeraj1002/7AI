@@ -54,6 +54,9 @@ import { findGate1ApproverForRun } from '../models/repositories/review-log.repos
 import { generateLongVideo } from '../agents/video-generation/long-form';
 import { planLongVideoProduction, reusableLongPlanningCheckpoint, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
+import { describeRetryAllowancePause } from './manual-retries';
+import { resolveVoicePace } from './length-forecast';
+import { sumUsageCostForRun } from '../models/repositories/usage-event.repository';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
 import { createStillsProgressReporter } from './stills-progress';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
@@ -429,7 +432,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         scriptStructure: stageInput.scriptStructure,
         ...(stageInput.evidence && { evidence: stageInput.evidence }),
         ...(stageInput.sources !== undefined && { sources: stageInput.sources }),
-        ...(config.videoKind === 'long' && { videoKind: 'long' as const }),
+        ...(config.videoKind === 'long' && { videoKind: 'long' as const, wordsPerMinute: (await resolveVoicePace(run.tenantId, config.audioDefaultVoice)).wordsPerMinute }),
       });
       await bookCalls(
         calls.map((llm) => ({
@@ -952,9 +955,9 @@ export async function runVideoGenerationStage(
   // stages, and a long video's stage runs for tens of minutes, so without this a cancelled run would
   // keep paying for stills until the stage ended.
   const runLimitGuard = isLong
-    ? async () => {
+    ? async (nextCallUsd?: number) => {
         if (isCancellationRequested(runId)) throw new NonTransientStageError('Cancelled by user');
-        if (maxCostUsd) await assertWithinRunLimit(runId, maxCostUsd);
+        if (maxCostUsd) await assertWithinRunLimit(runId, maxCostUsd, undefined, nextCallUsd ?? 0);
       }
     : undefined;
   const sanctionedChapters = isLong ? (gate1Stage.output as { chapters?: ScriptChapter[] }).chapters : undefined;
@@ -1611,7 +1614,15 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       );
     }
 
-    const runPatch: Parameters<typeof updatePipelineRun>[1] = stockFallback
+    // Sprint 5 Task 8 (D1): a failed review would normally start the next attempt by itself. When the run has
+    // already spent its retry allowance, it waits for a person instead of spending more.
+    const retryAllowance = run.creationOptions?.retryAllowanceUsd;
+    const spentSoFar = retryAllowance !== undefined && outcome.verdict !== 'pass' && !atRegenCap ? await sumUsageCostForRun(runId) : 0;
+    const overAllowance = retryAllowance !== undefined && outcome.verdict !== 'pass' && !atRegenCap && spentSoFar >= retryAllowance;
+
+    const runPatch: Parameters<typeof updatePipelineRun>[1] = overAllowance
+      ? { status: 'needs_attention', lastError: describeRetryAllowancePause(spentSoFar, retryAllowance!, outcome.rationale) }
+      : stockFallback
       ? {
           status: 'running',
           currentStage: 'video_generation',

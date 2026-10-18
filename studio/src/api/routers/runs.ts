@@ -32,6 +32,8 @@ import {
   isManualRetryCapReached,
   isRetryBlockedByCap,
   isEligibleRecovery,
+  isRetryAllowancePause,
+  RETRY_ALLOWANCE_UNLIMITED_USD,
   manualRetriesUsed,
   recordManualRetry,
   retryTargetStage,
@@ -48,6 +50,9 @@ import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
 import { sumUsageCostForRun, listUsageCostByStage } from '../../models/repositories/usage-event.repository';
 import { buildCostBreakdown, buildVideoAttempts, summarizeStages } from '../../run-pipeline/attempt-outcome';
+import { deriveDisplayChapters, deriveScriptVersions } from '../../run-pipeline/script-versions';
+import { forecastLength, resolveVoicePace } from '../../run-pipeline/length-forecast';
+import { LONG_WORDS_PER_MINUTE } from '../../agents/script-generation/long-form';
 import type { ChannelProfileData } from '../../channel-profile';
 import { readStillsProgress } from '../../run-pipeline/stills-progress';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
@@ -229,6 +234,9 @@ export type LongFormRunFields = {
   subtitlesUrl?: string;
   subtitlesUploaded?: boolean;
   subtitlesMessage?: string;
+  // Why this long video will publish without a chapter list (also shown at Gate 2). Sprint 5 Task 8 (R11.4):
+  // declared here because deriveLongFormRunFields already returns it and the type hid it.
+  chapterWarning?: string;
 };
 
 // The chapters of the latest completed script_generation attempt; absent for a Short or
@@ -319,7 +327,9 @@ async function getRunDetail(id: string, ctx: Context) {
   // Sprint 4 Task 9 (R1): the run's own snapshotted profile, so the chip "Video · 10 min" reads
   // the same values the pipeline does.
   const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
-  const scriptChapters = deriveChapters(stages);
+  // Sprint 5 Task 8 (R11.1): the Script tab shows the approved (possibly edited) script once there is one.
+  const scriptVersions = deriveScriptVersions(stages);
+  const scriptChapters = deriveDisplayChapters(stages);
   const longForm: LongFormRunFields = { chapters: scriptChapters };
   if (scriptChapters === undefined) delete longForm.chapters;
   else longForm.scriptEditText = formatChapterSheet(scriptChapters);
@@ -337,6 +347,10 @@ async function getRunDetail(id: string, ctx: Context) {
     );
   }
   const gateDecisions = deriveGateDecisions(stages, reviewLogs);
+  const forecastText = (scriptVersions.approved ?? scriptVersions.draft)?.text;
+  const pace = resolved.videoKind === 'long' && forecastText !== undefined
+    ? await resolveVoicePace(run.tenantId, resolved.audioDefaultVoice)
+    : { wordsPerMinute: LONG_WORDS_PER_MINUTE, source: 'default' as const };
   const retryTarget = retryTargetStage(run);
   const failedRetryStage = stages.filter(s => s.stageName === retryTarget).sort((a, b) => b.attemptNumber - a.attemptNumber)[0] ?? null;
   const approvedGate = stages.filter(s => s.stageName === 'gate1').sort((a, b) => b.attemptNumber - a.attemptNumber)[0] ?? null;
@@ -351,6 +365,13 @@ async function getRunDetail(id: string, ctx: Context) {
     targetSeconds: resolved.targetSeconds,
     ...longForm,
     lastGateDecision: deriveLastGateDecision(stages),
+    // Sprint 5 Task 8 (R11.1): the writer's draft and the approved script apart, and which one the video used.
+    scripts: scriptVersions,
+    // Sprint 5 Task 8 (R7): where the narration will land, from the approved text (else the draft) at the
+    // voice's measured pace. Long-form only.
+    ...(resolved.videoKind === 'long' && forecastText !== undefined && {
+      expectedLength: forecastLength({ text: forecastText, targetSeconds: resolved.targetSeconds, wordsPerMinute: pace.wordsPerMinute, paceSource: pace.source }),
+    }),
     // Sprint 4 Task 12 (R2): every decided gate, oldest first; absent when none was decided.
     ...(gateDecisions && { gateDecisions }),
     // Sprint 4 Task 12 (R3): everything this run has spent (all stages and attempts), USD to 4 decimals,
@@ -531,6 +552,7 @@ export const runsRouter = router({
         badRequest('A spend limit can only be set for a long video');
       }
       let maxCostUsd: number | undefined;
+      let storedEstimate: { estimateUsd: number; retryAllowanceUsd: number } | undefined;
       if (isLong) {
         const estimate = estimateRunCost({
           videoKind: 'long',
@@ -538,6 +560,7 @@ export const runsRouter = router({
           secondsPerStill: request.secondsPerStill,
         });
         maxCostUsd = input.maxCostUsd ?? estimate.suggestedMaxUsd;
+        storedEstimate = { estimateUsd: estimate.estimateUsd, retryAllowanceUsd: estimate.retryAllowanceUsd };
         if (maxCostUsd > env.LONGFORM_MAX_RUN_USD_LIMIT) {
           badRequest(`The spend limit cannot be more than $${env.LONGFORM_MAX_RUN_USD_LIMIT.toFixed(2)} per video`);
         }
@@ -575,6 +598,8 @@ export const runsRouter = router({
         ...((isLong || input.targetDurationSec) && { targetDurationSec: isLong ? request.targetSeconds : input.targetDurationSec }),
         ...(isLong && { videoKind: 'long' as const }),
         ...(maxCostUsd !== undefined && { maxCostUsd }),
+        // Sprint 5 Task 8 (R8.1): what one clean attempt should cost, and the automatic-retry allowance (D1).
+        ...(storedEstimate && storedEstimate),
         ...(input.sources?.length && { sources: input.sources }),
         ...(input.formatKey && { formatKey: input.formatKey }),
         resolvedOptions,
@@ -626,8 +651,25 @@ export const runsRouter = router({
         estimateUsd: estimate.estimateUsd,
         worstCaseUsd: estimate.worstCaseUsd,
         suggestedMaxUsd: estimate.suggestedMaxUsd,
+        // Sprint 5 Task 8 (R8.1): the range a person should expect, retries included (D1: up to 2 x the estimate).
+        retryAllowanceUsd: estimate.retryAllowanceUsd,
+        rangeUsd: estimate.rangeUsd,
         remainingWeeklyUsd,
       };
+    }),
+
+  // Sprint 5 Task 8 (R7): where a script will land, judged against the run's target. Used by the Gate 1 edit
+  // screen on the text being edited, so the warning follows the approved text and not only the writer's draft.
+  expectedLength: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), scriptText: z.string().min(1).max(100_000) }))
+    .query(async ({ input, ctx }) => {
+      const run = await findPipelineRunById(input.runId);
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+      if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+      const channel = await findChannelById(run.channelId);
+      const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
+      const pace = await resolveVoicePace(run.tenantId, resolved.audioDefaultVoice);
+      return forecastLength({ text: input.scriptText, targetSeconds: resolved.targetSeconds, wordsPerMinute: pace.wordsPerMinute, paceSource: pace.source });
     }),
 
   // GET /runs — Queue screen (Task 2): filterable by status/stage.
@@ -984,12 +1026,22 @@ export const runsRouter = router({
       continuePipelineInBackground(run.id);
       return claimed;
     }
-    if (!eligibleRecovery) await recordManualRetry(run, target);
+    // Sprint 5 Task 8 (D1): a Retry after the automatic-retry allowance pause is the person agreeing to spend
+    // on, so the allowance moves up to the run's spend limit (the new one when they raised it).
+    const liftedAllowance = isRetryAllowancePause(run.lastError)
+      ? newMaxCostUsd ?? run.creationOptions?.maxCostUsd ?? RETRY_ALLOWANCE_UNLIMITED_USD
+      : undefined;
+    if (!eligibleRecovery && !isRetryAllowancePause(run.lastError)) await recordManualRetry(run, target);
     const updated = await updatePipelineRun(run.id, {
       status: 'running',
       lastError: null,
       ...(regenCapped && { currentStage: target }),
-      ...(newMaxCostUsd !== undefined && { creationOptionsMerge: { maxCostUsd: newMaxCostUsd } }),
+      ...((newMaxCostUsd !== undefined || liftedAllowance !== undefined) && {
+        creationOptionsMerge: {
+          ...(newMaxCostUsd !== undefined && { maxCostUsd: newMaxCostUsd }),
+          ...(liftedAllowance !== undefined && { retryAllowanceUsd: liftedAllowance }),
+        },
+      }),
     });
     continuePipelineInBackground(run.id);
     return updated;

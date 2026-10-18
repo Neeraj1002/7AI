@@ -4,6 +4,7 @@ import { resolveMediaPurpose } from '../../media';
 import { generateStills } from '../../ai-visuals';
 import { STILL_SIZE_LANDSCAPE } from '../../ai-visuals/sizes';
 import { stillsCacheDir } from '../../ai-visuals/cache';
+import { resolveAiVisualsPurpose, resolveImagePricing } from '../../ai-visuals/registry';
 import { pickAudioBedTracks } from '../../audio-bed';
 import { env } from '../../config/env';
 import { DATA_DIR } from '../../config/paths';
@@ -48,7 +49,7 @@ export type LongVideoParams = {
   onStillPaid?: (info: { index: number; costUsd: number; model: string }) => Promise<void>;
   // Throws to stop the run (a spend limit); awaited before narration, before the stills, before the
   // render and after every paid call.
-  guard?: () => Promise<void>;
+  guard?: (nextCallUsd?: number) => Promise<void>;
   // The channel's weekly budget gate, awaited before the image stage and before the render (as a
   // Short's is before its render). Throws to stop the run.
   weeklyGate?: () => Promise<void>;
@@ -75,8 +76,8 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
   const scriptText = joinChapterTexts(params.chapters);
   const spend = params.spend;
   if (spend) spend.bookedSeparately = true;
-  const guard = async () => {
-    await params.guard?.();
+  const guard = async (nextCallUsd?: number) => {
+    await params.guard?.(nextCallUsd);
   };
 
   const outputDir = path.resolve(DATA_DIR, 'videos', params.pipelineRunId);
@@ -158,7 +159,8 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
   const finalScenes = activePlan.longScenes!;
 
   // 4. Stills: landscape, cached on disk by prompt hash, each booked as it is generated.
-  await guard();
+  const stillPriceUsd = resolveImagePricing(resolveAiVisualsPurpose('still-generation').model).perImageUsd;
+  await guard(stillPriceUsd);
   await params.weeklyGate?.();
   const styled = buildStyledScenePrompts(finalScenes.map((s) => s.prompt), params.sceneStyle ?? {});
   let stills: Awaited<ReturnType<typeof generateStills>>;
@@ -175,7 +177,8 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
           spend.stillsCostUsd += info.costUsd;
         }
         await params.onStillPaid?.(info);
-        await guard();
+        // The next picture is about to be paid for: stop here if it would pass the limit.
+        await guard(stillPriceUsd);
       },
     });
   } catch (error) {

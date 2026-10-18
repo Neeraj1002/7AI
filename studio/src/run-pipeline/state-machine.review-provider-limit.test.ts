@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   reviewVideo: vi.fn(), findPipelineRunById: vi.fn(), updatePipelineRun: vi.fn(), findChannelById: vi.fn(),
   findLatestAttempt: vi.fn(), createStageAttempt: vi.fn(), completeStage: vi.fn(), failStage: vi.fn(),
-  insertReviewLog: vi.fn(), insertUsageEvent: vi.fn(), checkBudget: vi.fn(),
+  insertReviewLog: vi.fn(), insertUsageEvent: vi.fn(), checkBudget: vi.fn(), sumUsageCostForRun: vi.fn(),
 }));
 vi.mock('../agents/video-intelligence', async (orig) => ({ ...(await orig<object>()), reviewVideo: mocks.reviewVideo }));
 vi.mock('../models/prisma-client', () => ({ prisma: { $transaction: async (fn: (tx: object) => unknown) => fn({}) } }));
@@ -14,12 +14,12 @@ vi.mock('../models/repositories/pipeline-run.repository', async (orig) => ({ ...
 vi.mock('../models/repositories/channel.repository', async (orig) => ({ ...(await orig<object>()), findChannelById: mocks.findChannelById }));
 vi.mock('../models/repositories/pipeline-stage.repository', async (orig) => ({ ...(await orig<object>()), findLatestAttempt: mocks.findLatestAttempt, createStageAttempt: mocks.createStageAttempt, completeStage: mocks.completeStage, failStage: mocks.failStage }));
 vi.mock('../models/repositories/review-log.repository', async (orig) => ({ ...(await orig<object>()), insertReviewLog: mocks.insertReviewLog }));
-vi.mock('../models/repositories/usage-event.repository', async (orig) => ({ ...(await orig<object>()), insertUsageEvent: mocks.insertUsageEvent }));
+vi.mock('../models/repositories/usage-event.repository', async (orig) => ({ ...(await orig<object>()), insertUsageEvent: mocks.insertUsageEvent, sumUsageCostForRun: mocks.sumUsageCostForRun }));
 vi.mock('./budget-gate', async (orig) => ({ ...(await orig<object>()), checkBudget: mocks.checkBudget }));
 
 import { runVideoReviewStage } from './state-machine';
 import { NonTransientStageError } from './retry-with-backoff';
-import { isEligibleRecovery, retryTargetStage } from './manual-retries';
+import { isEligibleRecovery, isRetryAllowancePause, isRetryBlockedByCap, retryTargetStage } from './manual-retries';
 
 const RUN_ID = 'run-limit';
 const LIMIT_MESSAGE = 'You have reached your specified workspace API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.';
@@ -45,6 +45,7 @@ beforeEach(() => {
   mocks.createStageAttempt.mockImplementation(async () => ({ id: `vr${++reviewAttempt}` }));
   mocks.updatePipelineRun.mockImplementation(async (_id: string, patch: object) => ({ id: RUN_ID, ...patch }));
   mocks.checkBudget.mockResolvedValue({ ok: true });
+  mocks.sumUsageCostForRun.mockResolvedValue(0);
 });
 
 describe('provider limit during Video Review (R4)', () => {
@@ -98,5 +99,45 @@ describe('provider limit during Video Review (R4)', () => {
     const run = await runVideoReviewStage(RUN_ID);
     expect(run).toMatchObject({ status: 'running', currentStage: 'video_generation' });
     expect(mocks.completeStage.mock.calls[0][1]).toMatchObject({ verdict: 'fail', reasonCode: 'shot_length' });
+  });
+});
+
+describe('automatic retry allowance (D1: 2 x the estimate)', () => {
+  const failReview = { verdict: 'fail', rationale: 'frames look unrelated to the topic', multimodalRan: true };
+  const withAllowance = (retryAllowanceUsd: number) =>
+    mocks.findPipelineRunById.mockResolvedValue({ id: RUN_ID, tenantId: 't1', channelId: 'c1', status: 'running', currentStage: 'video_review', intakeParsed: { topic: 'Lego' }, creationOptions: { videoKind: 'long', maxCostUsd: 2, retryAllowanceUsd } });
+
+  it('keeps regenerating by itself while the spend is under the allowance', async () => {
+    videoGenAttempt = 1;
+    withAllowance(0.48);
+    mocks.sumUsageCostForRun.mockResolvedValue(0.3);
+    mocks.reviewVideo.mockResolvedValue(failReview);
+    const run = await runVideoReviewStage(RUN_ID);
+    expect(run).toMatchObject({ status: 'running', currentStage: 'video_generation' });
+  });
+
+  it('pauses for a person once the spend has reached the allowance, saying so, instead of another attempt', async () => {
+    videoGenAttempt = 1;
+    withAllowance(0.48);
+    mocks.sumUsageCostForRun.mockResolvedValue(0.55);
+    mocks.reviewVideo.mockResolvedValue(failReview);
+    const run = await runVideoReviewStage(RUN_ID);
+    expect(run).toMatchObject({ status: 'needs_attention' });
+    expect(isRetryAllowancePause(run.lastError)).toBe(true);
+    expect(run.lastError).toContain("$0.55 of its $0.48");
+    expect(run.lastError).toContain("frames look unrelated");
+    // Retry goes to a new video attempt, and is free of the manual retry limit
+    expect(retryTargetStage({ currentStage: 'video_review', lastError: run.lastError ?? null })).toBe('video_generation');
+    const stuck = { status: 'needs_attention', lastError: run.lastError, creationOptions: { manualRetries: { video_generation: 3 } } };
+    expect(isRetryBlockedByCap(stuck as never, 'video_generation', null)).toBe(false);
+  });
+
+  it('a run without an allowance (older runs, Shorts) behaves exactly as before', async () => {
+    videoGenAttempt = 1;
+    mocks.sumUsageCostForRun.mockResolvedValue(99);
+    mocks.reviewVideo.mockResolvedValue(failReview);
+    const run = await runVideoReviewStage(RUN_ID);
+    expect(run).toMatchObject({ status: 'running', currentStage: 'video_generation' });
+    expect(mocks.sumUsageCostForRun).not.toHaveBeenCalled();
   });
 });
