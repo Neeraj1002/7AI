@@ -80,6 +80,7 @@ import {
   uploadVideoWithSession,
   uploadCaptions,
   subtitlesFailureMessage,
+  thumbnailFailureMessage,
   CAPTIONS_INSERT_QUOTA_UNITS,
   extractCoverFrame,
   setThumbnail,
@@ -1553,6 +1554,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       }
     : undefined;
 
+  const flaggedStills = (videoGenStage.output as { flaggedStills?: Array<{ sceneId: string; issues: Array<{ kind: string; detail: string }> }> } | null)?.flaggedStills;
   try {
     const outcome = await reviewVideo({
       videoPath: videoOutput.videoPath,
@@ -1564,6 +1566,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
       ...(isLongForm && longFormReview),
       ...(sceneMap && { sceneMap }),
+      ...(flaggedStills && flaggedStills.length > 0 && { flaggedStills }),
     });
 
     // Sprint 4 Task 10 (R3): the Gate 2 preview copy and the subtitle file are made before the run
@@ -2257,6 +2260,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     // `coverFrameSet: false` for a pre-Sprint-2-Task-5 stage row (or if it's
     // ever missing) rather than crashing the whole stage over metadata.
     let coverFrameSet = receipt.followups.thumbnail === 'succeeded';
+    let coverFrameMessage: string | undefined;
     if (typeof durationSeconds === 'number' && !coverFrameSet
         && receipt.followups.thumbnail !== 'started' && receipt.followups.thumbnail !== 'uncertain') {
       try {
@@ -2271,6 +2275,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
         await markFollowup(runId, token, 'thumbnail', 'succeeded');
       } catch (error) {
         await markFollowup(runId, token, 'thumbnail', 'uncertain');
+        coverFrameMessage = thumbnailFailureMessage(error);
         console.error(
           `[publishing] run ${runId}: custom cover-frame set failed (non-blocking, video already uploaded successfully) — ${
             error instanceof Error ? error.message : String(error)
@@ -2325,6 +2330,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
       selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids,
       coverFrameSet,
+      ...(coverFrameMessage && { coverFrameMessage }),
       metadata,
       // Sprint 3 Task 12 (R3) — included directly in this same fullOutput
       // object (not a separate post-hoc patchStageOutput call the way R2's

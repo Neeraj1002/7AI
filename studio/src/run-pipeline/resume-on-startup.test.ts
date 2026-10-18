@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   listRunsByStatus: vi.fn(),
   updatePipelineRun: vi.fn(),
   findLatestStageForRun: vi.fn(),
+  failInterruptedStages: vi.fn(),
+  failOrphanedRunningStages: vi.fn(),
   continuePipelineInBackground: vi.fn(),
   runGate2Stage: vi.fn(),
   runVideoGenerationStage: vi.fn(),
@@ -13,7 +15,11 @@ vi.mock('../models/repositories/pipeline-run.repository', () => ({
   listRunsByStatus: mocks.listRunsByStatus,
   updatePipelineRun: mocks.updatePipelineRun,
 }));
-vi.mock('../models/repositories/pipeline-stage.repository', () => ({ findLatestStageForRun: mocks.findLatestStageForRun }));
+vi.mock('../models/repositories/pipeline-stage.repository', () => ({
+  findLatestStageForRun: mocks.findLatestStageForRun,
+  failInterruptedStages: mocks.failInterruptedStages,
+  failOrphanedRunningStages: mocks.failOrphanedRunningStages,
+}));
 vi.mock('./pipeline-runner', () => ({ continuePipelineInBackground: mocks.continuePipelineInBackground }));
 vi.mock('./state-machine', () => ({
   runIntakeStage: vi.fn(),
@@ -39,7 +45,34 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.updatePipelineRun.mockResolvedValue({});
+  mocks.failInterruptedStages.mockResolvedValue(1);
+  mocks.failOrphanedRunningStages.mockResolvedValue(0);
   mocks.listRunsByStatus.mockImplementation(async (s: string) => (s === 'running' ? [run()] : []));
+});
+
+describe('attempt rows left running by a restart (Sprint 5 Task 8, R11.2)', () => {
+  it('closes attempts left running on runs that have stopped, before anything resumes, and says so', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    mocks.failOrphanedRunningStages.mockResolvedValue(3);
+    mocks.listRunsByStatus.mockResolvedValue([]);
+    await resumeOnStartup();
+    expect(mocks.failOrphanedRunningStages).toHaveBeenCalledTimes(1);
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('closed 3 attempt row(s)'));
+  });
+
+  it('a failing sweep never blocks boot', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.failOrphanedRunningStages.mockRejectedValue(new Error('db'));
+    mocks.listRunsByStatus.mockResolvedValue([]);
+    await expect(resumeOnStartup()).resolves.toBeUndefined();
+  });
+
+  it.each(['video_generation', 'script_generation', 'video_review', 'intake'])('a resumed %s closes the interrupted attempt before the new one starts; gates are excluded', async (stageName) => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    mocks.findLatestStageForRun.mockResolvedValue(stage({ stageName }));
+    await resumeOnStartup();
+    expect(mocks.failInterruptedStages).toHaveBeenCalledWith('r1', expect.stringMatching(/Interrupted by a server restart/), ['gate1', 'gate2']);
+  });
 });
 
 describe('resumeOnStartup', () => {

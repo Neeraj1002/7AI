@@ -25,7 +25,7 @@ const execFileAsync = promisify(execFile);
 
 export type { PublishingMetadata, UploadParams, UploadResult, PrivacyStatus } from './types';
 export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
-export { subtitlesFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
+export { subtitlesFailureMessage, thumbnailFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
 
 const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags, and cover
 frame) from a sanctioned script and its hashtags — platform-specific optimization, not creative

@@ -256,6 +256,16 @@ export function deriveChapters(
   return valid.length > 0 ? valid.map((c) => ({ title: c.title, text: c.text })) : undefined;
 }
 
+export function deriveFlaggedStills(
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+): Array<{ sceneIndex: number; sceneId: string; issues: Array<{ kind: string; detail: string }> }> {
+  const latest = stages
+    .filter((s) => s.stageName === 'video_generation' && s.status === 'completed' && s.output)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const flagged = (latest?.output as { flaggedStills?: unknown } | null | undefined)?.flaggedStills;
+  return Array.isArray(flagged) ? (flagged as Array<{ sceneIndex: number; sceneId: string; issues: Array<{ kind: string; detail: string }> }>) : [];
+}
+
 function badRequest(message: string): never {
   throw new TRPCError({ code: 'BAD_REQUEST', message });
 }
@@ -378,6 +388,9 @@ async function getRunDetail(id: string, ctx: Context) {
     // and the run's spend limit when it has one.
     spentUsd: Math.round(spentUsd * 10000) / 10000,
     ...(run.creationOptions?.maxCostUsd !== undefined && { maxCostUsd: run.creationOptions.maxCostUsd }),
+    // Sprint 5 Task 8 (R6): pictures that still showed a logo, readable text, an invented figure or a scene against
+    // its narration after their one regeneration, from the latest video attempt. Empty when none.
+    flaggedStills: deriveFlaggedStills(stages),
     // Sprint 5 Task 8: one outcome and one cost per stage row (stageId matches stages[].id), and per video
     // attempt with its stages inside. cost.spentUsd = attemptsUsd + otherStagesUsd + unattributedUsd.
     stageSummaries,

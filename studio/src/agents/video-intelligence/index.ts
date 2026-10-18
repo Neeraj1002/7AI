@@ -326,6 +326,9 @@ export async function reviewVideo(params: {
   chapterTimings?: ChapterTiming[];
   narrationSeconds?: number;
   sceneMap?: Array<{ sceneId: string; startSec: number; endSec: number }>;
+  // Sprint 5 Task 8 (R6): pictures the pre-render check still flagged after their one regeneration. The
+  // sampled frames cannot see them all, so the reviewer is told.
+  flaggedStills?: Array<{ sceneId: string; issues: Array<{ kind: string; detail: string }> }>;
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
@@ -384,7 +387,7 @@ export async function reviewVideo(params: {
       messages: [
         {
           role: "user",
-          content: `Topic: ${params.topic}\nScript: ${params.scriptText}${sampledSceneMap ? `\nScene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}\nSampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
+          content: `Topic: ${params.topic}\nScript: ${params.scriptText}${params.flaggedStills?.length ? `\nPictures flagged before the render and not fixed (mention them in your notes if a sampled frame shows one): ${JSON.stringify(params.flaggedStills)}` : ''}${sampledSceneMap ? `\nScene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}\nSampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
           attachments: framesBase64.map((dataBase64) => ({
             mediaType: "image/jpeg",
             dataBase64,

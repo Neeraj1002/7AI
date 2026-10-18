@@ -220,3 +220,44 @@ export async function findLatestMeasuredPace(tenantId: string, voice: string): P
   }
   return null;
 }
+
+// Sprint 5 Task 8 (R11.2): an attempt row left 'running' after a restart or crash stays 'running' forever, which
+// the Run screen then shows as work in progress (run 9ab4fbe5). These close such rows as failed, keeping their
+// output. Publishing rows are left alone: publishing has its own receipt-based reconciliation.
+const NEVER_RECONCILED: StageName[] = ['publishing'];
+
+// Closes the 'running' attempts of one run. `except` names stages to leave (a gate waiting for its answer).
+export async function failInterruptedStages(pipelineRunId: string, message: string, except: StageName[] = []): Promise<number> {
+  const result = await prisma.pipelineStage.updateMany({
+    where: { pipelineRunId, status: 'running', stageName: { notIn: [...NEVER_RECONCILED, ...except] } },
+    data: { status: 'failed', error: message, completedAt: new Date() },
+  });
+  return result.count;
+}
+
+// Startup sweep: 'running' attempts of runs that are no longer running (parked, failed, cancelled, done).
+// A run waiting at a gate is skipped, since its 'running' gate row is the open gate.
+export async function failOrphanedRunningStages(): Promise<number> {
+  const rows = await prisma.pipelineStage.findMany({
+    where: {
+      status: 'running',
+      stageName: { notIn: NEVER_RECONCILED },
+      pipelineRun: { status: { in: ['needs_attention', 'failed', 'completed'] } },
+    },
+    select: { id: true, pipelineRun: { select: { lastError: true } } },
+  });
+  let closed = 0;
+  for (const row of rows) {
+    const cancelled = row.pipelineRun.lastError === 'Cancelled by user';
+    const result = await prisma.pipelineStage.updateMany({
+      where: { id: row.id, status: 'running' },
+      data: {
+        status: 'failed',
+        error: cancelled ? 'Cancelled by user' : 'Interrupted: the server restarted or stopped while this attempt was running',
+        completedAt: new Date(),
+      },
+    });
+    closed += result.count;
+  }
+  return closed;
+}
