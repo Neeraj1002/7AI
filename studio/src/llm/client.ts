@@ -90,8 +90,10 @@ export async function callProviderModel(params: {
 
     return {
       text: result.text,
-      usage: { inputTokens, outputTokens },
+      usage: { inputTokens, outputTokens, ...(result.usage.outputTokenDetails?.reasoningTokens !== undefined ? { reasoningTokens: result.usage.outputTokenDetails.reasoningTokens } : {}) },
       stopReason: result.finishReason,
+      ...(result.response?.modelId ? { responseModel: result.response.modelId } : {}),
+      ...(result.rawFinishReason ? { rawStopReason: result.rawFinishReason } : {}),
       costUsd: computeCostUsd(params.model, inputTokens, outputTokens),
     };
   } catch (error) {
@@ -106,8 +108,9 @@ export async function callProviderModel(params: {
       const outputTokens = error.usage.outputTokens ?? 0;
       return {
         text: error.text,
-        usage: { inputTokens, outputTokens },
+        usage: { inputTokens, outputTokens, ...(error.usage.outputTokenDetails?.reasoningTokens !== undefined ? { reasoningTokens: error.usage.outputTokenDetails.reasoningTokens } : {}) },
         stopReason: error.finishReason ?? 'unknown',
+        ...(error.response?.modelId ? { responseModel: error.response.modelId } : {}),
         costUsd: computeCostUsd(params.model, inputTokens, outputTokens),
       };
     }

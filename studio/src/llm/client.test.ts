@@ -65,3 +65,8 @@ describe('callProviderModel with an output schema (Bugs Task 11)', () => {
     await expect(callProviderModel(base)).rejects.toThrow();
   });
 });
+
+it('preserves raw stop, returned model and hidden reasoning counts without double-billing tokens',async()=>{
+ mocks.generateText.mockResolvedValue({text:'{}',finishReason:'length',rawFinishReason:'max_tokens',response:{modelId:'claude-sonnet-5-5'},usage:{inputTokens:100,outputTokens:4096,outputTokenDetails:{reasoningTokens:4000}}});
+ const r=await callProviderModel({...base,model:'claude-sonnet-5-5'});expect(r.rawStopReason).toBe('max_tokens');expect(r.responseModel).toBe('claude-sonnet-5-5');expect(r.usage.reasoningTokens).toBe(4000);expect(r.costUsd).toBe('0.041160');
+});

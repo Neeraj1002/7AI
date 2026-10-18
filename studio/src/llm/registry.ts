@@ -68,6 +68,8 @@ export type PricingEntry = {
 };
 
 export const MODEL_PRICING: Record<string, PricingEntry> = {
+  // Evaluation-only, owner authorized; official Sonnet 5.5 overview verified 2026-10-18. No purpose rerouting.
+  "claude-sonnet-5-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
   "claude-sonnet-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
   "claude-haiku-4-5": { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
 };

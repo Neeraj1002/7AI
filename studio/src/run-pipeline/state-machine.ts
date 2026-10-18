@@ -527,28 +527,28 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
   // call, including retries, writes its own UsageEvent row.
   const attemptOnce = async (): Promise<ScriptReviewOutput & { evidenceRef?: EvidenceRef }> => {
     try {
-      const { output, llm } = await reviewScript(stageInput);
-      await insertUsageEvent({
+      const { output, llm, calls } = await reviewScript(stageInput);
+      for (const reviewedCall of calls ?? [llm]) await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-review',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
+        provider: reviewedCall.provider,
+        model: reviewedCall.model,
+        inputTokens: reviewedCall.usage.inputTokens,
+        outputTokens: reviewedCall.usage.outputTokens,
+        costUsd: reviewedCall.costUsd,
       });
       return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
     } catch (error) {
-      await insertUsageEvent({
+      for (const usage of failureUsageEvents(error)) await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'script-review',
-        ...failureUsageFields(error),
+        ...usage,
       });
       throw error;
     }

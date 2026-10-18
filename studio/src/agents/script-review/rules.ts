@@ -3,6 +3,8 @@ import type { ScriptReviewOutput } from './index';
 export function reviewRules(isLong: boolean): string {
   return `
 
+A factual concern is a CHECKABLE ASSERTION: a number, name, date, event, cause or concrete detail. Examples of checkable assertions (not automatically errors): "The strike stranded 1.5 million workers"; "Vaughan joined in 1943"; "The tower was sold for scrap"; "Workers wore brass badges"; "Cheap clocks ended the job".
+These are NOT factual assertions: "But the story changes here"; "So what happened next?"; "That is the contrast"; "Here is the question"; "The account turns to the next job". They can be SR-3 pacing advice, never invented factual events. A concrete causal consequence such as "it kept hungry families fed" IS an assertion, not a transition. Do not confuse metaphor/structure with a claim. For deliberately short targets, assess the supplied length rather than demanding a full-length plot. Equivalent number spelling is not a requirement unless the brief explicitly says so.
 Mandatory SR review rules (these refine the rubric above; explicit brief constraints override generic narrative preferences):
 SR-1: Check EVERY named term, date, person, number and "X was Y" statement: would a subject expert accept this exact wording? Quote the problem and safer wording. Do not turn an etymology into a claim about actual pay: "the word salary comes from salarium" does not support "soldiers earned a salarium". An unqualified mortality range is not equivalent to historians estimates mostly ranging that widely.
 SR-2: Check the brief's constraints one by one: required facts in order, key terms intact, opening/closing, chapter questions, length and visual restrictions. Facts do not require verbatim spelling unless explicitly constrained: fifty = 50, Roman = Rome where meaning is unchanged; do not invent a constraint. An etymology must retain both the derived word and its origin, not merely the origin. Qualifiers change meaning: "full day" is not "wage"; do not add "about" to an exact equivalence such as 2s 6d = 30 pence. Explicit required questions/openings take precedence over generic hook advice.
@@ -35,7 +37,7 @@ export function calibrateReview(output: ScriptReviewOutput, exactViolations: str
       findings.push({ rule, text });
     }
   }
-  for (const text of exactViolations) if (!styleGuideViolations.includes(text)) { styleGuideViolations.push(text); findings.push({ rule: 2, text }); }
+  for (const text of exactViolations) if (![...styleGuideViolations, ...factualConcerns].includes(text)) { const rule = Number(text.match(/^SR-([1-9]):/)?.[1] ?? 2); (rule === 2 ? styleGuideViolations : factualConcerns).push(text); findings.push({ rule, text }); }
   let score = output.score;
   const reasons: string[] = [];
   for (const { rule, text } of findings) {

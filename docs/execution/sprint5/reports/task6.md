@@ -2,6 +2,8 @@
 
 Implementation prepared; R5 acceptance failed on SPRINT5_TASK6_BE, own worktree D:\Study Material\7AI-SPRINT5\task6. Fresh main baseline 6852fa5. Task 4 #94 and Sprint 4 long-form review #93 are merged. Owner workflow: combined Sprint 4-5 acceptance after Task 5; no Sprint 4 closure or live-upload hold. No merge/deployment performed.
 
+The R0-R5 sections below preserve the initial 2026-10-18 implementation and four-round history. The 2026-10-19 owner revision at the end supersedes candidate-only numeric handling and the original token caps.
+
 ## R0: inspected assumptions
 
 | Architect assumption | Confirmed or wrong; actual contract |
@@ -76,6 +78,12 @@ Additional failures: Task 9's actual sold-for-scrap claim was flagged in 1/3 att
 - Miss-log cases 1-2 use original full briefs/scripts. Cases 3-6 lack original full briefs and are explicitly labelled synthetic reconstructions from the log's summaries/corrections; their results cannot certify complete historical replay accuracy. Task 9 uses its actual full development-run brief/script recovered read-only from the specifically documented localhost run. No past production script was edited and no external retrieval was performed.
 - The owner performs a real Gate 1 readback after approved merge/deployment as part of the combined Sprint 4-5 acceptance pass after Task 5. Sprint 4 closure and a live upload are not readiness prerequisites. Neither is the reason this PR is draft.
 
-**Remaining blocker:** R5 fails: the real reviewer misses required SR-1/4/5/7/8 findings, returns false control findings/one control rejection, and produced malformed JSON. Code caps only constrain confirmed findings; they cannot repair model false negatives without violating the candidate-only contract. Further reviewer work and a successful three-repeat acceptance pass are required before marking ready. No merge or deployment performed.
+**Historical remaining blocker (2026-10-18):** R5 fails: the real reviewer misses required SR-1/4/5/7/8 findings, returns false control findings/one control rejection, and produced malformed JSON. Code caps only constrain confirmed findings; they cannot repair model false negatives without violating the candidate-only contract. Further reviewer work and a successful three-repeat acceptance pass are required before marking ready. No merge or deployment performed.
 
-Founder status: **NOT READY - PR #105 is draft; code checks pass, real-model R5 acceptance fails. Not merged, not deployed.**
+Historical founder status (2026-10-18): **NOT READY - PR #105 is draft; code checks pass, real-model R5 acceptance fails. Not merged, not deployed.**
+
+## Owner revision checkpoint (2026-10-19)
+
+Build, typecheck, lint and the complete offline suite passed before the single additional comparison round: 1020 tests passed, 9 skipped. Historical post-calibration outputs were frozen truthfully as snapshots; original provider text/stop reasons were never retained and cannot be reconstructed. The new harness retains exact provider text, returned model, stop reason, reasoning usage and cost, with durable reservations against the cumulative $3 ceiling.
+
+The new native structured-output path uses higher caps and one format retry; two invalid replies fail without a score, and both calls are metered. The owner-authorized unmatched-number and dropped-numeric-hedge checks are code verdicts; names, soft cases and derived arithmetic stay hints. Production routing remains Haiku 4.5. The one Haiku/Sonnet comparison stopped after 53 valid reviews and two unmetered provider failures; 11 Sonnet cases were not attempted. Conservative campaign charge is $1.999582 including every unresolved reservation. No second comparison round is authorized or run. Detailed retained results and the offline audit follow in the next report section. Current status remains NOT READY.

@@ -51,6 +51,7 @@ export type LLMRequest = {
 export type LLMUsage = {
   inputTokens: number;
   outputTokens: number;
+  reasoningTokens?: number;
 };
 
 // What client.ts returns — provider/model aren't included here since the
@@ -60,6 +61,8 @@ export type ProviderCallResult = {
   text: string;
   usage: LLMUsage;
   stopReason: string;
+  rawStopReason?: string;
+  responseModel?: string;
   // NUMERIC as string, matching UsageEvent.costUsd's DB representation —
   // computed in client.ts from token counts and registry.ts's pricing table,
   // per docs/execution/week2/SCHEMA.md's "Where costUsd comes from" note.

@@ -239,4 +239,13 @@ describe('SR retry concern handoff and existing Gate 1 transitions', () => {
     expect(mocks.insertReviewLog.mock.calls.some(c => c[0].verdict === 'auto-reject')).toBe(false);
     expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'video_generation' }, expect.anything());
   });
+  it('meters both format calls on a successful review and on a failed parse retry', async()=>{
+    setup(1,7);const first=llm({text:'invalid',costUsd:'0.001000'}),second=llm({costUsd:'0.002000'});
+    mocks.reviewScript.mockResolvedValue({output:reviewOutput(7),llm:second,calls:[first,second]});
+    await runScriptReviewStage(RUN_ID);expect(mocks.insertUsageEvent.mock.calls.map(c=>c[0].costUsd)).toEqual(['0.001000','0.002000']);
+    mocks.insertUsageEvent.mockClear();mocks.completeStage.mockClear();mocks.insertReviewLog.mockClear();
+    mocks.reviewScript.mockRejectedValue(new NonTransientStageError('invalid review after retry',undefined,{...llmCallsContext([first,second]),rawReply:'invalid',stopReason:'length'}));
+    await runScriptReviewStage(RUN_ID);expect(mocks.insertUsageEvent.mock.calls.map(c=>c[0].costUsd)).toEqual(['0.001000','0.002000']);expect(mocks.completeStage).not.toHaveBeenCalled();expect(mocks.insertReviewLog).not.toHaveBeenCalled();
+  });
+
 });

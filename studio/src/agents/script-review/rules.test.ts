@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async orig => ({ ...await orig<object>(), callLLM: mocks.callLLM }));
-import { buildUserMessage, reviewScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD, MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS } from './index';
+import { buildUserMessage, reviewScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD, MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS, SCRIPT_REVIEW_MAX_TOKENS } from './index';
 import { calibrateReview, reviewRules, scriptRetryFeedback } from './rules';
 import { checkBrief, normalizedNumbers } from './brief-checks';
 import { buildEvidencePacket } from '../../content-evidence/packet';
@@ -34,9 +34,9 @@ describe('SR enforcement without a stored shape change', () => {
   });
   it('candidate numbers, names, absolutes and hedge loss are hints, not verdicts', async () => {
     const brief = 'About fifty workers used a lift around 1900. Their wages were ten coins for five days.';
-    const scriptText = 'In 1922 Oliver promised all workers a lift. Fifty workers used a lift in 1900. Their wages were two coins a day.';
+    const scriptText = 'About fifty workers used a lift around 1900. Oliver promised all workers a lift. Their wages were two coins per day.';
     const checks = checkBrief(brief, scriptText);
-    expect(checks.hints.map(h => h.kind)).toEqual(expect.arrayContaining(['number', 'name', 'absolute', 'hedge']));
+    expect(checks.hints.map(h => h.kind)).toEqual(expect.arrayContaining(['name', 'absolute', 'arithmetic']));
     expect(checks.exactViolations).toEqual([]);
     const result = await reviewScript({ scriptText, captions: '', nicheDescription: 'history', evidence: buildEvidencePacket({ briefText: brief, factPolicy: 'brief-only' }) });
     expect(result.output.score).toBe(10); expect(result.output.factualConcerns).toEqual([]);
@@ -67,7 +67,7 @@ describe('SR enforcement without a stored shape change', () => {
     expect(reviewRules(isLong).includes('2.5 seconds')).toBe(!isLong);
     expect(call.system).not.toContain('based on what you already know');
     expect(call.system).toContain('A pass is represented by []');
-    expect(call.purpose).toBe('script-review'); expect(call.maxTokens).toBe(isLong ? 2048 : 1024);
+    expect(call.purpose).toBe('script-review'); expect(call.maxTokens).toBe(isLong ? SCRIPT_REVIEW_MAX_TOKENS.long : SCRIPT_REVIEW_MAX_TOKENS.short);
     if (isLong) { expect(call.system).toContain('within 20%'); expect(call.system).toContain('chapterNotes'); }
   });
   it('keeps candidate content escaped as data and uses the same packet, without URL fetching', () => {
