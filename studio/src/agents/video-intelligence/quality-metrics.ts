@@ -402,3 +402,37 @@ export async function measureQualityMetrics(params: {
     rows: evaluateQualityRows(base, params.visualSource, profile),
   };
 }
+
+// Sprint 5 Task 8 (R3/R5): a stable code for each deterministic failure, so the pipeline decides what
+// to repair from the code and never from the wording. Kept beside the messages it classifies; the
+// test pins every message to its code.
+export const HARD_FAILURE_CODES = [
+  'no_audio',
+  'resolution',
+  'frame_rate',
+  'loudness',
+  'shot_length',
+  'duration',
+  'narration_gap',
+  'silent_audio',
+  'aspect_ratio',
+  'other',
+] as const;
+export type HardFailureCode = (typeof HARD_FAILURE_CODES)[number];
+
+// Timing defects are repaired by re-timing the scenes already made, never by new pictures. A video that
+// is too short or too long is a narration-length problem (R7), which re-timing cannot fix.
+export const TIMING_FAILURE_CODES: readonly HardFailureCode[] = ['shot_length', 'narration_gap'];
+
+export function classifyHardFailure(reason: string): HardFailureCode {
+  if (reason.startsWith('Video has no audio')) return 'no_audio';
+  if (reason.startsWith('Wrong resolution')) return 'resolution';
+  if (reason.startsWith('Wrong frame rate') || reason.startsWith('Variable frame rate')) return 'frame_rate';
+  if (reason.startsWith('Loudness')) return 'loudness';
+  if (reason.startsWith('Longest AI still shot')) return 'shot_length';
+  if (/^Duration .* (is under|is over|exceeds)/.test(reason)) return 'duration';
+  if (reason.startsWith('Video length') && reason.includes('differs from the narration')) return 'narration_gap';
+  if (reason.startsWith('Audio is effectively silent')) return 'silent_audio';
+  if (reason.startsWith('Aspect ratio')) return 'aspect_ratio';
+  return 'other';
+}

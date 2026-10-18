@@ -26,6 +26,7 @@ import {
 import type { ProductionPlan } from './plan';
 import { bindSceneAssets, createSceneMapping, validateScenePlan } from './scene-mapping';
 import type { VideoSpend } from './spend';
+import { addScenesToChapters, rebalanceShotLengths } from './shot-balance';
 import type { VideoGenerationResult } from './index';
 
 // Sprint 4 Task 9 (R3-R6): the long-form (16:9, chaptered) counterpart of generateVideo. Order of
@@ -53,6 +54,9 @@ export type LongVideoParams = {
   weeklyGate?: () => Promise<void>;
   // Sprint 4 Task 12 (R4): stills finished so far (cache hits included), for runs.progress.
   onStillsProgress?: (progress: { done: number; total: number }) => void;
+  // Sprint 5 Task 8 (R3): the longest a single picture may stay on screen. When set, the plan is checked
+  // against the narration timing before any picture is paid for.
+  maxShotSeconds?: number;
 };
 
 export async function generateLongVideo(params: LongVideoParams): Promise<VideoGenerationResult> {
@@ -125,10 +129,38 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
   const srtPath = path.join(outputDir, `${params.attemptNumber}.srt`);
   await fs.writeFile(srtPath, srt, 'utf-8');
 
+  // 3b. The scene timeline is known now (plan + narration timing), before any picture is paid for.
+  //     A scene over the shot-length limit is fixed here: first by moving scene starts (free), and only
+  //     if a chapter has too few scenes by adding scenes, which are the only new pictures needed.
+  const totalSec = mixed.durationSeconds;
+  const timelineFor = (p: ProductionPlan) => buildSceneTimeline({ scenes: p.longScenes!, chapterTimings: narration.chapterTimings, words: narration.words,
+    chapters: params.chapters, meanings: p.sceneMeanings?.scenes, totalSec });
+  let activePlan: ProductionPlan = plan;
+  let timeline = timelineFor(activePlan);
+  let shotPlan: { longestBefore: number; longestAfter: number; adjustedChapters: number[]; addedScenes: number } | undefined;
+  if (params.maxShotSeconds) {
+    const longestBefore = Math.max(...timeline.map((t) => t.endSec - t.startSec));
+    let balance = rebalanceShotLengths(timeline, params.maxShotSeconds);
+    let addedScenes = 0;
+    if (balance.splits.length > 0) {
+      activePlan = addScenesToChapters(activePlan, params.chapters, balance.splits);
+      validateScenePlan(activePlan, params.chapters);
+      addedScenes = activePlan.longScenes!.length - scenes.length;
+      timeline = timelineFor(activePlan);
+      balance = rebalanceShotLengths(timeline, params.maxShotSeconds);
+    }
+    timeline = balance.timeline;
+    shotPlan = { longestBefore: Number(longestBefore.toFixed(2)), longestAfter: Number(balance.longestShotSec.toFixed(2)), adjustedChapters: balance.adjustedChapters, addedScenes };
+    if (balance.adjustedChapters.length > 0 || addedScenes > 0) {
+      console.log(`[video_generation] run ${params.pipelineRunId} attempt ${params.attemptNumber}: shot-length check before pictures: longest ${shotPlan.longestBefore}s -> ${shotPlan.longestAfter}s (limit ${params.maxShotSeconds}s), ${balance.adjustedChapters.length} chapter(s) retimed, ${addedScenes} scene(s) added`);
+    }
+  }
+  const finalScenes = activePlan.longScenes!;
+
   // 4. Stills: landscape, cached on disk by prompt hash, each booked as it is generated.
   await guard();
   await params.weeklyGate?.();
-  const styled = buildStyledScenePrompts(scenes.map((s) => s.prompt), params.sceneStyle ?? {});
+  const styled = buildStyledScenePrompts(finalScenes.map((s) => s.prompt), params.sceneStyle ?? {});
   let stills: Awaited<ReturnType<typeof generateStills>>;
   try {
     stills = await generateStills({
@@ -154,16 +186,13 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
   }
 
   // Bind actual image bytes to each slot, recording any moderation substitution.
-  const assets = await bindSceneAssets({ sceneCount: scenes.length, imagePaths: stills.imagePaths, promptIndexes: stills.promptIndexes });
+  const assets = await bindSceneAssets({ sceneCount: finalScenes.length, imagePaths: stills.imagePaths, promptIndexes: stills.promptIndexes });
 
   // 5. The picture: one silent segment per chapter, resumable, then joined with the finished audio.
   await guard();
   await params.weeklyGate?.();
-  const totalSec = mixed.durationSeconds;
-  const timeline = buildSceneTimeline({ scenes, chapterTimings: narration.chapterTimings, words: narration.words,
-    chapters: params.chapters, meanings: plan.sceneMeanings?.scenes, totalSec });
   const frames = allocateFrames(timeline.map((t) => t.endSec), profile.fps);
-  const sceneMapping = createSceneMapping({ plan, timeline, frames, assets, styledPrompts: styled, fps: profile.fps });
+  const sceneMapping = createSceneMapping({ plan: activePlan, timeline, frames, assets, styledPrompts: styled, fps: profile.fps });
   const sceneMappingPath = path.join(outputDir, `${params.attemptNumber}.scene-mapping.json`);
   await fs.writeFile(sceneMappingPath, JSON.stringify(sceneMapping, null, 2), 'utf-8');
   for (const scene of sceneMapping.scenes) if (scene.warning) console.warn(`[video_generation] ${scene.warning}`);
@@ -196,7 +225,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       videoPath,
       durationSeconds,
       aspectRatio: '16:9',
-      plan,
+      plan: activePlan,
       videoKind: 'long',
       width: profile.width,
       height: profile.height,
@@ -221,6 +250,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
         captionsEnabled: false,
         captionStyle: plan.captionStyle,
         visualSource: 'ai-stills',
+        ...(shotPlan && { shotPlan }),
         aiVisualsProvider: stills.provider,
         aiVisualsModel: stills.model,
         aiVisualsStillCount: stills.imagePaths.length,

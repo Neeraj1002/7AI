@@ -20,7 +20,7 @@ import {
   qualityProfileFor,
   type QualityMetrics,
 } from "../video-generation/quality-spec";
-import { hardFailureReason, measureQualityMetrics } from "./quality-metrics";
+import { classifyHardFailure, hardFailureReason, measureQualityMetrics, type HardFailureCode } from "./quality-metrics";
 import { VisualDefectSchema, type VisualDefect } from '../../run-pipeline/visual-repair';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
@@ -296,6 +296,9 @@ export type VideoIntelligenceOutcome = {
   // deterministic fail); undefined only when the failure came before it.
   qualityMetrics?: QualityMetrics;
   visualDefects?: VisualDefect[];
+  // Sprint 5 Task 8 (R3/R5): why a deterministic check failed, as a stable code. Absent when the
+  // verdict came from the multimodal pass.
+  reasonCode?: HardFailureCode;
 };
 
 export async function reviewVideo(params: {
@@ -336,6 +339,7 @@ export async function reviewVideo(params: {
     return {
       verdict: "fail",
       rationale: deterministic.reason,
+      reasonCode: classifyHardFailure(deterministic.reason),
       multimodalRan: false,
       qualityMetrics: deterministic.metrics,
     };

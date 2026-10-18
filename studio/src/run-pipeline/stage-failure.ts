@@ -118,3 +118,18 @@ export function failureUsageEvents(error: unknown): FailureUsageFields[] {
   }
   return [failureUsageFields(error)];
 }
+
+// Sprint 5 Task 8 (R8.5): a call that failed may legitimately cost $0 (a provider limit, a rejected key).
+// Its usage row says so, so the ledger and the Admin list read it as a failed call and not as a call
+// whose cost went missing.
+export function failedCallMetadata(error: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const context = getStageErrorContext(error);
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    callFailed: true,
+    failureKind: recoverableFailureKind(error) ?? 'error',
+    ...(typeof context?.statusCode === 'number' && { statusCode: context.statusCode }),
+    failure: message.slice(0, 300),
+    ...extra,
+  };
+}

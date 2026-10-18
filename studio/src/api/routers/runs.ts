@@ -46,7 +46,8 @@ import { resolveChannelConfig } from '../../channel-profile';
 import { findActiveProfileForChannel } from '../../models/repositories/channel-profile-version.repository';
 import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
-import { sumUsageCostForRun } from '../../models/repositories/usage-event.repository';
+import { sumUsageCostForRun, listUsageCostByStage } from '../../models/repositories/usage-event.repository';
+import { buildCostBreakdown, buildVideoAttempts, summarizeStages } from '../../run-pipeline/attempt-outcome';
 import type { ChannelProfileData } from '../../channel-profile';
 import { readStillsProgress } from '../../run-pipeline/stills-progress';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
@@ -299,12 +300,17 @@ async function getRunDetail(id: string, ctx: Context) {
       message: `You are not allowed to view run ${id}`,
     });
   }
-  const [channel, stages, reviewLogs, spentUsd] = await Promise.all([
+  const [channel, stages, reviewLogs, spentUsd, costByStage] = await Promise.all([
     findChannelById(run.channelId),
     listStagesForRun(id),
     listReviewLogsForRun(id),
     sumUsageCostForRun(id),
+    listUsageCostByStage(id),
   ]);
+  // Sprint 5 Task 8 (R5, R8.7): what each stage row and each video attempt really ended as, and what each
+  // cost, from the rows and ledger that already exist.
+  const stageSummaries = summarizeStages(stages, costByStage);
+  const videoAttempts = buildVideoAttempts(stageSummaries);
   // Sprint 3 Task 11 (R2/B13) — computed at read time, not stored (no schema
   // change): both derive purely from data `getRunDetail` already fetched.
   // Sprint 3 Task 12 (R6, optional) — plain existence checks, not a
@@ -351,6 +357,20 @@ async function getRunDetail(id: string, ctx: Context) {
     // and the run's spend limit when it has one.
     spentUsd: Math.round(spentUsd * 10000) / 10000,
     ...(run.creationOptions?.maxCostUsd !== undefined && { maxCostUsd: run.creationOptions.maxCostUsd }),
+    // Sprint 5 Task 8: one outcome and one cost per stage row (stageId matches stages[].id), and per video
+    // attempt with its stages inside. cost.spentUsd = attemptsUsd + otherStagesUsd + unattributedUsd.
+    stageSummaries,
+    videoAttempts,
+    cost: buildCostBreakdown({
+      summaries: stageSummaries,
+      attempts: videoAttempts,
+      costByStage,
+      estimateUsd: run.creationOptions?.estimateUsd,
+      limitUsd: run.creationOptions?.maxCostUsd,
+      retryAllowanceUsd: run.creationOptions?.retryAllowanceUsd,
+    }),
+    // Set while the run is parked by a pre-spend check (preflight); null otherwise.
+    preflightBlock: run.creationOptions?.preflightBlock ?? null,
     // Sprint 4 Task 12 (R1): the settings the run used and where each came from; absent on older runs.
     ...(run.creationOptions?.resolvedOptions && { resolvedOptions: run.creationOptions.resolvedOptions }),
     // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one

@@ -35,7 +35,7 @@ import { resolveMediaPurpose } from '../media';
 import { preflightGate } from './preflight-gate';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
-import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
+import { failedCallMetadata, failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { evidenceRef, factualBaseline, type EvidenceRef } from '../content-evidence/packet';
 import { generationEvidenceSnapshot, reviewEvidenceSnapshot } from '../content-evidence/stage-snapshot';
@@ -59,10 +59,11 @@ import { createStillsProgressReporter } from './stills-progress';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
+import { TIMING_FAILURE_CODES } from '../agents/video-intelligence/quality-metrics';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
-import { type QualityMetrics } from '../agents/video-generation/quality-spec';
+import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
 import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
 import { LONG_FORM_DEFAULT_CATEGORY_ID, languageDisplayName } from '../long-form/youtube-meta';
 import { AUDIO_BED_MANIFEST } from '../audio-bed';
@@ -1026,7 +1027,24 @@ export async function runVideoGenerationStage(
       }
     }
   }
+  // Sprint 5 Task 8 (R3): a shot-length (timing) failure from Video Review needs no new plan and no new
+  // pictures. The plan that produced the video is kept and only the scene timing is redone, so every
+  // picture comes from the run's cache. Only for the review of the video this attempt follows.
+  let timingRepair: { baselineAttempt: number; reasonCode: string; plan: ProductionPlan } | undefined;
+  if (isLong && previousAttempt && !repairPrepared) {
+    const previousReview = await findLatestAttempt(runId, 'video_review');
+    const reviewOut = previousReview?.status === 'completed' ? previousReview.output as { verdict?: string; reasonCode?: string } | null : null;
+    if (reviewOut?.verdict === 'fail' && reviewOut.reasonCode && (TIMING_FAILURE_CODES as readonly string[]).includes(reviewOut.reasonCode)) {
+      const baseline = previousAttempt.status === 'completed' ? previousAttempt : await findLatestCompletedAttempt(runId, 'video_generation');
+      const baselineOut = baseline?.output as VideoGenerationOutput | null | undefined;
+      if (baseline && baselineOut?.plan?.longScenes?.length &&
+          (previousReview?.input as { videoPath?: string } | null)?.videoPath === baselineOut.videoPath) {
+        timingRepair = { baselineAttempt: baseline.attemptNumber, reasonCode: reviewOut.reasonCode, plan: baselineOut.plan as ProductionPlan };
+      }
+    }
+  }
   const effectiveStageInput = { ...stageInput,
+    ...(timingRepair && { timingRepair: { baselineAttempt: timingRepair.baselineAttempt, reasonCode: timingRepair.reasonCode } }),
     ...(repairPrepared && { visualRepairIntent: repairPrepared.receipt }),
     ...(repairUnavailable && { visualRepairUnavailable: repairUnavailable }) };
 
@@ -1080,6 +1098,7 @@ export async function runVideoGenerationStage(
   let planningCheckpoint: unknown = carriedCheckpoint;
   const attemptPlanOnce = async (): Promise<ProductionPlan> => {
     if (repairPrepared) return repairBaselineOutput!.plan as ProductionPlan;
+    if (timingRepair) return timingRepair.plan;
     if (testOverrides?.forcedPlan) {
       return testOverrides.forcedPlan;
     }
@@ -1257,6 +1276,7 @@ export async function runVideoGenerationStage(
             sceneStyle,
             spend,
             guard: runLimitGuard,
+            maxShotSeconds: qualityProfileFor('long', config.visualSecondsPerStill).maxShotSeconds,
             weeklyGate: async () => {
               const refusal = await checkBudget(run.tenantId, channel.id, channel.platform);
               if (!refusal.ok) throw new NonTransientStageError(`Video Generation stopped: ${describeBudgetRefusal(refusal)}`);
@@ -1317,10 +1337,14 @@ export async function runVideoGenerationStage(
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-generation',
+        // Sprint 5 Task 8 (R8.3): a failure before any billable call still belongs to the speech and
+        // transcription provider this stage uses, never to 'unknown'. Long-form books each paid call as it
+        // happens, so this summary row legitimately carries no cost; the metadata says why.
         ...(realUsage ?? {
-          provider: (context?.provider as string | undefined) ?? 'unknown',
-          model: (context?.model as string | undefined) ?? 'unknown',
+          provider: (context?.provider as string | undefined) ?? 'openai',
+          model: (context?.model as string | undefined) ?? `${resolveMediaPurpose('tts', resolvedVoice).model}+${resolveMediaPurpose('transcription').model}`,
           costUsd: '0.000000',
+          metadata: failedCallMetadata(error, { stubFlags: spend.stubFlags, costsBookedSeparately: spend.bookedSeparately === true }),
         }),
       });
       throw error;
@@ -1328,7 +1352,7 @@ export async function runVideoGenerationStage(
   };
 
   try {
-    const plan = repairPrepared ? repairBaselineOutput!.plan as ProductionPlan : checkpointedPlan
+    const plan = repairPrepared ? repairBaselineOutput!.plan as ProductionPlan : timingRepair ? timingRepair.plan : checkpointedPlan
       ? checkpointedPlan
       : await withRetryAndCircuitBreaker(attemptPlanOnce);
     if (isLong) {
@@ -1339,7 +1363,7 @@ export async function runVideoGenerationStage(
       ? RepairReceiptSchema.parse(JSON.parse(await fs.readFile(repairPrepared.receiptPath, 'utf8'))) : undefined;
 
     const completedRun = await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, { ...output, plan, ...(finalRepairReceipt && { visualRepairReceipt: finalRepairReceipt }) }, tx);
+      await completeStage(stage.id, { ...output, plan: output.plan ?? plan, ...(finalRepairReceipt && { visualRepairReceipt: finalRepairReceipt }) }, tx);
       return await updatePipelineRun(runId, { currentStage: 'video_review' }, tx);
     });
 
@@ -1625,6 +1649,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         {
           verdict: outcome.verdict,
           rationale: outcome.rationale,
+          ...(outcome.reasonCode && { reasonCode: outcome.reasonCode }),
           ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
           ...(outcome.visualDefects?.length && { visualDefects: outcome.visualDefects }),
           ...(longFormArtifacts && longFormArtifacts),
@@ -1686,6 +1711,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         stageId: stage.id,
         agent: 'video-intelligence-own-draft',
         ...spent,
+        metadata: failedCallMetadata(error),
       });
     }
     return await failStageAndEscalate(stage.id, runId, error);
