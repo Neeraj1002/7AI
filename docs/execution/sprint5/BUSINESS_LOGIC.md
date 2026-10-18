@@ -45,3 +45,22 @@ Narration, transcript, captions, unaffected image identities and unaffected chap
 The Task 5 implementation accepts at most one reviewer defect with a scene ID and timestamp that match a sampled frame in Task 3's scene map. It requires a completed long AI-stills baseline, Task 4's matching factual fingerprint, unchanged resolved voice/render/frame plan, intact approved local assets and a fresh review of that baseline. Eligible repair persists an intent in the next video-stage input and an atomic local receipt before replacement; a checkpointed replacement is validated and reused after restart. Task 3's image-byte chapter signature rebuilds only the selected chapter, then the final and preview are regenerated. If eligibility fails, the existing bounded full-generation path runs with an explicit unavailability reason in stage input. A repaired output must pass its own video review and matching Gate 2 approval before publishing; old approval paths are refused. The local synthetic trial proves mechanics, not production creative benefit or full release acceptance.
 
 The first experiment changes one recurring-subject scene for visual continuity. Baseline and variant keep narration, script, music, timing, export profile and other visuals fixed. A paired rendered comparison plus asset/call counts determines whether improvement is supported. Technical correctness is a gate; human editorial assessment is separate. An inconclusive or worse result is a valid experiment outcome, not permission to add more modalities/models/settings.
+
+## Task 6: Script Review SR enforcement
+
+Owner workflow for this task: one combined Sprint 4-5 acceptance pass after Task 5. Sprint 4 closure and a real upload are not prerequisites for review readiness. Integrate current main and rerun affected checks; the owner merges/deploys and performs the combined Gate 1 acceptance readback.
+
+The existing evidence packet is the only current factual input contract. Long-form remains brief-only. Citation-only URLs are unfetched and provide no factual support. Under other policies SR-9 still requires supplied brief/source text; no retrieval is introduced. Historical replay fixtures with missing original briefs are explicitly labelled reconstructions.
+
+| Confirmed finding | Maximum score | Existing field shown at Gate 1 |
+| --- | --- | --- |
+| SR-1 factual wording | 6 | factualConcerns |
+| SR-9 unsupported claim, brief-only (D1) | 6 | factualConcerns |
+| SR-2 brief or channel constraint | 8 | styleGuideViolations |
+| SR-7 conversion convention, SR-8 lost hedge, other-policy SR-9 | 8 | factualConcerns |
+| SR-3 filler, SR-4 spoken clarity, SR-5 TTS (D2) | No cap | notes (advisory) |
+| SR-6 calibration | Lowest applicable cap, never raises a score | notes explains each applied cap |
+
+Deterministic number/name/absolute/hedge checks are candidates for the same reviewer call, never factual verdicts. Exact quoted first/last passages and explicitly required exact hedge strings are SR-2 violations by literal comparison. Equivalent number spelling is not an exact constraint unless explicitly required. No stored output shape or migration changes.
+
+Threshold 7, three automatic retries, budgets and Gate 1 toggle semantics remain unchanged. Only the auto-reject log now includes the factual/brief concern strings verbatim alongside notes, so the existing writer fixNotes receives actionable concerns. The primary review log remains unduplicated for Gate 1; exhausted retries still reach Gate 1 with the stored arrays, even if Gate 1 is disabled. A score is a review against supplied evidence, not independent external factual verification.

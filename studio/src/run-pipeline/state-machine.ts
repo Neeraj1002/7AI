@@ -1,3 +1,4 @@
+import { scriptRetryFeedback } from '../agents/script-review/rules';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
@@ -648,7 +649,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
             stageId: stage.id,
             agent: 'script-review',
             verdict: 'auto-reject',
-            rationale: output.notes,
+            rationale: scriptRetryFeedback(output),
           },
           tx,
         );

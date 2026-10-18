@@ -1,0 +1,94 @@
+# Sprint 5 Task 6: Script Review Rules SR-1 to SR-9 (Backend)
+
+**Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting**, then [WORKFLOW](../WORKFLOW.md). Use `task6` under the shared Sprint 5 root (`D:\Study Material\7AI-SPRINT5`), your own worktree off fresh `main`, branch `SPRINT5_TASK6_BE`, one PR. Record the branch in your row of `sprint5/STATUS.md` when you create it, and write only your own row and your own report.
+
+**Keep replies and tool output short: no step-by-step narration, read only the files you need, one-line status messages.**
+
+**Written**: 2026-10-18 by the architect chat, at the founder's request. **Status**: not started. **Priority**: P0 for the first public long video.
+
+**Objective**: make Script Review enforce the nine rules in the [miss log](../../../review_tuning/SCRIPT_REVIEW_MISSES.md) (SR-1 to SR-9), so a score of 9 or 10 really means "safe to publish as is", and a script that invents facts, drops a hedge or breaks a brief constraint is flagged and held back. Every long-form video is published publicly on a real channel; today a script with two invented facts scored 8 out of 10.
+**Duration**: 2 to 3 days.
+**Depends On**: Task 4 (evidence packet and the minimal reviewer adapter, #94) and Sprint 4 Task 10 (long-form review) merged on `main`. Check `sprint5/STATUS.md`.
+**Owning Component**: `studio/src/agents/script-review/` (prompt, output handling, score calibration), a new pure-function checks module beside it, and the eval fixtures in `studio/src/content-evidence/fixtures/`. **Not** in scope: the evidence packet itself (Task 4), Gate 1 screens (app), the writer.
+**Success Criteria**: (1) replaying the six miss-log cases, each recorded miss is flagged under the right rule and the score never reaches 9 when an SR-1, 2, 7, 8 or 9 issue is present, enforced in code; (2) a script with a dropped hedge, an invented number and an invented detail is flagged in the Appendix A brief test; (3) a clean control script is not blocked; (4) Shorts and long-form both covered; output shape, threshold 7, the three automatic retries and Gate 1 behaviour unchanged; (5) full tests, `tsc`, `eslint` pass.
+
+## Decisions (defaults apply unless the founder says otherwise)
+
+- **D1, strictness of SR-9 for long-form (brief-only):** an invented claim caps the score at **6** (same as SR-1), which sends it back to the writer automatically with the concern. Alternative: cap at 8, so it reaches Gate 1 with the concern shown. Default: 6, because the founder's rule for long videos is "use only the facts in the brief".
+- **D2, SR-3, SR-4, SR-5 (filler, spoken clarity, TTS risk):** advisory. They are listed as concerns but never change the score.
+
+## R0. Read the code first
+
+Table in the report: each item below **confirmed** or **wrong (what is really there)**. The architect could not read the code from the chat. Open: `script-review/index.ts` and its tests, the long-form rubric (Task 10 R1), the Task 4 adapter and `content-evidence/packet.ts`, `fixtures/sr-pre-gate.json`, and how the writer receives reviewer feedback on a retry.
+
+1. Output shape today: score, `factualConcerns`, violations and sources, as shown at Gate 1. Where would each rule's finding go with no shape change and no app change? Plan: SR-1, 7, 8, 9 findings go in `factualConcerns`; SR-2 findings go in the brief-violation list; SR-3, 4, 5 go in the existing general concerns list with an `SR-n:` prefix. If the existing shape cannot carry them, add optional fields only and tell the founder what the app would need.
+2. Threshold 7, up to three automatic retries, escalation to Gate 1 after that (Sprint 3/4): unchanged. Does the writer's retry prompt include the reviewer's concerns? If not, add that (R4).
+3. The evidence packet: for long-form the policy is `brief-only`; for Shorts it is the resolved policy. Source URLs are unfetched and prove nothing.
+
+## R1. Rule text in the reviewer
+
+Put SR-1 to SR-9 into the reviewer prompt for **both** Shorts and long-form (long-form keeps its Task 10 chapter criteria and its +/-20% length rule). Use the miss log's wording as the source, adjusting length-specific text (SR-3's "~2.5 s per sentence" applies to Shorts only; for long-form use "adds no new fact, tension or payoff"). The evidence block comes from Task 4's packet only; do not add a second input path. Under `brief-only`, SR-9 means: every fact, number, name, date and vivid detail must trace to a brief line. Under any other policy, a claim must trace to the brief or to supplied source **text**; a URL alone supports nothing.
+
+## R2. Cheap checks before the model call (hints, not verdicts)
+
+New pure module (for example `script-review/brief-checks.ts`), no model, no network. From the brief and the script it produces **candidate flags**:
+- numbers, years and spelled-out numbers in the script that are absent from the brief (after normalising "50", "fifty", "more than 50");
+- capitalised names and terms in the script absent from the brief;
+- absolutes in the script ("none", "all", "always", "never", "every", "nobody", "entire", "completely") not present in the brief (SR-8);
+- hedge words present in the brief ("about", "around", "largely", "mostly", "estimates", "at most", "only a handful", "more than", "over", "did not fall as...") whose sentence in the script no longer carries them (best effort);
+- exact-wording constraints in the brief ("first sentence must be exactly: ...", "last sentence must be exactly: ...", "use these exact hedge words: ..."): checked by string comparison; a mismatch is an SR-2 violation without asking the model.
+Candidates go into the reviewer prompt as hints to confirm or dismiss. Only the model's final list, plus the exact-wording string mismatches, counts. Derived arithmetic (for example "nearly three days" computed from brief numbers) must not be flagged by hints alone. Log hint precision in the report (how many hints the model confirmed).
+
+## R3. Score calibration in code
+
+After the model answers, apply the caps in code, so a model that ignores the rule cannot score high:
+- any SR-1 concern (and any SR-9 concern under D1): score at most **6**;
+- any SR-2, SR-7, SR-8 or SR-9 issue: score at most **8** (SR-6);
+- SR-3, 4, 5: no effect on score (D2).
+The reason is added to the reviewer's concerns text ("capped at 6: SR-9, claim not in brief: 'copper nails torn loose from ships'"). A capped score below 7 triggers the existing automatic retry; the retry count and cost limits are unchanged.
+
+## R4. Retry feedback
+
+On an automatic retry, the writer receives the reviewer's SR concerns verbatim (what to remove or fix). R0 says whether this already happens; if it does, only verify it with a test. A script that still fails after the last automatic retry reaches Gate 1 with the concerns visible (existing behaviour).
+
+## R5. Evaluation fixtures and a small real-model check
+
+1. Extend `fixtures/sr-pre-gate.json` with the six miss-log cases, the Task 9 test script (two invented facts, scored 8), a clean control script, and the Appendix A brief with three scripts: clean, one with a dropped hedge ("None of it worked"), one with invented details.
+2. Unit tests (mocked model): caps applied, exact-wording mismatch caught, hints never become verdicts on their own, output shape unchanged for old callers.
+3. One budgeted real-model run on the dev database or fixtures only: each fixture three times with the real reviewer. Report per rule: detected in how many of 3, false flags on the control, and the total cost (spend ceiling **$3**; stop and report if it would exceed that). No production data, no publish, no paid image or video work.
+
+## Not in this task
+
+Web search or any retrieval (open founder decision), a new model or agent, new settings, editing the pass threshold or retry count, Video Review rules, the evidence packet, any app screen, editing past production scripts. Do not rebuild Task 4's adapter.
+
+## Acceptance criteria
+
+All five Success Criteria above, plus: each rule SR-1 to SR-9 has at least one test that fails without it; the report lists every rule with where its finding appears at Gate 1.
+
+## Schema Impact
+
+None expected (prompt, code and fixtures only). If R0 shows a stored shape must change, stop and report before adding a migration.
+
+## Business Logic / State Transition
+
+No new states. Script Review still returns a score and concerns; Gate 1, auto-approval (Gate 1 off passes scripts scoring 7 or more) and the retry loop behave as before. The only change is that the score cannot exceed the caps in R3. Update `BUSINESS_LOGIC.md` with the cap table.
+
+## Testing
+
+Studio `npm run build`, `npm run lint`, `npm run typecheck`, and `npx vitest run` for `agents/script-review`, `content-evidence` and the fixtures. Report anything skipped as skipped, not passed.
+
+## Report
+
+`docs/execution/sprint5/reports/task6.md`: the R0 table, one section per requirement, the per-rule detection table from R5, hint precision, the real-model cost, deviations, and the one-line status to the founder. After it merges the founder reads Gate 1 concerns on a real long video as part of the combined acceptance test.
+
+## Definition of Done
+
+Merged PR; tests pass; the R5 table shows each rule detected on its miss-log case; the control is not blocked; no change to threshold, retries, Gate 1 or the app. Code-complete, merged and deployed are reported as separate statements.
+
+## Appendix A: long-form brief for the evaluation (founder's own, 2026-10-13)
+
+Topic: four jobs that machines took over before AI, and what happened to the workers, Britain and America, 1900s to today. Constraints: about 1,240 words; four chapters in order (knocker-upper, elevator operator, human computers, bank teller), each told as a story with "but" and "so", each opening with the question it answers; **use only the facts in the chapters, no other facts, numbers, names, dates or details; no predictions about AI**; first sentence exactly "Today, many people worry that AI will take their job. People have worried about machines before, and history kept the receipts."; last sentence exactly "The cash machine didn't end the bank teller. The phone in your pocket did."; exact hedge words "around 1900", "about 1.5 million", "more than 50 years", "only a handful", "over 400,000", "did not fall as ATMs rolled out"; no dollar conversions; Dorothy Vaughan only through scenes and silhouettes, never as a portrait. Chapter facts (abridged): knocker-uppers woke workers with long sticks; Mary Smith in London's East End used a pea shooter and dried peas, 1900s to 1930s, sixpence a week, retired 1934; cheap alarm clocks ended the job. Automatic elevators invented around 1900 but not trusted; 1945 New York strike, about 1.5 million office workers stranded; owners pushed automatic elevators; calm recorded voice, red stop button, emergency phone; more than 50 years to feel normal; today only a handful of operators. NACA human computers; Dorothy Vaughan joined 1943, acting head of West Area Computers 1949, first Black supervisor at NACA; electronic computers arrived 1961; she taught herself FORTRAN and taught her co-workers; retired 1971. ATMs from the 1970s, over 400,000 in the United States; teller jobs did not fall as ATMs rolled out; branch tellers fell from 20 to 13 between 1988 and 2004, city branches rose 43 percent; teller job became helping customers; numbers fell later in the smartphone era.
+
+## Links
+
+[Miss log](../../../review_tuning/SCRIPT_REVIEW_MISSES.md) · [Task 4](task4.md) and its [report](../reports/task4.md) · [Sprint 4 Task 10](../../sprint4/tasks/task10.md) · [WORKFLOW](../WORKFLOW.md) · [Acceptance plan, Sprint 4 and 5](../SPRINT4_5_ACCEPTANCE_PLAN.md) (once on `main`)
