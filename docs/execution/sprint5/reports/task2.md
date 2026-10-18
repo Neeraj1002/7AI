@@ -1,13 +1,13 @@
 # Sprint 5 Task 2: Durable Publishing Receipts and Safe Upload Recovery
 
 **Date:** 2026-10-15
-**Status:** Current-main integration and local checks complete; draft pending the server backup/key/worker-handoff preparation results. Sprint 4 closure and a real YouTube upload are not prerequisites.
+**Status:** Code and rollout preparation ready for review under the documented owner-controlled cutover. Backup/restore, existing-key and worker/deploy evidence verified from the owner's terminal report on 2026-10-18. Sprint 4 closure and a real YouTube upload are not prerequisites. Admission gating, final drain/backup, stopping idle old workers, merge/deployment and readback are future operator actions, not actions performed during preparation.
 **Branch/worktree:** SPRINT5_TASK2_BE at D:\Study Material\7AI-SPRINT5\task2
 **2026-10-18 preparation branch/worktree:** `review/pr92-merge-ready` at `D:\Study Material\7AI\.worktrees\pr92-merge-ready`; created by this session from fetched #92 head `b08925ecdbd87de730e0372315060107bc61150f`. The original task checkout was not edited.
 **Base:** origin/main 5b04a7a22b31a8c6562100c72bc157beccd91e62 (#90), plus cherry-picked planning-only commit 578ba530100638548a4a49af57efcb14e7962227 as 52f3909. Task 1 application changes were not copied.
 **Implementation commit:** 0649f8957b20026ab39478075fbdc4313efe24fd
-**Draft PR:** https://github.com/Neeraj1002/7AI/pull/92
-**Merge/deployment SHA:** none; the PR remains open and draft.
+**PR:** https://github.com/Neeraj1002/7AI/pull/92
+**Merge/deployment SHA:** none; prepared for review, not merged or deployed.
 
 ## What changed
 
@@ -50,7 +50,7 @@ Merged current `origin/main` at `3b0ee91989f3d04c315dbf61566b33e736f67e4f` (merg
 
 Final affected Vitest rerun: **23 files passed, 168 tests passed, zero skipped**, including nine real-database publishing tests and all #91 diagnostic/Admin tests. Fake HTTP/provider tests cover persisted session before bytes, partial offset, lost final response, same-session restart, racing callers and another process. Initial failures were test-harness dependencies: mocked OAuth tests lacked local app-identity values, and fake-worker teardown could await an already signalled exit. OAuth identity is now synthetic inside the test; workers run directly via Node's tsx import and cleanup checks both exit and signal state before awaiting exit. The complete rerun passed without provider credentials or live calls.
 
-Build, ESLint (zero warnings), typecheck and whitespace checks passed on the integrated tree. The operator helper additionally passes Node syntax checking; on this Windows workstation it refuses execution before any server operation. Its privileged Linux backup path cannot be claimed verified until the owner returns the actual terminal results.
+Build, ESLint (zero warnings), typecheck and whitespace checks passed on the integrated tree. The operator helper additionally passes Node syntax checking; on this Windows workstation it refuses execution before any server operation. The subsequent PATH-independent helper update passed targeted lint/syntax checks. Its privileged Linux backup path was then exercised by the owner, as recorded below; no direct SSH verification is claimed.
 
 Migration checks:
 
@@ -64,15 +64,31 @@ Direct noninteractive SSH as `deploy@187.127.185.46` returned `Permission denied
 
 Prepared [the concrete deployment/recovery runbook](../runbooks/task2-rollout.md) and `studio/scripts/prepare-publishing-rollout.mjs`. The helper creates a private pg_dump, checksum and complete isolated restore check; validates the existing effective encryption key and stored credentials without outputting them; reports running publishing work and actual PM2/deploy/Nginx/scheduler inventory. It never deploys, restarts, changes service/config/schema, calls YouTube or interrupts an upload. Source-only SELECTs and a new isolated restore database are distinct from application writes. The supplied block only fetches the reviewed source and runs this helper from a private temporary copy, leaving the deployed checkout unchanged.
 
-**Outstanding blocker:** actual server backup/restore, existing-key and worker/deploy inventory results from the owner-run terminal block. The worker handoff is explicitly gate new requests → let old work finish → final verified backup → stop only proven-idle old workers → owner merge/deploy with no overlap → readback → reopen admission. A plain PM2 restart or lease expiry does not establish a drain. No maintenance gate, stop, deploy or restart was performed during preparation.
+**Rollout-preparation evidence received and verified:** the owner ran the checksum-pinned helper from `1ed6804163c2e782d99ac7f4c3362265d50d2383` in Hostinger's root terminal. The returned JSON has `errors: []`, `preparationChecksPassed: true`, and exit **0**. Observations span **2026-10-18 10:42:12.403–10:42:13.955 IST** (`05:12:12.403–05:12:13.955Z`). This is owner-executed server evidence, reviewed against the helper source; it is not a newly acquired SSH session.
 
-The owner's first terminal invocation returned to the prompt without JSON or the exit marker. That is not evidence of successful checks. The initial wrapper had an unguarded `command -v node` under `set -e`, which can exit silently when a noninteractive deploy login does not initialize nvm/PATH; the exact failed step was not recorded. The replacement wrapper reports each stage and always emits an exit marker, discovering the existing Node binary from the live PM2 daemon rather than relying on a login profile. The helper likewise invokes the existing PM2 CLI with explicit Node/PM2 paths, without starting another daemon. Server checks remain unverified until actual output is returned.
+| Preparation check | Actual returned evidence |
+|---|---|
+| Backup | `/var/lib/7ai/backups/pr92-20261018t051212745z-7795/sevenai_preview.dump`, **924,687 bytes**, pg_dump/PostgreSQL **18.6**; archive TOC verified; directory/file permissions **700/600** |
+| Archive SHA-256 | `767fa28c3ba78961c8a0fc61c5d2b2853b222cd73d243fb043819903a7f0e5b2` |
+| Full isolated restore | `sevenai_pr92_verify_20261018t051212745z_7795_test`; **62 runs, 563 stages, 3 credentials, 22 migrations**; archive, checksum and restored DB retained privately |
+| Existing encryption key | Present; decodes to 32 bytes; retained file matches effective key; in-memory round trip passes; **all 3 existing credentials decrypt**. No key value was returned or changed |
+| Current production schema | 22 completed/unreverted migrations; receipt column absent, as expected before #92. No production migration applied |
+| Publishing/other work | Both before/after snapshots: **0 running publishing stages, 0 running runs**, no truncation. **2 paused Gate 2 runs** remain; an approval could start new work until admission is gated |
+| Legacy evidence | **24 publishing runs**, each with one consistent known ID and no unresolved attempt flagged; no rows/IDs changed |
+| Worker inventory | One online `sevenai` **fork**, PID **6957**, correct studio/dist entry; no other app PIDs. Root/deploy crontabs have no app entries; `pm2-deploy.service` observed. TPM2 setup units matched the broad name filter but are not app replicas |
+| Actual deploy script | SHA-256 `209722b224043fde6742f9f3e4abf44bde8845e8ae8028c175398b58a73fe5fc`; fast-forward pull → npm ci → client generation → migrate deploy → build → **PM2 restart**; no drain/stop step reported |
+| Nginx | Configuration valid; `/etc/nginx/sites-enabled/7ai` proxies to localhost:1995; **no maintenance 503 rule observed** |
 
-Task 1's publishing-summary Admin adapter remains pending until #92 lands and is nonblocking here. Full production acceptance is the combined Sprint 4–5 pass after Task 5; no real upload is needed to make #92 reviewable once rollout preparation is verified.
+The reviewed handoff is explicitly gate new requests → let old work finish → final verified backup → stop only proven-idle old workers → owner merge/deploy with no overlap → readback → reopen admission. **Do not merge straight into the unmodified automatic restart path without completing these pre-merge cutover steps.** Prepare the temporary gate in the actual vhost above; apply/validate/reload it only during the separately authorized deployment window. The existing plain PM2 restart and current idle snapshot do not provide an admission gate or prove future drain. No maintenance gate, stop, merge, deploy or restart was performed during preparation.
+
+The owner's first terminal invocation returned to the prompt without JSON or the exit marker and was not counted as success. The initial wrapper had an unguarded `command -v node` under `set -e`, which can exit silently when a noninteractive deploy login does not initialize nvm/PATH; the exact failed step was not recorded. The replacement reports each stage and always emits an exit marker, discovering the existing Node binary from the live PM2 daemon rather than relying on a login profile. The successful run reported Node **v24.21.0**. The helper likewise invokes the existing PM2 CLI with explicit Node/PM2 paths without starting another daemon.
+
+Task 1's publishing-summary Admin adapter remains pending until #92 lands and is nonblocking here. Full production acceptance is the combined Sprint 4–5 pass after Task 5; no real upload is needed for this review-ready PR.
 
 ## Sign-off
 
 - Local implementation and focused checks: passed.
 - Current-main integration, local publishing/restart/concurrency checks and migration rehearsal: passed.
-- Server backup/key/worker-handoff preparation: pending Hostinger-terminal results; keep #92 draft.
+- Server backup/restore, existing-key compatibility and actual worker/deploy inventory: passed via owner-run terminal evidence; rollout/recovery procedure matched to the observed server.
+- Ready for review under the recorded operator-controlled cutover. A ready PR does not authorize bypassing the pre-merge admission gate, final drain/backup or idle-worker stop.
 - Production migration/deployment/readback: future separately authorized rollout, not performed here. Real YouTube upload and Sprint 4 closure do not gate readiness.
