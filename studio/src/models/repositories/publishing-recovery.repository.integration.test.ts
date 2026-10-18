@@ -101,9 +101,10 @@ describe.skipIf(!enabled)('publishing claim with real sandbox connections', () =
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('No fake server address');
     const port = String(address.port);
-    const tsx = path.resolve(__dirname, '../../../node_modules/tsx/dist/cli.mjs');
     const worker = path.resolve(__dirname, 'publishing-recovery.restart-worker.ts');
-    const child = spawn(process.execPath, [tsx, worker, runId, JSON.stringify(id), videoPath, port],
+    // Run the worker itself in this process, so killing it stops the actual
+    // owner on Windows as well as Unix (the tsx CLI adds another child process).
+    const child = spawn(process.execPath, ['--import', 'tsx', worker, runId, JSON.stringify(id), videoPath, port],
       { cwd: path.resolve(__dirname, '../../..'), env: { ...process.env, PUBLISHING_TEST_DB: '1' },
         stdio: 'ignore' });
     try {
@@ -114,7 +115,9 @@ describe.skipIf(!enabled)('publishing claim with real sandbox connections', () =
         persisted = await readPublishingReceipt(runId);
       }
       expect(persisted?.sessionCiphertext).toBeTruthy();
-      if (child.exitCode === null) { child.kill(); await once(child, 'exit'); }
+      if (child.exitCode === null && child.signalCode === null) {
+        const exited = once(child, 'exit'); child.kill(); await exited;
+      }
       expect(submissions).toBe(0);
       await prisma.pipelineRun.update({ where: { id: runId }, data: { publishingRecovery: {
         ...persisted!, leaseUntil: '2000-01-01T00:00:00.000Z',
@@ -144,7 +147,9 @@ describe.skipIf(!enabled)('publishing claim with real sandbox connections', () =
       expect([sessions, submissions]).toEqual([1, 1]);
       expect((await readPublishingReceipt(runId))?.youtubeVideoId).toBe('restart-video-id');
     } finally {
-      if (child.exitCode === null) { child.kill(); await once(child, 'exit'); }
+      if (child.exitCode === null && child.signalCode === null) {
+        const exited = once(child, 'exit'); child.kill(); await exited;
+      }
       server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve()));
       await rm(dir, { recursive: true, force: true });
@@ -155,8 +160,7 @@ describe.skipIf(!enabled)('publishing claim with real sandbox connections', () =
     const owner = await claimPublishing(runId, identity());
     if (owner.kind !== 'acquired') throw new Error('no owner');
     const worker = path.resolve(__dirname, 'publishing-recovery.claim-worker.ts');
-    const tsx = path.resolve(__dirname, '../../../node_modules/tsx/dist/cli.mjs');
-    const invoke = () => execFileSync(process.execPath, [tsx, worker, runId, JSON.stringify(identity())],
+    const invoke = () => execFileSync(process.execPath, ['--import', 'tsx', worker, runId, JSON.stringify(identity())],
       { cwd: path.resolve(__dirname, '../../..'), encoding: 'utf8',
         env: { ...process.env, PUBLISHING_TEST_DB: '1' } });
     expect(invoke()).toContain('CLAIM=busy');

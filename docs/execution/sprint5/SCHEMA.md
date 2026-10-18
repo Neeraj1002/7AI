@@ -6,7 +6,7 @@ Task 2 adds one nullable server-only receipt column on its draft branch. It has 
 
 Task 2 is the sole Sprint 5 migration owner. Tasks 1, 3, 4 and 5 use existing Json/artifact storage and propose no Prisma migration. #89 already implements JSON retry-remediation fields; Sprint 5 does not duplicate them or reset counters. Future work starts from fresh main containing that release.
 
-Latest baseline is #90 (`5b04a7a`) or a verified descendant. Its hash-order compatibility uses existing storage and adds no migration; do not replace it with another legacy-hash scheme. [WORKFLOW](WORKFLOW.md) requires per-task draft PRs and post-Sprint-4 closure conflict resolution. Task 2 reconciles any newer Sprint 4 migration ordering before ready-for-review; other agents cannot create competing schema deltas.
+Latest integrated baseline is merged #91 (`3b0ee91`), including #89/#90. Hash-order compatibility uses existing storage and adds no migration; do not replace it with another legacy-hash scheme. The revised [WORKFLOW](WORKFLOW.md) requires current-main integration, affected checks and concrete rollout preparation before #92 readiness; Sprint 4 closure and a real YouTube upload are not prerequisites. Task 2 reconciles migration ordering; other agents cannot create competing schema deltas.
 
 ## Task 2 additive field in the draft branch
 
