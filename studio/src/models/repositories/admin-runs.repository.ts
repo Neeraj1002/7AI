@@ -1,4 +1,5 @@
 import { prisma } from '../prisma-client';
+import { projectPublishingSummary } from '../../api/publishing-summary';
 
 // Admin Sprint 1 (R9) - the run inspector's STRUCTURE view (DA-6). The response
 // built from this file never carries a brief, intake data, a stage input/output
@@ -69,6 +70,7 @@ export async function getRunStructureForAdmin(runId: string) {
       updatedAt: true,
       creationOptions: true,
       profileVersionId: true,
+      publishingRecovery: true, // Server-only input to the fixed safe-summary projection below.
       channel: { select: { name: true } },
       tenant: { select: { name: true } },
     },
@@ -103,6 +105,7 @@ export async function getRunStructureForAdmin(runId: string) {
   }
 
   return {
+    publishingSummary: projectPublishingSummary(run.publishingRecovery),
     run: {
       id: run.id,
       tenantId: run.tenantId,
