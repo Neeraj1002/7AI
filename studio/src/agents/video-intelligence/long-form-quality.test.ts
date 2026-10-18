@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateQualityRows, hardFailureReason, collectSoftWarnings } from './quality-metrics';
 import { qualityProfileFor, SHORT_PROFILE, QUALITY_SPEC } from '../video-generation/quality-spec';
-import { buildSystemPrompt, chapterSampleTimestamps, MAX_REVIEW_FRAMES } from './index';
+import { buildSystemPrompt, chapterSampleTimestamps, locatedVisualDefects, MAX_REVIEW_FRAMES } from './index';
 import { buildUserMessage, LONG_FORM_SYSTEM_PROMPT, SYSTEM_PROMPT, ScriptReviewOutputSchema } from '../script-review';
 import type { QualityMetrics } from '../video-generation/quality-spec';
 
@@ -115,6 +115,15 @@ describe('long-form hard failures', () => {
 });
 
 describe('frame sampling for visual review', () => {
+  it('only exposes a defect when its scene ID and timestamp match a sampled mapped scene', () => {
+    const map = [{ sceneId: '0:0', startSec: 0, endSec: 2 }, { sceneId: '1:0', startSec: 2, endSec: 4 }];
+    const defect = { sceneId: '1:0', timestampSeconds: 3, kind: 'continuity' as const,
+      reason: 'outfit changed', requiredVisualConstraints: ['same coat'] };
+    expect(locatedVisualDefects([defect], [1, 3], map)).toEqual([defect]);
+    expect(locatedVisualDefects([{ ...defect, timestampSeconds: 1 }], [1, 3], map)).toEqual([]);
+    expect(locatedVisualDefects([{ ...defect, timestampSeconds: 2.5 }], [1, 3], map)).toEqual([]);
+    expect(locatedVisualDefects([{ ...defect, sceneId: undefined }], [1, 3], map)).toEqual([]);
+  });
   it('takes one frame inside every chapter', () => {
     const chapters = [
       { title: 'a', startSec: 0, endSec: 40 },

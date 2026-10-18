@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { stillCacheKey, stillCachePath } from './cache';
+import { STILL_QUALITY } from './sizes';
 
 // Sprint 2 Task 2 (E1) — mocked-client test, same rigor as media/client.test.ts's
 // TTS-voice test: asserts the exact object passed to the real OpenAI SDK
@@ -46,6 +51,26 @@ describe('generateStillsViaProvider (Sprint 2 Task 2, E1)', () => {
     });
     expect(result.imagePaths).toHaveLength(3);
     expect(Number(result.costUsd)).toBeCloseTo(0.013 * 3, 6);
+  });
+
+  it('rejects a corrupt repair cache hit and atomically replaces it before reuse', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'task5-image-cache-'));
+    try {
+      const file = stillCachePath(dir, stillCacheKey({ model: 'gpt-image-1.5',
+        size: '1536x1024', quality: STILL_QUALITY, prompt: 'repair scene' }));
+      await fs.writeFile(file, 'corrupt');
+      const validateCachedStill = vi.fn(async (p: string) => (await fs.readFile(p, 'utf8')) === 'fake png bytes');
+      const first = await generateStillsViaProvider({ scenePrompts: ['repair scene'], model: 'gpt-image-1.5',
+        size: '1536x1024', cacheDir: dir, validateCachedStill });
+      expect(first.cachedCount).toBe(0);
+      expect(imagesGenerateMock).toHaveBeenCalledTimes(1);
+      expect(await fs.readFile(file, 'utf8')).toBe('fake png bytes');
+      expect((await fs.readdir(dir)).some(name => name.endsWith('.partial'))).toBe(false);
+      const second = await generateStillsViaProvider({ scenePrompts: ['repair scene'], model: 'gpt-image-1.5',
+        size: '1536x1024', cacheDir: dir, validateCachedStill });
+      expect(second.cachedCount).toBe(1);
+      expect(imagesGenerateMock).toHaveBeenCalledTimes(1);
+    } finally { await fs.rm(dir, { recursive: true, force: true }); }
   });
 
   it('throws a NonTransientStageError if a response carries no usable image data', async () => {

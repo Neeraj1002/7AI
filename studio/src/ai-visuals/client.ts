@@ -121,7 +121,8 @@ export async function generateStillsViaProvider(
       const cachePath = params.cacheDir
         ? stillCachePath(params.cacheDir, stillCacheKey({ model: params.model, size, quality: STILL_QUALITY, prompt }))
         : undefined;
-      if (cachePath && (await cachedStillExists(cachePath))) {
+      if (cachePath && (await cachedStillExists(cachePath)) &&
+        (!params.validateCachedStill || await params.validateCachedStill(cachePath))) {
         imagePaths.push(cachePath);
         promptIndexes.push(index);
         cachedCount += 1;
@@ -150,7 +151,15 @@ export async function generateStillsViaProvider(
         throw new NonTransientStageError('OpenAI image generation returned no usable image data', undefined, context);
       }
       const imagePath = cachePath ?? path.join(AI_VISUALS_TMP_DIR, `${randomUUID()}.png`);
-      await fs.writeFile(imagePath, Buffer.from(image.b64_json, 'base64'));
+      // Write within the destination directory and publish with one rename:
+      // a killed process never leaves a half-written image that looks cached.
+      const partial = `${imagePath}.${randomUUID()}.partial`;
+      try {
+        await fs.writeFile(partial, Buffer.from(image.b64_json, 'base64'), { flag: 'wx' });
+        await fs.rename(partial, imagePath);
+      } finally {
+        await fs.unlink(partial).catch(() => undefined);
+      }
       imagePaths.push(imagePath);
       promptIndexes.push(index);
       const stillCostUsd = priceStill(pricing, response.usage);
