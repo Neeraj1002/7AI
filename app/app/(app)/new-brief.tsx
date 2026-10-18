@@ -13,6 +13,7 @@ import { ChannelAvatar } from '../../components/ChannelAvatar';
 import { ChannelPickerSheet } from '../../components/ChannelPickerSheet';
 import { PrimaryButton } from '../../components/Buttons';
 import { OptionSheet } from '../../components/OptionSheet';
+import { VoiceSheet } from '../../components/VoiceSheet';
 import { FormatSheet } from '../../components/FormatSheet';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { flags } from '../../lib/feature-flags';
@@ -574,11 +575,11 @@ export default function NewBriefScreen() {
           }
         }}
       />
-      <OptionSheet
+      <VoiceSheet
         visible={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         title="Voice"
-        options={[{ value: null, label: `Channel default (${channelVoiceLabel})` }, ...VOICES]}
+        defaultLabel={`Channel default (${channelVoiceLabel})`}
         selected={voice}
         onSelect={setVoice}
       />

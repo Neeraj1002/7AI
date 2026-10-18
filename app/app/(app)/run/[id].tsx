@@ -284,6 +284,10 @@ export default function RunDetailScreen() {
   const reviewNotes = scriptReviewStage?.output?.notes as string | undefined;
   const videoVerdict = videoReviewStage?.output?.verdict as string | undefined;
   const videoRationale = videoReviewStage?.output?.rationale as string | undefined;
+  // The reviewer's own words for the latest review that said fail (the failure card quotes it).
+  const lastFailedReviewReason = [...stages]
+    .reverse()
+    .find((s) => s.stageName === 'video_review' && s.output?.verdict === 'fail')?.output?.rationale as string | undefined;
   const videoPassed = videoVerdict === 'pass' ? true : videoVerdict === 'fail' ? false : undefined;
   // R2: per-attempt and per-stage cost from Task 8 R8.7 when the server sends it; spentUsd/maxCostUsd until then.
   const costs = costBreakdownOf(data);
@@ -495,7 +499,17 @@ export default function RunDetailScreen() {
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
 
       {isNeedsAttention ? (
-        <NeedsAttentionCard stage={run.currentStage} stages={stages as unknown as StageLike[]} lastError={run.lastError} extra={capNextStep} />
+        <NeedsAttentionCard
+          stage={run.currentStage}
+          stages={stages as unknown as StageLike[]}
+          lastError={run.lastError}
+          extra={capNextStep}
+          spentUsd={data.spentUsd}
+          maxCostUsd={data.maxCostUsd}
+          reviewReason={lastFailedReviewReason}
+          videoAttempts={videoAttempts}
+          onRaiseLimit={atLimit ? () => setLimitOpen(true) : undefined}
+        />
       ) : null}
 
       {atLimit && data.spentUsd !== undefined && data.maxCostUsd !== undefined ? (
