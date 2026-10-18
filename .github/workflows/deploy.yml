@@ -4,21 +4,91 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
+  check:
+    name: Typecheck, lint and build
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: studio
     steps:
-      - name: Prepare SSH key
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  deploy:
+    name: Deploy to VPS
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # One deploy at a time. Queue rather than cancel: never kill a deploy part-way.
+    concurrency:
+      group: deploy-7ai-preview
+      cancel-in-progress: false
+    env:
+      VPS_TARGET: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+    steps:
+      - name: Prepare SSH key and host key
         run: |
+          umask 077
           printf '%s' "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > /tmp/vps_deploy_key
-          chmod 600 /tmp/vps_deploy_key
+          if [ -n "$VPS_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$VPS_KNOWN_HOSTS" > /tmp/vps_known_hosts
+            echo "SSH_HOST_CHECK=yes" >> "$GITHUB_ENV"
+          else
+            echo "::warning::VPS_KNOWN_HOSTS is not set; accepting the host key on first sight. Add the secret to pin it."
+            : > /tmp/vps_known_hosts
+            echo "SSH_HOST_CHECK=accept-new" >> "$GITHUB_ENV"
+          fi
 
       - name: Deploy to VPS
         run: |
-          ssh \
-            -i /tmp/vps_deploy_key \
-            -o StrictHostKeyChecking=no \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-            "/var/www/7AI/deploy.sh"
+          ssh -i /tmp/vps_deploy_key \
+            -o UserKnownHostsFile=/tmp/vps_known_hosts \
+            -o StrictHostKeyChecking="$SSH_HOST_CHECK" \
+            "$VPS_TARGET" "/var/www/7AI/deploy.sh"
+
+      - name: Verify deployed revision and health
+        run: |
+          ssh -i /tmp/vps_deploy_key \
+            -o UserKnownHostsFile=/tmp/vps_known_hosts \
+            -o StrictHostKeyChecking="$SSH_HOST_CHECK" \
+            "$VPS_TARGET" "EXPECTED='${{ github.sha }}' bash -s" <<'REMOTE'
+          set -eu
+          actual=$(git -C /var/www/7AI rev-parse HEAD)
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "Revision mismatch: server $actual, expected $EXPECTED"
+            exit 1
+          fi
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS --max-time 5 http://127.0.0.1:4000/health >/dev/null; then
+              echo "Deployed $actual; /health ok"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Health check failed after restart"
+          exit 1
+          REMOTE
+
+      - name: Remove SSH material
+        if: always()
+        run: rm -f /tmp/vps_deploy_key /tmp/vps_known_hosts
