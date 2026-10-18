@@ -1,9 +1,9 @@
 # Sprint 5 Task 3: Still-scene contract and alignment
 
 **Date:** 2026-10-16
-**Status:** Implemented and locally tested on the isolated dependency composite; draft PR #93 remains open. Final main/Sprint 4 integration and release checks remain.
+**Status:** Implemented, integrated with current main and ready for review. Combined Sprint 4–5 acceptance follows Task 5 and is not a prerequisite.
 **Branch/worktree:** `SPRINT5_TASK3_BE`, `D:\Study Material\7AI-SPRINT5\task3`
-**Draft PR:** [#93](https://github.com/Neeraj1002/7AI/pull/93)
+**PR (retargeted to main):** [#93](https://github.com/Neeraj1002/7AI/pull/93)
 
 ## Authorization, ownership and tested base
 
@@ -28,8 +28,10 @@ The still planner, Script Review production-fit text and Video Intelligence now 
 - A separate **real local FFmpeg** test rendered two synthetic 1920×1080/30 fps chapter images with local audio, joined and muxed 60 frames, inspected a frame before and after the 1.0-second chapter boundary, and confirmed the expected red/blue assets. Existing quality measurement reported H.264, yuv420p, 1920×1080, 30 fps, audio present and two shots; codec and audio-rate rows passed. The synthetic 2-second duration is deliberately below the production long-form minimum, so that duration gate was excluded from this small technical check.
 - Focused planner/alignment/render/Script Review/Video Intelligence/bundle tests: **71 passed across 7 files**; remaining plan/index/narration compatibility tests: **19 passed across 3 files**. Additional post-edit planner/alignment and cache tests: **33** and **23** passed respectively. Studio build, lint and typecheck passed. All provider calls in tests were mocked; no application startup, paid call, real run retry, database write, upload, publication or deployment occurred.
 
-## Remaining release boundary
+## Final integration (2026-10-18)
 
-Refresh changed #91/#92 heads if needed, then after they land integrate final main and Sprint 4 fixes, retarget #93 to main, verify its Task 3-only diff and rerun affected checks. Owner-confirmed Sprint 4 closure and final reliability/release acceptance still precede ready-for-review. Task 4 must integrate its evidence adapter after preserving the wording commit. Task 5 can consume the version-1 mapping above; a demonstrated creative or retention improvement is still unproven and belongs to Task 5's rendered comparison.
+#93 was retargeted from the temporary `SPRINT5_TASK3_DEPS` base to `main` (#91/#92 merged; main `6464f9c` integrated in `review/pr93-merge-ready`; one STATUS.md conflict resolved). The final diff against main is Task 3 only and retains wording commit `7c6ef3c`. Planner/recovery fixes preserved: v2 and v3 checkpoints remain reusable; new plans write contract v4 with a required scene `purpose`. `state-machine.long-planning.test.ts` was updated for that deliberate v4/`purpose` change (fixture replies include `purpose`; expects contract 4; compares words/prompt). No Sprint 4 closure or reliability-development blocker remains. Task 4 must integrate its evidence adapter after preserving the wording commit. Task 5 can consume the version-1 mapping; a creative or retention improvement is still unproven and belongs to Task 5.
 
 **Schema migration:** none. **Production effects:** none.
+
+**Final-revision checks:** agents/run-pipeline/storage suites 469 passed, 3 failed — the 3 are `quality-spec-row.test.ts` (target tolerance 60 vs 120), which fail identically on unmodified main `6464f9c` and are outside Task 3. Real local FFmpeg boundary-render test (`scene-render.integration.test.ts`) passed on the final revision. Build, lint, typecheck and whitespace checks pass. Tests ran with a dummy `DATABASE_URL`; no database access, paid call, upload or deployment.
