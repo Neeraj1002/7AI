@@ -155,7 +155,15 @@ export async function generateStillsViaProvider(
       // a killed process never leaves a half-written image that looks cached.
       const partial = `${imagePath}.${randomUUID()}.partial`;
       try {
-        await fs.writeFile(partial, Buffer.from(image.b64_json, 'base64'), { flag: 'wx' });
+        // Flush to disk before the rename: the response is paid for, so a crash after this
+        // point must leave a complete cached still for the restart to reuse.
+        const handle = await fs.open(partial, 'wx');
+        try {
+          await handle.writeFile(Buffer.from(image.b64_json, 'base64'));
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
         await fs.rename(partial, imagePath);
       } finally {
         await fs.unlink(partial).catch(() => undefined);

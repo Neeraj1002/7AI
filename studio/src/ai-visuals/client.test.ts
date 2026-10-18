@@ -132,6 +132,26 @@ describe('generateStillsViaProvider (Sprint 2 Task 2, E1)', () => {
   });
 });
 
+describe('crash after a paid response', () => {
+  it('reuses the durably cached still on restart instead of paying again', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'crash-window-'));
+    try {
+      imagesGenerateMock.mockReset();
+      imagesGenerateMock.mockResolvedValue({ data: [{ b64_json: Buffer.from('paid png').toString('base64') }] });
+      // The process dies in the bookkeeping callback, after the response was received and saved.
+      await expect(generateStillsViaProvider({ scenePrompts: ['repair scene'], model: 'gpt-image-1.5', cacheDir: dir,
+        onStillGenerated: async () => { throw new Error('simulated crash'); } })).rejects.toThrow();
+      expect(imagesGenerateMock).toHaveBeenCalledTimes(1);
+      const restarted = await generateStillsViaProvider({ scenePrompts: ['repair scene'], model: 'gpt-image-1.5', cacheDir: dir });
+      expect(imagesGenerateMock).toHaveBeenCalledTimes(1);
+      expect(restarted.cachedCount).toBe(1);
+      expect(Number(restarted.costUsd)).toBe(0);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('rateLimitWaitMs (Sprint 4 Task 8, R6)', () => {
   it("honours the provider's own retry hint, plus 1s of slack", () => {
     expect(rateLimitWaitMs('Rate limit reached ... on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit ...')).toBe(13_000);
