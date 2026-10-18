@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { callLLM, describeJsonError, extractJsonObjectText, type LLMMessage, type LLMResponse } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
+import { EvidenceRefSchema, renderEvidenceBlock, validateEvidenceArguments, type EvidencePacket } from '../../content-evidence/packet';
 import {
   LONG_SCRIPT_MAX_TOKENS,
   LongScriptReplySchema,
@@ -40,6 +41,7 @@ export const ScriptGenerationStoredSchema = ScriptGenerationOutputSchema.extend(
   chapters: z.array(ScriptChapterSchema).optional(),
   // True when the word count stayed outside +-20% of the target after the one repair attempt.
   lengthOutOfRange: z.boolean().optional(),
+  evidenceRef: EvidenceRefSchema.optional(),
 });
 export type ScriptGenerationOutput = z.infer<typeof ScriptGenerationStoredSchema>;
 
@@ -80,8 +82,10 @@ Facts and figures stated in the brief are authoritative: keep every one of them,
 exactly as given, and do not introduce claims beyond common, verifiably-safe general knowledge.`;
 
 export type FactPolicy = 'brief-only' | 'brief-plus-common';
+const PACKET_BRIEF_ONLY_RULE = `\n\nFor the supplied evidence packet, add no factual detail beyond its permitted text. A citation-only URL has not been fetched and supplies no factual text.`;
 
-export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common'): string {
+export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common', packetMode = false): string {
+  if (packetMode) return SYSTEM_PROMPT + (factPolicy === 'brief-only' ? PACKET_BRIEF_ONLY_RULE : '\n\nUse the evidence packet policy. Citation-only URLs supply no factual text and do not verify general knowledge.');
   return factPolicy === 'brief-only' ? SYSTEM_PROMPT + BRIEF_ONLY_RULE : SYSTEM_PROMPT;
 }
 
@@ -107,14 +111,21 @@ export type GenerateScriptParams = {
   videoKind?: 'short' | 'long';
   // The founder's explicit source URLs/citations (long-form only: with the brief, the only facts allowed).
   sources?: string[];
+  evidence?: EvidencePacket;
 };
 
 export function buildUserMessage(params: GenerateScriptParams): string {
+  const packet = params.evidence && validateEvidenceArguments(params.evidence, params);
+  if (params.videoKind === 'long' && packet && packet.factPolicy !== 'brief-only') {
+    throw new NonTransientStageError('Long-form evidence must use the effective brief-only policy');
+  }
   const lines = [`Topic: ${params.topic}`];
   const isLong = params.videoKind === 'long';
   // R4: the raw brief as explicit extra context alongside topic/constraints,
   // not a replacement for them, so facts in it survive into the script.
-  if (params.briefText) {
+  if (packet) {
+    lines.push(renderEvidenceBlock(packet));
+  } else if (params.briefText) {
     lines.push(`Original brief (authoritative source for any facts or figures it states):\n${params.briefText}`);
   }
   if (params.constraints.length > 0) {
@@ -142,7 +153,7 @@ export function buildUserMessage(params: GenerateScriptParams): string {
   // this also states the equivalent word count, at the same ~150 words/
   // minute rate media/stub.ts's own duration estimate already assumes.
   const targetSeconds = params.targetSeconds ?? params.targetDurationSec;
-  if (isLong && params.sources && params.sources.length > 0) {
+  if (!packet && isLong && params.sources && params.sources.length > 0) {
     lines.push(`Sources (with the brief, the only material you may take facts from):\n${params.sources.map((s) => `- ${s}`).join('\n')}`);
   }
   if (isLong && targetSeconds) {
@@ -367,7 +378,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   const calls: LLMResponse[] = [];
   const targetSeconds = params.targetSeconds ?? params.targetDurationSec ?? 600;
   const userMessage = buildUserMessage(params);
-  const call = createCaller(buildLongSystemPrompt(), LongScriptReplySchema, calls);
+  const call = createCaller(buildLongSystemPrompt(Boolean(params.evidence)), LongScriptReplySchema, calls);
 
   const first = await call([{ role: 'user', content: userMessage }], LONG_SCRIPT_MAX_TOKENS);
   if (first.stopReason === 'length') throw buildCutOffError(first, calls);
@@ -420,10 +431,11 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
 }
 
 export async function generateScript(params: GenerateScriptParams): Promise<ScriptGenerationResult> {
+  if (params.evidence) validateEvidenceArguments(params.evidence, params);
   if (params.videoKind === 'long') return generateLongScript(params);
   const calls: LLMResponse[] = [];
   const userMessage = buildUserMessage(params);
-  const call = createCaller(buildSystemPrompt(params.factPolicy), ScriptGenerationOutputSchema, calls);
+  const call = createCaller(buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence)), ScriptGenerationOutputSchema, calls);
 
   const first = await call([{ role: 'user', content: userMessage }], SCRIPT_MAX_TOKENS);
   if (first.stopReason === 'length') throw buildCutOffError(first, calls);

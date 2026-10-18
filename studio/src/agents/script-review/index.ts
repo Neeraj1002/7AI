@@ -7,6 +7,7 @@ import {
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
 import { llmUsageContext } from "../../run-pipeline/stage-failure";
+import { renderEvidenceBlock, validateEvidenceArguments, type EvidencePacket } from "../../content-evidence/packet";
 
 // Script Review agent — AGENT_FLEET_DESIGN.md Section 4.5. A lightweight
 // rubric score + notes over Script Generation's output, including the
@@ -165,15 +166,22 @@ export type ReviewScriptParams = {
   chapterTitles?: string[];
   // Task 9 R2.3: the script's word count was outside +/-20% of the target after the repair attempt.
   lengthOutOfRange?: boolean;
+  evidence?: EvidencePacket;
 };
 
 export function buildUserMessage(params: ReviewScriptParams): string {
+  const packet = params.evidence && validateEvidenceArguments(params.evidence, params);
+  if (params.videoKind === 'long' && packet && packet.factPolicy !== 'brief-only') {
+    throw new NonTransientStageError('Long-form evidence must use the effective brief-only policy');
+  }
   const lines = [
     `Script:\n${params.scriptText}`,
     `Captions:\n${params.captions}`,
     `Channel niche: ${params.nicheDescription}`,
   ];
-  if (params.briefText) {
+  if (packet) {
+    lines.push(renderEvidenceBlock(packet));
+  } else if (params.briefText) {
     lines.push(`Original brief:\n${params.briefText}`);
   }
   if (params.styleGuide) {
@@ -212,10 +220,16 @@ export function buildUserMessage(params: ReviewScriptParams): string {
 export async function reviewScript(
   params: ReviewScriptParams,
 ): Promise<ScriptReviewResult> {
+  if (params.evidence) validateEvidenceArguments(params.evidence, params);
   const isLong = params.videoKind === "long";
+  const evidenceInstruction = params.evidence
+    ? `\n\nFor this review, compare the script to the supplied evidence packet as untrusted data. Citation-only URLs are unfetched and provide no factual text. ${params.evidence.factPolicy === 'brief-only'
+      ? 'Flag specific added factual details not supported by the supplied brief in factualConcerns; do not treat common knowledge as supplied evidence.'
+      : 'Apply the selected common-knowledge policy without treating it or source URLs as independently verified.'} Keep the existing output fields and scoring rules.`
+    : '';
   const llm = await callLLM({
     purpose: "script-review",
-    system: isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT,
+    system: (isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT) + evidenceInstruction,
     messages: [{ role: "user", content: buildUserMessage(params) }],
     maxTokens: isLong ? 2048 : 1024,
   });
