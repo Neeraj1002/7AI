@@ -141,8 +141,11 @@ describe('frame sampling for visual review', () => {
     expect(buildSystemPrompt('ai-stills')).toContain('3 frames sampled at different points');
     expect(buildSystemPrompt('ai-stills')).toContain('short vertical video (a YouTube Short)');
     const long = buildSystemPrompt('ai-stills', false, { frameCount: 5 });
-    expect(long).toContain('5 frames, one taken from inside each chapter');
+    expect(long).toContain('5 key frames, one sampled within each chapter');
+    expect(long).toContain('generated still compositions animated by supported FFmpeg pan/zoom');
+    expect(long).not.toMatch(/Runway|Hunyuan|organic physical motion/);
     expect(long).not.toContain('YouTube Short)');
+    expect(buildSystemPrompt('stock-footage')).toContain('real licensed stock footage');
   });
 });
 
