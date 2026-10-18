@@ -286,6 +286,9 @@ model PipelineRun {
   // parallel columns. Nullable, no backfill — every existing run is null.
   creationOptions Json?
 
+  // Server-only upload identity, claim and follow-up receipt. Never projected to domain/API.
+  publishingRecovery Json?
+
   // Sprint 4 Task 1: snapshot of the channel's active profile version at run
   // creation; never re-read from the channel later. null = no profile.
   profileVersionId String?                @db.Uuid

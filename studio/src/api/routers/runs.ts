@@ -39,6 +39,7 @@ import {
 import { TTS_VOICE_KEYS } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
+import { readPublishingReceipt } from '../../models/repositories/publishing-recovery.repository';
 import { FORMAT_KEYS, findFormat, type VideoKind } from '../../formats/manifest';
 import { isValidDuration, durationErrorMessage, resolveRequestedVideoKind } from '../../formats/video-kind';
 import { resolveChannelConfig } from '../../channel-profile';
@@ -912,6 +913,15 @@ export const runsRouter = router({
     const target = retryTargetStage(run);
     if (!target) {
       throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
+    }
+    if (target === 'publishing') {
+      const receipt = await readPublishingReceipt(run.id);
+      if (receipt?.phase === 'ambiguous' || (receipt?.ownerToken && receipt.leaseUntil
+          && Date.parse(receipt.leaseUntil) > Date.now())
+          || (receipt?.uploadStarted && !receipt.youtubeVideoId && !receipt.sessionCiphertext)) {
+        throw new TRPCError({ code: 'CONFLICT',
+          message: 'Publishing is active or its YouTube outcome is unresolved. Refresh and review before retrying.' });
+      }
     }
     // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
     const failedTarget = await findLatestAttempt(run.id, target);

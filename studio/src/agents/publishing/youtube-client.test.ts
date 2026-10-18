@@ -2,15 +2,17 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mapGoogleError, uploadVideoViaProvider, setThumbnailViaProvider } from './youtube-client';
+import { buildUploadMetadataPart, getOAuthClient, mapGoogleError, setThumbnailViaProvider } from './youtube-client';
 import { TransientStageError, NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
-// Sprint 2 Task 2 (E4) — mocked-client test proving the real request body
-// this project sends to YouTube actually carries containsSyntheticMedia,
-// same rigor as Sprint 2 Task 1's D1 TTS-voice mocked-client test. This is
-// the layer where a dropped/wrong disclosure flag would actually manifest —
-// asserting the real multipart body's JSON metadata part, not just that
-// uploadVideoViaProvider's own return value looks right.
+// Exercise the mocked OAuth transport without requiring real local credentials.
+vi.mock('../../config/env', () => ({ env: {
+  YOUTUBE_CLIENT_ID: 'mock-client-id', YOUTUBE_CLIENT_SECRET: 'mock-client-secret',
+  YOUTUBE_REDIRECT_URI: 'http://localhost/mock-oauth',
+} }));
+
+// Metadata disclosure is tested at the shared builder; the fake HTTP
+// resumable test verifies that builder reaches the session-init request.
 const requestMock = vi.hoisted(() => vi.fn());
 vi.mock('google-auth-library', () => {
   class MockOAuth2Client {
@@ -86,101 +88,31 @@ describe('mapGoogleError (Publishing upload classification, B4)', () => {
   });
 });
 
-describe('uploadVideoViaProvider (Sprint 2 Task 2, E4 — synthetic-content disclosure)', () => {
-  let videoPath: string;
-
-  beforeEach(async () => {
-    requestMock.mockReset();
-    requestMock.mockResolvedValue({ data: { id: 'mock-video-id' } });
+describe('resumable upload metadata and OAuth boundary', () => {
+  beforeEach(() => {
     findDecryptedRefreshTokenForChannelMock.mockReset();
     findDecryptedRefreshTokenForChannelMock.mockResolvedValue('mock-refresh-token');
-    videoPath = path.join(os.tmpdir(), `7ai-youtube-client-test-${Date.now()}.mp4`);
-    await fs.writeFile(videoPath, Buffer.from('fake mp4 bytes for a mocked-client test, never actually uploaded'));
   });
-
-  function extractRequestMetadata(): { status: { privacyStatus: string; containsSyntheticMedia: boolean } } {
-    const call = requestMock.mock.calls[0][0] as { data: Buffer };
-    const bodyText = call.data.toString('utf-8');
-    const match = bodyText.match(/Content-Type: application\/json; charset=UTF-8\r\n\r\n(\{.*?\})\r\n--/s);
-    if (!match) throw new Error('multipart body did not contain the expected JSON metadata part');
-    return JSON.parse(match[1]);
-  }
-
-  it('sets containsSyntheticMedia: true on the real request for an ai-stills upload', async () => {
-    await uploadVideoViaProvider({
-      channelId: TEST_CHANNEL_ID,
-      videoPath,
-      metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
-      privacyStatus: 'private',
-      containsSyntheticMedia: true,
-      selfDeclaredMadeForKids: false,
-    });
-    expect(extractRequestMetadata().status.containsSyntheticMedia).toBe(true);
-  });
-
-  it('sets containsSyntheticMedia: false on the real request for a stock-footage upload', async () => {
-    await uploadVideoViaProvider({
-      channelId: TEST_CHANNEL_ID,
-      videoPath,
-      metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
-      privacyStatus: 'private',
-      containsSyntheticMedia: false,
-      selfDeclaredMadeForKids: false,
-    });
-    expect(extractRequestMetadata().status.containsSyntheticMedia).toBe(false);
-  });
-
-  // Sprint 4 Task 5 (R18): the real request body, parsed from the actual multipart
-  // payload handed to the (mocked) Google client.
-  function requestBody(): { snippet: Record<string, unknown>; status: Record<string, unknown> } {
-    const call = requestMock.mock.calls[0][0] as { data: Buffer };
-    const match = call.data.toString('utf-8').match(/Content-Type: application\/json; charset=UTF-8\r\n\r\n(\{.*?\})\r\n--/s);
-    if (!match) throw new Error('no JSON metadata part');
-    return JSON.parse(match[1]);
-  }
   const base = {
-    channelId: TEST_CHANNEL_ID,
+    channelId: TEST_CHANNEL_ID, videoPath: 'unused',
     metadata: { title: 'T', description: 'D', tags: ['t'], coverFrameTimestampRatio: 0.3 },
-    privacyStatus: 'private' as const,
-    containsSyntheticMedia: false,
-    selfDeclaredMadeForKids: false,
+    privacyStatus: 'private' as const, containsSyntheticMedia: false, selfDeclaredMadeForKids: false,
   };
-
-  it('always sends status.selfDeclaredMadeForKids, and omits categoryId/defaultLanguage when unset', async () => {
-    await uploadVideoViaProvider({ ...base, videoPath });
-    const body = requestBody();
-    expect(body.status).toEqual({ privacyStatus: 'private', containsSyntheticMedia: false, selfDeclaredMadeForKids: false });
+  it('builds explicit disclosure and kid status without optional category fields', () => {
+    const body = buildUploadMetadataPart(base);
+    expect(body.status).toEqual({ privacyStatus: 'private', containsSyntheticMedia: false,
+      selfDeclaredMadeForKids: false });
     expect(body.snippet).toEqual({ title: 'T', description: 'D', tags: ['t'] });
-    expect('categoryId' in body.snippet).toBe(false);
-    expect('defaultLanguage' in body.snippet).toBe(false);
   });
-
-  it('sends categoryId and defaultLanguage when the profile sets them, and echoes the flag', async () => {
-    const result = await uploadVideoViaProvider({
-      ...base,
-      videoPath,
-      selfDeclaredMadeForKids: true,
-      categoryId: '27',
-      defaultLanguage: 'en',
-    });
-    const body = requestBody();
+  it('includes synthetic-media, category, language and kid status when supplied', () => {
+    const body = buildUploadMetadataPart({ ...base, containsSyntheticMedia: true,
+      selfDeclaredMadeForKids: true, categoryId: '27', defaultLanguage: 'en' });
+    expect(body.status).toMatchObject({ containsSyntheticMedia: true, selfDeclaredMadeForKids: true });
     expect(body.snippet).toMatchObject({ categoryId: '27', defaultLanguage: 'en' });
-    expect(body.status.selfDeclaredMadeForKids).toBe(true);
-    expect(result.selfDeclaredMadeForKids).toBe(true);
   });
-
-  it('throws a clear, specific error when the channel has no connected YouTube account', async () => {
+  it('requires a connected per-channel YouTube account', async () => {
     findDecryptedRefreshTokenForChannelMock.mockResolvedValue(null);
-    await expect(
-      uploadVideoViaProvider({
-        channelId: TEST_CHANNEL_ID,
-        videoPath,
-        metadata: { title: 'Test', description: 'Test', tags: ['test'], coverFrameTimestampRatio: 0.3 },
-        privacyStatus: 'private',
-        containsSyntheticMedia: false,
-        selfDeclaredMadeForKids: false,
-      }),
-    ).rejects.toThrow(/has no connected YouTube account/);
+    await expect(getOAuthClient(TEST_CHANNEL_ID)).rejects.toThrow(/has no connected YouTube account/);
   });
 });
 
