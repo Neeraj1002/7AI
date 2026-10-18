@@ -89,8 +89,8 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
     outputPath: path.join(workDir, `narration-${params.attemptNumber}.mp3`),
     onPaid: async (paid) => {
       if (spend) {
-        spend.ttsProvider = resolveMediaPurpose('tts').provider;
-        spend.ttsModel = resolveMediaPurpose('tts').model;
+        spend.ttsProvider = resolveMediaPurpose('tts', params.voice).provider;
+        spend.ttsModel = resolveMediaPurpose('tts', params.voice).model;
         spend.ttsCharacters += paid.ttsCharacters;
         spend.ttsCostUsd += paid.ttsCostUsd;
         spend.transcriptionModel = resolveMediaPurpose('transcription').model;
@@ -188,7 +188,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
     `[video_generation] run ${params.pipelineRunId} attempt ${params.attemptNumber}: long-form render ${timeline.length} stills, ${durationSeconds.toFixed(1)}s of video in ${((Date.now() - renderStartedAt) / 1000).toFixed(0)}s`,
   );
 
-  const ttsEntry = resolveMediaPurpose('tts');
+  const ttsEntry = resolveMediaPurpose('tts', params.voice);
   const transcriptionEntry = resolveMediaPurpose('transcription');
   const stillsPaidUsd = Number(stills.costUsd);
   return {

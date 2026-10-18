@@ -15,8 +15,25 @@ export const MEDIA_REGISTRY: Record<MediaPurpose, RegistryEntry> = {
   transcription: { provider: 'openai', model: 'whisper-1' },
 };
 
-export function resolveMediaPurpose(purpose: MediaPurpose): RegistryEntry {
+// tts-1-hd accepts only the nine original voices; the newer ones are
+// gpt-4o-mini-tts only (OpenAI 400s otherwise).
+export const TTS_NEWER_MODEL = 'gpt-4o-mini-tts';
+const NEWER_VOICES: ReadonlySet<string> = new Set(['ballad', 'verse', 'marin', 'cedar']);
+
+// Pass the voice to get the model that can actually speak it.
+export function resolveMediaPurpose(purpose: MediaPurpose, voice?: string | null): RegistryEntry {
+  if (purpose === 'tts' && voice && NEWER_VOICES.has(voice)) {
+    return { provider: 'openai', model: TTS_NEWER_MODEL };
+  }
   return MEDIA_REGISTRY[purpose];
+}
+
+// Fail before any spend: an unknown voice would only be rejected by the provider after the script,
+// stills and earlier chunks were already paid for.
+export function assertSupportedVoice(voice: string | null | undefined): void {
+  if (voice && !(voice in TTS_VOICES)) {
+    throw new Error(`Voice '${voice}' is not supported. Choose one of: ${Object.keys(TTS_VOICES).join(', ')}.`);
+  }
 }
 
 // Sprint 2 Task 1 (D1) — the preset voices OpenAI's TTS endpoint currently
@@ -70,6 +87,10 @@ export type TranscriptionPricingEntry = { perSecondUsd: number };
 
 export const TTS_PRICING: Record<string, TtsPricingEntry> = {
   'tts-1-hd': { perCharacterUsd: 30 / 1_000_000 },
+  // OpenAI lists gpt-4o-mini-tts at ~$0.015/minute of audio; expressed per character at the
+  // estimate's pace (155 words/min x 6 chars/word) so the same arithmetic applies. About half
+  // of tts-1-hd's ~$0.028/min, so the estimate (priced on tts-1-hd) stays an upper bound.
+  [TTS_NEWER_MODEL]: { perCharacterUsd: 0.015 / (155 * 6) },
 };
 
 export const TRANSCRIPTION_PRICING: Record<string, TranscriptionPricingEntry> = {
