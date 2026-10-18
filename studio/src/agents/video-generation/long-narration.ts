@@ -154,7 +154,7 @@ export async function narrateChapters(params: {
   onPaid?: (paid: NarrationPaid) => Promise<void> | void;
 }): Promise<LongNarration> {
   await fs.mkdir(params.workDir, { recursive: true });
-  const ttsModel = resolveMediaPurpose('tts').model;
+  const ttsModel = resolveMediaPurpose('tts', params.voice).model;
   const chunks: NarrationChunk[] = [];
   const words: TranscriptSegment[] = [];
   const pieces: string[] = [];
