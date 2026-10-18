@@ -131,9 +131,13 @@ export async function callProviderModel(params: {
       context.providerErrorMessage = error.message;
       context.providerResponseBody = error.responseBody;
       const detail = `${error.message} ${error.responseBody ?? ""}`.toLowerCase();
+      // Sprint 5 Task 8 (R4): an account out of prepaid credit answers 400 invalid_request_error "Your credit
+      // balance is too low" (seen 19 Oct 2026). It is the same condition as a workspace limit: nothing wrong with
+      // the work, and it clears when credit is added, so it parks the run for a Retry and is never a 400 defect.
+      const outOfCredit = params.provider === 'anthropic' && error.statusCode === 400 && detail.includes('credit balance is too low');
       if (
-        params.provider === 'anthropic' && error.statusCode === 429 &&
-        detail.includes('workspace api usage limit')
+        outOfCredit ||
+        (params.provider === 'anthropic' && error.statusCode === 429 && detail.includes('workspace api usage limit'))
       ) {
         context.recoveryKind = 'provider_capacity';
         throw new NonTransientStageError(`LLM provider capacity exhausted: ${error.message}`, error, context);

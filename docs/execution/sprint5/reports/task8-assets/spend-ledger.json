@@ -1,0 +1,147 @@
+{
+  "totalUsd": 0.1928,
+  "ceilingUsd": 1.6,
+  "items": [
+    {
+      "what": "voice tts-1-hd coral",
+      "usd": 0.0143
+    },
+    {
+      "what": "voice gpt-4o-mini-tts ballad",
+      "usd": 0.0077
+    },
+    {
+      "what": "voice gpt-4o-mini-tts marin",
+      "usd": 0.0077
+    },
+    {
+      "what": "still before",
+      "usd": 0.00498
+    },
+    {
+      "what": "still before",
+      "usd": 0.00496
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00495
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00496
+    },
+    {
+      "what": "still before",
+      "usd": 0.00495
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00494
+    },
+    {
+      "what": "still before",
+      "usd": 0.00494
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00492
+    },
+    {
+      "what": "still before",
+      "usd": 0.00494
+    },
+    {
+      "what": "still after",
+      "usd": 0.0053
+    },
+    {
+      "what": "still after",
+      "usd": 0.00528
+    },
+    {
+      "what": "still after",
+      "usd": 0.00525
+    },
+    {
+      "what": "still after",
+      "usd": 0.00528
+    },
+    {
+      "what": "still after",
+      "usd": 0.00525
+    },
+    {
+      "what": "still after",
+      "usd": 0.00528
+    },
+    {
+      "what": "still after",
+      "usd": 0.00528
+    },
+    {
+      "what": "still after",
+      "usd": 0.00524
+    },
+    {
+      "what": "still after",
+      "usd": 0.00527
+    },
+    {
+      "what": "still after",
+      "usd": 0.00526
+    },
+    {
+      "what": "still after",
+      "usd": 0.00524
+    },
+    {
+      "what": "still after",
+      "usd": 0.00524
+    },
+    {
+      "what": "still after",
+      "usd": 0.00524
+    },
+    {
+      "what": "still after",
+      "usd": 0.00524
+    },
+    {
+      "what": "still after",
+      "usd": 0.00524
+    },
+    {
+      "what": "still after",
+      "usd": 0.00526
+    }
+  ],
+  "note": "Combined from the r10 and r6 runs of scripts/task8-acceptance.ts (the script rewrites this file per run). The r9 run made no successful call: the Anthropic account has no credit."
+}

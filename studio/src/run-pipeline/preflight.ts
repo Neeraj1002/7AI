@@ -87,7 +87,7 @@ function describeProviderProblem(provider: ProviderName, error: unknown): Prefli
     return {
       check: 'provider',
       setting: `${label} account limit`,
-      message: `${label} will not take new work right now: ${providerMessage} Nothing was spent. Raise the limit or wait until it returns, then tap Retry.`,
+      message: `${label} will not take new work right now: ${providerMessage} Nothing was spent. Add credit or raise the limit, or wait until it returns, then tap Retry.`,
     };
   }
   if (kind === 'provider_auth') {

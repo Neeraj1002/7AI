@@ -45,3 +45,31 @@ Narration, transcript, captions, unaffected image identities and unaffected chap
 The Task 5 implementation accepts at most one reviewer defect with a scene ID and timestamp that match a sampled frame in Task 3's scene map. It requires a completed long AI-stills baseline, Task 4's matching factual fingerprint, unchanged resolved voice/render/frame plan, intact approved local assets and a fresh review of that baseline. Eligible repair persists an intent in the next video-stage input and an atomic local receipt before replacement; a checkpointed replacement is validated and reused after restart. Task 3's image-byte chapter signature rebuilds only the selected chapter, then the final and preview are regenerated. If eligibility fails, the existing bounded full-generation path runs with an explicit unavailability reason in stage input. A repaired output must pass its own video review and matching Gate 2 approval before publishing; old approval paths are refused. The local synthetic trial proves mechanics, not production creative benefit or full release acceptance.
 
 The first experiment changes one recurring-subject scene for visual continuity. Baseline and variant keep narration, script, music, timing, export profile and other visuals fixed. A paired rendered comparison plus asset/call counts determines whether improvement is supported. Technical correctness is a gate; human editorial assessment is separate. An inconclusive or worse result is a valid experiment outcome, not permission to add more modalities/models/settings.
+
+
+## Task 8: acceptance-run fixes (backend)
+
+**Preflight (before spend).** `preflightGate` runs at the start of intake, before video generation and before publishing. A failed check parks the run in Needs attention with a plain message naming the setting, writes **no stage row** (so the attempt count and the two regenerations are untouched), and records `creationOptions.preflightBlock`. A Retry that passes clears it; a Retry after a block is free of the manual retry limit. `PREFLIGHT_DISABLED=1` turns it off (tests, stubbed dry runs).
+
+| Check | Stage(s) | Setting to change | Where it was validated before |
+|---|---|---|---|
+| Voice is known and its speech model accepts it | intake, video generation | Voice | at run create (name only), then the provider's 400 after money was spent (E1) |
+| Anthropic and OpenAI accept a paid call (1-token / 1-character probe, cached 10 min on success) | intake (Anthropic), video generation (OpenAI, Anthropic) | Provider account limit or API key | never; found at review (E4) |
+| The chosen music mood exists and has licensed tracks present on disk (the bed loops, so a short track is not an error) | video generation | Music | at the first ffmpeg step |
+| YouTube is connected and not flagged for reconnect | intake, publishing | YouTube connection | at upload |
+| The next step fits the per-video spend limit | intake, video generation (long-form) | Spend limit | after the call that passed it |
+| Scene plan against the shot-length limit | inside video generation, before pictures (R3) | none: repaired automatically | after the render, at Video Review |
+
+**Error classes.** `provider_capacity` (workspace limit, 400 "credit balance is too low", OpenAI `insufficient_quota`), `rate_limit_exhausted`, `provider_auth` (401/403), `spend_limit` (our own limit), transient network (retried), and content or quality failures. The first four leave a `recovery` record on the failed stage with the provider's own message; the run waits in Needs attention, keeps everything made so far, uses no regeneration, and Retry reruns only the blocked step (for Video Review: the review of the existing file). Only content and quality failures count as a failed review and may regenerate.
+
+**Retry allowance (D1).** Automatic regeneration may spend up to 2 x the estimate (`creationOptions.retryAllowanceUsd`; default spend limit is the allowance rounded up to $0.50). When a failed review would start another attempt and the spend has reached the allowance, the run pauses ("Automatic retry allowance used: ...") instead; Retry lifts the allowance to the spend limit. The spend limit itself is checked before a picture that would pass it.
+
+**Review failure does not rebuild the video.** The scene timeline is built from the plan and the narration timing before any picture; scenes over the shot limit are retimed (free) and a chapter with too few scenes gets exactly the missing scenes. A Video Review failure with reason code `shot_length` or `narration_gap` reuses the previous plan, so every picture and narration chunk comes from the run's cache. Other failures plan again as before.
+
+**Pictures.** Every picture prompt carries the no-marks rule (no text, logos, brand names, invented figures, branded packaging, or unstated decay imagery) unless the brief itself asks for logos or on-screen text. Each picture is checked once before the render on the cheap vision tier (about $0.012 per 2-minute video); a failing picture is made again once, a second failure is flagged (`flaggedStills`) for Video Review and Gate 2, never looped on.
+
+**Attempt outcomes and cost.** `runs.get` returns `stageSummaries` (outcome, reason, cost per stage row), `videoAttempts` (per video attempt: `completed`, `failed_review` with reason code and text, `blocked`, `failed_error`, `cancelled`, `running`) and `cost` (`attemptsUsd + otherStagesUsd + unattributedUsd = spentUsd`).
+
+**Length.** The script word count is planned from the narrating voice's measured pace (latest finished video with that voice; 155 words per minute without one). `forecastLength` judges the approved text against the target (10% tolerance, floor 80%).
+
+**Publishing metadata.** Figures in the generated title, description and tags must appear in the approved script or the brief, and a figure the script hedges keeps a hedge; one regeneration, then the publish is held back.
