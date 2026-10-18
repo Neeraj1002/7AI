@@ -60,7 +60,11 @@ function Providers({ children }: { children: React.ReactNode }) {
           },
         },
       }),
-    [reportServerUnreachable],
+    // token/apiUrl: a new sign-in (possibly another account) must start with an empty cache. Without
+    // them a cached admin.whoami (5 min stale time, not keyed by user) from the previous account hid
+    // or showed the Admin entry for the next one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- token/apiUrl are intentional cache-reset triggers
+    [reportServerUnreachable, token, apiUrl],
   );
   const trpcClient = useMemo(
     () => createTrpcClient(apiUrl ?? 'http://localhost:4000', token ?? ''),
