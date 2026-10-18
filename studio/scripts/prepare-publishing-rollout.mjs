@@ -61,7 +61,15 @@ async function main() {
   const daemonPid = Number(fs.readFileSync(path.join(deployHome, '.pm2/pm2.pid'), 'utf8').trim());
   if (!Number.isSafeInteger(daemonPid) || daemonPid <= 1) throw new Error('PM2_DAEMON_UNAVAILABLE');
   process.kill(daemonPid, 0); // Existence check only; no signal is sent.
-  const processes = JSON.parse(command('runuser', ['-l', 'deploy', '-c', 'pm2 jlist'], 'PM2_INSPECTION_FAILED'));
+  // A noninteractive login need not load the deploy user's nvm/PATH setup.
+  // Invoke an existing PM2 CLI with an explicit Node binary and PM2 home;
+  // never source profiles or start a daemon to make the inspection work.
+  const daemonNode = fs.readlinkSync(`/proc/${daemonPid}/exe`);
+  const pm2Cli = [path.join(path.dirname(daemonNode), 'pm2'), path.join(path.dirname(process.execPath), 'pm2'),
+    '/usr/bin/pm2', '/usr/local/bin/pm2'].find(candidate => fs.existsSync(candidate));
+  if (!pm2Cli) throw new Error('EXISTING_PM2_CLI_UNAVAILABLE');
+  const processes = JSON.parse(command('runuser', ['-u', 'deploy', '--', process.execPath, pm2Cli, 'jlist'],
+    'PM2_INSPECTION_FAILED', { env: { ...process.env, PM2_HOME: path.join(deployHome, '.pm2') } }));
   const app = processes.filter(p => p.name === 'sevenai');
   report.workers = { pm2: app.map(p => ({ name: p.name, pid: p.pid, status: p.pm2_env?.status,
     mode: p.pm2_env?.exec_mode, instances: p.pm2_env?.instances, cwd: p.pm2_env?.pm_cwd,

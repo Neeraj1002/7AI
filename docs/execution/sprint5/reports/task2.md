@@ -66,6 +66,8 @@ Prepared [the concrete deployment/recovery runbook](../runbooks/task2-rollout.md
 
 **Outstanding blocker:** actual server backup/restore, existing-key and worker/deploy inventory results from the owner-run terminal block. The worker handoff is explicitly gate new requests → let old work finish → final verified backup → stop only proven-idle old workers → owner merge/deploy with no overlap → readback → reopen admission. A plain PM2 restart or lease expiry does not establish a drain. No maintenance gate, stop, deploy or restart was performed during preparation.
 
+The owner's first terminal invocation returned to the prompt without JSON or the exit marker. That is not evidence of successful checks. The initial wrapper had an unguarded `command -v node` under `set -e`, which can exit silently when a noninteractive deploy login does not initialize nvm/PATH; the exact failed step was not recorded. The replacement wrapper reports each stage and always emits an exit marker, discovering the existing Node binary from the live PM2 daemon rather than relying on a login profile. The helper likewise invokes the existing PM2 CLI with explicit Node/PM2 paths, without starting another daemon. Server checks remain unverified until actual output is returned.
+
 Task 1's publishing-summary Admin adapter remains pending until #92 lands and is nonblocking here. Full production acceptance is the combined Sprint 4–5 pass after Task 5; no real upload is needed to make #92 reviewable once rollout preparation is verified.
 
 ## Sign-off
