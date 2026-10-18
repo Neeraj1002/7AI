@@ -63,14 +63,14 @@ frame for the cover: a clear visual, not the first or last ~5%.
 Respond with raw JSON only - no markdown code fences, no commentary.`;
 
 export async function generatePublishingMetadata(
-  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long' } & PackagingParams,
+  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long'; fixNotes?: string } & PackagingParams,
 ): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {
   const llm = await callLLM({
     purpose: 'metadata-generation',
     system: params.videoKind === 'long' ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT,
     // Sprint 4 Task 5 (R17): packaging guidance is appended only when the channel
     // set it; with none, this is exactly the old message.
-    messages: [{ role: 'user', content: buildMetadataUserMessage(params) }],
+    messages: [{ role: 'user', content: buildMetadataUserMessage(params) + (params.fixNotes ? `\n\nThe previous title, description or tags were rejected: ${params.fixNotes} Rewrite them so every figure matches the script exactly, including its hedge words.` : '') }],
     maxTokens: 512,
   });
 

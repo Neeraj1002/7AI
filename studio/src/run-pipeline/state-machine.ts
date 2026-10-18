@@ -55,6 +55,7 @@ import { generateLongVideo } from '../agents/video-generation/long-form';
 import { planLongVideoProduction, reusableLongPlanningCheckpoint, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
 import { describeRetryAllowancePause } from './manual-retries';
+import { checkMetadataClaims, describeClaimIssues, holdingIssues } from '../agents/publishing/metadata-claims';
 import { resolveVoicePace } from './length-forecast';
 import { sumUsageCostForRun } from '../models/repositories/usage-event.repository';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
@@ -2087,29 +2088,45 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
   const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
     try {
-      const { metadata, llm } = await generatePublishingMetadata({
-        scriptText: sanctionedScriptText,
-        hashtags,
-        titleGuidance: config.titleGuidance,
-        descriptionTemplate: config.descriptionTemplate,
-        hashtagsBase: config.hashtagsBase,
-        editorCredit: config.editorCredit,
-        editorName,
-        sources: run.creationOptions?.sources,
-        ...(isLongForm && { videoKind: 'long' as const }),
-      });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'metadata-generation',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      const generate = async (fixNotes?: string) => {
+        const result = await generatePublishingMetadata({
+          scriptText: sanctionedScriptText,
+          hashtags,
+          titleGuidance: config.titleGuidance,
+          descriptionTemplate: config.descriptionTemplate,
+          hashtagsBase: config.hashtagsBase,
+          editorCredit: config.editorCredit,
+          editorName,
+          sources: run.creationOptions?.sources,
+          ...(isLongForm && { videoKind: 'long' as const }),
+          ...(fixNotes && { fixNotes }),
+        });
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'metadata-generation',
+          provider: result.llm.provider,
+          model: result.llm.model,
+          inputTokens: result.llm.usage.inputTokens,
+          outputTokens: result.llm.usage.outputTokens,
+          costUsd: result.llm.costUsd,
+        });
+        return result;
+      };
+      let { metadata } = await generate();
+      // Sprint 5 Task 8 (R11.6): the title, description and tags get the same figure and hedge check the script
+      // got. One regeneration with the problem named; a second failure holds the publish (Retry regenerates).
+      let claimIssues = holdingIssues(checkMetadataClaims({ scriptText: sanctionedScriptText, briefText: run.briefText, metadata }));
+      if (claimIssues.length > 0) {
+        console.warn(`[publishing] run ${runId}: generated metadata failed the figure check, regenerating once - ${describeClaimIssues(claimIssues)}`);
+        metadata = (await generate(describeClaimIssues(claimIssues))).metadata;
+        claimIssues = holdingIssues(checkMetadataClaims({ scriptText: sanctionedScriptText, briefText: run.briefText, metadata }));
+        if (claimIssues.length > 0) {
+          throw new NonTransientStageError(`Publishing held back before upload: ${describeClaimIssues(claimIssues)} Tap Retry to generate the title and description again.`);
+        }
+      }
       return metadata;
     } catch (error) {
       await insertUsageEvent({

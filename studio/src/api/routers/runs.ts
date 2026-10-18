@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import type { Context } from '../trpc';
-import { findPipelineRunById, listRuns, updatePipelineRun, claimPlannerContractRecovery, CANCELLED_BY_USER } from '../../models/repositories/pipeline-run.repository';
+import { findPipelineRunById, listRuns, listRunsPage, updatePipelineRun, claimPlannerContractRecovery, CANCELLED_BY_USER } from '../../models/repositories/pipeline-run.repository';
 import { createRun } from '../../run-pipeline/state-machine';
 import {
   listStagesForRun,
@@ -699,7 +699,30 @@ export const runsRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const runs = await listRuns({ ...input, tenantId: ctx.tenantId });
-      return runs.map((run) => ({ ...run, cancelRequested: deriveCancelRequested(run) }));
+      return runs.map((run) => ({ ...run, cancelRequested: deriveCancelRequested(run), endReason: deriveEndReason(run) }));
+    }),
+
+  // Sprint 5 Task 8 (R12): the same filters as list, in pages. list returns every run of the tenant, so a
+  // screen that shows fewer than it should is cutting the list itself, not the server. Newest first by
+  // createdAt; pass back nextCursor for the next page; total counts the whole filtered set.
+  // statuses: ['failed'] returns every run whose final state is Failed, with or without channelId; endReason
+  // on each row ('failed' | 'rejected' | 'cancelled' | 'channel_deleted') tells the app which kind of end it was.
+  listPage: publicProcedure
+    .input(
+      z.object({
+        statuses: z.array(z.enum(PIPELINE_RUN_STATUSES)).optional(),
+        stage: z.enum(STAGE_NAMES).optional(),
+        channelId: z.string().uuid().optional(),
+        limit: z.number().int().min(1).max(200).optional(), // the repository clamps to the same 200
+        cursor: z.string().uuid().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const page = await listRunsPage({ ...input, tenantId: ctx.tenantId });
+      return {
+        ...page,
+        items: page.items.map((run) => ({ ...run, cancelRequested: deriveCancelRequested(run), endReason: deriveEndReason(run) })),
+      };
     }),
 
   // GET /runs/:id — full detail: run + channel + full stage history +
