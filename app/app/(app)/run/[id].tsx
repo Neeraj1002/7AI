@@ -14,9 +14,12 @@ import { chapterWarningOf, manualRetryOf, videoFallbackUsed } from '../../../lib
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, relativeTime, runTopic, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { shortSentence } from '../../../lib/failure-text';
 import type { StepperEnd } from '../../../lib/stepper-colors';
-import { ScriptPreview } from '../../../components/ScriptPreview';
+import { CostCard } from '../../../components/CostCard';
+import { costBreakdownOf, costMapOf } from '../../../lib/run-cost';
+import { ScriptVersionsCard } from '../../../components/ScriptVersionsCard';
+import { scriptVersionsOf } from '../../../lib/script-versions';
 import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
-import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
+import { buildStepHistory, POST_HOC_TAGS, runChip, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
 import { color, font, radius, space, type } from '../../../lib/theme';
 import { VideoChip } from '../../../components/VideoChip';
 import { LongPreview } from '../../../components/LongPreview';
@@ -274,12 +277,16 @@ export default function RunDetailScreen() {
   const editText = isLong ? (data.scriptEditText ?? scriptText) : scriptText;
   const atLimit = needsHigherLimit({ videoKind: data.videoKind, spentUsd: data.spentUsd, maxCostUsd: data.maxCostUsd });
   const lengthLabel = isLong && typeof data.qualityMetrics?.durationSeconds === 'number' ? mmss(data.qualityMetrics.durationSeconds) : null;
-  const stats = scriptStats(scriptText);
+  // R3: after Gate 1 the screens show the approved (narrated) text, the writer's draft as a labelled extra.
+  const scriptVersions = scriptVersionsOf(stages as unknown as Parameters<typeof scriptVersionsOf>[0], isLong, data);
+  const approvedChapters = scriptVersions.approved?.chapters;
   const reviewScore = scriptReviewStage?.output?.score as number | undefined;
   const reviewNotes = scriptReviewStage?.output?.notes as string | undefined;
   const videoVerdict = videoReviewStage?.output?.verdict as string | undefined;
   const videoRationale = videoReviewStage?.output?.rationale as string | undefined;
   const videoPassed = videoVerdict === 'pass' ? true : videoVerdict === 'fail' ? false : undefined;
+  // R2: per-attempt and per-stage cost from Task 8 R8.7 when the server sends it; spentUsd/maxCostUsd until then.
+  const costs = costBreakdownOf(data);
   const videoAttempts = stages.filter((s) => s.stageName === 'video_generation').length;
   // Automatic regenerations only (failed video reviews, max 2); manual Revise presses are not counted.
   const regensUsed = videoAttempts > 0 ? automaticRegensUsed(stages) : undefined;
@@ -337,6 +344,7 @@ export default function RunDetailScreen() {
     stages: stages as unknown as StageLike[],
     lastGateDecision,
     gateDecisions: data.gateDecisions,
+    costs: costMapOf(costs),
   });
   // What the old Details list added beyond the steps: the run's own last error and the stock-to-AI-stills switch.
   const historyNotes = [
@@ -683,6 +691,16 @@ export default function RunDetailScreen() {
         </Card>
       ) : null}
 
+      {data.spentUsd !== undefined ? (
+        <CostCard
+          spentUsd={costs?.totalUsd ?? data.spentUsd}
+          limitUsd={costs?.limitUsd ?? data.maxCostUsd}
+          estimateUsd={costs?.estimateUsd}
+          ended={run.status === 'completed' || run.status === 'failed'}
+          attemptsCount={videoAttempts}
+        />
+      ) : null}
+
       <RunTabs value={tab} onChange={setTabChoice} />
       <Card key={tab}>
         {tab === 'brief' ? (
@@ -691,25 +709,10 @@ export default function RunDetailScreen() {
             <ClampedText lines={5} style={styles.body} text={run.briefText} moreLabel="Show more" lessLabel="Show less" />
           </>
         ) : tab === 'script' ? (
-          scriptText ? (
-            <>
-              <View style={styles.scriptHeader}>
-                {stats ? (
-                  <Text style={styles.cardMeta}>
-                    ~{stats.words} words · ~{isLong ? `${Math.max(1, Math.round(stats.seconds / 60))} min` : `${stats.seconds} s`}
-                    {chapters && chapters.length > 0 ? ` · ${chapters.length} chapters` : ''}
-                  </Text>
-                ) : null}
-                {reviewScore !== undefined && !isGate1 ? <StatusChip kind="neutral" label={`Review ${reviewScore}/10`} /> : null}
-              </View>
-              <ScriptPreview chapters={chapters} scriptText={scriptText} lines={5} />
-            </>
-          ) : (
-            <Text style={styles.cardMeta}>The script isn&apos;t written yet.</Text>
-          )
+          <ScriptVersionsCard versions={scriptVersions} isLong={isLong} reviewScore={reviewScore} showReviewScore={!isGate1} />
         ) : (
           isLong && (isGate2 || data.previewUrl) ? (
-            <LongPreview previewUrl={data.previewUrl} apiUrl={apiUrl} token={token ?? ''} chapters={chapters} lengthLabel={lengthLabel} />
+            <LongPreview previewUrl={data.previewUrl} apiUrl={apiUrl} token={token ?? ''} chapters={approvedChapters ?? chapters} lengthLabel={lengthLabel} />
           ) : isGate2 ? (
             <View style={styles.videoRow}>
               {videoSource ? (
