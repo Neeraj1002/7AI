@@ -64,9 +64,8 @@ async function main() {
       throw new Error('Fixture call failed (' + entry.error + '); stopped. Reserved spend retained.', { cause: error });
     }
   }
-  console.log('Fixture attempts ' + ledger.entries.length + ': ' + ledger.entries.filter(e => e.status === 'completed').length + ' valid, ' + ledger.entries.filter(e => e.status === 'failed').length + ' failed. Accounted campaign cost 
-}
-main().catch(error => { console.error(error instanceof Error ? error.message : 'Evaluation stopped'); process.exitCode = 1; });
- + spent().toFixed(6));
+  const completed = ledger.entries.filter(e => e.status === 'completed').length;
+  const failed = ledger.entries.filter(e => e.status === 'failed').length;
+  console.log('Fixture attempts ' + ledger.entries.length + ': ' + completed + ' valid, ' + failed + ' failed. Accounted campaign cost USD ' + spent().toFixed(6));
 }
 main().catch(error => { console.error(error instanceof Error ? error.message : 'Evaluation stopped'); process.exitCode = 1; });
