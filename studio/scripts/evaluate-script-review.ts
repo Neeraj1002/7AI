@@ -64,6 +64,9 @@ async function main() {
       throw new Error('Fixture call failed (' + entry.error + '); stopped. Reserved spend retained.', { cause: error });
     }
   }
-  console.log('Completed ' + ledger.entries.length + ' fixture calls. Accounted cost $' + spent().toFixed(6));
+  console.log('Fixture attempts ' + ledger.entries.length + ': ' + ledger.entries.filter(e => e.status === 'completed').length + ' valid, ' + ledger.entries.filter(e => e.status === 'failed').length + ' failed. Accounted campaign cost 
+}
+main().catch(error => { console.error(error instanceof Error ? error.message : 'Evaluation stopped'); process.exitCode = 1; });
+ + spent().toFixed(6));
 }
 main().catch(error => { console.error(error instanceof Error ? error.message : 'Evaluation stopped'); process.exitCode = 1; });

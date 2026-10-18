@@ -1,0 +1,2217 @@
+{
+  "version": 1,
+  "date": "2026-10-18",
+  "implementationCommit": "0f123389c0681f77023fae036ffec928bab5f779",
+  "mainCommit": "6852fa584af2b078ffee5578db0bc7eaa9c54bd6",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5"
+  },
+  "ceilingUsd": 3,
+  "campaign": {
+    "rounds": 4,
+    "attempts": 130,
+    "validResponses": 128,
+    "failedAttempts": 2,
+    "meteredCostUsd": "0.905817",
+    "unknownCallReservationUsd": "0.031893",
+    "conservativeTotalUsd": "0.937710"
+  },
+  "finalRun": {
+    "hash": "6eff5b08a5cf711b1189f66f768ca2a30b992f0640b587c9b126da0090a273ab",
+    "attempts": 33,
+    "validResponses": 32,
+    "entries": [
+      {
+        "caseId": "SR-case-1",
+        "repeat": 1,
+        "reservedUsd": 0.022373999999999998,
+        "status": "completed",
+        "costUsd": "0.005428",
+        "output": {
+          "score": 6,
+          "notes": "Script delivers the core facts in order and correctly frames salt-payment as myth. Opening matches required wording exactly. However, SR-2: the required term 'salary' is entirely absent—brief mandates 'the word salary comes from Latin salarium,' but script jumps straight to 'salarium' without introducing 'salary' itself. SR-3: 'It made a neat tale' is filler that adds no new fact or tension in a 45-second format (roughly 2.5 seconds per sentence needed). Pacing and factual accuracy otherwise sound; 103 words fits target. Missing the required term caps score at 6.",
+          "hookScore": 9,
+          "hookNotes": "Cold open mid-claim ('You've heard... They weren't.') with immediate contradiction, exactly matching required first sentence. No preamble or branding delay; hook lands in under 2 seconds and creates curiosity to resolve the contradiction.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [
+            "SR-2: Required key term 'salary' is missing. Brief requires 'the word salary comes from Latin salarium'; script omits 'salary' entirely, jumping to 'In Latin texts, that word simply meant a money allowance.' Restore: 'In the Roman army, the word salary comes from Latin salarium, which in Roman texts simply meant a money allowance.'"
+          ]
+        },
+        "hints": 5,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-1",
+        "repeat": 2,
+        "reservedUsd": 0.022373999999999998,
+        "status": "completed",
+        "costUsd": "0.006063",
+        "output": {
+          "score": 6,
+          "notes": "Script covers all four required facts in order and debunks the salt myth effectively. Opening matches the required constraint exactly. However, SR-2 violation: the required term 'salary' is missing—the script uses only 'salarium' and never establishes the connection to the modern word. SR-3 advisory: 'It made a neat tale' is filler that adds no fact or tension (roughly 2.5 seconds wasted in a 45-second Short). SR-5 advisory: 'denarii' may risk TTS mispronunciation; consider 'Roman coins called denarii' or plain 'coins' for clarity. Word count is 103, fitting the ~110-word target. Pacing and visuals are producible.",
+          "hookScore": 9,
+          "hookNotes": "Cold open nails the hook—contrasts a popular belief against reality in the first two seconds, creating immediate tension and a reason to watch. No preamble or filler before the payload.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [
+            "SR-2: Required key term 'salary' is absent. Brief explicitly requires 'the word \"salary\" comes from Latin salarium'; script must name the modern word to establish the etymology. Restore: 'the word salary comes from Latin salarium, which in Roman texts simply meant a money allowance.'",
+            "SR-2: Required opening constraint violated. Brief mandates first sentence must be exactly 'You've heard Roman soldiers were paid in salt. They weren't.' Script matches this, but the required progression (1) salary–salarium connection (2) Pliny link (3) 18th-century invention (4) coin payment and deductions is interrupted by stating 'soldiers earned a salarium' before establishing what salarium is or connecting it to salary. Reorder to place the etymology before the historical claim, or add: 'the word salary comes from Latin salarium.'"
+          ]
+        },
+        "hints": 5,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-1",
+        "repeat": 3,
+        "reservedUsd": 0.022373999999999998,
+        "status": "completed",
+        "costUsd": "0.005588",
+        "output": {
+          "score": 6,
+          "notes": "Strong factual core and clear debunking of the salt myth, but script violates SR-2 by omitting the required term 'salary'—the brief explicitly states the word salary must be present to complete the etymology. SR-3: 'It made a neat tale' is filler adding no new fact. SR-4: 'Pliny the Elder once linked it to salt' risks ambiguity—did Pliny coin the term or merely mention salt? Clearer: 'Pliny the Elder mentioned salt in connection with the word.' Hook is direct and retention-strong; remaining facts flow logically and end cleanly on deductions.",
+          "hookScore": 9,
+          "hookNotes": "Cold open mid-claim ('You've heard...They weren't') grabs attention immediately with a direct contradiction, no preamble. Viewer has instant reason to stay for the truth.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [
+            "SR-2: Required key term 'salary' is missing from the script. The brief states the word 'salary' comes from Latin salarium and must appear to complete the etymology. Restore: 'The word salary comes from Latin salarium, which in Roman texts simply meant a money allowance.'",
+            "SR-2: Script does not deliver the required facts in prescribed order—specifically, fact 1 (the etymology of salary from salarium) must be stated explicitly and early. Currently the script names salarium but never names or derives salary itself, breaking the brief constraint."
+          ]
+        },
+        "hints": 5,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-2",
+        "repeat": 1,
+        "reservedUsd": 0.024332,
+        "status": "completed",
+        "costUsd": "0.005707",
+        "output": {
+          "score": 8,
+          "notes": "Strong opening hook, accurate facts, clear structure, and good pacing. Script hits all five required facts in order and ends on the payoff. SR-3: 'Survivors who lived' is redundant (survivors inherently lived); 'Breaking the law' opens a sentence but the action is passive—consider 'Those who broke the law' for clarity. SR-4: 'That helper's wage, a penny and a half, was worth about one hundred twenty dollars today'—spoken aloud, 'that' at the sentence start after a wage list may feel disconnected; rephrase as 'So a penny and a half—that helper's wage—was worth about one hundred twenty dollars today' or similar for smoother parsing. Word count (133) fits within brief budget (150); at natural pace, ~45 seconds, within target.",
+          "hookScore": 9,
+          "hookNotes": "Opens cold, mid-fact: 'In 1351, England made it a crime for workers to take a pay rise.' Immediate surprise and specificity; no preamble. Creates instant question of why, pulling the viewer in.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": []
+        },
+        "hints": 11,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-2",
+        "repeat": 2,
+        "reservedUsd": 0.024332,
+        "status": "completed",
+        "costUsd": "0.005377",
+        "output": {
+          "score": 8,
+          "notes": "Strong historical narrative with vivid wage figures and clear timeline. Opens cold and punchy. SR-3: 'Survivors who lived' is redundant phrasing (advisory only). SR-4: 'None of it worked' reads slightly ambiguous on first listen—clarify as 'None of these penalties worked' or 'The law largely failed' (advisory only). Length and pacing fit well at 133 words (~45 sec). All required facts present in order; wage conversions properly framed as 'about' and labour convention.",
+          "hookScore": 9,
+          "hookNotes": "Immediate cold open with a shocking legal claim ('made it a crime for workers to take a pay rise') that creates instant curiosity and stakes. No preamble or branding delay—hooks the viewer before they can swipe.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": []
+        },
+        "hints": 11,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-2",
+        "repeat": 3,
+        "reservedUsd": 0.024332,
+        "status": "completed",
+        "costUsd": "0.005392",
+        "output": {
+          "score": 8,
+          "notes": "Strong script: factually accurate, compelling narrative arc, clear voice. Opens cold with the arresting Statute fact. Meets brief length (~133 words = ~45 sec). All wage figures correctly contextualized as labour conventions (\"was worth about\"). Pacing realistic for stock/stills. Minor SR-3 note: 'Survivors who lived' is redundant (survivors inherently lived); tighten to 'Survivors saw labour suddenly scarce.' No SR-2/7/8/9 failures.",
+          "hookScore": 9,
+          "hookNotes": "Genuinely cold open: 'In 1351, England made it a crime for workers to take a pay rise' is a surprising, counter-intuitive claim that immediately creates tension and curiosity. No preamble or intro delay. Strong retention hook.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": []
+        },
+        "hints": 11,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-3",
+        "repeat": 1,
+        "reservedUsd": 0.022494,
+        "status": "completed",
+        "costUsd": "0.007450",
+        "output": {
+          "score": 6,
+          "notes": "Script covers all required facts and figures with correct labour-convention framing. However, word count is 95 words for a 45-second target (≈112 words at natural pace), making the pacing tight and unrealistic for the 60-second absolute cap. SR-8: 'These were the official maximum prices' softens the hedge; brief says 'set official maximum prices but was largely ignored'—the structure loses causal force. Opening is functional but generic ('In 301 AD, Rome's emperor tried to fix the price of eggs by law') lacks surprise or tension; no cold open.",
+          "hookScore": 4,
+          "hookNotes": "Generic wind-up with date, then explanation. Lacks cold open, surprising claim, or immediate visual hook. 'In 301 AD, Rome's emperor tried to fix the price' is a slow setup; no reason to keep watching in the first second.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": false,
+            "visualsProducible": true,
+            "flags": [
+              "95-word script at natural narration pace (~190–210 words/min TTS) lands at 27–30 seconds, well below 45-second target. If read slowly to fill 45 seconds, pacing becomes unnatural. Rapid delivery to hit 45 seconds risks clarity loss. Fits within 60-second absolute cap but does not match target length reasonably.",
+              "Six distinct price comparisons and labour conversions in sequence demand visual clarity; at natural pace each fact occupies only 3–4 seconds, making beat alignment to stock footage or stills difficult without acceleration."
+            ]
+          },
+          "factualConcerns": [
+            "SR-8: 'These were the official maximum prices, set by Emperor Diocletian's Edict of 301 AD' drops the hedge 'but was largely ignored'; brief emphasizes the law was largely ignored as a key point. Restore: 'These were the official maximum prices, set by Emperor Diocletian's Edict of 301 AD, but the law was largely ignored.'",
+            "SR-8: 'One army-measure of wheat cost 100 denarii' drops the hedge; brief says 'had a maximum of 100 denarii'. Restore: 'An army measure of wheat had a maximum of 100 denarii.'",
+            "SR-8: 'Count that as one day's work, about $120 in today's money' alters brief phrasing; brief specifies 'By our convention a day of work is about $120 today, not the value of the coins.' Restore the convention frame: 'By our convention, a day of work is about $120 today.'"
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief opens with 'The Edict of Maximum Prices in 301 AD set official maximum prices but was largely ignored.' Script opens with 'In 301 AD, Rome's emperor tried to fix the price of eggs by law. These were the official maximum prices...' This reorders and splits the required opening. Restore: 'The Edict of Maximum Prices in 301 AD set official maximum prices but was largely ignored.'"
+          ]
+        },
+        "hints": 9,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-3",
+        "repeat": 2,
+        "reservedUsd": 0.022494,
+        "status": "completed",
+        "costUsd": "0.006555",
+        "output": {
+          "score": 8,
+          "notes": "Strong historical script with clear progression and accurate conventions. Opening is direct and engaging. All facts align with brief; labour convention applied correctly throughout. Word count is 95—nearly double the 45-second target, exceeding 60-second hard limit. SR-3: 'These were the official maximum prices, set by Emperor Diocletian's Edict of 301 AD' duplicates the opening sentence; trim to 'Emperor Diocletian's Edict set these maximums.' Minor SR-4: 'Count that as one day's work' uses imperative where a conversational bridge ('Call that one day's work') reads more naturally for TTS.",
+          "hookScore": 9,
+          "hookNotes": "Cold open mid-action: 'In 301 AD, Rome's emperor tried to fix the price of eggs by law.' Immediate curiosity hook—why eggs, why a law, and it failed—without preamble. Viewer has reason to stay.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Narration is 95 words; at natural conversational pace (~130–140 wpm) reads ~40–44 seconds. However, the script contains no 'approximately' qualifier—it is a precise word count that, when read aloud with pauses for emphasis (historically appropriate pacing), will exceed 60 seconds. Safe production requires cutting ~25 words (e.g., remove the duplicate 'These were the official maximum prices…' sentence and streamline 'Count that as one day's work, about $120 in today's money' to 'One day's work: about $120 today.').",
+              "No rapid cuts required; each commodity price (eggs, wine, wheat) can be shown as still images with animated text overlay or simple stock footage of the items. Producible within constraints."
+            ]
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [
+            "SR-2: Narration length violates the target. Brief specifies 'approximately 45 seconds'; script is 95 words, which at natural pace will read 40–44 seconds but with realistic pauses for emphasis (e.g., between the price point and the labour equivalent) will approach or exceed 60 seconds. Cut to ~65 words maximum (remove duplicate 'These were…' sentence and condense labour convention framing)."
+          ]
+        },
+        "hints": 9,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-3",
+        "repeat": 3,
+        "reservedUsd": 0.022494,
+        "status": "completed",
+        "costUsd": "0.006015",
+        "output": {
+          "score": 8,
+          "notes": "Script is factually sound and well-paced for a 45-second Short. The labour-value convention is correctly applied throughout ('Count that as one day's work, about $120'). Historical facts match the brief precisely. Length is at ~95 words, slightly above the 45-second ideal but within the 60-second hard cap. SR-3 advisory: 'These were the official maximum prices, set by Emperor Diocletian's Edict of 301 AD' repeats the opening sentence's core fact with no new payload—consider trimming to one statement or adding tension ('yet were widely ignored').",
+          "hookScore": 7,
+          "hookNotes": "Opens with a specific historical fact ('In 301 AD, Rome's emperor tried to fix the price of eggs by law') that creates mild intrigue—the image is unusual and raises a 'why?' question—but the phrasing is slightly generic ('tried to fix') rather than a sharp surprise or dramatic claim. Not a slow wind-up, but not a cold-open punch either.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Word count is 95, which at natural speech pace (~150–160 wpm) lands at ~36–38 seconds. The stated target is 'approximately 45 seconds'; this script is below target. Confirm whether undershooting is acceptable or if more content is needed.",
+              "Hard limit of 60 seconds is satisfied, but the gap between actual (~37s) and stated target (~45s) is notable."
+            ]
+          },
+          "factualConcerns": [
+            "SR-8: 'One army-measure of wheat cost 100 denarii' drops the hedge; brief states 'had a maximum of 100 denarii.' Restore: 'An army measure of wheat had a maximum of 100 denarii.'"
+          ],
+          "styleGuideViolations": []
+        },
+        "hints": 9,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-4",
+        "repeat": 1,
+        "reservedUsd": 0.023014,
+        "status": "completed",
+        "costUsd": "0.006695",
+        "output": {
+          "score": 6,
+          "notes": "Script opens with the required exact first sentence and closes with the required exact last sentence, meeting SR-2 core constraints. Black Death dates are omitted (brief requires 1348–1350), and three SR-8 hedge losses replace 'mostly' and 'could be' with stronger language ('almost always', 'was capped'). Word count is 115, fitting the 45-second target. Pacing and visuals are producible. These violations cap score at 6 despite strong narrative structure.",
+          "hookScore": 9,
+          "hookNotes": "Cold open mid-consequence ('made it a crime') immediately creates a surprising, tension-bearing claim. No preamble or logo delay. Viewer wants to know why such a law existed.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-8: 'A master carpenter's wage was capped at three pence a day' changes brief's hedged 'could take no more than' into a definitive capped statement. Restore hedge: 'A master carpenter could take no more than three pence a day.'",
+            "SR-8: 'Workers who took more could be fined or jailed' omits the required hedge 'could'; say 'Workers who took more could be fined or jailed' — this is correct. RETRACT: script wording matches brief.",
+            "SR-8: 'The law was poorly enforced, and almost always against workers, rarely employers' upgrades brief's 'mostly against workers, not employers' to 'almost always…rarely', a stronger absolute. Restore: 'The law was poorly enforced, and mostly against workers, not employers.'"
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief requires Black Death dates '1348 to 1350'; script says 'just years before' without dates. Restore: 'The Black Death had swept through from 1348 to 1350.'",
+            "SR-2: Brief requires exact opening 'In 1351, England made it a crime for workers to take a pay rise.' — script matches this ✓. Brief requires exact closing 'Thirty years later, that anger helped fuel the Peasants' Revolt.' — script matches ✓. But brief requires Black Death date range 1348–1350 explicitly stated; script omits dates entirely, violating a required fact constraint."
+          ]
+        },
+        "hints": 7,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-4",
+        "repeat": 2,
+        "reservedUsd": 0.023014,
+        "status": "completed",
+        "costUsd": "0.007640",
+        "output": {
+          "score": 6,
+          "notes": "Opens strong and hits most brief facts in correct order with required hedges preserved. But three SR-1/8 violations cap score at 6: 'Whole villages lost half their people' invents specificity not in brief; 'almost always against workers, rarely employers' upgrades 'mostly...not' to absolute language; 'the official maximum' adds unsupported qualifier. Word count 115 is 155% of 45-second target (roughly 65 seconds at natural pace), exceeding the brief's never-exceed-60-second ceiling.",
+          "hookScore": 9,
+          "hookNotes": "Cold open mid-action: 'In 1351, England made it a crime for workers to take a pay rise' immediately states a surprising claim, no intro filler, lands the hook in the first sentence.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Narration at 115 words reads aloud in ~65 seconds at natural pace, exceeding 60-second hard limit and 45-second target by ~45%. Must trim to ~80–90 words."
+            ]
+          },
+          "factualConcerns": [
+            "SR-1: 'Whole villages lost half their people' specifies a concrete village-scale loss not in the brief. Brief states 'Historians' estimates mostly range from forty to sixty percent of the people dead'—a national/aggregate figure, not village-level claims. Remove or replace with the supported range.",
+            "SR-8: 'The law was poorly enforced, and almost always against workers, rarely employers' upgrades the brief's hedged 'mostly against workers, not employers' to an absolute. Restore: 'The law was poorly enforced, and mostly against workers, not employers.'",
+            "SR-8: 'A master carpenter's wage was capped at three pence a day, the official maximum' adds 'official maximum' as an unsupported qualifier. Brief says only 'A master carpenter could take no more than three pence a day.' Remove the qualifier or say 'no more than three pence a day' to match the brief's phrasing.",
+            "SR-1: 'The Black Death had swept through just years before' is vague; brief requires dates. Restore: 'The Black Death had swept through, from 1348 to 1350.'"
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief requires exact opening: 'In 1351, England made it a crime for workers to take a pay rise.' ✓ Script matches.",
+            "SR-2: Brief requires exact closing: 'Thirty years later, that anger helped fuel the Peasants' Revolt.' ✓ Script matches.",
+            "SR-2: Brief requires Black Death dates 1348 to 1350; script omits them (says 'just years before'). Restore dates.",
+            "SR-2: Brief requires 'Historians' estimates mostly range'; script matches. ✓",
+            "SR-2: Brief requires 'could be fined or jailed'; script says 'could be fined or jailed.' ✓",
+            "SR-2: Brief requires 'poorly enforced'; script matches. ✓"
+          ]
+        },
+        "hints": 7,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-4",
+        "repeat": 3,
+        "reservedUsd": 0.023014,
+        "status": "completed",
+        "costUsd": "0.006400",
+        "output": {
+          "score": 6,
+          "notes": "Opens strong with a direct hook. First sentence matches brief exactly. Hedges 'Historians' estimates mostly range' and 'could be fined or jailed' are preserved. However, three factual additions are not in the brief: 'Whole villages lost half their people' (brief says nothing about village-scale loss), 'A master carpenter's wage was capped' and 'the official maximum' (brief says 'could take no more than'), and 'almost always against workers, rarely employers' (brief says 'mostly against workers, not employers'). These breach SR-9 (brief-only policy). The 115-word count fits ~43 seconds, within budget. Pacing is realistic for the source.",
+          "hookScore": 9,
+          "hookNotes": "Cold open with direct surprise: immediate crime claim, no preamble. Creates instant reason to keep watching.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-9: 'Whole villages lost half their people' is not in the brief. Brief says 'Historians' estimates mostly range from forty to sixty percent of the people dead' (aggregate), not village-scale loss. Remove or replace with brief language.",
+            "SR-9: 'A master carpenter's wage was capped at three pence a day, the official maximum' adds 'capped' and 'official maximum'; brief says 'could take no more than three pence a day.' Say 'A master carpenter could take no more than three pence a day' to match.",
+            "SR-9: 'almost always against workers, rarely employers' is not in brief. Brief states 'mostly against workers, not employers.' Replace with brief wording."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief requires 'Include the Black Death dates 1348 to 1350.' Script says 'just years before' without dates. Add dates: 'The Black Death had swept through from 1348 to 1350.'",
+            "SR-2: Black Death dates 1348–1350 are required by brief and are missing. Restore them."
+          ]
+        },
+        "hints": 7,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-5",
+        "repeat": 1,
+        "reservedUsd": 0.023111,
+        "status": "completed",
+        "costUsd": "0.008160",
+        "output": {
+          "score": 5,
+          "notes": "Strong narrative arc and vivid language, but multiple unsupported factual claims exceed brief scope. Script invents: Diocletian personally 'made overcharging a crime punishable by death' (brief says edict set prices, not that egg pricing itself was capital); 'prices soaring' and 'blamed greedy sellers' as Diocletian's stated motivation (not in brief); 'sell at a loss' elaboration (brief says 'hid goods'); 'blood was shed over bread and wine' as standalone fact (brief attributes to 'a writer,' implying claim, not confirmed event); 'quietly ignored in markets everywhere' (brief says 'largely failed and being ignored,' not 'everywhere'). SR-8 hedge erosion on 'largely.' Word count 129 fits 45s target. Hook is strong. Removes 4 points for SR-9 inventions and SR-8 hedge loss.",
+          "hookScore": 9,
+          "hookNotes": "Cold open with specific year and striking claim ('made overcharging for eggs a crime punishable by death') creates immediate curiosity. No preamble; lands in medias res with high stakes. Strong retention driver.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-9: 'made overcharging for eggs a crime punishable by death' — brief does not state that egg pricing was separately criminalized or carried a death penalty; only that the edict set maximum prices. Repair: 'In 301 AD, Diocletian issued the Edict of Maximum Prices, setting legal limits on over a thousand goods.'",
+            "SR-9: 'Prices were soaring across the empire, and Diocletian blamed greedy sellers for the panic' — brief does not supply Diocletian's stated motivation or the characterization 'greedy sellers' or 'panic.' Repair: remove this sentence or neutralize to 'Diocletian issued an edict setting maximum prices.'",
+            "SR-9: 'rather than sell at a loss' — brief says 'hid goods,' not explicitly 'sell at a loss.' Repair: 'A writer of the time claimed people hid their goods; prices only worsened.'",
+            "SR-9: 'Blood was shed over bread and wine' — brief attributes 'blood was shed over cheap things' to 'a writer of the time,' implying a claim, not a confirmed historical event. Script isolates it as fact. Repair: 'One writer claimed blood was shed over cheap goods.'",
+            "SR-9: 'quietly ignored in markets everywhere' — brief says 'largely failed and was being ignored,' not that it was ignored everywhere. 'Everywhere' is an unsupported absolute. Repair: 'the edict largely failed, being ignored in markets.'",
+            "SR-8: 'the law had largely failed' loses precision on 'largely' in final summary; brief says 'the edict largely failed,' so wording is acceptable here, but earlier 'So by 305 AD...the law had largely failed, quietly ignored' repeats and softens the core fact. Advisor: tighten to avoid redundancy."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief requires 'farm labourer's legal pay for a day'; script says 'laborer's daily pay.' While 'daily pay' conveys the time period, 'legal pay' is a required qualifier that distinguishes the edict's imposed wage standard from actual market rates. Repair: 'about one sixth of a farm labourer's legal daily pay.'"
+          ]
+        },
+        "hints": 9,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-5",
+        "repeat": 2,
+        "reservedUsd": 0.023111,
+        "status": "completed",
+        "costUsd": "0.007140",
+        "output": {
+          "score": 4,
+          "notes": "Script adds multiple unsupported factual claims beyond the brief: Diocletian personally 'made overcharging a crime punishable by death' (brief says law set prices, not penalties for overcharging); 'Prices were soaring...Diocletian blamed greedy sellers for the panic' (not in brief); 'sell at a loss' (brief says 'hid goods', not motivation); 'Blood was shed over bread and wine' (brief says 'over cheap things', not specific goods); 'quietly ignored in markets everywhere' (brief says 'largely failed and was being ignored', not pervasive everywhere). SR-9 violations cap score at 6; combined with pacing concerns at 129 words (~38 sec, tight for 45-sec target), score is 4.",
+          "hookScore": 7,
+          "hookNotes": "Cold open with specific date and vivid claim ('made overcharging... punishable by death') creates immediate curiosity and stakes, avoiding generic preamble. However, the opening claim itself is not supported by brief, which only confirms a price law, not a capital penalty for overcharging.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-9: 'made overcharging for eggs a crime punishable by death' is not in brief. Brief states a price law was set; no mention of overcharging as a crime or death penalty. Repair: Remove penalty framing or verify against source.",
+            "SR-9: 'Prices were soaring across the empire, and Diocletian blamed greedy sellers for the panic' adds motivation and empire-wide context not in brief. Repair: Omit or source separately.",
+            "SR-9: 'sell at a loss' adds economic motive not in brief, which only states 'hid goods'. Repair: Say 'sellers hid goods' without adding motive.",
+            "SR-9: 'Blood was shed over bread and wine' specifies goods as bread and wine; brief says 'over cheap things' (unspecified). Repair: Say 'blood was shed over cheap goods' or 'over commerce'.",
+            "SR-9: 'quietly ignored in markets everywhere' escalates 'largely failed and was being ignored' to pervasive non-compliance; 'everywhere' is not supported. Repair: Say 'largely failed and was ignored' without 'everywhere'."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief states 'farm labourer's legal pay for a day'; script says 'laborer's daily pay'. Brief's 'legal pay' qualifier is required context. Repair: Include 'legal' or restore 'legal pay for a day'."
+          ]
+        },
+        "hints": 9,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-5",
+        "repeat": 3,
+        "reservedUsd": 0.023111,
+        "status": "completed",
+        "costUsd": "0.008695",
+        "output": {
+          "score": 5,
+          "notes": "Strong narrative arc and engaging finale, but multiple factual inventions unsupported by the brief undermine credibility. Script adds: Diocletian specifically blamed greedy sellers; prices soaring; overcharging eggs as executable crime; sellers selling at a loss; blood shed over bread/wine specifically; quietly ignored everywhere. The brief supports only the edict, maximum prices, stone carvings, the four-denarii figure, a writer's claim about hiding goods, blood shed over cheap things, and the law largely failing by 305 AD. SR-9 violations are substantial. SR-3 advisory: \"panic\" and \"chaos\" are narrative flourishes without factual grounding.",
+          "hookScore": 7,
+          "hookNotes": "Opens with a strong cold claim (death penalty for egg prices) that creates immediate curiosity and tension, avoiding slow preamble. However, the claim itself is not supported by the brief, which does not specify that overcharging eggs was executable.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Narration is 129 words; at natural pace (~2.7 words/sec) this reads ~48 seconds, marginally within 45-second target but exceeds by ~3 seconds. At strict reading pace may exceed 60-second hard cap.",
+              "Multiple invented scenes (hiding goods, bloodshed, markets everywhere) would require stock footage or stills not grounded in supplied evidence."
+            ]
+          },
+          "factualConcerns": [
+            "SR-9: 'a Roman emperor made overcharging for eggs a crime punishable by death' — not in brief. Brief says Diocletian set maximum prices for over a thousand goods; no mention of death penalty, overcharging-specific crime, or eggs alone as executable. Repair: 'In 301 AD, Diocletian set legal maximum prices for over a thousand goods.'",
+            "SR-9: 'Prices were soaring across the empire, and Diocletian blamed greedy sellers for the panic' — not in brief. Brief mentions the edict and context (prices and panic context implied) but does not state Diocletian blamed sellers or that prices were soaring. Repair: Remove or reframe to 'Diocletian set maximum prices for over a thousand goods.'",
+            "SR-9: 'A writer of the time claimed sellers hid their goods rather than sell at a loss, and prices only worsened' — brief says 'A writer of the time claimed people hid goods' but does not supply the 'sell at a loss' motivation or 'prices only worsened' outcome. Script adds causal reasoning not in brief. Repair: 'A writer of the time claimed people hid goods instead.'",
+            "SR-9: 'Blood was shed over bread and wine' — brief says 'blood was shed over cheap things' (unspecified goods). Script specifies bread and wine without brief support. Repair: 'Blood was shed over cheap things.'",
+            "SR-9: 'quietly ignored in markets everywhere' — brief says 'largely failed and was being ignored' but does not claim it was ignored everywhere or uniformly. 'Everywhere' is an unsupported absolute. Repair: 'largely failed and was being ignored.'",
+            "SR-9: 'An emperor who could order executions could not control the price of an egg' — closing moralizes on an invented premise (the death penalty for eggs was added by script, not brief). Repair: 'An emperor could not control the price of an egg' or 'An emperor's laws could not control the market.'"
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief constraint 'Use only these facts; no additional details' violated. Script adds narrative elaboration (Diocletian blamed greedy sellers, soaring prices, panic, sell at a loss, bread and wine, everywhere) not supplied in brief. Restore to brief-only facts: the 301 AD edict, thousand goods, stone carvings, four denarii, six-day-labour equivalence, writer's claim of hiding, blood over cheap things, 305 AD step-down, largely failed."
+          ]
+        },
+        "hints": 9,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-6",
+        "repeat": 1,
+        "reservedUsd": 0.02258,
+        "status": "completed",
+        "costUsd": "0.006705",
+        "output": {
+          "score": 6,
+          "notes": "Script covers all brief facts in correct order with safe paraphrases (e.g. 'dropped from ships' → 'torn loose from ships'). However, SR-9 flags four inventions unsupported by brief: 'filthy work', 'kept hungry families fed', journalist motivation 'came looking for stories', and 'wrote them into his book' (brief says 'went to meet them for his survey'). These are vivid details that add narrative colour but violate brief-only policy. Length is 125 words, well under 45-second target (~190 word max). Hook is functional but generic. Capped at 6 due to SR-9 factual inventory violations.",
+          "hookScore": 6,
+          "hookNotes": "Opens with a concrete scene ('In 1850s London, children waded into the Thames mud') and a specific number ('about three pennies a day'), creating immediate curiosity. Not slow or generic, but lacks a surprising claim or question that drives urgency to keep watching—establishes what happened rather than why it matters.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-9: 'copper nails torn loose from ships' — brief says 'copper nails dropped from ships'; 'torn loose' is not supported and implies active removal.",
+            "SR-9: 'It was filthy work, but it kept hungry families fed' — neither 'filthy' nor 'kept hungry families fed' appear in brief; these are inventions adding emotional detail beyond supplied facts.",
+            "SR-9: 'So when journalist Henry Mayhew came looking for stories, he found these children along the riverbank and wrote them into his book' — brief says he 'went to meet them for his survey of the city's poor'; 'came looking for stories', 'found these children along the riverbank', and 'wrote them into his book' are not supported. The purpose and method are invented.",
+            "SR-9: 'But the numbers he recorded were bleak' — 'recorded' and 'bleak' are not in brief; this is an editorial interpretation, not a supplied fact."
+          ],
+          "styleGuideViolations": [
+            "SR-2: 'dock labourer's wage at two shillings sixpence, about thirty pence' — brief requires 'full day' to qualify the two shillings sixpence; omitting 'full day' changes the meaning from daily wage to an undefined period."
+          ]
+        },
+        "hints": 5,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-6",
+        "repeat": 2,
+        "reservedUsd": 0.02258,
+        "status": "completed",
+        "costUsd": "0.007780",
+        "output": {
+          "score": 6,
+          "notes": "Script adds several vivid but unsupported details: 'torn loose from ships' (brief says 'dropped'), 'filthy work', 'kept hungry families fed', Mayhew as 'journalist' 'looking for stories' and 'coming' to meet them, 'recorded…were bleak', and the riverbank setting. These invent narrative colour beyond the brief's factual scope. Core facts (wages, work type, Mayhew's book) are accurate. SR-2 and SR-9 violations cap score at 6 despite strong engagement and clarity.",
+          "hookScore": 8,
+          "hookNotes": "Cold open with a vivid, specific detail ('children waded into the Thames mud for about three pennies a day') immediately establishes time, place, and stakes. No preamble; viewer knows instantly what the video is about and why to keep watching.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Word count 125 at natural narration pace yields ~50–55 seconds, exceeding the 45-second target and approaching the 60-second hard limit; trim to ~95–105 words."
+            ]
+          },
+          "factualConcerns": [
+            "SR-9: 'torn loose from ships' invents a mechanism; brief states 'dropped from ships'. Replace with 'dropped'.",
+            "SR-9: 'It was filthy work, but it kept hungry families fed' invents social consequence and descriptive judgment; brief does not claim this. Remove or replace with supported fact.",
+            "SR-9: 'So when journalist Henry Mayhew came looking for stories, he found these children along the riverbank and wrote them into his book' adds narrative detail ('when', 'came looking for stories', 'found', 'along the riverbank', 'wrote them into') not in brief. Brief states only that Mayhew 'went to meet them for his survey' and documented them in the book. Simplify to 'Henry Mayhew met them for his survey, London Labour and the London Poor' or similar.",
+            "SR-9: 'But the numbers he recorded were bleak' asserts an editorial judgment ('bleak') and attributes recording to Mayhew where the brief merely states he estimated and put figures. Remove editorial gloss."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief requires 'full day' for dock labourer's wage; script omits it. Restore: 'a dock labourer's full day at two shillings sixpence'.",
+            "SR-2: 'copper nails torn loose from ships' changes brief's 'dropped from ships' to an invented mechanism; restore 'dropped'.",
+            "SR-2: 'kept hungry families fed' is not in brief and adds unsupported social narrative; remove.",
+            "SR-2: 'journalist Henry Mayhew came looking for stories' adds biographical colour and narrative framing absent from brief; brief says only he 'went to meet them for his survey'. Simplify.",
+            "SR-2: 'the riverbank' and 'wrote them into his book' are unsupported narrative flourishes; brief does not specify location or say he 'wrote them in'—only that he documented them. Trim.",
+            "SR-2: 'full day' is required in brief for dock labourer's wage but missing in script. Restore exact phrase."
+          ]
+        },
+        "hints": 5,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "SR-case-6",
+        "repeat": 3,
+        "reservedUsd": 0.02258,
+        "status": "completed",
+        "costUsd": "0.007980",
+        "output": {
+          "score": 6,
+          "notes": "Script contains unsupported factual inventions that violate brief-only policy. 'Copper nails torn loose from ships,' 'filthy work,' 'kept hungry families fed,' 'journalist,' 'came looking for stories,' 'wrote them into his book,' and 'the numbers he recorded were bleak' are not in the brief. The core wage comparison and Mayhew attribution are sound, but these additions exceed the allowed scope. Pacing is natural for ~45s. SR-9 caps score at 6.",
+          "hookScore": 7,
+          "hookNotes": "Opens with a concrete, vivid image ('children waded into the Thames mud for about three pennies a day') that immediately grounds the listener in a specific time, place and economic reality. No slow preamble; hooks via tangible detail rather than generic framing.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Word count 125 exceeds ~45s target by ~35%; at natural speech pace (~180 wpm) this runs 42s, acceptable, but sustained narration density for stock/still visuals may feel rushed with multiple scene shifts (children, riverbank, Mayhew, docks, wage comparison). Trim inventions to recover headroom."
+            ]
+          },
+          "factualConcerns": [
+            "SR-9: 'copper nails torn loose from ships' — brief states 'copper nails dropped from ships'; 'torn loose' is not supported and adds interpretive invention about the mechanism. Restore 'dropped.'",
+            "SR-9: 'It was filthy work, but it kept hungry families fed' — 'filthy,' 'kept,' 'hungry families fed' are not in the brief. Brief only states they 'searched' and 'sold what they found'; the judgment 'filthy' and the causal claim 'kept families fed' are invented. Remove or replace with brief-supported wording.",
+            "SR-9: 'So when journalist Henry Mayhew came looking for stories, he found these children along the riverbank and wrote them into his book' — 'came looking for stories,' 'found these children along the riverbank,' and 'wrote them into his book' are not in the brief. Brief states Mayhew 'went to meet them for his survey' and mentions the book title, but not narrative details of his search, encounter or compositional process. Shorten to: 'Henry Mayhew met them for his survey, London Labour and the London Poor.'",
+            "SR-9: 'But the numbers he recorded were bleak' — 'recorded' and 'were bleak' are editorial commentary not in the brief. The wage figures follow; drop this framing sentence.",
+            "SR-9: 'while he put a dock labourer's wage at two shillings sixpence' — brief says 'full day,' not 'wage.' Restore: 'while he put a dock labourer's full day at two shillings sixpence.'"
+          ],
+          "styleGuideViolations": [
+            "SR-2: Brief requires 'copper nails dropped from ships' (not 'torn loose'). Restore exact phrasing.",
+            "SR-2: Brief requires 'a dock labourer's full day' (not 'wage'). Restore 'full day.'",
+            "SR-2: Multiple invented narrative sequences ('came looking for stories,' 'found these children along the riverbank,' 'wrote them into his book,' 'the numbers he recorded were bleak') violate brief-only policy. Remove or condense to supplied facts."
+          ]
+        },
+        "hints": 5,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "S4-task9-long",
+        "repeat": 1,
+        "reservedUsd": 0.031042999999999998,
+        "status": "completed",
+        "costUsd": "0.008333",
+        "output": {
+          "score": 6,
+          "notes": "Strong narrative arc with clear chapter progression and effective open loops (construction mystery, permit expiry, scientific salvation). Cold open commands attention with a high-stakes near-demolition. Chapter flow builds momentum without repetition. Closes with a provocative reframe (beauty vs. utility) that lingers. Minor SR-3 redundancy and SR-5 TTS pronunciation risk noted in notes, not deducting. Word count 276 fits 96–144-word 2-minute band.\ncapped at 6: SR-9: 'It was nearly torn down and sold for scrap, just twenty years after it opened' — sold for scrap is not in brief; brief states only permit was 20 years and city could have dismantled it. Remove 'sold for scrap' or say 'dismantled and cleared.'",
+          "hookScore": 9,
+          "hookNotes": "Plunges immediately into a dramatic historical conflict: near-demolition and scrap sale. Avoids generic intro; commands attention with high stakes and a direct question that promises resolution.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-9: 'It was nearly torn down and sold for scrap, just twenty years after it opened' — sold for scrap is not in brief; brief states only permit was 20 years and city could have dismantled it. Remove 'sold for scrap' or say 'dismantled and cleared.'"
+          ],
+          "styleGuideViolations": [],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Why Build It",
+              "note": "Opens with dramatic near-loss, then rewinds to construction. Effective loop setup; naming Koechlin and Nouguier as first sketchers strengthens credit."
+            },
+            {
+              "chapterTitle": "How It Went Up",
+              "note": "Concrete construction details (18,038 pieces, 2.5 million rivets, exact timeline) sustain momentum. Chrysler Building record-break callback lands cleanly."
+            },
+            {
+              "chapterTitle": "Why It Was Almost Lost",
+              "note": "Permit expiry becomes the crux. 'Purely temporary fairground centerpiece' effectively sets stakes for demolition threat."
+            },
+            {
+              "chapterTitle": "Why It Stayed",
+              "note": "Eiffel's pivot to science (meteorology, aerodynamics, radio antenna) resolves the survival loop with practical ingenuity, not sentiment."
+            }
+          ]
+        },
+        "hints": 16,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "S4-task9-long",
+        "repeat": 2,
+        "reservedUsd": 0.031042999999999998,
+        "status": "completed",
+        "costUsd": "0.006948",
+        "output": {
+          "score": 8,
+          "notes": "Strong narrative structure with clear chapter progression and effective open-loop/payoff mechanics. The cold open creates genuine tension ('almost destroyed'), and each chapter answers a specific question while building toward the survival reveal. The closing line provides thematic closure without being generic. Word count at 276 words fits the 96–144 word target range for 2 minutes. Minor SR-5 advisory: 'gaol'-style archaic terms absent, but 'aerodynamic' and 'meteorological' may benefit from TTS pronunciation guidance in production notes.",
+          "hookScore": 9,
+          "hookNotes": "Opens with high-stakes destruction threat ('almost torn down and sold for scrap') before revealing the subject, immediately creating curiosity and tension. Avoids generic framing entirely; plunges directly into conflict.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Why Build It",
+              "note": "Opens with tension and closes on the design question; smoothly transitions to construction chapter. 'Marking one hundred years' is a clear causal statement."
+            },
+            {
+              "chapterTitle": "How It Went Up",
+              "note": "Precise technical data (construction dates, rivets, height) maintains momentum; the Chrysler Building comparison provides a natural cliff into the threat chapter."
+            },
+            {
+              "chapterTitle": "Why It Was Almost Lost",
+              "note": "Permit expiration creates immediate stakes; language ('had the right to dismantle') is clear and supports the survival payoff to follow."
+            },
+            {
+              "chapterTitle": "Why It Stayed",
+              "note": "Resolves the central tension through Eiffel's scientific pivot; closing line ('research still happening inside it') reframes the tower's value and avoids generic summary."
+            }
+          ]
+        },
+        "hints": 16,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "S4-task9-long",
+        "repeat": 3,
+        "reservedUsd": 0.031042999999999998,
+        "status": "failed",
+        "error": "NonTransientStageError: Script Review did not return valid JSON (Expected ',' or '}' after property value at position 209 (line 3 column 194))",
+        "costUsd": "0.007433"
+      },
+      {
+        "caseId": "clean-short",
+        "repeat": 1,
+        "reservedUsd": 0.020331000000000002,
+        "status": "completed",
+        "costUsd": "0.004242",
+        "output": {
+          "score": 8,
+          "notes": "Script is factually sound, brief-compliant, and tight for a Short. Opens with a clear historical claim. Numerals match supported values (1901, 50). At 9 words (~3.5 sec), fits well under 5-sec target. No filler or redundancy. Minor: 'It carried' is slightly passive but clear.",
+          "hookScore": 8,
+          "hookNotes": "Cold open with a specific year and claim ('A bridge opened in 1901') creates immediate historical intrigue. No preamble or branding delay. Works.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [
+            "SR-2: Brief requires 'fifty' (spelled); script uses '50' (numeral). Restore: 'It carried fifty workers.'"
+          ]
+        },
+        "hints": 0,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "clean-short",
+        "repeat": 2,
+        "reservedUsd": 0.020331000000000002,
+        "status": "completed",
+        "costUsd": "0.004337",
+        "output": {
+          "score": 6,
+          "notes": "Script meets the brief facts and opening constraint, but at 9 words it severely undershoots the 5-second target—likely 2–3 seconds when read naturally. Minimal engagement, no hook tension, and insufficient content for a historical Short. SR-2: Required exact opening sentence present; numeral 50 matches supported value. Consider expanding with context, stakes, or a question to justify airtime.",
+          "hookScore": 4,
+          "hookNotes": "Cold open with the date, but 'A bridge opened in 1901' is purely factual with no surprise, question, or visual promise. No immediate reason to keep watching. Flat pacing.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Narration is ~2–3 seconds; target is ~5 seconds. Script is too short to sustain a typical Short or fill available runtime."
+            ]
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": []
+        },
+        "hints": 0,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "clean-short",
+        "repeat": 3,
+        "reservedUsd": 0.020331000000000002,
+        "status": "completed",
+        "costUsd": "0.003897",
+        "output": {
+          "score": 9,
+          "notes": "Script meets brief requirements exactly. Opening is strong and cold, landing facts cleanly within target length. No factual or style violations. Minor SR-3 note: the second sentence is spare but functional for a 5-second Short.",
+          "hookScore": 9,
+          "hookNotes": "Cold open mid-fact; 'A bridge opened in 1901' immediately establishes time and stakes, creating curiosity about the follow-up detail.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": []
+        },
+        "hints": 0,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-clean",
+        "repeat": 1,
+        "reservedUsd": 0.042545,
+        "status": "completed",
+        "costUsd": "0.010475",
+        "output": {
+          "score": 9,
+          "notes": "Excellent narrative structure with strong chapter flow, open loops resolved systematically, and a punchy closing line. Each chapter opens with a direct question and builds through \"but/so\" reasoning. All four stories track workers adapting or being replaced, with precise facts grounding each arc. The closing—'The phone in your pocket did'—is provocative and historically astute. Minor SR-3 redundancy in Dorothy Vaughan chapter (repeated \"learning and teaching\"), but overall meets premium brand standards for historical clarity and dramatic pacing.",
+          "hookScore": 9,
+          "hookNotes": "Cold open immediately frames AI anxiety against historical precedent with the phrase 'history kept the receipts'—a high-tension metaphor. Avoids generic introduction; plunges straight into the hook.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Strong opening with direct question; Mary Smith's details (pea shooter, sixpence, 1900s–1930s) ground the narrative. Logic flows: tool variations don't matter, task does; alarm clock ends job, not Mary's biography. Well-constructed."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Effective use of 1945 strike as the pivot: invention ≠ acceptance. Hedge phrases (\"around 1900,\" \"more than 50 years,\" \"about 1.5 million\") are exact. Minor SR-3: repeated ideas about trust and acceptance stretch explanation; could tighten. Closes clearly with \"only a handful.\""
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Clear chronology (1943–1971) and direct actions (learned FORTRAN, taught co-workers). SR-3 advisory: \"learning and teaching\" stated twice in close succession (\"Those are the actions... learning FORTRAN herself and teaching her co-workers\" then \"it also includes a worker learning\" and \"learning and teaching are part of it too\"); redundant but thematically intentional."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Masterful data management: separates ATM rollout (1970s) from job decline (1980s–2000s) to smartphone era fall. Numbers clearly attributed to their changes (20→13, 43%, 400k). Closing sentence delivers the promised payoff and historical insight."
+            }
+          ]
+        },
+        "hints": 38,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-clean",
+        "repeat": 2,
+        "reservedUsd": 0.042545,
+        "status": "completed",
+        "costUsd": "0.010030",
+        "output": {
+          "score": 9,
+          "notes": "Excellent narrative structure: each chapter opens with a genuine question, builds through specific historical tension (invention vs. acceptance, workers adapting), and closes with resolved payoff. All four open loops (knocker-upper tools, elevator trust gap, Vaughan's adaptation, ATM paradox) close logically. Word count 1018 fits 9-minute target within margin. Closing line is provocative and precise, avoiding summary. Brand-appropriate depth and restraint; refuses invented biographical details about Vaughan per brief. No SR-1/2/7/8/9 violations.",
+          "hookScore": 9,
+          "hookNotes": "Opens with high-stakes present anxiety (AI job loss) immediately grounded in historical precedent (\"history kept the receipts\"). Avoids generic greeting or question; plunges into concrete conflict.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Strong opening with conflicting tools; pacing slows mid-chapter with repetition of \"waking workers\" and \"task.\" Consider tightening lines 3–5 to accelerate toward Mary Smith's pea shooter reveal."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Excellent tension: invention vs. trust creates clear dramatic spine. Repetition of \"strike,\" \"owners,\" and \"automatic\" in lines 6–8 is SR-3 filler; trim without losing facts to sharpen pacing."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Effective restraint on Vaughan portrait per brief; \"scenes and silhouettes\" instruction is honored. Pacing drags in the middle re-list of dates; consolidate timeline into one fluid sequence."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Final chapter's logic is crisp—ATM arrival ≠ job loss; smartphone did. Excellent payoff closing. No pacing issues; numbers are clearly attributed and separated by change type."
+            }
+          ]
+        },
+        "hints": 38,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-clean",
+        "repeat": 3,
+        "reservedUsd": 0.042545,
+        "status": "completed",
+        "costUsd": "0.010120",
+        "output": {
+          "score": 9,
+          "notes": "Exceptional narrative structure with strong opening, clear chapter logic, and precise adherence to brief. Each section opens with a historical question and builds tension through \"but/so\" scaffolding. Open loops (Why trust delay? Why did teller jobs persist?) are resolved logically. Closing line is provocative and forward-pointing. Word count 1018 fits 513±103 second window (≈7 min at natural pace). All facts, dates, numbers and hedges match brief exactly. No inventions, no dollar conversions, no AI predictions.",
+          "hookScore": 9,
+          "hookNotes": "Opens with immediate historical stakes (AI job anxiety) and pivots to a concrete counter-argument (machines have disrupted work before, documented history). Avoids generic greeting; plunges into tension.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Strong opening with \"How did workers wake up before alarm clocks ended the knocker-upper's job?\" Builds naturally from stick to pea shooter, anchors Mary Smith in place/tool/wage, resolves with retirement and machine-driven ending."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Opens effectively with trust paradox (invention ≠ acceptance). Strike provides pivotal disruption; voice/button/phone details ground acceptance narrative. Resolves with 50-year lag and current scarcity, avoiding premature closure."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Opens with clear question on Dorothy Vaughan's response. Maintains brief constraint (scenes/silhouettes only, no portrait). Timeline 1943–1971 with FORTRAN learning/teaching provides arc; retirement closes cleanly without invention."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Opens with ATM paradox and resolves with smartphone era reversal. Numbers (400k ATMs, 20→13, 43%) are paired correctly to their time periods. Final line contrasts cash machine vs. phone, delivering provocative close and meta-reflection on story structure."
+            }
+          ]
+        },
+        "hints": 38,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-dropped-hedge",
+        "repeat": 1,
+        "reservedUsd": 0.042652999999999996,
+        "status": "completed",
+        "costUsd": "0.012446",
+        "output": {
+          "score": 6,
+          "notes": "Script preserves all four narratives with strong structural logic and open-loop closure, but fails SR-2 exact hedge constraint and contains SR-1 date precision issues. The writing is deliberately meta-textual and self-referential—appropriate for a channel focused on historical storytelling—but this reflexivity, while intellectually sound, risks feeling repetitive in audio. Pacing is realistic for still-image production. The closing line is exact as required.",
+          "hookScore": 7,
+          "hookNotes": "Opens with immediate tension ('AI will take your job') grounded in historical precedent, avoiding generic preamble. However, 'and history kept the receipts' is idiomatic rather than commanding—a solid hook but not commanding absolute attention.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": [
+              "Heavy narrative exposition (meta-commentary on story structure) may feel static across long sections without scene cuts; pacing depends on visual scene frequency matching tonal shifts.",
+              "Dorothy Vaughan chapter explicitly forbids portrait but relies heavily on 'scenes and silhouettes'—requires careful composition to avoid repetition across learning/teaching beats."
+            ]
+          },
+          "factualConcerns": [
+            "SR-1: Script states 'Mary Smith did that work from the 1900s to the 1930s' but brief specifies '1900s to 1930s' without 'from'; the added preposition is harmless paraphrase, but verify dates align: brief confirms 1900s–1930s and retirement 1934, so 'worked from the 1900s to the 1930s' is supported as a paraphrase of the range given.",
+            "SR-1: Script says 'electronic computers arrived in 1961' but brief states 'electronic computers arrived 1961' without 'in'. Repair is trivial (add preposition) and meaning identical; no substantive concern.",
+            "SR-8: Script says 'Automatic elevators were invented 1900' (missing hedge 'around') and later 'The invention came 1900'—both drop the required 'around'. Repair both: 'around 1900'."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Script says 'Automatic elevators were invented 1900' but brief requires exact hedge 'around 1900'. Repair: 'Automatic elevators were invented around 1900.'",
+            "SR-2: Exact hedge constraint violated. Brief requires 'around 1900' but script omits 'around' in both elevator section instances ('invented 1900', 'invention came 1900'). Restore: 'Automatic elevators were invented around 1900' and 'The invention came around 1900' (or similar).",
+            "SR-2: missing exact hedge words \"around 1900\""
+          ],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Strong narrative arc with clear stakes (task, tool, wage, machine ending) and tight closure. Meta-commentary ('the job's ending belongs to the alarm clock') adds interpretive tension without inventing facts. No factual concerns in this chapter."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Inverts the knocker-upper's instant obsolescence via lengthy trust gap—effective structural contrast. Repeated 'belongs together in this story' and 'feel normal' risk redundancy in audio, but SR-8 hedge 'around 1900' is missing; fix required. Pacing is steady for still images."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Most reflective chapter; extensive meta-narrative ('not a reason to invent…', 'sequence stays with facts') foregrounds the brief's constraint, which is intellectually honest but verbose. Silhouette-only rule is respected. No factual violations; pacing depends on visual variety since content is primarily expository."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Payoff chapter rewarding careful listening; distinctions between branch-level change, city expansion, and job redefinition are precise and supported. Closing pivot to smartphone era (not ATM era) delivers promised surprise. Final sentence is exact as required; no factual concerns."
+            }
+          ]
+        },
+        "hints": 40,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-dropped-hedge",
+        "repeat": 2,
+        "reservedUsd": 0.042652999999999996,
+        "status": "completed",
+        "costUsd": "0.012066",
+        "output": {
+          "score": 6,
+          "notes": "Script meets chapter structure and closes on the required final sentence, but SR-2 violations cap the score at 6. Missing exact hedge \"around 1900\" in elevator chapter (says \"invented 1900\" instead). SR-8 violation: drops \"about\" from \"about 1.5 million\" in elevator chapter. Narrative is reflexive and cerebral rather than dramatically tensioned; opens without scene-setting conflict. Chapter flow prioritizes exposition over active historical turning points.",
+          "hookScore": 2,
+          "hookNotes": "Opens with generic worry framing ('many people worry') and meta-commentary ('history kept the receipts'), not immediate historical stakes. No scene, no tension, no plunge into a specific moment. Reads like an essay introduction rather than a commanding cold open.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": false,
+            "visualsProducible": true,
+            "flags": [
+              "Chapters 1–3 are extended meta-narrative about storytelling itself ('So the story of the knocker-upper includes...', 'So a story that begins...'), not visual scenes; long stretches of dialogue-free voice-over on framing and structure will feel static in still-image format.",
+              "Chapter 3 (Dorothy Vaughan) explicitly requires silhouettes and scenes but provides no incident, dialogue, or physical moment to illustrate; 'She taught herself FORTRAN' and 'She taught her co-workers' lack visual anchor points beyond generic office composition.",
+              "Chapter 4 (Bank teller) is dense with numbers and comparative analysis ('fewer tellers per branch, more city branches'; 'Branch tellers fell from 20 to 13') with no scene or character to ground visuals; charts/graphics would dominate over still imagery."
+            ]
+          },
+          "factualConcerns": [
+            "SR-8: Qualifier 'about' is dropped from the 1.5 million figure in elevator chapter. Script says 'In 1945, a New York strike stranded about 1.5 million office workers' (correct) but later says 'The strike stranded about 1.5 million office workers' (correct). However, earlier in the same chapter: 'In 1945, a New York strike stranded about 1.5 million office workers' is correct; no violation detected on re-read. DISMISS."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Exact hedge word 'around 1900' is missing from elevator chapter. Script says 'Automatic elevators were invented 1900' instead of 'Automatic elevators invented around 1900'; restore 'around'.",
+            "SR-2: Exact hedge 'around 1900' required by brief is replaced with bare 'Automatic elevators were invented 1900'; restore 'around 1900'.",
+            "SR-2: missing exact hedge words \"around 1900\""
+          ],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Opens with answering question, not dramatizing it; lengthy meta-narrative on what 'the story includes' delays scene entry. Closure on retirement is factually correct but undramatic."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Missing exact hedge 'around 1900'; otherwise factually sound. Narrative structure repeats 'So the story includes' across multiple paragraphs, creating cerebral pacing misfit for visual sequence."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Heavy on meta-narrative ('Her story includes'; 'Dorothy Vaughan belongs in both parts'). No visual incident provided despite constraint requiring scenes and silhouettes; facts are correct but lack dramatic turning point."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Numeric density (20 to 13, 43 percent, over 400,000) with no character or scene to anchor visuals. Closes strongly on required final sentence; otherwise exposition-heavy."
+            }
+          ]
+        },
+        "hints": 40,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-dropped-hedge",
+        "repeat": 3,
+        "reservedUsd": 0.042652999999999996,
+        "status": "completed",
+        "costUsd": "0.012506",
+        "output": {
+          "score": 6,
+          "notes": "Script meets structural and narrative requirements but contains one critical hedge violation and problematic pacing for a 9-minute video. The opening is exact, closing is exact, and all four chapters follow a coherent 'but/so' logic. However, 'Automatic elevators were invented 1900' lacks the required 'around' hedge (SR-2). The narration is 1017 words, fitting the 9-minute target (within 20%), but the script is heavily self-referential and meta-analytical ('So the story includes...', 'Those are the terms of this story'), which may read as stilted rather than cinematic. The video assumes the audience wants to hear about narrative construction itself rather than experience the historical moments. Each chapter is conceptually sound but needs dramatic scene-building rather than editorial commentary.",
+          "hookScore": 2,
+          "hookNotes": "The opening is generic and abstract. 'People have worried about machines before, and history kept the receipts' is whimsical but lacks immediate historical tension or a concrete moment. No plunge into a specific conflict or crisis; reads like an essay introduction rather than a cold open commanding attention.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": false,
+            "visualsProducible": true,
+            "flags": [
+              "Heavy meta-narrative ('So the story includes...', 'Those are the terms of this story') will require on-screen text or visual metaphors to anchor abstract narration. Still images of alarm clocks, pea shooters, elevator buttons etc. exist, but scenes depicting 'the story includes' or 'the sequence stays' are conceptual, not visual.",
+              "Elevator chapter relies on repeated abstract phrasing ('trust did not arrive', 'feeling normal', 'contrast between having and accepting') that does not translate to concrete visual beats. A recorded voice and red button are producible; the emotional arc of acceptance is not.",
+              "Dorothy Vaughan chapter explicitly forbids portrait and relies on 'scenes and silhouettes'—workable but constrains composition. Multiple references to 'actions' and 'learning' risk becoming repetitive classroom illustrations.",
+              "Bank teller chapter spends significant narration on statistical analysis ('fewer tellers per branch, more city branches') rather than human or machine conflict. Visual pacing will suffer without a dramatic anchor."
+            ]
+          },
+          "factualConcerns": [],
+          "styleGuideViolations": [
+            "SR-2: 'Automatic elevators were invented 1900' violates the required exact hedge. Brief specifies 'Automatic elevators invented around 1900'. Restore: 'Automatic elevators were invented around 1900.'",
+            "SR-2: Required hedge word 'around' is missing from the elevator chapter. Brief mandates 'around 1900'; script says 'invented 1900'. This is the only exact-wording constraint for a hedge term in the brief.",
+            "SR-2: missing exact hedge words \"around 1900\""
+          ],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Strong factual grounding and clear but/so logic; meta-commentary on narrative structure ('So the story includes...') reads more like an author's note than dramatization. Consider embedding facts in scene language rather than declaring what the story contains."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Hedge violation ('invented 1900' vs. 'around 1900') and repeated abstract language ('trust did not arrive', 'feeling normal took more than 50 years') dilutes tension. Concrete details (recorded voice, red button) exist but are buried in philosophical assertions. Reorder to lead with disruption and machine resistance."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Effective sequence of dates and actions; constraint on 'scenes and silhouettes' is respected. However, repetitive phrasing ('the story includes', 'belongs in both parts', 'part of the story') slows pacing. Compress meta-narrative and allocate space to dramatizing her teaching actions."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Strongest closing payoff ('The cash machine didn't end the bank teller. The phone in your pocket did.') but chapter is front-loaded with statistical parsing that does not build dramatic momentum. Reorder numbers to follow the human change (job became helping customers) rather than preceding it."
+            }
+          ]
+        },
+        "hints": 40,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-invented-details",
+        "repeat": 1,
+        "reservedUsd": 0.042851,
+        "status": "completed",
+        "costUsd": "0.014287",
+        "output": {
+          "score": 5,
+          "notes": "SR-1: 'In 1922, the workers wore brass badges to prove their loyalty' is unsupported—brief mentions only knocker-uppers' tools and pay, not badges or loyalty oaths. This invents a factual detail. SR-2: Brief requires exactly four chapters in narrative order; script delivers four but the preamble before Chapter 1 (first 45 words) violates the opening constraint by adding meta-commentary ('The story of the knocker-upper includes...', 'Those are the terms...') instead of launching Chapter 1's question. Chapter structure is sound but pacing is bloated by repeated exposition; the script says the same idea (Mary Smith's tool, task, end) five times across 150 words. SR-9: The badge/loyalty claim is not in the brief and contradicts its silence.",
+          "hookScore": 6,
+          "hookNotes": "Opening is the required first sentence (exact match), but the follow-up immediately shifts to abstract meta-narration about story structure and evidence rather than plunging into the knocker-upper's historical moment. The hook lands the mandatory constraint but does not create high tension or urgency.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": false,
+            "visualsProducible": true,
+            "flags": [
+              "Knocker-upper section contains 150+ words of meta-narration ('Those are the terms', 'The story includes', 'But the job's ending belongs') that repeat the same conceptual content without advancing the narrative; pacing will feel static and over-explained for visual sequence.",
+              "Elevator and bank teller sections are dense with analytical statements ('So the change within a branch is not the same measure...', 'So there are different changes to keep separate...') that work as essay but tax visual pacing; still images cannot dramatize comparative economic analysis effectively.",
+              "Dorothy Vaughan section is constrained correctly (scenes and silhouettes, no portrait) but the surrounding analysis-heavy framing may overshadow visual moments."
+            ]
+          },
+          "factualConcerns": [
+            "SR-1: 'In 1922, the workers wore brass badges to prove their loyalty.' This detail—badges, the year 1922 as a badge milestone, and the stated purpose of proving loyalty—does not appear in the brief. The brief mentions knocker-uppers, Mary Smith, pea shooter, peas, 1900s–1930s, and sixpence a week, but no badges or loyalty requirement. Safer: omit the sentence or reframe to a supported detail if any exists in a supplied source.",
+            "SR-9 [H7]: Unmatched factual claim. 'In 1922, the workers wore brass badges to prove their loyalty' is not supported by the brief facts (knocker-uppers, Mary Smith, long sticks, pea shooter, dried peas, sixpence a week, 1934 retirement, cheap alarm clocks). The detail is invented."
+          ],
+          "styleGuideViolations": [
+            "SR-2: The opening constraint requires the first sentence to be 'Today, many people worry that AI will take their job. People have worried about machines before, and history kept the receipts.' Script delivers this exactly, but the brief also requires each chapter to open with 'the question it answers.' Chapter 1 begins 'How did workers wake up before an alarm clock ended the knocker-upper's job?' (correct), but the preamble preceding it ('The story of the knocker-upper includes both the long stick and Mary Smith's pea shooter...') is not a chapter opening and violates the four-chapter structure by inserting 45 words of out-of-sequence meta-narration before Chapter 1's question.",
+            "SR-2: Brief requires 'about 1,240 words'; script is 1,029 words. This is 17% under target, within the ±20% tolerance, but the density of repetitive meta-narration makes the deficit feel more acute; consider expanding narrative scenes rather than analytical recap."
+          ],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Chapter opens correctly with its question but is preceded by 45 unsupported words of preamble. The body repeats 'task', 'tool', 'Mary Smith', 'pea shooter', 'dried peas' across five sentences without advancing tension; pacing stalls. The brass-badge sentence (1922) is invented and must be cut. Condense exposition and let the historical details carry the drama."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Opens correctly with its question. The structural contrast (invention ≠ acceptance, 1900 vs. 50+ years) is clear, and the strike/voice/button/phone details are well-deployed. However, repetitive analytical framing ('So a story that begins...', 'So the contrast is between...') adds little tension for a visual medium; tighten to let the historical conflict speak."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Opens correctly. Adheres to silhouette constraint and sequences dates/roles clearly. Pacing is tighter here; the learning/teaching action gives momentum. Risk: Dorothy Vaughan's individuality is muted by the emphasis on 'scenes and silhouettes'—acceptable per brief, but the chapter's narrative warmth depends on reader imagination."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Opens correctly and ends with the exact required closing sentence. The structure (ATM rollout ≠ job loss, then smartphone era ≠ branch count) is sound, but the section drowns in statistical analysis ('So the change within a branch is not the same measure...', 'The dates and figures belong to those changes'). Dramatic payoff comes only at the final line; front-load conflict."
+            }
+          ]
+        },
+        "hints": 40,
+        "confirmedHints": 1
+      },
+      {
+        "caseId": "appendix-A-invented-details",
+        "repeat": 2,
+        "reservedUsd": 0.042851,
+        "status": "completed",
+        "costUsd": "0.011442",
+        "output": {
+          "score": 6,
+          "notes": "Script strictly adheres to brief facts and constraints but commits a critical SR-1 factual error: 'In 1922, the workers wore brass badges to prove their loyalty' is not supported by the brief and invents a detail about knocker-uppers that changes the historical narrative. The narrative structure is philosophically mature—each chapter opens with a question and builds via 'but/so' logic—but the invented brass-badge claim and the metatextual passages digressing on what the brief 'gives us' and 'does not give us' prioritise self-referential commentary over dramatic tension. Length fits (1029 words ≈ 410 sec at 145 wpm, within 513±103 sec target). Closing line is exact and provocative. Open loops close logically. Hedge words preserved. However, SR-1 failure caps final score at 6.",
+          "hookScore": 7,
+          "hookNotes": "Cold open plunges into present anxiety ('many people worry') and immediately reframes via history ('history kept the receipts'), avoiding generic preamble. Strong but not absolute—a more vivid or unexpected historical image would push to 8+.",
+          "videoGenFit": {
+            "fitsLengthLimit": true,
+            "pacingRealistic": true,
+            "visualsProducible": true,
+            "flags": []
+          },
+          "factualConcerns": [
+            "SR-1: 'In 1922, the workers wore brass badges to prove their loyalty' is not supported by the brief. The brief supplies Mary Smith's dates (1900s–1930s), her tool (pea shooter), peas, and pay (sixpence a week), but does not mention 1922, brass badges, workers, or loyalty. This invents a factual detail that alters the narrative. Remove the sentence or replace with: 'She did that work from the 1900s to the 1930s, for sixpence a week.'"
+          ],
+          "styleGuideViolations": [],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Opens with the required question but immediately digresses into metatextual reflection ('That was the job') rather than driving narrative tension; the invented 1922 brass-badge detail breaks SR-1. Reorder to lead with Mary Smith's tool and pay, then justify scope constraints."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Strong 'but/so' logic (invention vs. acceptance, strike as pivot). Metatextual passages ('They belong together in this story') slow pacing but preserve all required hedge words and facts. Visual beats (voice, button, phone) are producible."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Exceeds constraint 'Dorothy Vaughan only through scenes and silhouettes, never as a portrait' by naming her repeatedly and discussing her individual actions; the brief allows this for facts but the repeated 'Dorothy Vaughan belongs' passages risk portraiture. Reorient to emphasise the collective West Area Computers and roles over her biography."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Methodical unpacking of three separate changes (branch density, job role, timing) with correct attribution of figures to time periods. Closing contrast (ATM vs. smartphone) fulfils the exact final sentence. Pacing is discursive but supports the logic."
+            }
+          ]
+        },
+        "hints": 40,
+        "confirmedHints": 0
+      },
+      {
+        "caseId": "appendix-A-invented-details",
+        "repeat": 3,
+        "reservedUsd": 0.042851,
+        "status": "completed",
+        "costUsd": "0.014082",
+        "output": {
+          "score": 5,
+          "notes": "The script violates its core brief constraint: it adds extensive meta-narrative and invented structural reasoning ('this is not a reason to invent', 'It does not give us her life after that', philosophical framing about tools vs tasks) that is neither narration nor fact but editorial commentary unrelated to the four jobs. The knocker-upper section inserts '1922, the workers wore brass badges to prove their loyalty'—unsupported by the brief—and repeats the same ideas across multiple paragraphs without advancing the story. Each chapter devolves into abstract explanation rather than telling the worker's story. The open loop 'without predicting what AI will do' is never closed; the framing promise 'history kept the receipts' is abandoned. Closing line works. Pacing is bloated and unfocused.",
+          "hookScore": 6,
+          "hookNotes": "Opens with a thematic claim ('People have worried about machines before, and history kept the receipts') rather than plunging into Mary Smith's story. The first sentence is required verbatim and met, but it is philosophical assertion, not historical tension. Not gripping.",
+          "videoGenFit": {
+            "fitsLengthLimit": false,
+            "pacingRealistic": false,
+            "visualsProducible": true,
+            "flags": [
+              "Script is 1029 words; target is ~1240 ±20% (992–1488 words). At ~150 wpm narration, this reads ~6.9 minutes, below the 9-minute target. Length is acceptable but pacing is excessive explanation per visual beat.",
+              "Each chapter is interrupted by meta-commentary ('So the story of the knocker-upper includes both...', 'It has to include...', 'But this is not a reason to invent a different ending') that does not correspond to visual scene changes and slows visual pacing dramatically."
+            ]
+          },
+          "factualConcerns": [
+            "SR-1/SR-9: 'In 1922, the workers wore brass badges to prove their loyalty.' This detail—workers, badges, loyalty, 1922—is not in the brief. The brief lists only Mary Smith, pea shooter, dried peas, 1900s to 1930s, sixpence a week, retired 1934, and cheap alarm clocks ended the job. No badge or loyalty event is supplied. Remove this sentence or replace with brief-supported fact.",
+            "SR-8: 'In 1945, a New York strike stranded about 1.5 million office workers.' The hedge 'about' is correctly preserved. No issue detected; hedge is intact."
+          ],
+          "styleGuideViolations": [
+            "SR-2: Script violates the brief constraint 'use only the facts in the chapters, no other facts, numbers, names, dates or details'. The script contains extensive invented meta-narrative: 'this is not a reason to invent a different ending for her', 'It does not give us her life after that', 'The brief gives us her retirement', 'It has to include', 'So the contrast is between having an automatic elevator and accepting an automatic elevator.' These are editorial framing devices not in the brief and not narration of the four jobs. Remove all meta-commentary that frames the structure rather than tells the story.",
+            "SR-2: Brief constraint 'no predictions about AI' is supported by the closing sentence 'without predicting what AI will do', but this phrase appears mid-chapter (ATM section) and is not resolved. The phrase dangles as an unsupported promise. Either remove it or resolve it by a payoff statement tied to the four stories.",
+            "SR-2: Brief constraint is 'four chapters in order (knocker-upper, elevator operator, human computers, bank teller), each opening with the question it answers'. The script opens each chapter with a 'Why' question (correct) but then immediately breaks into meta-narrative ('How did workers wake up... A knocker-upper woke workers... But Mary Smith used a different tool... So the story of the knocker-upper includes both...'). The narration should answer the question through the story, not frame the story's structure. Restructure to narrate the event itself, not the logic of narration."
+          ],
+          "chapterNotes": [
+            {
+              "chapterTitle": "Knocker-upper",
+              "note": "Adds unsupported detail (1922 brass badges, loyalty), repeats 'tools differed but task was waking' across multiple sentences, and devolves into meta-commentary ('The brief gives us', 'It does not give us') instead of narrating Mary Smith's work. Tighten to story only: her method, her pay, the alarm clock's end."
+            },
+            {
+              "chapterTitle": "Elevator operator",
+              "note": "Heavy philosophical framing ('invention was not the same thing as acceptance', 'contrast between having and accepting') overwhelms the historical event. Narrate the strike, the fear, the owners' push, and the voice/button/phone—avoid meta-structural commentary."
+            },
+            {
+              "chapterTitle": "Human computers",
+              "note": "Opens correctly but immediately states 'this is not a reason to invent a different ending for her' and 'It does not give us her life after that'—editorial asides unsupported by brief. Narrate: joined 1943, head 1949, taught FORTRAN 1961, retired 1971. Avoid explaining what the brief excludes."
+            },
+            {
+              "chapterTitle": "Bank teller",
+              "note": "Correctly presents the ATM paradox (machines arrived, jobs did not fall as ATMs rolled out) but buries it in repeated re-explanation and abstract analysis. Closes with the required final sentence, but pacing is bloated."
+            }
+          ]
+        },
+        "hints": 40,
+        "confirmedHints": 0
+      }
+    ]
+  },
+  "priorRuns": [
+    {
+      "hash": "a02c77aeb457d5ea69f37c4075db4191a7b3102024d54a68f8e4623883931d3f",
+      "entries": [
+        {
+          "caseId": "SR-case-1",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005601",
+          "reservedUsd": 0.018735,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-1",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005316",
+          "reservedUsd": 0.018735,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-1",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005471",
+          "reservedUsd": 0.018735,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005719",
+          "reservedUsd": 0.020075,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006524",
+          "reservedUsd": 0.020075,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006064",
+          "reservedUsd": 0.020075,
+          "score": 7,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.004995",
+          "reservedUsd": 0.018743,
+          "score": 8,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005950",
+          "reservedUsd": 0.018743,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005820",
+          "reservedUsd": 0.018743,
+          "score": 7,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006626",
+          "reservedUsd": 0.019511,
+          "score": 6,
+          "hints": 12,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006626",
+          "reservedUsd": 0.019511,
+          "score": 6,
+          "hints": 12,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005846",
+          "reservedUsd": 0.019511,
+          "score": 6,
+          "hints": 12,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.007213",
+          "reservedUsd": 0.018712,
+          "score": 5,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006948",
+          "reservedUsd": 0.018712,
+          "score": 5,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006613",
+          "reservedUsd": 0.018712,
+          "score": 5,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006224",
+          "reservedUsd": 0.018463,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005884",
+          "reservedUsd": 0.018463,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006254",
+          "reservedUsd": 0.018463,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006586",
+          "reservedUsd": 0.022616999999999998,
+          "score": 2,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005871",
+          "reservedUsd": 0.022616999999999998,
+          "score": 2,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006461",
+          "reservedUsd": 0.022616999999999998,
+          "score": 3,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.004433",
+          "reservedUsd": 0.017346,
+          "score": 3,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.004048",
+          "reservedUsd": 0.017346,
+          "score": 3,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.004813",
+          "reservedUsd": 0.017346,
+          "score": 4,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.008234",
+          "reservedUsd": 0.031788,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.008854",
+          "reservedUsd": 0.031788,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.008889",
+          "reservedUsd": 0.031788,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.009412",
+          "reservedUsd": 0.031908,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.009087",
+          "reservedUsd": 0.031908,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.014472",
+          "reservedUsd": 0.031908,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 1,
+          "status": "failed",
+          "reservedUsd": 0.031893,
+          "error": "NonTransientStageError"
+        }
+      ]
+    },
+    {
+      "hash": "06b6437731c02d057156a3b23a1bcbac76ad15e34bbace7910415ef1adf03169",
+      "entries": [
+        {
+          "caseId": "SR-case-1",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006304",
+          "reservedUsd": 0.020289,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-1",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006009",
+          "reservedUsd": 0.020289,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-1",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006139",
+          "reservedUsd": 0.020289,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006227",
+          "reservedUsd": 0.021629,
+          "score": 8,
+          "hints": 5,
+          "confirmedHints": 2
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006047",
+          "reservedUsd": 0.021629,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005857",
+          "reservedUsd": 0.021629,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005468",
+          "reservedUsd": 0.020297,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.004948",
+          "reservedUsd": 0.020297,
+          "score": 8,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005618",
+          "reservedUsd": 0.020297,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006687",
+          "reservedUsd": 0.021199,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 2
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005672",
+          "reservedUsd": 0.021199,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006322",
+          "reservedUsd": 0.021199,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006076",
+          "reservedUsd": 0.020266,
+          "score": 6,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005641",
+          "reservedUsd": 0.020266,
+          "score": 6,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.004996",
+          "reservedUsd": 0.020266,
+          "score": 6,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005297",
+          "reservedUsd": 0.020017,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006057",
+          "reservedUsd": 0.020017,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006392",
+          "reservedUsd": 0.020017,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006305",
+          "reservedUsd": 0.02659,
+          "score": 7,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006940",
+          "reservedUsd": 0.02659,
+          "score": 6,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005645",
+          "reservedUsd": 0.02659,
+          "score": 7,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.004141",
+          "reservedUsd": 0.0189,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.004571",
+          "reservedUsd": 0.0189,
+          "score": 4,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.004271",
+          "reservedUsd": 0.0189,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.008102",
+          "reservedUsd": 0.033342,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.011877",
+          "reservedUsd": 0.033342,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.007642",
+          "reservedUsd": 0.033342,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.009980",
+          "reservedUsd": 0.033462,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.009050",
+          "reservedUsd": 0.033462,
+          "score": 7,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.008775",
+          "reservedUsd": 0.033462,
+          "score": 7,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.011107",
+          "reservedUsd": 0.033447,
+          "score": 6,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.010822",
+          "reservedUsd": 0.033447,
+          "score": 6,
+          "hints": 6,
+          "confirmedHints": 1
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.008607",
+          "reservedUsd": 0.033447,
+          "score": 6,
+          "hints": 6,
+          "confirmedHints": 0
+        }
+      ]
+    },
+    {
+      "hash": "ab86c4dc9c385de39ff7b5010e919315f1a08d935f6a53022bb74854e5bae1dd",
+      "entries": [
+        {
+          "caseId": "SR-case-1",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005108",
+          "reservedUsd": 0.021313,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-1",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.004288",
+          "reservedUsd": 0.021313,
+          "score": 8,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-1",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005643",
+          "reservedUsd": 0.021313,
+          "score": 6,
+          "hints": 1,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005466",
+          "reservedUsd": 0.022653,
+          "score": 8,
+          "hints": 5,
+          "confirmedHints": 1
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005001",
+          "reservedUsd": 0.022653,
+          "score": 8,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-2",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.004891",
+          "reservedUsd": 0.022653,
+          "score": 8,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006082",
+          "reservedUsd": 0.02132,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.007322",
+          "reservedUsd": 0.02132,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-3",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006247",
+          "reservedUsd": 0.02132,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.005691",
+          "reservedUsd": 0.022223,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006481",
+          "reservedUsd": 0.022223,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-4",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.007251",
+          "reservedUsd": 0.022223,
+          "score": 6,
+          "hints": 5,
+          "confirmedHints": 2
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006795",
+          "reservedUsd": 0.02129,
+          "score": 6,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006660",
+          "reservedUsd": 0.02129,
+          "score": 6,
+          "hints": 3,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-5",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005830",
+          "reservedUsd": 0.02129,
+          "score": 6,
+          "hints": 3,
+          "confirmedHints": 1
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006496",
+          "reservedUsd": 0.021041,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.005681",
+          "reservedUsd": 0.021041,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "SR-case-6",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.005576",
+          "reservedUsd": 0.021041,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.006176",
+          "reservedUsd": 0.028007999999999998,
+          "score": 8,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.006061",
+          "reservedUsd": 0.028007999999999998,
+          "score": 9,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "S4-task9-long",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.006551",
+          "reservedUsd": 0.028007999999999998,
+          "score": 8,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.004270",
+          "reservedUsd": 0.019922,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.004050",
+          "reservedUsd": 0.019922,
+          "score": 8,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "clean-short",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.004530",
+          "reservedUsd": 0.019922,
+          "score": 6,
+          "hints": 0,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.008074",
+          "reservedUsd": 0.034761,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.008129",
+          "reservedUsd": 0.034761,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-clean",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.008269",
+          "reservedUsd": 0.034761,
+          "score": 9,
+          "hints": 5,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.009067",
+          "reservedUsd": 0.034880999999999995,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.009232",
+          "reservedUsd": 0.034880999999999995,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-dropped-hedge",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.010177",
+          "reservedUsd": 0.034880999999999995,
+          "score": 6,
+          "hints": 7,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 1,
+          "status": "completed",
+          "costUsd": "0.008444",
+          "reservedUsd": 0.034865999999999994,
+          "score": 9,
+          "hints": 6,
+          "confirmedHints": 0
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 2,
+          "status": "completed",
+          "costUsd": "0.008654",
+          "reservedUsd": 0.034865999999999994,
+          "score": 8,
+          "hints": 6,
+          "confirmedHints": 1
+        },
+        {
+          "caseId": "appendix-A-invented-details",
+          "repeat": 3,
+          "status": "completed",
+          "costUsd": "0.009764",
+          "reservedUsd": 0.034865999999999994,
+          "score": 6,
+          "hints": 6,
+          "confirmedHints": 0
+        }
+      ]
+    }
+  ],
+  "strictDetectionAudit": [
+    {
+      "rule": "SR-1",
+      "caseId": "SR-case-1",
+      "criterion": "Soldiers earning salarium misstates an etymology",
+      "detectedRepeats": [],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-2",
+      "caseId": "SR-case-1",
+      "criterion": "Missing salary key term",
+      "detectedRepeats": [
+        1,
+        2,
+        3
+      ],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-3",
+      "caseId": "SR-case-1",
+      "criterion": "Neat tale filler",
+      "detectedRepeats": [
+        1,
+        2,
+        3
+      ],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-4",
+      "caseId": "SR-case-1",
+      "criterion": "Coins, minted denarii spoken ambiguity",
+      "detectedRepeats": [],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-5",
+      "caseId": "SR-case-1",
+      "criterion": "Latin/denarii pronunciation risk",
+      "detectedRepeats": [
+        2
+      ],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-6",
+      "caseId": "SR-case-6",
+      "criterion": "Final score respects brief-only cap (calibration outcome, not recall)",
+      "detectedRepeats": [
+        1,
+        2,
+        3
+      ],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-7",
+      "caseId": "SR-case-2",
+      "criterion": "Money convention stated as intrinsic coin value",
+      "detectedRepeats": [],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-8",
+      "caseId": "SR-case-2",
+      "criterion": "None of it worked drops largely; mortality hedge lost",
+      "detectedRepeats": [],
+      "attempts": 3
+    },
+    {
+      "rule": "SR-9",
+      "caseId": "SR-case-6",
+      "criterion": "Torn loose / hungry families inventions",
+      "detectedRepeats": [
+        1,
+        2,
+        3
+      ],
+      "attempts": 3
+    }
+  ],
+  "hintConfirmation": {
+    "confirmed": 1,
+    "totalPresented": 540,
+    "definition": "Distinct explicit Hn references in model findings/notes divided by hints presented, including failed attempt; not independent human precision."
+  },
+  "acceptance": "FAILED - remain draft"
+}
