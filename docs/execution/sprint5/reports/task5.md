@@ -1,7 +1,7 @@
 # Sprint 5 Task 5: One-scene visual repair and continuity comparison
 
 **Date:** 2026-10-17
-**Status:** Isolated implementation and synthetic mechanics trial complete; draft, not release accepted
+**Status:** Implemented, integrated with current main (Tasks 1–4 merged) and ready for review; creative adoption inconclusive. Combined Sprint 4–5 acceptance follows and is not a prerequisite.
 **Worktree/branch:** `D:\Study Material\7AI-SPRINT5\task5`, `SPRINT5_TASK5_BE`
 **Development base:** fetched main `5b04a7a`; own Task 1–4 integration merge `9111b821575e5ac3a74d1e023b3d21cc00b27a38`, including Task 4 `f1582ac` and Task 3 `81561e6`/wording `7c6ef3c`
 **Tested implementation commits:** `76c966b`, style-eligibility fix `0aee9e4`, recovery hardening `9b43843cda5b14e14c90f7c868e316169d903a34`, chapter-cache integrity `7f352b9265e85cab2196abb8e8c81ac8cd7f0895` (draft PR [#95](https://github.com/Neeraj1002/7AI/pull/95), base `SPRINT5_TASK5_DEPS` at `9111b82`)
@@ -47,6 +47,14 @@ At `9b43843`, build, lint, typecheck and **98 tests across 10 affected files** p
 
 At `7f352b9`, build, lint, typecheck and **99 tests across 10 affected files** passed. The offline FFmpeg A/B render, including the corrupt nonempty chapter fault, passed; `corruptChapterRejected` is `true` in `comparison-summary.json`. Baseline, variant and unchanged-chapter hashes, frame counts, previews and zero paid-call result remained as recorded above. The unchanged `quality-spec-row.test.ts` duration mismatch remains an integration test failure.
 
-## Remaining release conditions
+## Final integration (2026-10-18)
 
-Merge dependency PRs #91–#94, integrate final main/Sprint 4 fixes, confirm a Task 5-only diff and rerun affected checks. Complete reliability and owner-confirmed Sprint 4 closure, full RPR-01–08 acceptance where applicable, a suitable approved long-form baseline and editorial judgment, then decide whether creative adoption is warranted. A real paid replacement, production retry, service restart, upload or deployment needs its separate concrete authorization. Keep the PR draft until those checks pass.
+Main `02b500e` (#91–#94 and #96 merged) was integrated in `review/pr95-merge-ready`; #95 retargeted from `SPRINT5_TASK5_DEPS` to `main`. Only `STATUS.md` conflicted. The diff against main is Task 5 only (17 files), consuming Task 3 scene mapping and Task 4 `factualBaseline`/`assertVisualRepairBaseline` as merged.
+
+**Checks on this revision:** `agents`, `run-pipeline`, `storage`, `content-evidence` and `ai-visuals` suites: 509 passed, 3 failed. The 3 are `quality-spec-row.test.ts` (duration tolerance 60 vs 120), which also fail on unmodified main and in Task 3/4 verification; they are in code Task 5 does not change and need the quality-policy owner. Build, lint and typecheck pass. The suite includes Task 3 real FFmpeg scene render and the stale-approval publish guard. The synthetic A/B script (`scripts/compare-visual-repair.ts`) was rerun on this revision with local FFmpeg: baseline, variant, preview, unchanged-chapter, audio and SRT hashes are identical to those above, 120 frames each, replacement callback once, 0 after simulated restart, corrupt-chapter rejected, 0 paid calls, $0.000000. A/B result remains **synthetic and inconclusive** for creative adoption (continuity better across the cut; narration fit and production benefit not judgeable). Dummy `DATABASE_URL`; no database, provider, upload, deployment or paid call.
+
+**RPR mapping:** RPR-01–05 and RPR-08 have mocked/local evidence listed above; RPR-06 has the mocked stale-approval guard but no phone/sandbox pass; RPR-07 is the synthetic inconclusive comparison. The tracker keeps `NOT_RUN` until founder execution on a candidate; none is claimed PASS here.
+
+## Remaining
+
+Combined founder Sprint 4–5 acceptance (RPR-01–08 on a deployed candidate, an approved licensed long-form baseline and editorial judgment for RPR-07). Real paid replacement, production retry, restart, upload or deployment need separate authorization. A provider response followed by process death before checkpoint can still bill one call; no exactly-once claim.
