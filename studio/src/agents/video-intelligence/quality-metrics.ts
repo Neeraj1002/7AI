@@ -13,7 +13,7 @@ import {
   type QualityRows,
   type QualitySpec,
 } from '../video-generation/quality-spec';
-import { LONG_LENGTH_TOLERANCE } from '../script-generation/long-form';
+import { LONG_LENGTH_HARD_TOLERANCE } from '../script-generation/long-form';
 
 // Sprint 4 Task 8 (R7) — deterministic quality measurement. Zero LLM cost.
 // Everything is measured against the same QUALITY_SPEC the renderer (R1-R6)
@@ -212,7 +212,7 @@ export function qualitySpecFor(profile: QualityProfile, targetSeconds?: number):
     fps: profile.fps,
     ...(profile.videoKind === 'long' &&
       targetSeconds !== undefined && {
-        durationSec: { target: targetSeconds, tolerance: Math.round(targetSeconds * LONG_LENGTH_TOLERANCE) },
+        durationSec: { target: targetSeconds, tolerance: Math.round(targetSeconds * LONG_LENGTH_HARD_TOLERANCE) },
       }),
   };
 }
@@ -220,7 +220,7 @@ export function qualitySpecFor(profile: QualityProfile, targetSeconds?: number):
 // The Length row of a long video: measured length against the run's target. Soft (never blocks;
 // the hard window is 96 to 918 s, checked at review).
 export function durationRow(durationSeconds: number, targetSeconds: number): QualityRow {
-  const tolerance = Math.round(targetSeconds * LONG_LENGTH_TOLERANCE);
+  const tolerance = Math.round(targetSeconds * LONG_LENGTH_HARD_TOLERANCE);
   const warn = Math.abs(durationSeconds - targetSeconds) > tolerance;
   return {
     warn,
