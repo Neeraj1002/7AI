@@ -34,7 +34,7 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   "intake-parsing": { provider: "anthropic", model: "claude-haiku-4-5" },
 
   // The Storyteller: Handles narrative weight, dramatic loops, and pacing cues
-  "script-generation": { provider: "anthropic", model: "claude-sonnet-5" },
+  "script-generation": { provider: "anthropic", model: "claude-sonnet-5-5" },
 
   "script-review": { provider: "anthropic", model: "claude-haiku-4-5" },
 
@@ -47,7 +47,7 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   // hyper-realistic, dark, cinematic prompts for the video generation API.
   "video-production-planning": {
     provider: "anthropic",
-    model: "claude-sonnet-5",
+    model: "claude-sonnet-5-5",
   },
 
   "metadata-generation": { provider: "anthropic", model: "claude-haiku-4-5" },
@@ -69,6 +69,9 @@ export type PricingEntry = {
 
 export const MODEL_PRICING: Record<string, PricingEntry> = {
   "claude-sonnet-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
+  // Sprint 5 Task 8 (R9). ASSUMPTION: same published rate as claude-sonnet-5; confirm against
+  // Anthropic's price list. claude-sonnet-5 stays so rows booked before the switch still price.
+  "claude-sonnet-5-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
   "claude-haiku-4-5": { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
 };
 

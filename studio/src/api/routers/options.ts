@@ -9,7 +9,7 @@ import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan
 // nothing here is sensitive or scoped to a caller.
 export const optionsRouter = router({
   list: publicProcedure.query(async () => ({
-    voices: TTS_VOICE_KEYS.map((key) => ({ key, label: TTS_VOICES[key].label })),
+    voices: TTS_VOICE_KEYS.map((key) => ({ key, label: TTS_VOICES[key].label, model: TTS_VOICES[key].model })),
     visualSources: VISUAL_SOURCES,
     moodTags: AUDIO_LAYERS,
   })),

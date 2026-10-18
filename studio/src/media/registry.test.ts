@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveVoice, TTS_VOICES, TTS_VOICE_KEYS, DEFAULT_TTS_VOICE, resolveMediaPurpose, resolveTtsPricing, assertSupportedVoice } from './registry';
+import { ttsModelAcceptsVoice, TTS_MODEL_VOICES, resolveVoice, TTS_VOICES, TTS_VOICE_KEYS, DEFAULT_TTS_VOICE, resolveMediaPurpose, resolveTtsPricing, assertSupportedVoice } from './registry';
 
 // Sprint 2 Task 1 (D1/D2) — resolveVoice is the pure, DB-free three-step
 // "creation option resolution" rule (override -> channel default -> hardcoded
@@ -64,6 +64,19 @@ describe('TTS model per voice', () => {
     const perMin = (m: string) => 155 * 6 * resolveTtsPricing(m).perCharacterUsd;
     expect(perMin('gpt-4o-mini-tts')).toBeCloseTo(0.015, 4);
     expect(perMin('gpt-4o-mini-tts')).toBeLessThanOrEqual(perMin('tts-1-hd'));
+  });
+
+  it('every voice is on the accepted list of the model it is assigned to (R1)', () => {
+    for (const key of TTS_VOICE_KEYS) expect(ttsModelAcceptsVoice(TTS_VOICES[key].model, key)).toBe(true);
+    expect(Object.keys(TTS_MODEL_VOICES)).toContain('tts-1-hd');
+  });
+
+  it('refuses Ballad on the old model with a message naming both models; Ballad on its own model and Coral work', () => {
+    expect(() => assertSupportedVoice('ballad', 'tts-1-hd')).toThrow(/cannot be spoken by tts-1-hd.*gpt-4o-mini-tts/);
+    expect(() => assertSupportedVoice('ballad', 'gpt-4o-mini-tts')).not.toThrow();
+    expect(() => assertSupportedVoice('ballad')).not.toThrow();
+    expect(() => assertSupportedVoice('coral', 'tts-1-hd')).not.toThrow();
+    expect(resolveMediaPurpose('tts', 'coral').model).toBe('tts-1-hd');
   });
 
   it('rejects an unknown voice before any spend, accepts known and unset', () => {

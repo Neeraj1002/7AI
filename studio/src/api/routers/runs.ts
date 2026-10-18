@@ -925,7 +925,8 @@ export const runsRouter = router({
     }
     // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
     const failedTarget = await findLatestAttempt(run.id, target);
-    const eligibleRecovery = isEligibleRecovery(failedTarget);
+    // A run stopped by preflight never spent anything and made no attempt, so its Retry is free.
+    const eligibleRecovery = isEligibleRecovery(failedTarget) || Boolean(run.creationOptions?.preflightBlock);
     let legacyRecovery = false;
     if (isLegacyPlannerRecoveryCandidate(run, failedTarget)) {
       const [gate, config, logs] = await Promise.all([findLatestAttempt(run.id, 'gate1'), loadResolvedConfig(run, channel), listReviewLogsForRun(run.id)]);
@@ -992,7 +993,7 @@ export const runsRouter = router({
     await assertChannelCanRun(channel);
     // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
     const picks = sourceRun.creationOptions
-      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, ...kept }) => kept)(sourceRun.creationOptions)
+      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, preflightBlock: _pb, estimateUsd: _e, retryAllowanceUsd: _ra, ...kept }) => kept)(sourceRun.creationOptions)
       : undefined;
     // Sprint 4 Task 12 (R1): recomputed against the channel's current profile. A long run stores its
     // resolved length, so the length counts as a pick only if the source said it was one.

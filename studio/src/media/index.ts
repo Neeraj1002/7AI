@@ -2,7 +2,7 @@
 // transcription). Call sites import only from here — never from client.ts or
 // registry.ts directly — mirroring studio/src/llm/'s import-boundary pattern.
 
-import { synthesizeSpeechViaProvider, transcribeViaProvider } from './client';
+import { synthesizeSpeechViaProvider, transcribeViaProvider, probeSpeechProvider } from './client';
 import { stubSynthesizeSpeech, stubTranscribe } from './stub';
 import { resolveMediaPurpose } from './registry';
 import { env } from '../config/env';
@@ -22,6 +22,10 @@ export {
   DEFAULT_TTS_VOICE,
   resolveVoice,
   assertSupportedVoice,
+  ttsModelAcceptsVoice,
+  TTS_MODEL_VOICES,
+  TTS_NEWER_MODEL,
+  TTS_ORIGINAL_MODEL,
   resolveMediaPurpose,
   resolveTtsPricing,
   resolveTranscriptionPricing,
@@ -50,4 +54,10 @@ export async function transcribe(audioPath: string): Promise<TranscribeResult> {
   }
   const { model } = resolveMediaPurpose('transcription');
   return transcribeViaProvider({ audioPath, model });
+}
+
+// Sprint 5 Task 8 (R2): cheap availability probe; a no-op under MEDIA_STUB.
+export async function probeMedia(): Promise<void> {
+  if (env.MEDIA_STUB === '1') return;
+  await probeSpeechProvider();
 }

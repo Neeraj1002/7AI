@@ -20,7 +20,7 @@ export function isManualRetryCapReached(run: Pick<PipelineRun, 'creationOptions'
 export function isEligibleRecovery(stage: Pick<PipelineStage, 'status' | 'output'> | null): boolean {
   if (stage?.status !== 'failed') return false;
   const kind = (stage.output as { recovery?: { kind?: unknown } } | null)?.recovery?.kind;
-  return kind === 'spend_limit' || kind === 'provider_capacity' || kind === 'rate_limit_exhausted';
+  return kind === 'spend_limit' || kind === 'provider_capacity' || kind === 'rate_limit_exhausted' || kind === 'provider_auth';
 }
 
 export const MANUAL_RETRY_CAP_MESSAGE = `Retry limit reached for this step (${MAX_MANUAL_RETRIES_PER_STAGE}). Edit the brief and run again, or cancel.`;
@@ -46,5 +46,5 @@ export function retryTargetStage(run: Pick<PipelineRun, 'currentStage' | 'lastEr
 
 // Shared by run detail and Retry mutation, so the app cannot hide an allowed recovery.
 export function isRetryBlockedByCap(run: PipelineRun, target: StageName, failed: PipelineStage | null, legacyRecovery = false): boolean {
-  return isManualRetryCapReached(run, target) && !(run.status === 'needs_attention' && isEligibleRecovery(failed)) && !legacyRecovery;
+  return isManualRetryCapReached(run, target) && !(run.status === 'needs_attention' && (isEligibleRecovery(failed) || Boolean(run.creationOptions?.preflightBlock))) && !legacyRecovery;
 }

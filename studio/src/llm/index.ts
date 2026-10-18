@@ -31,3 +31,18 @@ export async function callLLM(req: {
   });
   return { ...result, provider, model };
 }
+
+// Sprint 5 Task 8 (R2): the cheapest real call the account can make (one output token on the cheap
+// tier, well under a hundredth of a cent). Preflight uses it to learn that a workspace usage limit
+// or a rejected key is in force before the first paid step, instead of at the review. Throws the
+// same classified errors every other call does (recoveryKind on the error context).
+export async function probeLLMProvider(): Promise<void> {
+  const { provider, model } = resolvePurpose('intake-parsing');
+  await callProviderModel({
+    provider,
+    model,
+    system: 'Reply with OK.',
+    messages: [{ role: 'user', content: 'ping' }],
+    maxTokens: 1,
+  });
+}

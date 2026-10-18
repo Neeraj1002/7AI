@@ -5,7 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
-import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE } from './registry';
+import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE, assertSupportedVoice } from './registry';
 import type { SynthesizeSpeechResult, TranscribeResult, VoiceConfig } from './types';
 import { DATA_DIR } from '../config/paths';
 
@@ -42,6 +42,10 @@ function mapOpenAiError(error: unknown, context: Record<string, unknown>): Error
       context.recoveryKind = 'provider_capacity';
       return new NonTransientStageError(`OpenAI API capacity exhausted: ${error.message}`, error, context);
     }
+    if (error.status === 401 || error.status === 403) {
+      context.recoveryKind = 'provider_auth';
+      return new NonTransientStageError(`OpenAI rejected our credentials: ${error.message}`, error, context);
+    }
     if (error.status !== undefined && (error.status === 429 || error.status >= 500)) {
       if (error.status === 429) context.recoveryKind = 'rate_limit_exhausted';
       return new TransientStageError(`OpenAI API call failed (retryable): ${error.message}`, error, context);
@@ -56,6 +60,12 @@ export async function synthesizeSpeechViaProvider(params: {
   voiceConfig: VoiceConfig;
   model: string;
 }): Promise<SynthesizeSpeechResult> {
+  // A voice the model cannot speak is a setting error, found before the paid call (never a provider 400).
+  try {
+    assertSupportedVoice(params.voiceConfig.voice ?? DEFAULT_TTS_VOICE, params.model);
+  } catch (error) {
+    throw new NonTransientStageError((error as Error).message, error, { provider: 'openai', model: params.model });
+  }
   await ensureTmpDir();
   try {
     const response = await getClient().audio.speech.create({
@@ -106,5 +116,16 @@ export async function transcribeViaProvider(params: {
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapOpenAiError(error, { provider: 'openai', model: params.model });
+  }
+}
+
+// Sprint 5 Task 8 (R2): one-character speech request on the cheapest model, so preflight learns
+// about an exhausted OpenAI quota or a rejected key before the first paid narration chunk. Costs
+// a few thousandths of a cent; throws the same classified errors as a real call.
+export async function probeSpeechProvider(): Promise<void> {
+  try {
+    await getClient().audio.speech.create({ model: 'tts-1', voice: 'alloy', input: '.', response_format: 'mp3' });
+  } catch (error) {
+    throw mapOpenAiError(error, { provider: 'openai', model: 'tts-1' });
   }
 }

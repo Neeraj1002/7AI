@@ -31,7 +31,8 @@ import { isCancellationRequested } from './cancellation-registry';
 import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError, NonTransientStageError } from './retry-with-backoff';
-import { resolveMediaPurpose, assertSupportedVoice } from '../media';
+import { resolveMediaPurpose } from '../media';
+import { preflightGate } from './preflight-gate';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
@@ -194,6 +195,9 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     currentStage: 'intake',
     startedAt: run.startedAt ?? new Date(),
   });
+  // Sprint 5 Task 8 (R2): settings and accounts are checked while nothing has been spent.
+  const preflightBlocked = await preflightGate(run, 'intake');
+  if (preflightBlocked) return preflightBlocked;
 
   const previousAttempt = await findLatestAttempt(runId, 'intake');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
@@ -939,8 +943,6 @@ export async function runVideoGenerationStage(
   // resolveVoice did before.
   const config = await loadResolvedConfig(run, channel);
   const resolvedVoice = config.audioDefaultVoice;
-  // Before the stage row or any paid call: an unsupported voice must fail here, not mid-render.
-  try { assertSupportedVoice(resolvedVoice); } catch (e) { throw new NonTransientStageError((e as Error).message); }
   // Sprint 4 Task 9: a long run narrates, plans and renders chapter by chapter, with its per-video spend
   // limit checked between paid calls. A Short takes none of these branches.
   const isLong = config.videoKind === 'long';
@@ -963,6 +965,10 @@ export async function runVideoGenerationStage(
     status: 'running',
     currentStage: 'video_generation',
   });
+  // Sprint 5 Task 8 (R2): voice, accounts, music and spend are checked before the stage row or any
+  // paid call; a failure parks the run with a plain message and leaves the attempt count alone.
+  const preflightBlocked = await preflightGate(run, 'video_generation');
+  if (preflightBlocked) return preflightBlocked;
 
   const previousAttempt = await findLatestAttempt(runId, 'video_generation');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
@@ -1917,6 +1923,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (run.status !== 'running' || isCancellationRequested(runId)) {
     return run;
   }
+  // Sprint 5 Task 8 (R2): an expired YouTube connection is found now, not after the upload starts.
+  const preflightBlocked = await preflightGate(run, 'publishing');
+  if (preflightBlocked) return preflightBlocked;
 
   const gate2Stage = await findLatestAttempt(runId, 'gate2');
   if (!gate2Stage || gate2Stage.status !== 'completed' || !gate2Stage.output) {

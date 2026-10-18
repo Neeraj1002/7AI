@@ -138,6 +138,12 @@ export async function callProviderModel(params: {
         context.recoveryKind = 'provider_capacity';
         throw new NonTransientStageError(`LLM provider capacity exhausted: ${error.message}`, error, context);
       }
+      // Sprint 5 Task 8 (R4): a rejected key is a setting problem, not a defect in the work, and not
+      // worth three retries. The run parks for a Retry once the key is fixed.
+      if (error.statusCode === 401 || error.statusCode === 403) {
+        context.recoveryKind = 'provider_auth';
+        throw new NonTransientStageError(`LLM provider rejected our credentials: ${error.message}`, error, context);
+      }
       if (error.isRetryable) {
         if (error.statusCode === 429) context.recoveryKind = 'rate_limit_exhausted';
         throw new TransientStageError(`LLM provider call failed (retryable): ${error.message}`, error, context);
