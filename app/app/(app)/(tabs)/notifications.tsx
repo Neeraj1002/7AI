@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '../../../lib/trpc';
 import { useChannels } from '../../../lib/channel-context';
 import { relativeTime } from '../../../lib/run-labels';
-import { buildInboxCards, reviewLabel, type InboxCard, type InboxNotification, type InboxRun, type StepTone } from '../../../lib/inbox';
-import { ENDED_STATUSES, QUEUE_POLL_MS, QUEUE_STATUSES } from '../../../lib/run-queries';
+import { buildInboxCards, INBOX_PAGE_SIZE, pageEarlier, reviewLabel, type InboxCard, type InboxNotification, type InboxRun, type StepTone } from '../../../lib/inbox';
+import { useRunLists } from '../../../lib/use-run-lists';
 import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 import { Screen } from '../../../components/Screen';
 import { VideoChip } from '../../../components/VideoChip';
@@ -14,12 +14,15 @@ import { VideoChip } from '../../../components/VideoChip';
 // The in-app inbox: one card per run (Sprint 4 Frontend Task 2, R3). Notifications are grouped by run in the app.
 // The step timeline comes from the same `runs.list` queries the Queue uses (shared cache); there is no `runs.get`
 // per card, and the decision itself is made on the Run screen (the button opens it).
+// Sprint 5 Task 7 R1: the server returns only the newest 50 notifications (about 7 runs), so every run in the lists gets a
+// card too, shown `INBOX_PAGE_SIZE` at a time; scrolling near the end (or the button) shows the next page.
+const NEAR_END_PX = 240;
 export default function NotificationsScreen() {
   const trpc = useTRPC();
   const { channelById, channelIndex } = useChannels();
   const notifications = useQuery(trpc.notifications.list.queryOptions());
-  const active = useQuery(trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }, { refetchInterval: QUEUE_POLL_MS }));
-  const ended = useQuery(trpc.runs.list.queryOptions({ statuses: [...ENDED_STATUSES] }));
+  const { active, ended } = useRunLists();
+  const [visible, setVisible] = useState(INBOX_PAGE_SIZE);
 
   const { needsYou, earlier } = useMemo(
     () =>
@@ -30,7 +33,10 @@ export default function NotificationsScreen() {
     [notifications.data, active.data, ended.data],
   );
 
-  const isLoading = notifications.isLoading;
+  const { shown, remaining } = pageEarlier(earlier, visible);
+  const showMore = () => setVisible((n) => n + INBOX_PAGE_SIZE);
+  const totalRuns = needsYou.length + earlier.length;
+  const isLoading = notifications.isLoading || active.isLoading || ended.isLoading;
   const isFetching = notifications.isFetching || active.isFetching || ended.isFetching;
   const refetchAll = () => Promise.all([notifications.refetch(), active.refetch(), ended.refetch()]);
 
@@ -48,6 +54,11 @@ export default function NotificationsScreen() {
     >
       <ScrollView
         contentContainerStyle={styles.container}
+        scrollEventThrottle={200}
+        onScroll={(e) => {
+          const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+          if (remaining > 0 && contentOffset.y + layoutMeasurement.height >= contentSize.height - NEAR_END_PX) showMore();
+        }}
         refreshControl={<RefreshControl refreshing={isFetching && !isLoading} onRefresh={() => void refetchAll()} />}
       >
         {!isLoading && needsYou.length === 0 && earlier.length === 0 ? (
@@ -66,9 +77,17 @@ export default function NotificationsScreen() {
         {earlier.length > 0 ? (
           <>
             <Text style={[styles.sectionTitle, needsYou.length > 0 && styles.sectionGap]}>Earlier</Text>
-            {earlier.map((card) => (
+            {shown.map((card) => (
               <RunCard key={card.key} card={card} channel={channelLine(card)} />
             ))}
+            <Text style={styles.count}>
+              Showing {shown.length + needsYou.length} of {totalRuns} {totalRuns === 1 ? 'run' : 'runs'}
+            </Text>
+            {remaining > 0 ? (
+              <Pressable style={styles.moreButton} onPress={showMore} accessibilityRole="button">
+                <Text style={styles.moreText}>Show {Math.min(remaining, INBOX_PAGE_SIZE)} more</Text>
+              </Pressable>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -134,6 +153,9 @@ const styles = StyleSheet.create({
   empty: { padding: 24, textAlign: 'center', ...type.body, color: color.muted },
   sectionTitle: { fontFamily: font.black, fontSize: 16, color: color.ink },
   sectionGap: { paddingTop: space.sm },
+  count: { fontFamily: font.regular, fontSize: 12, color: color.muted, textAlign: 'center' },
+  moreButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1.5, borderColor: color.ink },
+  moreText: { fontFamily: font.black, fontSize: 14, color: color.ink },
   card: { borderWidth: 1.5, borderColor: color.ink, borderRadius: radius.xl, backgroundColor: color.surface, paddingVertical: 14, paddingHorizontal: space.lg, gap: 4 },
   cardNeedsYou: { borderWidth: 2, borderColor: color.accent },
   title: { fontFamily: font.black, fontSize: 15, lineHeight: 20, color: color.ink },
