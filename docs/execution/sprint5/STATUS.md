@@ -1,5 +1,7 @@
 # Sprint 5 Status: Evidence, Recovery and Measured Video Improvements
 
+**2026-10-18 owner workflow update:** technically ready PRs may proceed to review before Sprint 4 closure. One combined Sprint 4–5 acceptance pass follows Task 5; this supersedes older closure-before-readiness prose and the historical graph below. Task 1's #92 publishing-summary adapter is a pending, nonblocking follow-up. PR #91 preparation uses branch `review/pr91-merge-ready`, worktree `D:\Study Material\7AI\.worktrees\pr91-merge-ready`; the original task worktree is unchanged. Merge/deployment remains owner-controlled.
+
 **Sprint status**: Planned; Sprint 5 implementation has not started. Five task specifications exist. **Planner PRs #89 and #90 are merged and live-reported deployed; reuse both.** Owner-led Sprint 4 testing/triage/closure is pending. Each Sprint 5 task gets a separate draft PR and remains draft until the closure/conflict-resolution gate passes. The existing Script Review enhancement retains its ownership.
 **Last updated**: 2026-10-14, approximately **22:30 IST**. Earlier live snapshots at 20:50/21:22 IST are retained as history; the latest readback reports #90 and a fifth budget-stopped attempt.
 **Planning checkout**: `provider-capacity-recovery`, HEAD `ac9a98a30cab3c7fdd367c3864960b7aa5917477`; unchanged. Releases #89/#90 were inspected read-only with `git show`. Other work merged/deployed them; this planning chat made no branch change, commit, merge, deployment, schema/application edit or production run mutation.
@@ -187,7 +189,7 @@ Future rendered trials default to existing approved, licensed local fixtures wit
 
 | Task | Name | Status | Owner | Branch | Notes |
 |---|---|---|---|---|---|
-| 1 | Planner reconciliation and run diagnostics | Done — action needed | Founder | `SPRINT5_TASK1_BE` | Planner deliverable code-complete 2026-10-15; [report/runbook](reports/task1.md); 87 focused tests passed (0 skipped), build/lint/typecheck pass. Draft [#91](https://github.com/Neeraj1002/7AI/pull/91); worktree: `D:\Study Material\7AI-SPRINT5\task1`; baseline `578ba530100638548a4a49af57efcb14e7962227`. Live #90: attempt 6 generation completed, needs-attention/video-review; new diagnostic kind awaits deployment. Task 2 safe-summary adapter and Sprint 4 closure/readiness gate pending |
+| 1 | Planner reconciliation and run diagnostics | Done — action needed | Founder | `SPRINT5_TASK1_BE` | Planner deliverable code-complete 2026-10-15; [report/runbook](reports/task1.md); 87 focused tests passed (0 skipped), build/lint/typecheck pass. Ready-for-review [#91](https://github.com/Neeraj1002/7AI/pull/91); worktree: `D:\Study Material\7AI-SPRINT5\task1`; baseline `578ba530100638548a4a49af57efcb14e7962227`. Live #90: attempt 6 generation completed, needs-attention/video-review; new diagnostic kind awaits deployment. 2026-10-18: main 5b04a7a already integrated, no conflicts; 107 tests/16 files/0 skipped and build/lint/typecheck pass. Readiness branch review/pr91-merge-ready, worktree D:\Study Material\7AI\.worktrees\pr91-merge-ready. Post-deployment diagnostic readback and Task 2 publishing-summary Admin adapter after #92 remain pending; adapter is nonblocking. Combined Sprint 4?5 acceptance follows Task 5 |
 | 2 | Durable publishing recovery | Not started | Unassigned | — | Reuse Task 1's shared root, own worktree/current main with #90; draft PR and rollout review. Proposed `SPRINT5_TASK2_BE` |
 | 3 | Still-scene contract and alignment | Blocked | Unassigned | — | Waits for R and SR wording agreement; #89/#90 baseline satisfied. Proposed `SPRINT5_TASK3_BE` |
 | 4 | Shared factual evidence inputs | Blocked | Unassigned | — | Waits for R and SR consumer agreement; SR rule work remains separate. Proposed `SPRINT5_TASK4_BE` |
@@ -195,7 +197,7 @@ Future rendered trials default to existing approved, licensed local fixtures wit
 
 Do not fill Branch with a planned name as if it exists. A future implementer records its actual created branch and worktree in its own row immediately. Code-complete, merged, deployed and live-verified are separate statements in reports.
 
-**Shared root**: `D:\Study Material\7AI-SPRINT5`, created by this Task 1 Codex session. **Setup owner**: Task 1 Codex. **Plan-baseline commit**: `578ba530100638548a4a49af57efcb14e7962227` (documentation only, pushed). **Task PRs**: Task 1 draft [#91](https://github.com/Neeraj1002/7AI/pull/91). **Sprint 4 closure gate**: pending owner tests/triage/closure record.
+**Shared root**: `D:\Study Material\7AI-SPRINT5`, created by this Task 1 Codex session. **Setup owner**: Task 1 Codex. **Plan-baseline commit**: `578ba530100638548a4a49af57efcb14e7962227` (documentation only, pushed). **Task PRs**: Task 1 ready-for-review [#91](https://github.com/Neeraj1002/7AI/pull/91). **Acceptance**: one combined Sprint 4?5 pass after Task 5; Sprint 4 closure no longer gates #91 readiness.
 
 ## Remaining uncertainties and implementation readiness
 

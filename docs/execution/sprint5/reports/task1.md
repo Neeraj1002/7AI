@@ -1,13 +1,14 @@
 ﻿# Sprint 5 Task 1: Planner Reconciliation and Repeatable Run Diagnostics
 
 **Date**: 2026-10-15 (IST; work started 2026-10-14)
-**Status**: Planner deliverable code-complete; production diagnostics readback and Task 2 summary adapter pending. Draft remains on the Sprint 4 closure hold.
+**Status**: Ready for review under the revised owner workflow. Production diagnostics readback and the Task 2 publishing-summary adapter remain pending; neither requires a Sprint 4 closure hold on this diagnostics PR. One combined Sprint 4–5 acceptance pass follows Task 5.
 **Owner / branch**: Codex / `SPRINT5_TASK1_BE`
 **Worktree**: `D:\Study Material\7AI-SPRINT5\task1`
+**2026-10-18 readiness worktree / branch**: `D:\Study Material\7AI\.worktrees\pr91-merge-ready` / `review/pr91-merge-ready`; created for this session from the fetched PR head. The original task checkout was not edited. The reviewed commit is fast-forwarded to #91's existing `SPRINT5_TASK1_BE` head without rewriting history.
 **Shared root / setup owner**: `D:\Study Material\7AI-SPRINT5` / this Task 1 session
-**PR**: [#91](https://github.com/Neeraj1002/7AI/pull/91), draft
+**PR**: [#91](https://github.com/Neeraj1002/7AI/pull/91)
 **Files created / modified after bootstrap**: 11 / 3
-**Tests**: 87 focused tests passed, 11 files, zero skipped; build/lint/typecheck passed. See validation below.
+**Tests**: Latest readiness rerun: 107 tests passed, 16 files, zero skipped; build/lint/typecheck passed. Original 87-test evidence is retained below.
 
 ## What Was Done
 
@@ -136,6 +137,26 @@ Suite includes `runs.failed-content.test.ts`, `runs.test.ts`, `admin/system.test
 
 Coverage verifies non-Admin denial and flagged Admin acceptance; audit failure/no content in unit and real database transactions; selected/latest attempts; bounded database calls; cross-attempt/run usage exclusion; real profile ID projection; 100 calls/200 IDs/byte limits; old/null fields; every metadata field; forbidden nested payloads; approved host/method/procedure scope; redirects; timeout; HTTP 401/403 stop; old-API 400; credential-file size; explicit-only content; filename traversal/overwrite protection; and sanitized structured exports. A long-string sanitizer timeout found during verification was fixed by bounding the email pattern; the large-content regression now passes.
 
+## 2026-10-18 Integration and Readiness Verification
+
+Fetched main and #91 head from GitHub: main `5b04a7a22b31a8c6562100c72bc157beccd91e62`, PR implementation `cd0036a06cd7b61d2c0a4bcb8e31cc7ad1b98f9b`. Main is already an ancestor of the PR head (`git merge-base --is-ancestor` exit 0); no merge or conflict resolution was necessary. GitHub reported OPEN/draft, MERGEABLE/CLEAN, no review comments and no CI checks. This readiness commit changes documentation only. Planner/agents/state-machine, retry/recovery repositories and Prisma schema match main exactly.
+
+The first rerun exposed a shared generated-client mismatch: the existing `node_modules` client contained #92's unmerged `publishingRecovery` field. It yielded 105 passes and two database-test failures, not an application regression. Isolated `@prisma/client` and `.prisma/client` in this worktree, regenerated from this branch's unchanged schema, and reran all checks. No shared generated client or database schema was changed. Only the existing localhost `sevenai_sprint5_task1_20261015_test` was used, with stub flags and no copied provider credentials.
+
+Final schema-matched results on the unchanged implementation above plus this documentation update:
+
+```text
+npm.cmd run build      PASS
+npm.cmd run lint       PASS (0 warnings)
+npm.cmd run typecheck  PASS
+Vitest                16 files passed; 107 tests passed; 0 skipped
+git diff --check      PASS
+```
+
+Vitest reran the original 11-file diagnostic/Admin selection (87 tests) plus `legacy-planner-recovery`, `state-machine.long-planning`, `state-machine.plan-recovery`, `pipeline-run.repository.planner-recovery` and `pipeline-stage.repository.recovery` (20 tests). Providers remained mocked/stubbed; no service/startup/resume worker ran.
+
+The owner removed Sprint 4 closure as a prerequisite and directed one combined Sprint 4–5 acceptance pass after Task 5. #91 is prepared for ready-for-review with the technical checks above. Remaining: post-deployment revision/boot and selected-attempt diagnostic readback using this runbook; Task 1's safe publishing-summary Admin adapter after #92 lands, explicitly nonblocking here; combined acceptance after Task 5. This session did not merge, deploy, retry production generation or change budgets.
+
 ## Operator Runbook
 
 1. Work in `D:\Study Material\7AI-SPRINT5\task1\studio` (or the subsequently reviewed checkout). Use the existing Admin session/ops credential in secure environment `INSPECT_RUN_TOKEN` / `API_AUTH_TOKEN`, or `INSPECT_RUN_TOKEN_FILE` pointing to an existing owner-private file containing only that credential. Never paste a secret into chat or pass it as a CLI flag. The client creates no credentials. If unavailable, use the existing Admin run inspector and explicit content-view tap.
@@ -161,8 +182,8 @@ Coverage verifies non-Admin denial and flagged Admin acceptance; audit failure/n
 
 - Nullable tokens and complete-plan presence honor the task's “unknown is null” rule; the proposed response's non-null token/boolean types were not used to fabricate historical values. Source timestamps, recovery booleans/provenance and progress hints are additive. No artifact existence is inferred from user-supplied paths.
 - New reader is in `admin-planner-diagnostics.repository.ts`, called only by the existing audited route. A safe explicit stored-plan summary mode also works against the older deployed content API; the default new diagnostic kind correctly reports unavailable until deployment.
-- **R4 pending:** consume Task 2's server-only safe summary after it lands, through a Task 1-owned Admin adapter. No receipt/session schema was guessed or exposed. This does not block the planner code deliverable; integration remains separately tracked.
+- **R4 pending until #92 lands:** consume Task 2's server-only safe publishing summary through a Task 1-owned Admin adapter. No receipt/session schema was guessed or exposed. This follow-up does not block this diagnostics PR; integration remains separately tracked.
 - **Production acceptance pending:** new-kind checkpoint/counter/eligibility readback after authorized deployment. Current #90 HTTP 400 is recorded, not claimed as live feature success. No production restart, retry, limit change, paid provider call, upload, deployment or merge was performed by this task.
-- **Ready-for-review pending:** owner-confirmed Sprint 4 closure/carryover record, then latest-main integration/conflict resolution and affected acceptance rerun. Latest fetched main remains #90. PR #91 stays draft. Founder review/merge remains required.
+- **Revised readiness workflow:** Sprint 4 closure is no longer a prerequisite for #91. Check current main, resolve integration conflicts and rerun affected checks before marking ready. One combined Sprint 4–5 acceptance pass follows Task 5. Founder review/merge and deployment remain separate.
 
 Task objective: bounded planner diagnostics/client implemented and verified locally; source/live/reported evidence reconciled. Schema: unchanged application contract. Business logic: existing content audit only. Tests: passing as above. Production diagnostic deployment, Task 2 adapter and end-to-end recovered-video acceptance remain open, explicitly separated from code completion.
