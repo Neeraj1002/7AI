@@ -1,13 +1,15 @@
 ﻿# Sprint 5 Task 1: Planner Reconciliation and Repeatable Run Diagnostics
 
 **Date**: 2026-10-15 (IST; work started 2026-10-14)
-**Status**: Planner deliverable code-complete; production diagnostics readback and Task 2 summary adapter pending. Draft remains on the Sprint 4 closure hold.
+**Status**: #91 and #92 are merged; R4's safe publishing-summary Admin/CLI adapter is implemented in a separate follow-up from current main. Its focused checks and source contract are recorded below. Adapter production readback follows owner merge/deployment; one combined Sprint 4–5 acceptance pass follows Task 5, with no Sprint 4 closure hold.
 **Owner / branch**: Codex / `SPRINT5_TASK1_BE`
 **Worktree**: `D:\Study Material\7AI-SPRINT5\task1`
+**2026-10-18 readiness worktree / branch**: `D:\Study Material\7AI\.worktrees\pr91-merge-ready` / `review/pr91-merge-ready`; created for this session from the fetched PR head. The original task checkout was not edited. The reviewed commit is fast-forwarded to #91's existing `SPRINT5_TASK1_BE` head without rewriting history.
 **Shared root / setup owner**: `D:\Study Material\7AI-SPRINT5` / this Task 1 session
-**PR**: [#91](https://github.com/Neeraj1002/7AI/pull/91), draft
+**PR**: [#91](https://github.com/Neeraj1002/7AI/pull/91)
+**R4 follow-up branch/worktree**: `SPRINT5_TASK1_PUBLISHING_SUMMARY_BE` / `D:\Study Material\7AI\.worktrees\task1-publishing-summary`, from main `6464f9cecd3b5b65df8f31a4712b4119749cecc2` (merged #92). Separate follow-up PR; no editing/reopening of #91 or another task's checkout.
 **Files created / modified after bootstrap**: 11 / 3
-**Tests**: 87 focused tests passed, 11 files, zero skipped; build/lint/typecheck passed. See validation below.
+**Tests**: R4 follow-up: 116 tests passed, 14 files, zero skipped; build/lint/typecheck passed. Historical #91 results are retained below.
 
 ## What Was Done
 
@@ -106,7 +108,7 @@ The version-1 response adds observed/source timestamps, nullable token counters,
 | Planner metadata / tokens | #89 field names visible; values hidden | Explicit 12-field mapping and nullable token counts | Legacy metadata stays missing |
 | Bundle-listed files | Attempt 6 verified live | Explicit manifest summary | No inferred assets outside manifest |
 | Historical immutable revisions/full replies | Unavailable | Explicit missing reasons | No generation can recreate historical proof |
-| Task 2 publishing summary | Not yet integrated | Deferred adapter | No Task 2 implementation/summary export exists on fetched main |
+| Task 2 publishing summary | Deployed #92 supplies the writer and actual safe-summary export; Admin adapter not yet deployed | R4 follow-up adds the fixed safe summary to existing Admin structure/CLI | Uses merged Task 2 contract; live adapter readback follows owner deployment |
 
 ## Files Created/Modified
 
@@ -136,6 +138,44 @@ Suite includes `runs.failed-content.test.ts`, `runs.test.ts`, `admin/system.test
 
 Coverage verifies non-Admin denial and flagged Admin acceptance; audit failure/no content in unit and real database transactions; selected/latest attempts; bounded database calls; cross-attempt/run usage exclusion; real profile ID projection; 100 calls/200 IDs/byte limits; old/null fields; every metadata field; forbidden nested payloads; approved host/method/procedure scope; redirects; timeout; HTTP 401/403 stop; old-API 400; credential-file size; explicit-only content; filename traversal/overwrite protection; and sanitized structured exports. A long-string sanitizer timeout found during verification was fixed by bounding the email pattern; the large-content regression now passes.
 
+## 2026-10-18 Integration and Readiness Verification
+
+Fetched main and #91 head from GitHub: main `5b04a7a22b31a8c6562100c72bc157beccd91e62`, PR implementation `cd0036a06cd7b61d2c0a4bcb8e31cc7ad1b98f9b`. Main is already an ancestor of the PR head (`git merge-base --is-ancestor` exit 0); no merge or conflict resolution was necessary. GitHub reported OPEN/draft, MERGEABLE/CLEAN, no review comments and no CI checks. This readiness commit changes documentation only. Planner/agents/state-machine, retry/recovery repositories and Prisma schema match main exactly.
+
+The first rerun exposed a shared generated-client mismatch: the existing `node_modules` client contained #92's unmerged `publishingRecovery` field. It yielded 105 passes and two database-test failures, not an application regression. Isolated `@prisma/client` and `.prisma/client` in this worktree, regenerated from this branch's unchanged schema, and reran all checks. No shared generated client or database schema was changed. Only the existing localhost `sevenai_sprint5_task1_20261015_test` was used, with stub flags and no copied provider credentials.
+
+Final schema-matched results on the unchanged implementation above plus this documentation update:
+
+```text
+npm.cmd run build      PASS
+npm.cmd run lint       PASS (0 warnings)
+npm.cmd run typecheck  PASS
+Vitest                16 files passed; 107 tests passed; 0 skipped
+git diff --check      PASS
+```
+
+Vitest reran the original 11-file diagnostic/Admin selection (87 tests) plus `legacy-planner-recovery`, `state-machine.long-planning`, `state-machine.plan-recovery`, `pipeline-run.repository.planner-recovery` and `pipeline-stage.repository.recovery` (20 tests). Providers remained mocked/stubbed; no service/startup/resume worker ran.
+
+The owner removed Sprint 4 closure as a prerequisite and directed one combined Sprint 4–5 acceptance pass after Task 5. #91 is prepared for ready-for-review with the technical checks above. Remaining: post-deployment revision/boot and selected-attempt diagnostic readback using this runbook; Task 1's safe publishing-summary Admin adapter after #92 lands, explicitly nonblocking here; combined acceptance after Task 5. This session did not merge, deploy, retry production generation or change budgets.
+
+## 2026-10-18 R4 Follow-Up After Merged #92
+
+Source/base: current main `6464f9cecd3b5b65df8f31a4712b4119749cecc2`. #91's original planner deliverable is already merged; this small follow-up implements only its separately tracked publishing-summary adapter. Work uses its own branch/worktree recorded above. #92's receipt schema and writer/retry/ownership logic are unchanged.
+
+The existing Admin-only `admin.runs.get` structure read now adds **`publishingSummary`**. Its repository selects the existing server-only receipt solely as input to `projectPublishingSummary`; the raw receipt never leaves the projection. The adapter validates with Task 2's actual exported `PublishingReceiptSchema`, calls its exported `summarizePublishingRecovery`, and copies exactly **phase, knownIdPresent, ambiguous, fingerprintMatches, ownershipActive, followups**. Follow-ups contain only `finalArtifact`, `thumbnail`, `captions`. Phase/status vocabulary comes from Task 2's schema; there is no copied ownership, upload or recovery policy.
+
+No current approved-file identity is calculated by a diagnostic read, so **fingerprintMatches stays null**, never a fabricated match. Legacy null receipts use Task 2's no-receipt contract; that is not proof of no historical upload or permission to insert. Malformed/unsupported receipts return an unavailable (`null`) summary without private validation/provider text. A phase-less summary cannot claim an ID, active owner or follow-up states. The safe lease-active flag is an observation, not an action authorization.
+
+The inspector includes the same summary at `results.structure.publishingSummary`, using a second closed projection that strips unknown and nested fields. An older server with no summary returns `null` for that section while preserving the rest of the diagnostic report. The CLI still uses two fixed GETs plus its existing audited diagnostic POST; no extra network operation, content kind, route, SQL interface or credential setting was added.
+
+Security boundary: session URLs/URIs, encrypted credentials/session ciphertext, owner token/epoch/lease timestamp, actual YouTube ID, source-file/metadata fingerprints and private metadata are excluded. The existing structure route stays a read without content audits; explicit content routes retain their audit-before-return behavior. No receipt claim/write, provider request, generation/retry, budget/counter/state change, migration or startup worker is introduced.
+
+Validation: **116 tests passed across 14 files, zero skipped**. This is the original diagnostic/Admin selection plus Task 2's safe-summary tests and **25 new compatibility/security cases**, including real-database Admin/CLI readback, Admin denial/flagged-session access, UUID/not-found behavior, run scoping, legacy rows, no video-attempt dependency, invalid receipt versions, expired ownership, unknown fields at both boundaries, and unchanged persisted receipts/run state/budgets/retries/audit counts. `npm.cmd run build`, `npm.cmd run lint` (zero warnings), `npm.cmd run typecheck` and `git diff --check` **passed**. An initial build found TypeScript's correlated nullable summary union; the sanitizer now validates that correlation explicitly, with regression cases for inconsistent wire summaries.
+
+Tests use isolated localhost **`sevenai_sprint5_task1_summary_20261018_test`**, populated with the existing 23 main migrations and synthetic fixtures. The generated Prisma client is isolated; no provider/admin production credentials were copied. No production request or deployment was used to verify the new adapter. Planner/retry/publishing writers and schema/migrations match current main.
+
+Remaining: owner review/merge/deployment, then read `admin.runs.get` for an approved run and verify `publishingSummary`/CLI parity. Preserve `null` for unverifiable identity and older/invalid summaries. Full production acceptance remains the combined Sprint 4–5 pass after Task 5; no live upload or Sprint 4 closure gates this follow-up's review readiness.
+
 ## Operator Runbook
 
 1. Work in `D:\Study Material\7AI-SPRINT5\task1\studio` (or the subsequently reviewed checkout). Use the existing Admin session/ops credential in secure environment `INSPECT_RUN_TOKEN` / `API_AUTH_TOKEN`, or `INSPECT_RUN_TOKEN_FILE` pointing to an existing owner-private file containing only that credential. Never paste a secret into chat or pass it as a CLI flag. The client creates no credentials. If unavailable, use the existing Admin run inspector and explicit content-view tap.
@@ -156,13 +196,14 @@ Coverage verifies non-Admin denial and flagged Admin acceptance; audit failure/n
 6. Only `https://7aistudio.tech` is approved in this client. Host/port/path/userinfo/query/fragment changes, redirects, command-line token values and action/procedure overrides are rejected. Additional hosts require a reviewed allowlist change. The fixed operations cannot retry/force/cancel/approve/generate or change budgets. Each request has a 12-second deadline and byte cap; failures do not trigger SQL or a state transition.
 7. After a separately authorized deployment of this PR, repeat the attempt-5 command to read its checkpoint/hash/counter/recovery/spend details; compare with the reported baseline, preserving the difference between source, live and reported values. Repeat latest/attempt-6 views for current state. Do not retry generation or restart production to obtain missing evidence.
 8. For tests, select the existing dedicated **local** `sevenai_sprint5_task1_20261015_test` through a secure `DATABASE_URL` environment, with stub flags, then run the focused Vitest list above. Tests guard `_sandbox` / `_test` names. Do not count a skipped DB test as a pass or point them at dev/preview/production. The test run loads no pipeline startup/resume worker.
+9. After owner deployment of the R4 follow-up, the same default CLI command adds `results.structure.publishingSummary` without an additional request. No receipt has `phase: null` and Task 2's default flags; unavailable/unsupported/older-server summaries are `null`. `fingerprintMatches: null` means no current artifact identity was verified. Never export the raw `publishingRecovery` field or treat summary flags as a recovery action.
 
 ## Deviations, Remaining Work and Sign-Off
 
 - Nullable tokens and complete-plan presence honor the task's “unknown is null” rule; the proposed response's non-null token/boolean types were not used to fabricate historical values. Source timestamps, recovery booleans/provenance and progress hints are additive. No artifact existence is inferred from user-supplied paths.
 - New reader is in `admin-planner-diagnostics.repository.ts`, called only by the existing audited route. A safe explicit stored-plan summary mode also works against the older deployed content API; the default new diagnostic kind correctly reports unavailable until deployment.
-- **R4 pending:** consume Task 2's server-only safe summary after it lands, through a Task 1-owned Admin adapter. No receipt/session schema was guessed or exposed. This does not block the planner code deliverable; integration remains separately tracked.
-- **Production acceptance pending:** new-kind checkpoint/counter/eligibility readback after authorized deployment. Current #90 HTTP 400 is recorded, not claimed as live feature success. No production restart, retry, limit change, paid provider call, upload, deployment or merge was performed by this task.
-- **Ready-for-review pending:** owner-confirmed Sprint 4 closure/carryover record, then latest-main integration/conflict resolution and affected acceptance rerun. Latest fetched main remains #90. PR #91 stays draft. Founder review/merge remains required.
+- **R4 implemented after merged #92:** this separate follow-up consumes Task 2's actual exported schema/summary through Task 1's Admin/CLI adapter. Code/security checks are complete; new summary production readback remains after owner deployment.
+- **Production evidence:** the earlier #90 HTTP 400 is historical. After #91/#92 deployed, allowlisted diagnostic readbacks reported `3b0ee91` then `6464f9c` and passed; attempt 5 exposed 96 checkpoint scenes, 21/96 stills and six planner calls, while latest selected completed attempt 6. Run remained needs-attention/video-review. The new R4 summary is not deployed or live-verified by this follow-up.
+- **Revised readiness workflow:** Sprint 4 closure is no longer a prerequisite for #91. Check current main, resolve integration conflicts and rerun affected checks before marking ready. One combined Sprint 4–5 acceptance pass follows Task 5. Founder review/merge and deployment remain separate.
 
-Task objective: bounded planner diagnostics/client implemented and verified locally; source/live/reported evidence reconciled. Schema: unchanged application contract. Business logic: existing content audit only. Tests: passing as above. Production diagnostic deployment, Task 2 adapter and end-to-end recovered-video acceptance remain open, explicitly separated from code completion.
+Task objective: bounded planner diagnostics/client plus the R4 safe publishing-summary adapter implemented and verified locally; source/live/reported evidence reconciled. Schema and writers unchanged. The follow-up performs only the existing Admin structure read; content auditing remains unchanged. Owner deployment/readback of the new summary and end-to-end recovered-video acceptance remain open, explicitly separated from code completion.

@@ -1,5 +1,7 @@
 # Sprint 5 Shared Directory, Task PRs and Sprint 4 Closure
 
+**2026-10-18 revised owner workflow (supersedes older closure holds below):** integrate technically ready task PRs individually, then perform one combined Sprint 4–5 acceptance pass after Task 5. Sprint 4 closure is no longer a prerequisite for PR #91 or #92 readiness, and #92 does not wait for a real YouTube upload. Latest-main integration, conflict resolution, affected checks and explicit production-verification limits still apply. #92 also requires concrete backup, existing-key and mixed-version worker-drain preparation before readiness. Task 1's publishing-summary Admin adapter remains pending until #92 lands and does not block either PR. Founder review/merge and deployment remain separate; this direction authorizes neither merge/deployment nor production generation or budget changes.
+
 **Authority:** owner clarification, 2026-10-14. This supplements the [task template](../templates/TASK_TEMPLATE.md) and applies to all five Sprint 5 tasks. Each task has its own draft PR. The first task agent establishes one Sprint 5 root; other agents reuse that root. Sprint 4 testing/triage/closure precedes marking Sprint 5 PRs ready for review. No application implementation or Git mutation was performed while writing this workflow.
 
 ## One Sprint 5 root, separate task worktrees

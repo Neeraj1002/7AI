@@ -2,11 +2,11 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow (branch/commit/PR steps for this task), the `STATUS.md` update this task must make, and the section structure this file follows. This file states only this task's specifics — the template governs everything else, so don't skip it.
 
-**Binding execution workflow:** read [WORKFLOW](../WORKFLOW.md). Reuse the one Sprint 5 root established by Task 1; work in its separate `task2` worktree, with a separate draft PR. After owner-confirmed Sprint 4 closure, integrate latest main/closure fixes, resolve conflicts and rerun checks before marking this PR ready. Do not create another top-level Sprint 5 directory or switch another task's checkout.
+**Binding execution workflow:** read [WORKFLOW](../WORKFLOW.md). Reuse Task 2's existing PR and use an isolated worktree. Under the revised owner workflow, integrate current main after #91, resolve conflicts, rerun affected publishing/restart/concurrency/migration checks and complete backup, existing-encryption-key and mixed-version worker-drain preparation before marking ready. Do not wait for Sprint 4 closure or a real YouTube upload; one combined Sprint 4–5 acceptance pass follows Task 5. Do not merge, deploy or start live uploads during preparation.
 
 **Objective**: Prevent a run from initiating another YouTube upload while an earlier upload is active, known successful or unresolved, and resume safe remaining work after a restart.
 **Duration**: 3–4 days plus founder review of persistence/workflow contract and deployment verification.
-**Depends On**: Task 1 establishes the shared Sprint 5 root/planning baseline; then Task 1 diagnostics and this task can run concurrently in separate task worktrees. Fresh main includes #90. Persistence/workflow review precedes production rollout; PR readiness waits for Sprint 4 closure/conflict gate.
+**Depends On**: Current main includes merged #91 and #89/#90. Persistence/workflow review and concrete backup/key/worker-drain preparation precede readiness. Sprint 4 closure and a real upload are not prerequisites. Task 1's safe publishing-summary Admin adapter follows #92 and is separately pending.
 **Owning Component**: Publishing provider boundary, durable run-level receipt/ownership, publishing slice of runner/retry/startup and the sole Sprint 5 migration.
 **Success Criteria**: (1) upload session and ID are persisted at safe boundaries; (2) concurrent/late workers cannot initiate competing uploads; (3) unknown completion becomes actionable needs-attention, not blind insertion; (4) receipt survives failed attempts and restart; (5) follow-up failures never cause re-upload.
 **Priority / status**: P0; not started. Production duplicate frequency is unknown.
