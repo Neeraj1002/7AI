@@ -39,3 +39,18 @@ it('does not dismiss explicitly required numeric spelling',async()=>{
  mocks.callLLM.mockResolvedValue(call(JSON.stringify({...clean(),styleGuideViolations:['SR-2: Use fifty spelled out, not 50 as a numeral.']})));
  const r=await reviewScript({...params,briefText:'A bridge opened in 1901. Spell out fifty workers, in words.'});expect(r.output.styleGuideViolations).toHaveLength(1);expect(r.output.score).toBe(8);
 });
+
+import comparison from '../../content-evidence/fixtures/sr-comparison-results.json';
+import evaluationFixtures from '../../content-evidence/fixtures/sr-pre-gate.json';
+import { buildEvidencePacket } from '../../content-evidence/packet';
+import type { LLMResponse } from '../../llm';
+it.each(comparison.round.calls.filter(c=>c.response))('replays actual $model / $caseId / $repeat with no provider call',async recorded=>{
+ const c=evaluationFixtures.evaluationCases.find(c=>c.caseId===recorded.caseId)!;
+ const complete=vi.fn().mockResolvedValue(recorded.response as LLMResponse);
+ const evidence=buildEvidencePacket({briefText:c.briefText,factPolicy:c.factPolicy as 'brief-only'|'brief-plus-common'});
+ const r=await reviewScript({scriptText:c.scriptText,captions:'',nicheDescription:'Historical stories',videoKind:c.videoKind as 'short'|'long',targetSeconds:c.targetSeconds,chapterTitles:c.chapterTitles,evidence},complete);
+ expect(complete).toHaveBeenCalledTimes(1);
+ expect(r.output.score).toBeLessThanOrEqual(JSON.parse(recorded.response!.text).score);
+ if(['clean-short','appendix-A-clean'].includes(c.caseId)){expect(r.output.factualConcerns).toEqual([]);expect(r.output.styleGuideViolations).toEqual([]);}
+ if(c.caseId==='SR-case-4')expect(r.output.factualConcerns.join(' ')).not.toContain('matching brief number carries an approximation/limit hedge');
+});

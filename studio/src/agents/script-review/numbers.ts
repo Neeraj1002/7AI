@@ -47,7 +47,7 @@ export function numberMentions(text: string): NumberMention[] {
     else if (/^\s*(?:pence|pennies|penny)\b/i.test(after))unit='pence';
     output.push({value,unit,text:m[0],index,end});
   }
-  for (const m of text.matchAll(/\b(?:a|an)\s+(?:pint|day|year|army[- ]measure)\b/gi)) if (!occupied.some(([a,b])=>m.index!>=a&&m.index!<b))
+  for (const m of text.matchAll(/\b(?:a|an|per)\s+(?:pint|day|year|army[- ]measure)\b/gi)) if (!occupied.some(([a,b])=>m.index!>=a&&m.index!<b))
     output.push({value:1,unit:null,text:m[0],index:m.index!,end:m.index!+m[0].length});
   return output.sort((a,b)=>a.index-b.index);
 }
@@ -56,7 +56,7 @@ export function sentenceSpans(text:string): {text:string; start:number; end:numb
   for(let i=0;i<text.length;i++)if(/[.!?]/.test(text[i])&&!(/\d/.test(text[i-1]??'')&&/\d/.test(text[i+1]??''))){spans.push({text:text.slice(start,i+1),start,end:i+1});start=i+1;}
   if(start<text.length)spans.push({text:text.slice(start),start,end:text.length});return spans;
 }
-const hedge=/\b(?:roughly|about|around|approximately|nearly|almost|estimated?|estimates|mostly|largely|at most|at least|more than|less than|over|up to)\b/i;
+const hedge=/\b(?:roughly|about|around|approximately|nearly|almost|estimated?|estimates|mostly|largely|at most|at least|more than|less than|over|up to|capped|maximum|minimum|ceiling|no more than|no less than)\b/i;
 const same=(a:NumberMention,b:NumberMention)=>Math.abs(a.value-b.value)<1e-8&&(!a.unit||!b.unit||a.unit===b.unit);
 function derived(n:NumberMention,source:NumberMention[],sentence:string):boolean{
   if(!/\b(per|each|total|times|half|third|quarter|tenth|double|sum|difference|divided|ratio)\b/i.test(sentence))return false;

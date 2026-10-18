@@ -28,3 +28,12 @@ it('ambiguous repeated values do not create a spurious hedge verdict',()=>{
 it('both existing clean controls have zero code-level numeric verdicts',()=>{
  for(const c of fixtures.evaluationCases.filter(c=>c.control))expect(numericVerdicts(c.briefText,c.scriptText).violations,c.caseId).toEqual([]);
 });
+
+it.each(['capped at three pence per day','three pence a day, the official maximum'])('preserves an explicit legal limit paraphrase: %s',sentence=>{
+ expect(numericVerdicts('At most three pence per day.',sentence+'.').violations).toEqual([]);
+ expect(numericVerdicts('At most three pence per day.','Three pence per day.').violations[0]).toContain('SR-8:');
+});
+it('the recorded case 4 legal maximum does not create a numeric hedge false flag',()=>{
+ const c=fixtures.evaluationCases.find(c=>c.caseId==='SR-case-4')!;
+ expect(numericVerdicts(c.briefText,c.scriptText).violations).toEqual([]);
+});
