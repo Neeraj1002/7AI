@@ -11,7 +11,10 @@ import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
 import { chapterWarningOf, manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
-import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, humanizeRunError, relativeTime, runTopic, stageLabel, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, relativeTime, runTopic, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
+import { shortSentence } from '../../../lib/failure-text';
+import type { StepperEnd } from '../../../lib/stepper-colors';
+import { ScriptPreview } from '../../../components/ScriptPreview';
 import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
 import { buildStepHistory, POST_HOC_TAGS, runChip, scriptStats, settingTiles, tagLabel, type StageLike } from '../../../lib/run-view';
 import { color, font, radius, space, type } from '../../../lib/theme';
@@ -71,16 +74,6 @@ type Stage = {
   output: Record<string, unknown> | null;
 };
 
-// Bugs Closure R5 — the raw status read "completed" next to a failed attempt in the list;
-// say plainly what each row is, and make a failed one visibly failed.
-const STAGE_STATUS_LABEL: Record<string, string> = {
-  completed: 'done',
-  failed: 'FAILED',
-  skipped: 'skipped (not run)',
-  running: 'in progress',
-  pending: 'waiting',
-};
-
 function latestStage(stages: Stage[], name: string): Stage | undefined {
   for (let i = stages.length - 1; i >= 0; i -= 1) {
     if (stages[i].stageName === name) return stages[i];
@@ -95,7 +88,6 @@ export default function RunDetailScreen() {
   const { token, apiUrl } = useAuth();
   const { channelById } = useChannels();
   const [barHeight, setBarHeight] = useState(0);
-  const [showDetails, setShowDetails] = useState(false);
 
   // Bugs Task 9 (R3) — the gate attempt a decision was just sent for. Its
   // buttons stay hidden (and the screen keeps polling) until the run moves on,
@@ -190,7 +182,6 @@ export default function RunDetailScreen() {
   // and follow-up UI since a running cancel isn't guaranteed synchronous.
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
-  const [showAllChapters, setShowAllChapters] = useState(false);
   const retryMutation = useMutation(
     trpc.runs.retry.mutationOptions({
       onSuccess: () => {
@@ -298,6 +289,9 @@ export default function RunDetailScreen() {
   const isNeedsAttention = run.status === 'needs_attention';
   const currentStage = isGate1 ? 'gate1' : isGate2 ? 'gate2' : run.currentStage;
   const stepIndex = run.status === 'completed' ? 7 : stepperIndexForStage(currentStage);
+  // R11.4: a finished run is all green, a failure is red only on the step it failed on, a user stop is grey.
+  const stepperEnd: StepperEnd | undefined =
+    run.status === 'completed' ? 'completed' : run.status === 'failed' ? (data.endReason === 'cancelled' || data.endReason === 'rejected' ? 'stopped' : 'failed') : undefined;
 
   const defaultPrivacy: Privacy | undefined = channel?.defaultPrivacyStatus;
   // Bugs Task 12 (R2): the manual Retry / Revise cap, from the server (absent on an older server).
@@ -344,6 +338,13 @@ export default function RunDetailScreen() {
     lastGateDecision,
     gateDecisions: data.gateDecisions,
   });
+  // What the old Details list added beyond the steps: the run's own last error and the stock-to-AI-stills switch.
+  const historyNotes = [
+    ...(run.lastError ? [`${run.lastError.includes('regen cap') ? "Reviewer's reason" : 'Last error'}: ${shortSentence(run.lastError, 160)}`] : []),
+    ...(videoFallbackUsed(data) ? ['Switched to AI stills after stock footage failed review'] : []),
+  ];
+  // R11.3: the tag form is for a run that failed or a video that has had time to collect its first numbers.
+  const showPostHoc = run.status === 'failed' || (run.status === 'completed' && ageHours(run.completedAt ?? run.createdAt) >= 6);
   // Default tab follows the state: the video at Gate 2, the script while it is made or reviewed, the brief once ended.
   const tab: RunTab = tabChoice ?? (isGate2 || (isPublished && isLong && data.previewUrl) ? 'video' : isGate1 || isNeedsAttention || isRunningOrPending ? 'script' : 'brief');
 
@@ -359,6 +360,8 @@ export default function RunDetailScreen() {
           isSubmitting={isGate1 ? gate1Mutation.isPending : gate2Mutation.isPending}
           initialEditText={editText}
           keepEditOpen={isGate1 && isLong}
+          isLongScript={isLong}
+          targetSeconds={data.targetSeconds}
           editError={isGate1 && gate1Mutation.variables?.action === 'edit' ? gate1Mutation.error?.message : null}
           onEditOpen={() => gate1Mutation.reset()}
           defaultPrivacy={defaultPrivacy}
@@ -479,7 +482,7 @@ export default function RunDetailScreen() {
 
       <RunSettingsTiles tiles={settings.tiles} formatLine={settings.formatLine} />
 
-      <Stepper currentIndex={stepIndex} attention={isNeedsAttention} ended={isEnded} />
+      <Stepper currentIndex={stepIndex} end={stepperEnd} />
 
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
 
@@ -685,7 +688,7 @@ export default function RunDetailScreen() {
         {tab === 'brief' ? (
           <>
             <Text style={styles.cardMeta}>What you asked for · {startedLabel(run.createdAt)}</Text>
-            <ClampedText lines={4} style={styles.body} text={run.briefText} moreLabel="Show full brief" lessLabel="Show less" />
+            <ClampedText lines={5} style={styles.body} text={run.briefText} moreLabel="Show more" lessLabel="Show less" />
           </>
         ) : tab === 'script' ? (
           scriptText ? (
@@ -699,24 +702,7 @@ export default function RunDetailScreen() {
                 ) : null}
                 {reviewScore !== undefined && !isGate1 ? <StatusChip kind="neutral" label={`Review ${reviewScore}/10`} /> : null}
               </View>
-              {chapters && chapters.length > 0 ? (
-                <>
-                  {(showAllChapters ? chapters : chapters.slice(0, 2)).map((c, i) => (
-                    <View key={`${i}-${c.title}`} style={styles.chapterBlock}>
-                      <Text style={styles.cardMeta}>Chapter {i + 1}</Text>
-                      <Text style={styles.chapterHeading}>{c.title}</Text>
-                      {c.text ? <Text style={styles.body}>{c.text}</Text> : null}
-                    </View>
-                  ))}
-                  {chapters.length > 2 ? (
-                    <Pressable onPress={() => setShowAllChapters((v) => !v)} accessibilityRole="button" style={styles.chapterToggle}>
-                      <Text style={styles.chapterToggleText}>{showAllChapters ? 'Show less' : 'Show full script'}</Text>
-                    </Pressable>
-                  ) : null}
-                </>
-              ) : (
-                <ClampedText lines={6} style={styles.body} text={scriptText} moreLabel="Show full script" lessLabel="Show less" />
-              )}
+              <ScriptPreview chapters={chapters} scriptText={scriptText} lines={5} />
             </>
           ) : (
             <Text style={styles.cardMeta}>The script isn&apos;t written yet.</Text>
@@ -757,66 +743,18 @@ export default function RunDetailScreen() {
         )}
       </Card>
 
-      <StepHistory steps={history.steps} summary={history.summary} />
+      {/* One history (Sprint 5 Task 7 R11.2): the old Details list is folded into it. */}
+      <StepHistory steps={history.steps} summary={history.summary} notes={historyNotes} />
 
-      <Pressable style={styles.detailsToggle} onPress={() => setShowDetails((v) => !v)} accessibilityRole="button">
-        <Text style={styles.detailsToggleText}>Details</Text>
-        <Feather name={showDetails ? 'chevron-down' : 'chevron-right'} size={18} color={color.muted} />
-      </Pressable>
-      {showDetails ? (
-        <Card>
-          {run.lastError ? (
-            <>
-              <Text style={styles.rawHeading}>{run.lastError.includes('regen cap') ? "Reviewer's reason" : 'Last error'}</Text>
-              <Text style={styles.raw}>{run.lastError}</Text>
-            </>
-          ) : null}
-          {videoFallbackUsed(data) ? (
-            <Text style={styles.raw}>Switched to AI stills after stock footage failed review</Text>
-          ) : null}
-          {stages.map((s) => (
-            <StageRow key={s.id} stage={s as Stage & { error?: string | null }} />
-          ))}
-        </Card>
-      ) : null}
-
-      {run.status === 'completed' || run.status === 'failed' ? (
-        <PostHocTagForm runId={run.id} reviewLogs={data.reviewLogs} />
-      ) : null}
+      {showPostHoc ? <PostHocTagForm runId={run.id} reviewLogs={data.reviewLogs} failed={run.status === 'failed'} /> : null}
     </FormScreen>
-  );
-}
-
-// U9: a FAILED attempt shows its reason in plain words when tapped, the technical text below it.
-function StageRow({ stage: s }: { stage: Stage & { error?: string | null } }) {
-  const [open, setOpen] = useState(false);
-  const failed = s.status === 'failed';
-  const line = (
-    <Text style={[styles.raw, failed && styles.rawFailed]}>
-      {stageLabel(s.stageName)} · attempt {s.attemptNumber} · {STAGE_STATUS_LABEL[s.status] ?? s.status}
-      {failed ? (open ? '  ▾' : '  ▸ tap for why') : ''}
-    </Text>
-  );
-  if (!failed) return line;
-  return (
-    <View>
-      <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button">
-        {line}
-      </Pressable>
-      {open ? (
-        <View style={styles.failedWhy}>
-          <Text style={styles.body}>{humanizeRunError(s.error) || 'This attempt failed.'}</Text>
-          {s.error ? <Text style={styles.raw}>{s.error}</Text> : null}
-        </View>
-      ) : null}
-    </View>
   );
 }
 
 // Every existing tag is a plain ReviewLog row (agent: 'founder-post-hoc');
 // shown as history, never replaced — the old Telegram flow never prevented
 // tagging a run more than once either.
-function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: ReviewLogRow[] }) {
+function PostHocTagForm({ runId, reviewLogs, failed }: { runId: string; reviewLogs: ReviewLogRow[]; failed: boolean }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [tag, setTag] = useState('');
@@ -851,7 +789,7 @@ function PostHocTagForm({ runId, reviewLogs }: { runId: string; reviewLogs: Revi
         accessibilityState={{ expanded: open }}
       >
         <Text style={styles.tagHeaderTitle}>
-          Why didn&apos;t it work? <Text style={styles.tagHeaderHint}>· optional tags</Text>
+          {failed ? 'Tag why this run failed' : 'Tag why this video underperformed'} <Text style={styles.tagHeaderHint}>· optional</Text>
         </Text>
         <Text style={styles.tagHeaderHint}>{open ? '▲' : '▼'}</Text>
       </Pressable>
@@ -921,21 +859,14 @@ const styles = StyleSheet.create({
   barTrack: { height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4 },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
-  chapterBlock: { gap: 2, paddingBottom: space.sm },
-  chapterHeading: { fontFamily: font.bold, fontSize: 15, color: color.ink },
-  chapterToggle: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
-  chapterToggleText: { fontFamily: font.black, fontSize: 13, color: color.accentText },
   chapterWarning: { backgroundColor: color.warnBg, borderRadius: radius.md, padding: space.md },
   chapterWarningText: { fontFamily: font.semibold, fontSize: 13, lineHeight: 19, color: color.warnText },
   videoRow: { flexDirection: 'row', gap: space.md },
   video: { width: 118, height: 210, borderRadius: radius.sm, backgroundColor: color.video },
   videoLoading: { alignItems: 'center', justifyContent: 'center' },
   videoInfo: { flex: 1, gap: space.sm },
-  detailsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
-  detailsToggleText: { ...type.sectionTitle, color: color.muted },
   raw: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   rawFailed: { color: color.danger },
-  rawHeading: { fontFamily: font.bold, fontSize: 12, color: color.ink },
   failedWhy: { gap: 2, paddingLeft: space.sm, paddingVertical: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { backgroundColor: color.surface2, borderRadius: radius.pill, paddingHorizontal: 12, minHeight: 44, justifyContent: 'center' },

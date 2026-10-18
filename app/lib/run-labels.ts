@@ -2,6 +2,7 @@
 // internal string (status enum, stage name, [tag]-prefixed lastError) should
 // ever reach a screen directly — route it through here instead.
 import type { StatusChipKind } from '../components/StatusChip';
+import { describeFailure, shortSentence } from './failure-text';
 
 export function statusLabel(status: string): string {
   switch (status) {
@@ -72,7 +73,7 @@ export function queueChip(status: string): string {
 // Ordered patterns matched against the real `lastError` shapes written by
 // studio/src/run-pipeline/state-machine.ts / resume-on-startup.ts (checked
 // 2026-09-26). A new backend message is a one-line addition to this table.
-const ERROR_PATTERNS: Array<{ test: (msg: string) => boolean; label: string }> = [
+const ERROR_PATTERNS: { test: (msg: string) => boolean; label: string }[] = [
   { test: (m) => m.startsWith('[stale-resume-skip]'), label: 'Stalled — no progress 30+ min' },
   { test: (m) => m.startsWith('Video Intelligence regen cap'), label: 'Video retry limit reached' },
   { test: (m) => m.startsWith('Retry limit reached'), label: 'Retry limit reached' },
@@ -94,9 +95,10 @@ export function humanizeRunError(lastError: string | null | undefined): string {
   for (const pattern of ERROR_PATTERNS) {
     if (pattern.test(lastError)) return pattern.label;
   }
-  const firstSentence = lastError.split(/(?<=[.!?])\s/)[0] ?? lastError;
-  const stripped = firstSentence.replace(/^\[[^\]]*\]\s*/, '');
-  return stripped.length > 60 ? `${stripped.slice(0, 57)}…` : stripped;
+  const known = describeFailure(lastError);
+  if (known.kind !== 'other') return known.title;
+  // Never cut in the middle of a bracket (Sprint 5 Task 7 R5): shortSentence drops a trailing payload first.
+  return shortSentence(lastError, 80);
 }
 
 // Stepper's 7 steps, mapped from stage names. `analytics` is not shown.

@@ -150,3 +150,46 @@ describe('post-hoc tag labels', () => {
     expect(tagLabel('flat')).toBe('Flat');
   });
 });
+
+describe('step history after the first acceptance run (Sprint 5 Task 7 R5, R11)', () => {
+  const failedReview = { verdict: 'fail', rationale: 'Longest shot 8.3 s, limit 7.5 s. Spread the scenes.' };
+  const stages = [
+    row('g1', 'video_generation', 'completed', 1),
+    row('r1', 'video_review', 'completed', 1, { output: failedReview }),
+    row('g2', 'video_generation', 'completed', 2),
+    row('r2', 'video_review', 'completed', 2, { output: { verdict: 'pass', rationale: 'ok' } }),
+  ];
+
+  it('attempt 1 that failed review is not "done"; attempt 2 is', () => {
+    const video = buildStepHistory({ stages }).steps.find((s) => s.key === 'video')!;
+    expect(video.attempts.map((a) => a.title)).toEqual(['Attempt 1 · failed review', 'Attempt 2 · done']);
+    expect(video.attempts[0].tone).toBe('warn');
+    expect(video.attempts[0].why).toBe('Longest shot 8.3 s, limit 7.5 s.');
+    expect(video.attempts[1].tone).toBe('ok');
+    expect(video.note).toBe('Done on attempt 2 · attempt 1 failed');
+  });
+
+  it('a run whose only video attempt failed review is a failed step with the reason', () => {
+    const { steps, summary } = buildStepHistory({ stages: stages.slice(0, 2) });
+    const video = steps.find((s) => s.key === 'video')!;
+    expect(video.state).toBe('failed');
+    expect(video.note).toBe('failed review · longest shot 8.3 s, limit 7.5 s.');
+    expect(summary).toBe('Video made · failed once');
+  });
+
+  it('keeps the rows Details used to hold: the review and the first stats appear in the one history', () => {
+    const { steps } = buildStepHistory({ stages: [...stages, row('p', 'publishing', 'completed'), row('a', 'analytics', 'completed')] });
+    expect(steps.map((s) => s.key)).toContain('video_review');
+    expect(steps.map((s) => s.key)).toContain('analytics');
+    expect(steps.find((s) => s.key === 'analytics')?.note).toBe('Saved');
+    // a run that has not got that far still shows the original seven
+    expect(buildStepHistory({ stages: [row('s', 'script_generation', 'completed')] }).steps).toHaveLength(7);
+  });
+
+  it('puts the cost of an attempt on its row when the server sends it', () => {
+    const costs = new Map([['video_generation:1', { totalUsd: 0.27, failed: false, stages: [{ name: 'Images', usd: 0.13, failed: false }] }]]);
+    const video = buildStepHistory({ stages, costs }).steps.find((s) => s.key === 'video')!;
+    expect(video.attempts[0].cost?.totalUsd).toBe(0.27);
+    expect(video.attempts[1].cost).toBeUndefined();
+  });
+});
