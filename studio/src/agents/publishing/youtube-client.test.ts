@@ -5,6 +5,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildUploadMetadataPart, getOAuthClient, mapGoogleError, setThumbnailViaProvider } from './youtube-client';
 import { TransientStageError, NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
+// Exercise the mocked OAuth transport without requiring real local credentials.
+vi.mock('../../config/env', () => ({ env: {
+  YOUTUBE_CLIENT_ID: 'mock-client-id', YOUTUBE_CLIENT_SECRET: 'mock-client-secret',
+  YOUTUBE_REDIRECT_URI: 'http://localhost/mock-oauth',
+} }));
+
 // Metadata disclosure is tested at the shared builder; the fake HTTP
 // resumable test verifies that builder reaches the session-init request.
 const requestMock = vi.hoisted(() => vi.fn());

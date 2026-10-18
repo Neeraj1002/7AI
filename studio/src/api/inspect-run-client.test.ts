@@ -18,6 +18,21 @@ function transportWith(extra?: unknown) {
 }
 afterEach(() => vi.useRealTimers());
 describe('fixed-route run inspector transport and sanitizer', () => {
+  it('preserves an additive safe publishing summary with no extra request and supports older servers', async () => {
+    const safe = { phase: 'uploaded', knownIdPresent: true, ambiguous: false, fingerprintMatches: null,
+      ownershipActive: false, followups: { finalArtifact: 'succeeded', thumbnail: 'uncertain', captions: 'pending' } };
+    const transport = transportWith();
+    transport.mockImplementationOnce(async () => wire({ commit: '6464f9c', bootedAt: at }))
+      .mockImplementationOnce(async () => wire({ ...structure, publishingSummary: {
+        ...safe, sessionUri: 'PRIVATE_SESSION', ownerToken: 'PRIVATE_TOKEN', encryptedCredentials: 'PRIVATE_CIPHER',
+        followups: { ...safe.followups, sessionCiphertext: 'PRIVATE_CIPHER' },
+      } }));
+    const result = await inspectRun({ baseUrl: 'https://7aistudio.tech', runId }, token, transport);
+    expect(result.results.structure).toMatchObject({ publishingSummary: safe });
+    expect(transport).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_');
+    expect(sanitizeStructure(structure, runId).publishingSummary).toBeNull();
+  });
   it('defaults to two permitted GETs and one audited POST, using SuperJSON and the same run UUID', async () => {
     const transport = transportWith(); const result = await inspectRun({ baseUrl: 'https://7aistudio.tech', runId, attemptNumber: 5 }, token, transport);
     expect(result.status.map(s => s.available)).toEqual([true, true, true]); expect(transport).toHaveBeenCalledTimes(3);
