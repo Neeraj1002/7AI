@@ -28,6 +28,8 @@ import type { ProductionPlan } from './plan';
 import { bindSceneAssets, createSceneMapping, validateScenePlan } from './scene-mapping';
 import type { VideoSpend } from './spend';
 import { addScenesToChapters, rebalanceShotLengths } from './shot-balance';
+import { checkStills, strongerPrompt, type StillIssue } from './still-check';
+import type { LLMResponse } from '../../llm';
 import type { VideoGenerationResult } from './index';
 
 // Sprint 4 Task 9 (R3-R6): the long-form (16:9, chaptered) counterpart of generateVideo. Order of
@@ -58,6 +60,14 @@ export type LongVideoParams = {
   // Sprint 5 Task 8 (R3): the longest a single picture may stay on screen. When set, the plan is checked
   // against the narration timing before any picture is paid for.
   maxShotSeconds?: number;
+  // Sprint 5 Task 8 (R6): look at every picture before the render (logos, text, invented figures, a scene
+  // that contradicts its narration). A picture that fails is made again once, with a stronger instruction;
+  // one that fails again is flagged, not looped on. Each paid vision call is reported through onCall.
+  stillCheck?: {
+    topic: string;
+    beforeCall?: () => Promise<void>;
+    onCall?: (llm: LLMResponse, info: { batchSize: number }) => Promise<void>;
+  };
 };
 
 export async function generateLongVideo(params: LongVideoParams): Promise<VideoGenerationResult> {
@@ -164,28 +174,87 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
   await params.weeklyGate?.();
   const styled = buildStyledScenePrompts(finalScenes.map((s) => s.prompt), params.sceneStyle ?? {});
   let stills: Awaited<ReturnType<typeof generateStills>>;
+  const onStillGenerated = async (info: { index: number; costUsd: number; model: string }) => {
+    if (spend) {
+      spend.stillsModel = info.model;
+      spend.stillsCount += 1;
+      spend.stillsCostUsd += info.costUsd;
+    }
+    await params.onStillPaid?.(info);
+    // The next picture is about to be paid for: stop here if it would pass the limit.
+    await guard(stillPriceUsd);
+  };
   try {
     stills = await generateStills({
       scenePrompts: styled,
       size: STILL_SIZE_LANDSCAPE,
       cacheDir: stillsCacheDir(params.pipelineRunId),
       onProgress: params.onStillsProgress,
-      onStillGenerated: async (info) => {
-        if (spend) {
-          spend.stillsModel = info.model;
-          spend.stillsCount += 1;
-          spend.stillsCostUsd += info.costUsd;
-        }
-        await params.onStillPaid?.(info);
-        // The next picture is about to be paid for: stop here if it would pass the limit.
-        await guard(stillPriceUsd);
-      },
+      onStillGenerated,
     });
   } catch (error) {
     // A stop between two stills keeps every finished one in the cache; nothing to unwind here.
     const ctx = getStageErrorContext(error);
     if (spend && ctx && typeof ctx.model === 'string') spend.stillsModel = ctx.model;
     throw error;
+  }
+
+  // 4b. Every picture is looked at before the render (R6). Pictures with a logo, readable text, an invented
+  //     figure or a contradiction are made again once; a second failure is flagged, never looped on.
+  let stillCheckSummary: { checked: number; unchecked: number; flaggedFirstPass: number; regenerated: number; stillFlagged: number } | undefined;
+  let flaggedStills: Array<{ sceneIndex: number; sceneId: string; issues: StillIssue[] }> | undefined;
+  if (params.stillCheck && env.AI_VISUALS_STUB !== '1') {
+    const sceneIndexes = stills.promptIndexes ?? stills.imagePaths.map((_, k) => k);
+    const narrationFor = (sceneIndex: number): string => {
+      const span = activePlan.sceneMeanings?.scenes[sceneIndex]?.narrationSpan;
+      const chapterText = span ? params.chapters[span.chapterIndex]?.text : undefined;
+      if (span && chapterText) return chapterText.trim().split(/\s+/).slice(span.startWord, span.endWordExclusive).join(' ');
+      return finalScenes[sceneIndex].words;
+    };
+    const cacheDir = stillsCacheDir(params.pipelineRunId);
+    const runCheck = (items: Array<{ sceneIndex: number; imagePath: string }>) =>
+      checkStills({
+        topic: params.stillCheck!.topic,
+        stills: items.map((it) => ({ ...it, narration: narrationFor(it.sceneIndex) })),
+        cacheDir,
+        beforeCall: async () => { await guard(); await params.stillCheck!.beforeCall?.(); },
+        onCall: async (llm, info) => { await params.stillCheck!.onCall?.(llm, info); await guard(); },
+      });
+    const first = await runCheck(sceneIndexes.map((sceneIndex, k) => ({ sceneIndex, imagePath: stills.imagePaths[k] })));
+    const failing = first.filter((r) => r.issues.length > 0);
+    let regenerated = 0;
+    let finalIssues = new Map(failing.map((r) => [r.sceneIndex, r.issues]));
+    if (failing.length > 0) {
+      await guard(stillPriceUsd);
+      const retry = await generateStills({
+        scenePrompts: failing.map((r) => strongerPrompt(styled[r.sceneIndex], r.issues)),
+        size: STILL_SIZE_LANDSCAPE,
+        cacheDir,
+        onStillGenerated,
+      });
+      const retryIndexes = retry.promptIndexes ?? retry.imagePaths.map((_, k) => k);
+      const replaced: Array<{ sceneIndex: number; imagePath: string }> = [];
+      retryIndexes.forEach((fi, k) => {
+        const sceneIndex = failing[fi].sceneIndex;
+        const slot = sceneIndexes.indexOf(sceneIndex);
+        stills.imagePaths[slot] = retry.imagePaths[k];
+        replaced.push({ sceneIndex, imagePath: retry.imagePaths[k] });
+      });
+      regenerated = replaced.length;
+      const second = await runCheck(replaced);
+      // A picture the provider refused to remake keeps its first image and its first issues.
+      for (const r of second) finalIssues.set(r.sceneIndex, r.issues);
+      finalIssues = new Map([...finalIssues].filter(([, issues]) => issues.length > 0));
+    }
+    flaggedStills = [...finalIssues].map(([sceneIndex, issues]) => ({ sceneIndex, sceneId: activePlan.sceneMeanings?.scenes[sceneIndex]?.sceneId ?? `${finalScenes[sceneIndex].chapterIndex}:${sceneIndex}`, issues }));
+    stillCheckSummary = {
+      checked: first.filter((r) => r.checked).length,
+      unchecked: first.filter((r) => !r.checked).length,
+      flaggedFirstPass: failing.length,
+      regenerated,
+      stillFlagged: flaggedStills.length,
+    };
+    console.log(`[video_generation] run ${params.pipelineRunId} attempt ${params.attemptNumber}: picture check ${JSON.stringify(stillCheckSummary)}`);
   }
 
   // Bind actual image bytes to each slot, recording any moderation substitution.
@@ -239,6 +308,8 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       scriptWordCount,
       narrationSeconds: Number(narration.durationSeconds.toFixed(2)),
       measuredWordsPerMinute: pace,
+      ...(flaggedStills && flaggedStills.length > 0 && { flaggedStills }),
+      ...(stillCheckSummary && { stillCheck: stillCheckSummary }),
     },
     usage: {
       provider: 'openai',
@@ -254,6 +325,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
         captionStyle: plan.captionStyle,
         visualSource: 'ai-stills',
         ...(shotPlan && { shotPlan }),
+        ...(stillCheckSummary && { stillCheck: stillCheckSummary }),
         aiVisualsProvider: stills.provider,
         aiVisualsModel: stills.model,
         aiVisualsStillCount: stills.imagePaths.length,

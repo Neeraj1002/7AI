@@ -78,7 +78,7 @@ describe('structured-output usage reaches usage_events', () => {
     expect(event).toMatchObject({
       agent: 'script-generation',
       provider: 'anthropic',
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       inputTokens: 1500,
       outputTokens: 321,
     });
@@ -98,7 +98,7 @@ describe('structured-output usage reaches usage_events', () => {
     );
     await runScriptGenerationStage(RUN_ID);
     expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(1);
-    expect(mocks.insertUsageEvent.mock.calls[0][0]).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5', inputTokens: 1500, outputTokens: 4096 });
+    expect(mocks.insertUsageEvent.mock.calls[0][0]).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5', inputTokens: 1500, outputTokens: 4096 });
     expect(Number(mocks.insertUsageEvent.mock.calls[0][0].costUsd)).toBeGreaterThan(0);
     expect(mocks.failStage.mock.calls[0][1]).toContain('cut off at the output cap');
     expect(mocks.failStage.mock.calls[0][3]).toMatchObject({ rawReply: '{"scriptText":"cut off', stopReason: 'length' });

@@ -67,6 +67,7 @@ import { measureQualityMetrics } from '../agents/video-intelligence/quality-metr
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
 import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
+import { briefAllowsBrandMarks } from '../agents/video-generation/scene-prompts';
 import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
 import { LONG_FORM_DEFAULT_CATEGORY_ID, languageDisplayName } from '../long-form/youtube-meta';
 import { AUDIO_BED_MANIFEST } from '../audio-bed';
@@ -1012,7 +1013,7 @@ export async function runVideoGenerationStage(
           currentInput: stageInput, previousOutput: completedBaseline.output as VideoGenerationOutput,
           defect: reviewOutput.visualDefects[0],
           sceneStyle: { stylePrompt: config.visualStylePrompt, negativePrompt: config.visualNegativePrompt,
-            safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1' } });
+            safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1', allowBrandMarks: briefAllowsBrandMarks(run.briefText) } });
         repairBaselineOutput = completedBaseline.output as VideoGenerationOutput;
         if (previousAttempt.status !== 'completed') {
           const oldOutput = previousAttempt.output as { visualRepairReceipt?: unknown } | null;
@@ -1219,6 +1220,8 @@ export async function runVideoGenerationStage(
         stylePrompt: config.visualStylePrompt,
         negativePrompt: config.visualNegativePrompt,
         safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
+        // Sprint 5 Task 8 (R6): the no-marks rule is on unless the brief itself asks for logos or text.
+        allowBrandMarks: briefAllowsBrandMarks(run.briefText),
       };
       const bookPaidCall = (fields: {
         model: string;
@@ -1280,6 +1283,25 @@ export async function runVideoGenerationStage(
             spend,
             guard: runLimitGuard,
             maxShotSeconds: qualityProfileFor('long', config.visualSecondsPerStill).maxShotSeconds,
+            // Sprint 5 Task 8 (R6): every picture is looked at before the render; each vision call is booked.
+            stillCheck: {
+              topic: run.intakeParsed!.topic,
+              onCall: async (llm, info) => {
+                await insertUsageEvent({
+                  tenantId: run.tenantId,
+                  channelId: run.channelId,
+                  pipelineRunId: runId,
+                  stageId: stage.id,
+                  agent: 'still-check',
+                  provider: llm.provider,
+                  model: llm.model,
+                  inputTokens: llm.usage.inputTokens,
+                  outputTokens: llm.usage.outputTokens,
+                  costUsd: llm.costUsd,
+                  metadata: { part: 'still-check', batchSize: info.batchSize },
+                });
+              },
+            },
             weeklyGate: async () => {
               const refusal = await checkBudget(run.tenantId, channel.id, channel.platform);
               if (!refusal.ok) throw new NonTransientStageError(`Video Generation stopped: ${describeBudgetRefusal(refusal)}`);
