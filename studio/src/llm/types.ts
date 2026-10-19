@@ -98,6 +98,8 @@ export type LLMCallEvidence = {
   blocks: string;
   // What was sent: 'off', or the reasoning budget.
   reasoning: 'off' | number;
+  // Wall-clock milliseconds of this provider call (the canary prints it).
+  durationMs: number;
 };
 
 // One model call that ended at the output limit before the reply that finally came back (LLM Registry

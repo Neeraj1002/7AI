@@ -251,6 +251,7 @@ describe('R6: evidence on every call', () => {
       finishReason: 'end_turn',
       blocks: 'thinking:0,text:1',
       reasoning: 'off',
+      durationMs: expect.any(Number),
     });
     expect(llmUsageRows(llm)[0].metadata).toEqual({ llm: llm.evidence });
   });

@@ -121,6 +121,7 @@ export async function callLLM(req: {
 
   for (;;) {
     providerCalls += 1;
+    const startedAt = Date.now();
     const callLimit = limit;
     const callReasoning = reasoning;
     let result;
@@ -184,6 +185,7 @@ export async function callLLM(req: {
       finishReason: result.rawFinishReason ?? null,
       blocks: result.blocks ?? 'n/a',
       reasoning: callReasoning === 'off' ? 'off' : callReasoning.budgetTokens,
+      durationMs: Date.now() - startedAt,
     };
     evidenceOf.push(evidence);
     const response: LLMResponse = {

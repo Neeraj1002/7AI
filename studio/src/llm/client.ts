@@ -221,6 +221,8 @@ export async function callProviderModel(params: {
         text: error.text,
         usage,
         stopReason: error.finishReason ?? 'unknown',
+        // Not exposed: the AI SDK's NoObjectGeneratedError carries the unified reason (above) but neither the
+        // provider's raw one nor the response body (checked against a real structured cut-off, 2026-10-19).
         rawFinishReason: null,
         blocks: describeBlocks(undefined, { text: error.text, reasoningTokens: usage.reasoningTokens }),
         responseMeta: responseMetaOf(error.response, undefined),
