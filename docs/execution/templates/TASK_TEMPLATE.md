@@ -57,6 +57,8 @@ its own `git worktree`.
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow (branch/commit/PR steps for this task), the `STATUS.md` update this task must make, and the section structure this file follows. This file states only this task's specifics — the template governs everything else, so don't skip it.
 
+**Revision**: r1, YYYY-MM-DD, first issue. _(The architect bumps this line and adds to a "Revision log" at the end of the file on every later change; agents sync it per Hard rule 5.)_
+
 **Objective**: One-sentence description of what this task accomplishes
 **Duration**: Estimated hours
 **Depends On**: Previous tasks (if any)
@@ -205,6 +207,8 @@ Generate at: `execution/week[N]/reports/task[ID].md`
 
 **Date**: YYYY-MM-DD
 **Status**: Complete
+**Branch / worktree / PR**: [names, for the architect to record]
+**Task doc**: committed in [hash]; revisions picked up: [rN at hash, or none]
 **Files Created**: N
 **Files Modified**: N
 **Tests**: All Passing
@@ -269,7 +273,7 @@ Update the row for _this_ task only — never rewrite other tasks' rows, and nev
 
 The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (one `BUGS_TASK<N>` branch per release, covering every item regardless of role — changed 2026-09-26 from an earlier per-role split that was producing conflicting sibling PRs). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
 
-### Git Workflow _(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations; updated 2026-10-06 — Hard rule 4, one worktree per concurrent session)_
+### Git Workflow _(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations; updated 2026-10-06 — Hard rule 4, one worktree per concurrent session; updated 2026-10-19 — Hard rules 5 and 6, task doc in the first commit, pull main before ready)_
 
 **Branch per track-iteration, commit per task, PR per track-iteration — merging to `main` is always a founder decision, never automatic.**
 
@@ -326,6 +330,44 @@ The frontend track follows this exact same pattern at `docs/execution/frontend/S
      directly in the track's base checkout as before. When in doubt, use a worktree; it costs only a
      dependency install.
 
+5. **Task doc sync: git always holds the latest task doc.** _(Added 2026-10-19 by founder decision, so git,
+   the Project and the founder's `D:` docs folder never drift.)_
+   - **Source of truth:** the architect's latest copy of the task doc, in the founder's synced docs folder
+     (`D:\Study Material\7AI\docs\...`, same path as in the repo; it mirrors the Project). You never
+     write or edit the task doc's content. You only copy the architect's latest version into your worktree.
+   - **First commit:** at branch start, compare your worktree's task doc with the source (`diff`). If the
+     file is missing from the worktree or differs, copy the source in and commit it alone, before any
+     code, as `[BRANCH]_DOC: add task doc` (or `... update task doc rN` if only the revision changed). If
+     it is already identical on `main`, say so in your first reply and skip the commit.
+   - **Every later commit, and once more before `gh pr ready`:** diff again. If the architect changed the
+     doc since your last sync, copy the new version in and include it in that same commit, together with
+     the latest code, and add the line `Task doc updated to rN` to the commit message. Read the diff first.
+     If the change affects work you already built, stop and tell the founder in 3 lines before going on.
+     Never keep building on the old text, and never rework silently.
+   - **Revision marker:** whenever the architect changes a task doc after it was handed out, it bumps a
+     `**Revision**: rN, YYYY-MM-DD, what changed` line under the title and adds a line to a "Revision log"
+     at the end. Docs handed out before 2026-10-19 have no marker: use the diff.
+   - **Several releases (Part A, Part B...):** every release branch is cut from a fresh `origin/main` and
+     starts with the same check, so a doc that already reached `main` through an earlier release or the
+     docs PR is only updated if the source is newer.
+   - **Conflicts on the task doc** (for example the docs PR already put it on `main`): take the
+     architect's latest source version whole. Never hand-merge its text.
+6. **Pull `main` and check docs scope before you mark any PR ready.** _(Added 2026-10-19.)_ In your own
+   worktree (never a folder you did not create): `git fetch origin`, then `git pull origin main`,
+   resolve conflicts on your branch (task doc: rule 5), re-run the task's build, lint, type-check and
+   tests, push the branch. Then check the docs you are about to put in front of the founder:
+   `git diff --name-only origin/main...HEAD -- docs/` may list only (a) this task's doc, identical to
+   the source, (b) this task's report, and (c) docs the task itself tells you to write. Anything else:
+   remove it or ask. The report must be committed and must cover every part done so far. Only then run
+   `gh pr ready`, and say in the report that you did all of this, listing each conflict you resolved.
+   This is a merge of `main` into your branch, not a push to `main`: Hard rule 1 stands.
+7. **Who owns which doc.** _(Added 2026-10-19; records the founder's standing order that used to be
+   repeated in each task.)_ You write exactly one doc: your own report. The architect owns task docs,
+   every `STATUS.md` row (including the `Branch` column), `PLAN.md`, the bug ledger and the decision
+   docs. So you do not edit `STATUS.md` or any other doc, and for `STATUS.md` this rule replaces Hard
+   rule 3 and step 1 of "After every task". Instead, put the branch name, worktree path and PR number
+   in your first reply to the founder and at the top of your report; the architect records them.
+
 **Where task docs and work happen (checkout locations)** — added 2026-09-25, after a task doc written
 only into the main checkout wasn't visible to a session working from a different track's own checkout.
 _(Updated 2026-10-06: these are each track's **base checkout**. Under Hard rule 4, concurrent sessions
@@ -345,7 +387,7 @@ create their own worktree from that base checkout rather than all working inside
   dedicated worktree). Full scope, role model, and kickoff message live in
   `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`.
 
-A task's doc, its `STATUS.md` row, and its report should be committed from the **same checkout** the
+A task's doc and its report (and, where a task still says so, its `STATUS.md` row; see Hard rule 7) should be committed from the **same checkout** the
 code changes themselves are committed from — not just the main checkout — so anyone actually working
 from that checkout sees the full picture without needing to separately sync another worktree by hand.
 This applies to a _track's own_ docs (its task files, `STATUS.md`, reports) — it does **not** apply to
@@ -393,7 +435,7 @@ Two independent tracks now build against this repo at the same time: the **backe
 
 3. `git push` (`-u origin [TRACK]_[SUFFIX]` on the track-iteration's first push, plain `git push` after) — every task's work reaches GitHub immediately, not just at the end.
 
-**Finishing a track-iteration** (last task only): after the final task's commit and push, `gh pr ready` to mark the PR ready for review. **Do not merge, and do not push to `main` yourself, under any circumstance** — that's a deliberate founder action (via the GitHub PR review, or telling me to merge once reviewed), per Hard rule 1 above. This is the one point where a founder actually looks at a diff before it becomes `main`, worth keeping even solo — and worth it more, not less, now that two-plus tracks can land on `main` independently: nothing about the `_BE`/`_FE`/track-role naming changes that all of them still need a real look before merging.
+**Finishing a track-iteration** (last task only): after the final task's commit and push, and after Hard rule 6's pull of `main`, `gh pr ready` to mark the PR ready for review. **Do not merge, and do not push to `main` yourself, under any circumstance** — that's a deliberate founder action (via the GitHub PR review, or telling me to merge once reviewed), per Hard rule 1 above. This is the one point where a founder actually looks at a diff before it becomes `main`, worth keeping even solo — and worth it more, not less, now that two-plus tracks can land on `main` independently: nothing about the `_BE`/`_FE`/track-role naming changes that all of them still need a real look before merging.
 
 A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of the above — `STATUS.md` already tracks those separately from whether the branch merges.
 
