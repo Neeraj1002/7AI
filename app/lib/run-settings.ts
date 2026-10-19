@@ -1,14 +1,14 @@
 // Sprint 5 Task 7 R4 — change a setting on a stopped or waiting run without cancelling it.
 //
-// Rules follow the stage-by-setting table in docs/execution/sprint5/reports/task7.md (D1, approved by the founder):
-// voice, music mood, picture style, YouTube visibility and max spend can change; topic, format, length and the approved
-// script cannot, because they would invalidate finished work. A change that redoes some finished work is allowed but
-// says what it redoes ("revision"). Backend contract: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?,
-// privacyStatus?, maxCostUsd? })`, which patches the run's options, re-runs the preflight and answers with the same
-// messages as run creation; `runs.retry` then reruns the stopped step.
+// Backend (Task 8 R13, PR #107): `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?,
+// maxCostUsd?, retry? })`. It validates everything first and saves nothing if it refuses; `retry: true` retries the
+// stopped step in the same call. Voice, music and pictures are refused once the video is made, with a one-line reason
+// that points to Revise at Gate 2; that reason is shown as sent and those fields are marked unavailable. A run in legacy
+// planner recovery must be retried on its own: the server says so, and the app saves first and then asks for Retry.
+// Topic, format, length and the approved script are never changeable here. History: `runs.get.settingsChanges`.
 export type SettingKey = 'voice' | 'audioLayer' | 'visualSource' | 'privacyStatus' | 'maxCostUsd';
 
-export type SettingMode = 'free' | 'revision' | 'locked';
+export type SettingMode = 'free' | 'locked';
 export type SettingRule = { key: SettingKey; label: string; mode: SettingMode; note: string };
 export type LockedSetting = { label: string; reason: string };
 
@@ -19,8 +19,6 @@ export type SettingsChange = Partial<{
   privacyStatus: 'private' | 'unlisted' | 'public';
   maxCostUsd: number;
 }>;
-
-type StageIn = { stageName: string; status: string };
 
 const EDITABLE_STATUSES = ['needs_attention', 'paused_gate1', 'paused_gate2'];
 
@@ -37,28 +35,32 @@ const LABEL: Record<SettingKey, string> = {
 };
 export const SETTING_LABEL = LABEL;
 
-/** What each changeable setting allows at this point of the run. */
-export function settingRules(args: { status: string; stages: readonly StageIn[] }): SettingRule[] {
+const AFTER_VIDEO = ['video_review', 'gate2', 'publishing', 'analytics'];
+
+/** The video this run waits on (or has parked after) is already made: a voice, music or picture change would not apply. */
+export function videoAlreadyMade(args: { status: string; currentStage?: string | null }): boolean {
+  if (args.status === 'paused_gate2') return true;
+  return args.status === 'needs_attention' && AFTER_VIDEO.includes(args.currentStage ?? '');
+}
+
+/** The server's sentence for this refusal (runs.updateSettings), shown on the unavailable field. */
+export const madeReason = (what: string) => `The video is already made, so the ${what} can't change here. Use Revise at Gate 2 to redo it.`;
+
+/** What each changeable setting allows at this point of the run. The server re-checks every one of these. */
+export function settingRules(args: { status: string; currentStage?: string | null }): SettingRule[] {
   const keys = Object.keys(LABEL) as SettingKey[];
   if (!canEditSettings(args.status)) {
     return keys.map((key) => ({ key, label: LABEL[key], mode: 'locked' as const, note: 'Only a stopped or waiting run can be changed.' }));
   }
-  const videoRows = args.stages.filter((s) => s.stageName === 'video_generation');
-  const started = videoRows.length > 0;
-  const made = videoRows.some((s) => s.status === 'completed');
-  const rule = (key: SettingKey, mode: SettingMode, note: string): SettingRule => ({ key, label: LABEL[key], mode, note });
+  const made = videoAlreadyMade(args);
+  const rule = (key: SettingKey, what: string | null, free: string): SettingRule =>
+    what && made ? { key, label: LABEL[key], mode: 'locked', note: madeReason(what) } : { key, label: LABEL[key], mode: 'free', note: free };
   return [
-    made
-      ? rule('voice', 'revision', 'The narration, captions and render are made again. Pictures already made are reused.')
-      : rule('voice', 'free', 'Nothing has been made with it yet.'),
-    made
-      ? rule('audioLayer', 'revision', 'Only the final render is made again.')
-      : rule('audioLayer', 'free', 'Nothing has been made with it yet.'),
-    started
-      ? rule('visualSource', 'revision', 'The pictures and the render are made again, which costs money.')
-      : rule('visualSource', 'free', 'Nothing has been made with it yet.'),
-    rule('privacyStatus', 'free', 'Applied when the video is uploaded.'),
-    rule('maxCostUsd', 'free', 'Takes effect on the next paid step.'),
+    rule('voice', 'voice', 'Applies to the narration made next.'),
+    rule('audioLayer', 'music', 'Applies to the render made next.'),
+    rule('visualSource', 'pictures', 'Applies to the pictures made next.'),
+    rule('privacyStatus', null, 'Applied when the video is uploaded.'),
+    rule('maxCostUsd', null, 'Takes effect on the next paid step.'),
   ];
 }
 
@@ -75,25 +77,16 @@ export function lockedSettings(): LockedSetting[] {
 export function diffSettings(current: SettingsChange, next: SettingsChange): SettingsChange {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(next) as SettingKey[]) {
-    if (!(key in next)) continue;
     if ((current[key] ?? null) !== (next[key] ?? null)) out[key] = next[key];
   }
   return out as SettingsChange;
 }
 
-/** A change is refused here when its rule is locked; the server still checks everything else. */
+/** A change to a locked field is stopped here with the field's own reason; the server would refuse it as well. */
 export function refusedChanges(change: SettingsChange, rules: readonly SettingRule[]): string[] {
   return (Object.keys(change) as SettingKey[]).flatMap((key) => {
     const rule = rules.find((r) => r.key === key);
-    return !rule || rule.mode === 'locked' ? [`${LABEL[key]}: ${rule?.note ?? 'cannot be changed.'}`] : [];
-  });
-}
-
-/** True when any chosen change redoes finished work, so the sheet can say so before the money is spent. */
-export function redoesWork(change: SettingsChange, rules: readonly SettingRule[]): SettingRule[] {
-  return (Object.keys(change) as SettingKey[]).flatMap((key) => {
-    const rule = rules.find((r) => r.key === key);
-    return rule?.mode === 'revision' ? [rule] : [];
+    return !rule || rule.mode === 'locked' ? [rule?.note ?? `${LABEL[key]} cannot be changed.`] : [];
   });
 }
 
@@ -107,16 +100,33 @@ export function settingsChangeNotes(data: unknown): string[] {
   const list = (data as { settingsChanges?: unknown } | undefined)?.settingsChanges;
   if (!Array.isArray(list)) return [];
   return list.flatMap((entry) => {
-    const e = entry as { changes?: unknown };
+    const e = entry as { changes?: unknown; by?: { name?: unknown } };
     if (!Array.isArray(e?.changes)) return [];
+    const name = e.by?.name;
+    const who = typeof name === 'string' && name.trim() ? ` (by ${name.trim()})` : '';
     return e.changes.flatMap((c) => {
       const x = c as { label?: unknown; from?: unknown; to?: unknown };
-      return typeof x.label === 'string' && typeof x.to === 'string' ? [`${x.label} changed${typeof x.from === 'string' ? ` from ${x.from}` : ''} to ${x.to}`] : [];
+      return typeof x.label === 'string' && typeof x.to === 'string' ? [`${x.label} changed${typeof x.from === 'string' ? ` from ${x.from}` : ''} to ${x.to}${who}`] : [];
     });
   });
 }
 
-/** The server the app talks to may not have `runs.updateSettings` yet; the client then throws "No procedure found". */
+/** The server may not have `runs.updateSettings` (an old server): the client then throws "No procedure found". */
 export function missingProcedure(error: unknown): boolean {
   return error instanceof Error && /no .*procedure|procedure.*not found/i.test(error.message);
+}
+
+/** `retry: true` is refused for a run in legacy planner recovery: its Retry has to be started on its own. */
+export function needsRetryOnItsOwn(error: unknown): boolean {
+  return error instanceof Error && /retry on its own/i.test(error.message);
+}
+
+export type UpdateInput = { runId: string; retry?: true } & Partial<{ voice: string; audioLayer: string; visualSource: string; privacyStatus: string; maxCostUsd: number }>;
+
+/** The input for `runs.updateSettings`: only changed values and no nulls (the call has no "clear"), plus the retry flag. */
+export function updateInput(runId: string, change: SettingsChange, retry: boolean): UpdateInput {
+  const out: Record<string, unknown> = { runId };
+  for (const [k, v] of Object.entries(change)) if (v !== null && v !== undefined) out[k] = v;
+  if (retry) out.retry = true;
+  return out as UpdateInput;
 }

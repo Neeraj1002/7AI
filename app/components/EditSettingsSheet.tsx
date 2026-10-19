@@ -12,13 +12,15 @@ import {
   diffSettings,
   lockedSettings,
   missingProcedure,
-  redoesWork,
+  needsRetryOnItsOwn,
   refusedChanges,
   settingRules,
   SETTING_LABEL,
   type SettingKey,
   type SettingRule,
   type SettingsChange,
+  type UpdateInput,
+  updateInput,
 } from '../lib/run-settings';
 import { color, font, radius, space, type } from '../lib/theme';
 
@@ -37,17 +39,17 @@ const PRIVACY: { value: CurrentSettings['privacyStatus']; label: string }[] = [
 ];
 
 // The call may not exist on an older server; the client throws "No procedure found" then.
-type UpdateClient = { runs: { updateSettings: { mutate: (input: { runId: string } & SettingsChange) => Promise<unknown> } } };
+type UpdateClient = { runs: { updateSettings: { mutate: (input: UpdateInput) => Promise<unknown> } } };
 
-// Sprint 5 Task 7 R4 — "Edit settings" on a stopped or waiting run. Lists only what can change at this point (D1), says
-// what a change would redo, keeps the approved script, the money spent and every finished step, and does not restart
-// from the first stage. "Save and retry this step" saves the change and reruns the stopped step.
+// Sprint 5 Task 7 R4 — "Edit settings" on a stopped or waiting run (runs.updateSettings, Task 8 R13). Fields the server
+// would refuse are shown unavailable with its reason; the approved script, the money spent and every finished step are
+// kept. "Save and retry this step" validates, saves and retries in one call; nothing is saved if the server refuses.
 export function EditSettingsSheet({
   visible,
   onClose,
   runId,
   status,
-  stages,
+  currentStage,
   current,
   spentUsd,
   channelDefaultVoice,
@@ -57,12 +59,12 @@ export function EditSettingsSheet({
   onClose: () => void;
   runId: string;
   status: string;
-  stages: readonly { stageName: string; status: string }[];
+  currentStage: string | null;
   current: CurrentSettings;
   spentUsd: number;
   channelDefaultVoice: string;
-  /** Called after a successful save; `retried` is true when the stopped step was started again. */
-  onDone: (result: { retried: boolean; lines: string[] }) => void;
+  /** After a save. `retried`: the stopped step was started again. `notice`: something the user must still do. */
+  onDone: (result: { retried: boolean; lines: string[]; notice?: string }) => void;
 }) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -71,7 +73,7 @@ export function EditSettingsSheet({
           onClose={onClose}
           runId={runId}
           status={status}
-          stages={stages}
+          currentStage={currentStage}
           current={current}
           spentUsd={spentUsd}
           channelDefaultVoice={channelDefaultVoice}
@@ -82,10 +84,10 @@ export function EditSettingsSheet({
   );
 }
 
-function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaultVoice, onDone }: Omit<Parameters<typeof EditSettingsSheet>[0], 'visible'>) {
+function Body({ onClose, runId, status, currentStage, current, spentUsd, channelDefaultVoice, onDone }: Omit<Parameters<typeof EditSettingsSheet>[0], 'visible'>) {
   const client = useTRPCClient();
   const { voices, visualSources, moodTags } = useOptionLists();
-  const rules = settingRules({ status, stages });
+  const rules = settingRules({ status, currentStage });
   const ruleOf = (key: SettingKey) => rules.find((r) => r.key === key)!;
 
   const [draft, setDraft] = useState<CurrentSettings>(current);
@@ -108,7 +110,6 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
     next,
   );
   const hasChange = Object.keys(change).length > 0;
-  const redo = redoesWork(change, rules);
   const retries = status === 'needs_attention';
 
   const labelOf = (list: { value: string; label: string }[], v: string | null, fallback: string) => (v ? (list.find((o) => o.value === v)?.label ?? v) : fallback);
@@ -126,9 +127,8 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
     }
     setPending(true);
     setError(null);
-    try {
-      await (client as unknown as UpdateClient).runs.updateSettings.mutate({ runId, ...change });
-      if (retries) await client.runs.retry.mutate({ runId });
+    const call = (retry: boolean) => (client as unknown as UpdateClient).runs.updateSettings.mutate(updateInput(runId, change, retry));
+    const lines = () => {
       const from = {
         voice: label.voice(current.voice),
         audioLayer: label.audioLayer(current.audioLayer),
@@ -143,24 +143,39 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
         privacyStatus: PRIVACY.find((p) => p.value === draft.privacyStatus)?.label ?? draft.privacyStatus,
         maxCostUsd: change.maxCostUsd !== undefined ? usd(change.maxCostUsd) : from.maxCostUsd,
       };
-      onDone({ retried: retries, lines: changeLines(from, to, change) });
+      return changeLines(from, to, change);
+    };
+    try {
+      await call(retries);
+      onDone({ retried: retries, lines: lines() });
       onClose();
     } catch (e) {
-      // The server's own words (a failed preflight check says which setting to change); a server without the call says so.
-      setError(missingProcedure(e) ? 'This server cannot change settings on a run yet.' : e instanceof Error ? e.message : 'Could not save the settings.');
+      if (retries && needsRetryOnItsOwn(e)) {
+        // A run in legacy planner recovery has to be retried on its own: save the settings now, Retry stays on the screen.
+        try {
+          await call(false);
+          onDone({ retried: false, lines: lines(), notice: 'Settings saved. This run needs its planner recovery started with Retry on its own: tap "Retry this step".' });
+          onClose();
+        } catch (e2) {
+          setError(e2 instanceof Error ? e2.message : 'Could not save the settings.');
+        }
+      } else {
+        // The server's own words (a failed check says which setting to change); an old server without the call says so.
+        setError(missingProcedure(e) ? 'This server cannot change settings on a run yet.' : e instanceof Error ? e.message : 'Could not save the settings.');
+      }
     } finally {
       setPending(false);
     }
   };
 
-  const modeNote = (r: SettingRule) => (r.mode === 'revision' ? `Redoes finished work. ${r.note}` : r.note);
+  const modeNote = (r: SettingRule) => r.note;
 
   return (
     <>
       <Text style={styles.title}>Edit settings</Text>
       <Text style={styles.intro}>The approved script, the money already spent and every finished step are kept. This does not start the run over.</Text>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
-        <Field label={SETTING_LABEL.voice} note={modeNote(ruleOf('voice'))} revision={ruleOf('voice').mode === 'revision'}>
+        <Field label={SETTING_LABEL.voice} note={modeNote(ruleOf('voice'))} locked={ruleOf('voice').mode === 'locked'}>
           <Pressable onPress={() => setVoiceOpen(true)} style={styles.select} accessibilityRole="button" accessibilityLabel={`Voice: ${label.voice(draft.voice)}`}>
             <Text style={styles.selectText} numberOfLines={1}>
               {label.voice(draft.voice)}
@@ -169,11 +184,11 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
           </Pressable>
         </Field>
 
-        <Field label={SETTING_LABEL.audioLayer} note={modeNote(ruleOf('audioLayer'))} revision={ruleOf('audioLayer').mode === 'revision'}>
+        <Field label={SETTING_LABEL.audioLayer} note={modeNote(ruleOf('audioLayer'))} locked={ruleOf('audioLayer').mode === 'locked'}>
           <Chips options={moodTags} value={draft.audioLayer} onChange={(v) => setDraft((d) => ({ ...d, audioLayer: v }))} />
         </Field>
 
-        <Field label={SETTING_LABEL.visualSource} note={modeNote(ruleOf('visualSource'))} revision={ruleOf('visualSource').mode === 'revision'}>
+        <Field label={SETTING_LABEL.visualSource} note={modeNote(ruleOf('visualSource'))} locked={ruleOf('visualSource').mode === 'locked'}>
           <Chips options={visualSources} value={draft.visualSource} onChange={(v) => setDraft((d) => ({ ...d, visualSource: v }))} />
         </Field>
 
@@ -212,7 +227,6 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
         ))}
       </ScrollView>
 
-      {redo.length > 0 ? <Text style={styles.warn}>This redoes finished work: {redo.map((r) => r.label.toLowerCase()).join(', ')}. It may cost more.</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <PrimaryButton
         label={retries ? 'Save and retry this step' : 'Save settings'}
@@ -226,7 +240,7 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
         visible={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         title="Voice"
-        defaultLabel={`Channel default (${channelDefaultVoice})`}
+        defaultLabel={current.voice === null ? `Channel default (${channelDefaultVoice})` : undefined}
         selected={draft.voice}
         onSelect={(v) => setDraft((d) => ({ ...d, voice: v }))}
       />
@@ -234,12 +248,18 @@ function Body({ onClose, runId, status, stages, current, spentUsd, channelDefaul
   );
 }
 
-function Field({ label, note, revision, children }: { label: string; note: string; revision?: boolean; children: React.ReactNode }) {
+// A locked field is dimmed and cannot be touched; the server's reason sits under it, as sent.
+function Field({ label, note, locked, children }: { label: string; note: string; locked?: boolean; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      {children}
-      <Text style={[styles.note, revision && styles.noteRevision]}>{note}</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {locked ? <Text style={styles.unavailable}>Unavailable</Text> : null}
+      </View>
+      <View style={locked ? styles.lockedBody : undefined} pointerEvents={locked ? 'none' : 'auto'}>
+        {children}
+      </View>
+      <Text style={[styles.note, locked && styles.noteRevision]}>{note}</Text>
     </View>
   );
 }
@@ -267,6 +287,9 @@ const styles = StyleSheet.create({
   listContent: { gap: space.md, paddingBottom: space.sm },
   field: { gap: 6 },
   label: { fontFamily: font.bold, fontSize: 13, color: color.ink },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  unavailable: { fontFamily: font.bold, fontSize: 11, color: color.warnText, backgroundColor: color.warnBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: 'hidden' },
+  lockedBody: { opacity: 0.45 },
   note: { ...type.meta, fontSize: 12, lineHeight: 17 },
   noteRevision: { color: color.warnText },
   select: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, borderRadius: radius.lg, borderWidth: 1.5, borderColor: color.ink },

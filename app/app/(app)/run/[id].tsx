@@ -191,6 +191,8 @@ export default function RunDetailScreen() {
   // R4: Edit settings sheet, and the lines it just recorded (shown in Step history until the server's own list arrives).
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedSettingNotes, setSavedSettingNotes] = useState<string[]>([]);
+  // Something the user still has to do after a save (a run in legacy planner recovery is retried on its own).
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const retryMutation = useMutation(
     trpc.runs.retry.mutationOptions({
       onSuccess: () => {
@@ -368,7 +370,8 @@ export default function RunDetailScreen() {
     voice: run.creationOptions?.voice ?? null,
     audioLayer: run.creationOptions?.audioLayer ?? null,
     visualSource: run.creationOptions?.visualSource ?? null,
-    privacyStatus: defaultPrivacy ?? 'private',
+    // The per-run visibility (runs.updateSettings, or Gate 2's choice) wins over the channel's default.
+    privacyStatus: (run.creationOptions as { privacyStatus?: 'private' | 'unlisted' | 'public' } | null)?.privacyStatus ?? defaultPrivacy ?? 'private',
     maxCostUsd: data.maxCostUsd ?? null,
   };
   const channelVoiceLabel = VOICES.find((v) => v.value === channel?.defaultVoice)?.label ?? 'Alloy';
@@ -520,6 +523,7 @@ export default function RunDetailScreen() {
       <Stepper currentIndex={stepIndex} end={stepperEnd} />
 
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
+      {settingsNotice ? <Text style={styles.meta}>{settingsNotice}</Text> : null}
 
       {/* R4: a waiting run can have its settings changed too; a stopped one gets the button in the action bar. */}
       {(isGate1 || isGate2) && !decisionSent && settingsRunnable ? (
@@ -535,12 +539,13 @@ export default function RunDetailScreen() {
           onClose={() => setSettingsOpen(false)}
           runId={run.id}
           status={run.status}
-          stages={stages}
+          currentStage={run.currentStage}
           current={currentSettings}
           spentUsd={data.spentUsd ?? 0}
           channelDefaultVoice={channelVoiceLabel}
-          onDone={({ lines }) => {
+          onDone={({ lines, notice }) => {
             setSavedSettingNotes((prev) => [...prev, ...lines.map((l) => `Settings changed · ${l}`)]);
+            setSettingsNotice(notice ?? null);
             void invalidate();
           }}
         />

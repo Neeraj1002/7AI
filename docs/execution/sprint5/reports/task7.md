@@ -1,18 +1,17 @@
 # Sprint 5 Task 7 report: app gaps from the first acceptance run (frontend)
 
 **Branch**: `SPRINT5_TASK7_FE` (worktree `D:\Study Material\7AI-SPRINT5\task7`, off `origin/main` 6852fa5)
-**PRs**: [#106](https://github.com/Neeraj1002/7AI/pull/106) (draft). One PR carries all the work so far; further PRs only if review asks for a split.
+**PR**: [#106](https://github.com/Neeraj1002/7AI/pull/106) (draft). One PR carries all the work so far; further PRs only if review asks for a split.
 **Written**: 2026-10-19
 
 **Hard rules that applied (Git workflow, template)**
-1. Never push or merge to `main`; everything is on `SPRINT5_TASK7_FE` and a draft PR (#106). Merging is the founder's.
-2. Only commit to a branch I created: this one, created this session; no other branch was touched.
-3. The branch and worktree are recorded in my row of `sprint5/STATUS.md`, written when I created it.
-4. One worktree per session: `D:\Study Material\7AI-SPRINT5\task7`; no git command was run in another session's folder.
-5. `main` was merged into the branch (no rebase, 27ea8ec); I first removed my own untracked copies of the task docs, because main now tracks them. Code-complete, merged and deployed are reported separately below.
+1. Never push or merge to `main`: all work is on `SPRINT5_TASK7_FE` and draft PR #106; merging is the founder's. Only this branch, created this session, was committed to; one worktree, no git command in another session's folder (rules 1, 2, 4).
+2. Rule 5: the task doc r2 was copied from `D:Study MaterialAIdocsexecutionsprint5	asks	ask7.md` and committed on its own (`SPRINT5_TASK7_FE_DOC: update task doc r2`, f8ba038); it is identical to the source. I did not edit its content.
+3. Rule 6: `origin/main` was merged into the branch (27ea8ec, no rebase; one conflict-like block: my own untracked copies of task6/7/8.md, removed first). App tests re-run after the merge. Docs in the PR diff: this report and the task doc only.
+4. Rule 7: I wrote only this report. I did not edit `STATUS.md` (a row I had added before rule 7 existed was taken out of the branch in f8ba038). Branch, worktree and PR for the architect to record are at the top.
 
 **Status in three separate statements**
-- Code-complete: R1, R2 (app side), R3, R4 (app side), R5 (app side), R7, R9, R10, R11. R6 built on a stub catalog. R8 not coded (reason below). R4 calls `runs.updateSettings`, which the server does not have yet; on a server without it the sheet says so.
+- Code-complete: R1, R2 (app side), R3, R4 (app side), R5 (app side), R7, R9, R10, R11. R6 built on a stub catalog. R8 not coded (reason below). R4 is built against `runs.updateSettings` from PR #107 (open, not merged): on a server without it the sheet says "This server cannot change settings on a run yet."
 - Merged: no. Deployed: no. App build number: none yet (no EAS build was made; the founder's phone has not seen any of this).
 - Verified: app type-check clean, lint clean, 152 app tests pass (82 before this task), re-run after merging main, web bundle exports. **Nothing was run on a phone or emulator**, and no screen was looked at in a phone-size layout. Layout fixes below are reasoned from the code, not seen.
 
@@ -34,7 +33,7 @@
 | A1 Inbox stops at 7 or 8 | **Fixed** | none |
 | A2 No cost on the Run screen | **Fixed in part**: spent so far / final, limit | **Waiting on Task 8 R8.7**: `runs.get.costBreakdown` (estimate, per attempt, per stage) |
 | A3 Script tab shows the draft | **Fixed** (reads the Gate 1 output) | optional: `runs.get.approvedScript`, `originalDraft` (Task 8 R11.1) |
-| A4 Cannot change a setting on a failed run | **Built** (Edit settings sheet) | **Waiting on a Task 8 follow-up**: `runs.updateSettings`, `runs.get.settingsChanges`, a stored visibility |
+| A4 Cannot change a setting on a failed run | **Built** (Edit settings sheet) | **Waiting on PR #107 merge and deploy**: `runs.updateSettings`, `runs.get.settingsChanges`, stored per-run `privacyStatus` |
 | A5 Attempt 1 shown as done; no notification | **Label fixed** (derived from the review row) | **Waiting on Task 8 R5**: stage `outcome`; the two D2 pushes are emitted by the server |
 | A6 Raw, cut-off failure text | **Fixed** | none |
 | A7 Voice picker without samples | **Picker built** | **Waiting on Task 8 R10 Part B**: voice catalog `{ id, displayName, toneTags, description, previewUrl }` |
@@ -55,7 +54,7 @@
 | A1 | **Fixed (code)** | Every run gets a card; 20 at a time, "Showing N of M runs", loads on scroll and by button. Unit-tested with 45 runs / 3 notifications. |
 | A2 | **Partly fixed; rest waits on Task 8 R8.7** | Cost card on the Run screen (spent so far or final cost, estimate, limit) works now from `spentUsd` / `maxCostUsd`. Estimate, per-attempt and per-stage cost wait on `runs.get.costBreakdown` (see contract). The Admin view groups its events now (A10). |
 | A3 | **Fixed (code)** | Script tab shows the approved text with its real word count and length, "This is the script the video was made from", and a collapsed "Original draft · not used". Read from the Gate 1 output today; `approvedScript` / `originalDraft` win when Task 8 R11.1 sends them. |
-| A4 | **Built; works end to end only when the server has `runs.updateSettings`** | "Edit settings" on the failure card, the needs-attention bar and the Gate 1 / Gate 2 screens. Lists voice, music, pictures, YouTube visibility and max spend with the rule for this point of the run (free, or "redoes finished work" with what and a cost warning); topic, format and length are shown as unavailable with the reason. "Save and retry this step" (stopped run) or "Save settings" (waiting run) calls `runs.updateSettings`, then `runs.retry`; the server's preflight message is shown as sent. Changes are recorded as lines in Step history (`runs.get.settingsChanges` when the server sends it, else the lines saved in this session). The table was approved by the founder 2026-10-19. |
+| A4 | **Built against PR #107 (Task 8 R13); works end to end once #107 is deployed** | "Edit settings" on the failure card, the needs-attention bar and the Gate 1 / Gate 2 screens. Lists voice, music, pictures, YouTube visibility and max spend. Voice, music and pictures are shown **unavailable with the server's own sentence** ("The video is already made, so the voice can't change here. Use Revise at Gate 2 to redo it.") once the video is made; topic, format and length are always unavailable with a reason. "Save and retry this step" sends one `runs.updateSettings({ ..., retry: true })` (validates first, saves nothing if refused, the server's message is shown as sent); a waiting run gets "Save settings". A run in legacy planner recovery is refused for `retry: true`, so the app saves without it and tells the user to tap "Retry this step". History: `runs.get.settingsChanges` (with who changed it) in Step history. The call is reached through a typed stub until #107 is merged; an old server gets "This server cannot change settings on a run yet." |
 | A5 | **Fixed in the app (label); notification waits on the backend** | An attempt that failed Video Review reads "failed review" with the reviewer's reason, amber, never "done". Derived from the review row until `stage.outcome` arrives. D2 pushes must be emitted by the server; the app already opens the run from any push that carries a `runId` (`_layout.tsx`) and groups them into the run's Inbox card. |
 | A6 | **Fixed (code)** | Failure card: plain sentence for a voice the model rejects, a provider usage limit (with the return date when given), our spend limit ("This video used $0.51 of its $0.50 limit" + "Raise the limit and retry" button), a failed review (with the reviewer's reason). Unknown errors: one short sentence, whole text under Technical details; never cut inside a bracket. |
 | A7 | **Built; samples wait on Task 8 R10 Part B** | `VoiceSheet`: name, tone tags, play/pause beside each voice, one at a time, selected state, no provider ids; on run setup and channel settings. Today the catalog is the server's `options.list`, with no sample, so the buttons are disabled and the sheet says "Voice samples aren't available yet". |
@@ -74,7 +73,7 @@
 - **R1** `lib/inbox.ts` (`buildInboxCards` adds a card for every run, `pageEarlier`), `lib/use-run-lists.ts` (shared lists; a run that leaves the active list refetches the ended list so it moves across), `notifications.tsx`. Task 8 R12 should still add a cursor and total to `runs.list`; the app does not need it to be correct. Tests: 45 runs, pull to refresh (existing refetch), a run finishing (`someRunLeft`).
 - **R2** `CostCard`, `lib/run-cost.ts`, attempt cost in `StepHistory` (expands to per-stage; a $0 failed call reads "failed, not charged"; 4 decimals only under one cent), `lib/admin-cost.ts`. Fixture test: three attempts add up to $0.5492.
 - **R3** `lib/script-versions.ts`, `ScriptVersionsCard`. The long-video preview chapters also use the approved chapters.
-- **R4** `lib/run-settings.ts` (rules per the approved table, diff, wording, history lines; 11 tests), `EditSettingsSheet`, `NeedsAttentionCard` ("Change the voice" when the failure is a rejected voice). Sheet needs the server call; contract: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd? })`, plus optional `runs.get.settingsChanges[{ at, changes[{ label, from, to }] }]`. Note: `privacyStatus` is not in `creationOptions` today, so the sheet shows the channel's default as the current value; the backend needs somewhere to keep it. Not seen on a device; the nested voice sheet inside the settings sheet is two stacked modals, unchecked on Android.
+- **R4** `lib/run-settings.ts` (rules mirroring `planSettingsChange`, call input without nulls, history lines, the two server refusals handled; tests), `EditSettingsSheet`, `NeedsAttentionCard` ("Change the voice" when the failure is a rejected voice). Visibility shown is the per-run value (`creationOptions.privacyStatus`), else the channel default. Not seen on a device; the voice sheet opens on top of the settings sheet (two stacked modals), unchecked on Android. **Stub still in place**: #107 is open, so the call is typed locally in `EditSettingsSheet.tsx` (`UpdateClient`); after #107 merges, pull main, delete that type and the `as unknown as UpdateClient` cast so the router's own types apply.
 - **R5** `lib/attempt-outcome.ts`, `lib/failure-text.ts`, `NeedsAttentionCard`, `humanizeRunError`. Attempt pairing between a video attempt and its review uses the same attempt number; if a review is retried on its own, numbers can diverge and the `outcome` field from Task 8 R5 should be used.
 - **R6** `lib/voice-catalog.ts`, `VoiceSheet`. Per-run override and channel default are kept as before (the "default" row in the sheet).
 - **R7** `ScriptEditorModal`, `lib/script-editor.ts` (mirrors the server's `parseChapterSheet`; words per minute 155, as the server's `LONG_WORDS_PER_MINUTE`).
@@ -92,27 +91,13 @@
 
 ## Questions for the architect
 
-1. **R4 (approved by the founder 2026-10-19; backend still has to build it).** Call: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd? })`, allowed when the run is `needs_attention`, `paused_gate1` or `paused_gate2`, which patches `creationOptions`, re-runs the Task 8 preflight (voice valid for its model, music track long enough, estimate vs limit, provider quota) and returns the same BAD_REQUEST messages as run creation; then the existing `runs.retry` reruns the failed step. It must write a step-history entry ("Voice changed from X to Y"). Table (D1):
-
-   | Setting | Read by | Failed or waiting at... | Allowed? | What it invalidates |
-   |---|---|---|---|---|
-   | Voice | video_generation (narration, captions, timing) | script stages, Gate 1, video_generation | Yes | Nothing yet made |
-   | Voice | | Gate 2 / after the video | Yes, as a revision | Narration, captions, render; images can be reused |
-   | Music mood | video_generation render | before the render | Yes | Nothing |
-   | Music mood | | Gate 2 / after render | Yes, as a revision | Render only (images, narration reused) |
-   | Picture style / source | video_generation (scene prompts, images) | before images | Yes | Nothing |
-   | Picture style / source | | after images | Yes, as a revision | All images and the render |
-   | YouTube visibility | Gate 2 and publishing | any time before publish | Yes | Nothing |
-   | Max spend | run budget checks | any stop | Yes (exists: `runs.retry`) | Nothing |
-   | Topic, format, length | script_generation onward | after Gate 1 | **No** | Would invalidate the approved script and every finished step; shown as unavailable with one line of reason |
-
-   The sheet would list only the rows allowed at the current stage and mark the rest unavailable with the reason.
+1. **R4**: resolved. The founder approved the table; Task 8 R13 (#107) implements the call. Nothing to decide, except the stub removal after #107 merges.
 2. R11.3: I kept the "Why didn't it work?" form (renamed, shown only when useful). Remove it?
 3. Field names I read defensively until Task 8 reports (all optional; absent means the old behaviour): `runs.get.costBreakdown { totalUsd, estimateUsd?, limitUsd?, attempts[{ stageName, attemptNumber, totalUsd, failed?, stages[{ name, usd, failed? }] }] }`; per stage row `outcome { kind: completed | failed_review | failed_error | blocked | cancelled | running, reason? }`; `runs.get.approvedScript { text, chapters?, edited }` and `originalDraft { text, chapters? }`; a voice catalog `{ id, displayName, toneTags[], description?, previewUrl }`. If Task 8 names them differently, each is one function (`costBreakdownOf`, `serverOutcome`, `scriptVersionsOf`, `parseVoiceEntry`).
 
 ## What waits on Task 8
 
-R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outcome (derived until then) and the two D2 pushes; R6 samples (voice catalog); R4 backend call (`runs.updateSettings`, `settingsChanges`, somewhere to store visibility); optional `approvedScript`; `runs.list` cursor and total (R12).
+R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outcome (derived until then) and the two D2 pushes; R6 samples (voice catalog); R4: PR #107 merged and deployed (`runs.updateSettings`, `settingsChanges`, stored visibility); optional `approvedScript`; `runs.list` cursor and total (R12).
 
 ## Deviations
 
@@ -120,6 +105,14 @@ R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outc
 - R8 not coded; R6 has no samples yet; R4 needs the backend call before it does anything.
 - The CI job does not gate the server deploy.
 - I changed three existing lint errors (two blob hooks, one eslint-disable with a reason in `channel-context.tsx`) and the eslint config (test files may import `vitest`), so lint could be a CI gate. No behaviour change intended in the hooks; they now keep the fetched blob keyed by its url instead of clearing state in an effect.
+
+## Getting the app on a phone for the six screenshots
+
+1. Install the build tool once and sign in: `npm install -g eas-cli`, then `eas login` (the Expo account that owns project `sevenai-studio`).
+2. In `D:Study MaterialAI-SPRINT5	ask7app` run `eas build --profile preview --platform android` (an installable APK; `eas.json` already has this profile).
+3. When it finishes, open the build link or QR code on the phone, download the APK and install it (allow installs from this source).
+4. Open the app, sign in against the deployed server; for cost per attempt, real voice samples and a working Edit settings, PR #107 and the other Task 8 pieces must be deployed first, otherwise those three screens show only what the old server sends.
+5. Take the six screenshots from the list below and drop them in `docs/execution/sprint5/reports/task7-screenshots/` (or send them to the architect); no Android emulator is needed.
 
 ## Screenshots
 
