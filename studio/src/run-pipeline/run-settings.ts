@@ -18,6 +18,17 @@ export class SettingsRejected extends Error {
   }
 }
 
+// The visibility a run publishes with, in one place: the per-run value (set with runs.updateSettings, and written by
+// Gate 2 when it approves), else what Gate 2 recorded, else the channel default. Publishing, runs.updateSettings
+// ("from") and the tests all use this.
+export function effectivePrivacy(
+  creationOptions: Pick<CreationOptions, 'privacyStatus'> | null | undefined,
+  gate2Output: { privacyStatus?: PrivacyStatus } | null | undefined,
+  fallback: PrivacyStatus,
+): PrivacyStatus {
+  return creationOptions?.privacyStatus ?? gate2Output?.privacyStatus ?? fallback;
+}
+
 export type SettingsInput = {
   voice?: string;
   audioLayer?: string;

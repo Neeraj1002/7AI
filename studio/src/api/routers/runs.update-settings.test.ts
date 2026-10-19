@@ -83,6 +83,12 @@ describe('runs.updateSettings', () => {
     expect(mocks.continuePipelineInBackground).not.toHaveBeenCalled();
   });
 
+  it('a failed user-name lookup does not stop the change; the history keeps the user id', async () => {
+    mocks.findUserById.mockRejectedValue(new Error('column users.isPlatformAdmin does not exist'));
+    await caller().updateSettings({ runId: RUN_ID, audioLayer: 'tense' });
+    expect(lastMerge().settingsChanges[0].by).toEqual({ userId: 'u1', name: null });
+  });
+
   it('keeps the earlier history entries and appends', async () => {
     const earlier = { at: '2026-10-19T00:00:00.000Z', by: { userId: 'u1', name: 'Neeraj' }, changes: [{ label: 'Max spend', from: '$0.50', to: '$1.00' }] };
     mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: { videoKind: 'long', maxCostUsd: 1, settingsChanges: [earlier] } }));
@@ -177,6 +183,28 @@ describe('runs.updateSettings', () => {
     mocks.listStagesForRun.mockResolvedValue([{ stageName: 'gate2', status: 'completed', attemptNumber: 1, output: { outcome: 'approve', privacyStatus: 'public' } }]);
     const out = await caller().updateSettings({ runId: RUN_ID, privacyStatus: 'unlisted' });
     expect(out.changes).toEqual([{ label: 'YouTube visibility', from: 'Public', to: 'Unlisted' }]);
+  });
+});
+
+describe('tenant and role rules (same as runs.retry)', () => {
+  const other = (over: object) => runsRouter.createCaller({ tenantId: 't2', userId: 'u9', role: 'owner', ...over } as never);
+
+  it('another tenant cannot change a run\'s settings, and nothing is written', async () => {
+    await expect(other({}).updateSettings({ runId: RUN_ID, audioLayer: 'tense' })).rejects.toThrow(/not allowed to resolve gates/);
+    expect(mocks.updatePipelineRun).not.toHaveBeenCalled();
+  });
+
+  it('a member who does not own the channel cannot; the channel owner and a tenant owner can', async () => {
+    const member = runsRouter.createCaller({ tenantId: 't1', userId: 'u9', role: 'member', identityKind: 'session' } as never);
+    await expect(member.updateSettings({ runId: RUN_ID, audioLayer: 'tense' })).rejects.toThrow(/not allowed to resolve gates/);
+    const channelOwner = runsRouter.createCaller({ tenantId: 't1', userId: 'u1', role: 'member', identityKind: 'session' } as never);
+    await expect(channelOwner.updateSettings({ runId: RUN_ID, audioLayer: 'tense' })).resolves.toBeDefined();
+    await expect(caller().updateSettings({ runId: RUN_ID, audioLayer: 'calm', maxCostUsd: 2 })).resolves.toBeDefined();
+  });
+
+  it('an archived channel is refused with the same message as retry', async () => {
+    mocks.findChannelById.mockResolvedValue({ id: 'c1', tenantId: 't1', ownerUserId: 'u1', isActive: false, platform: 'youtube', defaultPrivacyStatus: 'private', approvalGateConfig: { gate2Enabled: true } });
+    await expect(caller().updateSettings({ runId: RUN_ID, audioLayer: 'tense' })).rejects.toThrow(/is archived — cancel this run instead/);
   });
 });
 

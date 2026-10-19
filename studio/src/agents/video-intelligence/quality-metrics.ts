@@ -297,6 +297,14 @@ async function measureLoudness(videoPath: string) {
   }
 }
 
+// Sprint 5 Task 8 (R3): when the renderer's own scene boundaries are known (a long AI-stills video), the longest shot
+// is read from them, not from picture-difference cut detection. Detection cannot see a cut between two stills that
+// look alike, so it reported two 5 s scenes as one 10.4 s shot (real run, 19 Oct: the plan's longest scene was 6.4 s)
+// and failed a video whose scenes were all inside the limit. The planned boundaries are exactly what was rendered.
+export function shotsFromPlan(sceneSeconds: number[]): { longestShotSeconds: number; shotCount: number } {
+  return { longestShotSeconds: Number(Math.max(...sceneSeconds).toFixed(2)), shotCount: sceneSeconds.length };
+}
+
 async function measureShots(videoPath: string, durationSeconds: number) {
   try {
     const { stderr } = await execFileAsync(
@@ -366,12 +374,16 @@ export async function measureQualityMetrics(params: {
   // Task 9 callers pass the kind; the profile is derived from it (secondsPerStill sets the shot allowance).
   videoKind?: 'short' | 'long';
   secondsPerStill?: number | null;
+  // Sprint 5 Task 8 (R3): the rendered length of each scene, when known; replaces cut detection for the shot figures.
+  plannedShotSeconds?: number[];
 }): Promise<QualityMetrics> {
   const profile = params.profile ?? qualityProfileFor(params.videoKind, params.secondsPerStill);
   const probe = await probeStreams(params.videoPath);
   const [loudness, shots, captionsDetected] = await Promise.all([
     probe.audio ? measureLoudness(params.videoPath) : Promise.resolve({ integratedLufs: null, truePeakDb: null }),
-    measureShots(params.videoPath, probe.durationSeconds),
+    params.plannedShotSeconds && params.plannedShotSeconds.length > 0
+      ? Promise.resolve(shotsFromPlan(params.plannedShotSeconds))
+      : measureShots(params.videoPath, probe.durationSeconds),
     params.captionsEnabled && profile.checkCaptions ? detectCaptions(params.videoPath) : Promise.resolve(null),
   ]);
   const v = probe.video;

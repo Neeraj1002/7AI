@@ -1,0 +1,131 @@
+{
+  "startedAt": "2026-10-19T10:58:41.033Z",
+  "ceilingUsd": 0.5,
+  "database": "task8_r13_scratch",
+  "channelId": "ee6926b9-f0cb-4a79-8164-6ce2f45cc7d9",
+  "A_stopped": {
+    "status": "needs_attention",
+    "stage": "intake",
+    "lastError": "Stopped before spending anything: This video has used $0.00 and the next step is estimated at $0.26, which is over its $0.12 limit. Raise the limit and tap Retry. Nothing new was spent.",
+    "preflightBlock": {
+      "at": "2026-10-19T10:58:42.232Z",
+      "stage": "intake",
+      "issues": [
+        {
+          "check": "budget",
+          "message": "This video has used $0.00 and the next step is estimated at $0.26, which is over its $0.12 limit. Raise the limit and tap Retry. Nothing new was spent.",
+          "setting": "Spend limit"
+        }
+      ]
+    },
+    "spentUsd": 0
+  },
+  "A_refusals": {
+    "visibility": "Gate 2 is off for this channel, so a video can only be published privately.",
+    "otherTenant": "You are not allowed to resolve gates for run bdb04c47-49cc-4e18-9a3b-d5cdcf7c4912",
+    "hugeLimit": "The spend limit cannot be more than $10.00 per video",
+    "settingsChangesAfterRefusals": 0,
+    "statusAfterRefusals": "needs_attention"
+  },
+  "A_call": {
+    "changes": [
+      {
+        "label": "Music",
+        "from": "calm",
+        "to": "inspirational"
+      },
+      {
+        "label": "Max spend",
+        "from": "$0.12",
+        "to": "$0.50"
+      }
+    ],
+    "statusReturned": "running"
+  },
+  "A_final": {
+    "status": "needs_attention",
+    "stage": "video_generation",
+    "lastError": "Stopped before spending anything: This video has used $0.36 and the next step is estimated at $0.19, which is over its $0.50 limit. Raise the limit and tap Retry. Nothing new was spent.",
+    "spentUsd": 0.3616,
+    "maxCostUsd": 0.5,
+    "settingsChanges": [
+      {
+        "at": "2026-10-19T10:58:42.373Z",
+        "by": {
+          "name": "Neeraj",
+          "userId": "00000000-0000-0000-0000-0000000000f1"
+        },
+        "changes": [
+          {
+            "to": "inspirational",
+            "from": "calm",
+            "label": "Music"
+          },
+          {
+            "to": "$0.50",
+            "from": "$0.12",
+            "label": "Max spend"
+          }
+        ]
+      }
+    ],
+    "music": "inspirational",
+    "videoAttempts": [
+      {
+        "attempt": 1,
+        "outcome": "failed_review",
+        "costUsd": 0.3103
+      }
+    ],
+    "cost": {
+      "spentUsd": 0.3616,
+      "limitUsd": 0.5,
+      "attemptsUsd": 0.3103,
+      "otherStagesUsd": 0.0513,
+      "unattributedUsd": 0
+    },
+    "publishingPrivacy": null,
+    "stageOutcomes": [
+      "intake#1:completed",
+      "script_generation#1:completed",
+      "script_review#1:completed",
+      "gate1#1:completed",
+      "video_generation#1:completed",
+      "video_review#1:failed_review"
+    ]
+  },
+  "B": {
+    "stoppedStatus": "needs_attention",
+    "stoppedMessage": "Stopped before spending anything: Voice 'robot' is not supported. Choose one of: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse, marin, cedar, ballad-documentary, marin-documentary. Nothing was spent.",
+    "spentUsd": 0,
+    "changes": [
+      {
+        "label": "Voice",
+        "from": "robot",
+        "to": "Coral"
+      }
+    ],
+    "settingsChanges": [
+      {
+        "at": "2026-10-19T11:09:14.737Z",
+        "by": {
+          "name": "Neeraj",
+          "userId": "00000000-0000-0000-0000-0000000000f1"
+        },
+        "changes": [
+          {
+            "to": "Coral",
+            "from": "robot",
+            "label": "Voice"
+          }
+        ]
+      }
+    ],
+    "voiceNow": "coral"
+  },
+  "finishedAt": "2026-10-19T11:09:14.903Z",
+  "runIds": [
+    "bdb04c47-49cc-4e18-9a3b-d5cdcf7c4912",
+    "e1637f42-a391-445f-b097-b05c335c4389"
+  ]
+}

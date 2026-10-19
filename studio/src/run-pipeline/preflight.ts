@@ -49,6 +49,10 @@ export type PreflightInput = {
   youtube: { connected: boolean; needsReconnect: boolean };
   // Providers this stage will call.
   providers: ProviderName[];
+  // A video attempt already finished, so a new one reuses the run's cached narration and pictures and only pays for
+  // planning and whatever changed. Without this the check priced a regeneration as a whole new video and stopped a
+  // run at $0.36 of a $0.50 limit that needed about $0.05 more (real run, 19 Oct).
+  videoAttempted?: boolean;
 };
 
 const PROVIDER_LABEL: Record<ProviderName, string> = { anthropic: 'Anthropic', openai: 'OpenAI' };
@@ -151,7 +155,9 @@ export async function runPreflight(input: PreflightInput, deps: PreflightDeps): 
   if (input.videoKind === 'long' && input.maxCostUsd !== undefined && input.stage !== 'publishing') {
     const estimate = estimateRunCost({ videoKind: 'long', targetSeconds: input.targetSeconds, secondsPerStill: input.secondsPerStill });
     const spent = await deps.spentUsd();
-    const stillToSpend = input.stage === 'video_generation' ? estimate.breakdown.stillsUsd + estimate.breakdown.narrationUsd + estimate.breakdown.transcriptionUsd : estimate.estimateUsd;
+    const stillToSpend = input.stage === 'video_generation'
+      ? input.videoAttempted ? estimate.breakdown.llmUsd : estimate.breakdown.stillsUsd + estimate.breakdown.narrationUsd + estimate.breakdown.transcriptionUsd
+      : estimate.estimateUsd;
     if (spent + stillToSpend > input.maxCostUsd) {
       issues.push({
         check: 'budget',

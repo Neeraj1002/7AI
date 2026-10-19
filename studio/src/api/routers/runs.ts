@@ -60,7 +60,7 @@ import { formatChapterSheet, parseChapterSheet } from '../../agents/script-gener
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
 import type { Channel, CreationOptions, PipelineRun, PipelineStage, ReviewLog, StageName } from '../../types';
-import { planSettingsChange, SettingsRejected, SETTINGS_ALLOWED_STATUSES } from '../../run-pipeline/run-settings';
+import { effectivePrivacy, planSettingsChange, SettingsRejected, SETTINGS_ALLOWED_STATUSES } from '../../run-pipeline/run-settings';
 import { settingsPreflightIssues } from '../../run-pipeline/preflight-gate';
 import type { PreflightStage } from '../../run-pipeline/preflight';
 import { findUserById } from '../../models/repositories/user.repository';
@@ -1157,7 +1157,8 @@ export const runsRouter = router({
       const [config, stages, user, receipt] = await Promise.all([
         loadResolvedConfig(run, channel),
         listStagesForRun(run.id),
-        ctx.userId ? findUserById(ctx.userId) : Promise.resolve(null),
+        // The name on the history line is a nicety: a failed lookup must not stop a settings change (userId is kept).
+        ctx.userId ? findUserById(ctx.userId).catch(() => null) : Promise.resolve(null),
         readPublishingReceipt(run.id),
       ]);
       const retryTarget = run.status === 'needs_attention' ? retryTargetStage(run) : null;
@@ -1173,7 +1174,7 @@ export const runsRouter = router({
             voice: config.audioDefaultVoice,
             audioLayer: config.audioDefaultMoodTag,
             visualSource: config.visualDefaultSource,
-            privacyStatus: run.creationOptions?.privacyStatus ?? gate2Choice?.privacyStatus ?? channel.defaultPrivacyStatus,
+            privacyStatus: effectivePrivacy(run.creationOptions, gate2Choice, channel.defaultPrivacyStatus),
             maxCostUsd: run.creationOptions?.maxCostUsd,
           },
           isLong: config.videoKind === 'long',

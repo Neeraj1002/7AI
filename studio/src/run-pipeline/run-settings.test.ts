@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planSettingsChange, SettingsRejected, videoAlreadyMade, type SettingsPlanContext } from './run-settings';
+import { effectivePrivacy, planSettingsChange, SettingsRejected, videoAlreadyMade, type SettingsPlanContext } from './run-settings';
 
 const ctx = (over: Partial<SettingsPlanContext> = {}, run: Partial<SettingsPlanContext['run']> = {}): SettingsPlanContext => ({
   run: { status: 'paused_gate1', currentStage: 'gate1', creationOptions: null, ...run },
@@ -83,5 +83,14 @@ describe('planSettingsChange', () => {
     const plan = planSettingsChange({ voice: 'coral' }, ctx());
     expect(plan.changes).toEqual([]);
     expect(plan.merge).toEqual({});
+  });
+});
+
+describe('effectivePrivacy: what publishing reads (R13 item 5)', () => {
+  it('the per-run override wins over what Gate 2 recorded, which wins over the channel default', () => {
+    expect(effectivePrivacy({ privacyStatus: 'unlisted' }, { privacyStatus: 'public' }, 'private')).toBe('unlisted');
+    expect(effectivePrivacy({}, { privacyStatus: 'public' }, 'private')).toBe('public');
+    expect(effectivePrivacy(null, null, 'private')).toBe('private');
+    expect(effectivePrivacy(undefined, { privacyStatus: undefined }, 'private')).toBe('private');
   });
 });

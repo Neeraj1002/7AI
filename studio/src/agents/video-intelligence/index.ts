@@ -115,6 +115,8 @@ export async function runDeterministicChecks(
     // warning-only behavior shown at Gate 2.
     enforceLongShotPacing?: boolean;
     narrationSeconds?: number;
+    // The rendered length of each scene (long AI-stills), used for the shot figures instead of cut detection.
+    plannedShotSeconds?: number[];
   } = {},
 ): Promise<DeterministicCheckResult> {
   const meta = await probeVideoMeta(videoPath);
@@ -151,6 +153,7 @@ export async function runDeterministicChecks(
     captionsEnabled: options.captionsEnabled ?? false,
     visualSource: options.visualSource,
     profile,
+    plannedShotSeconds: options.plannedShotSeconds,
   });
   const hardFailure = hardFailureReason(metrics, profile, {
     videoSeconds: meta.durationSeconds,
@@ -337,6 +340,9 @@ export async function reviewVideo(params: {
     secondsPerStill: params.secondsPerStill,
     enforceLongShotPacing: params.enforceLongShotPacing,
     narrationSeconds: params.narrationSeconds,
+    ...(params.videoKind === 'long' && params.visualSource === 'ai-stills' && params.sceneMap && params.sceneMap.length > 0 && {
+      plannedShotSeconds: params.sceneMap.map((scene) => scene.endSec - scene.startSec),
+    }),
   });
   if (!deterministic.passed) {
     return {

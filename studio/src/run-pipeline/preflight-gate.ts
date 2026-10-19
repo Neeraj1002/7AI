@@ -2,6 +2,7 @@ import { findByChannel } from '../models/repositories/agent-credential.repositor
 import { findChannelById } from '../models/repositories/channel.repository';
 import { updatePipelineRun } from '../models/repositories/pipeline-run.repository';
 import { sumUsageCostForRun } from '../models/repositories/usage-event.repository';
+import { findLatestCompletedAttempt } from '../models/repositories/pipeline-stage.repository';
 import { env } from '../config/env';
 import { loadResolvedConfig } from './resolved-config';
 import {
@@ -14,6 +15,15 @@ import {
   type PreflightStage,
 } from './preflight';
 import type { CreationOptions, PipelineRun } from '../types';
+
+// A finished video attempt means the next one reuses the run's cache (see PreflightInput.videoAttempted).
+async function videoAttempted(runId: string): Promise<boolean> {
+  try {
+    return Boolean(await findLatestCompletedAttempt(runId, 'video_generation'));
+  } catch {
+    return false;
+  }
+}
 
 // Sprint 5 Task 8 (R2): the database-facing half of preflight. Runs the checks for `stage` and
 // either returns null (go ahead; a block left by an earlier try is cleared) or parks the run in
@@ -42,6 +52,7 @@ export async function preflightGate(
       publishes: true,
       youtube: { connected: stage === 'video_generation' ? true : Boolean(credential), needsReconnect: Boolean(channel.brandAssets.youtubeAuthError) },
       providers: STAGE_PROVIDERS[stage],
+      videoAttempted: stage === 'video_generation' ? await videoAttempted(run.id) : false,
     },
     deps,
   );
@@ -90,6 +101,7 @@ export async function settingsPreflightIssues(
         publishes: true,
         youtube: { connected: stage === 'video_generation' ? true : Boolean(credential), needsReconnect: Boolean(channel.brandAssets.youtubeAuthError) },
         providers: STAGE_PROVIDERS[stage],
+        videoAttempted: stage === 'video_generation' ? await videoAttempted(run.id) : false,
       },
       deps,
     );

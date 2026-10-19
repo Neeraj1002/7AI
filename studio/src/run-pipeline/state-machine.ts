@@ -55,6 +55,7 @@ import { generateLongVideo } from '../agents/video-generation/long-form';
 import { planLongVideoProduction, reusableLongPlanningCheckpoint, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
 import { describeRetryAllowancePause } from './manual-retries';
+import { effectivePrivacy } from './run-settings';
 import { checkMetadataClaims, describeClaimIssues, holdingIssues } from '../agents/publishing/metadata-claims';
 import { resolveVoicePace } from './length-forecast';
 import { sumUsageCostForRun } from '../models/repositories/usage-event.repository';
@@ -2013,7 +2014,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // gate2 attempt that led to it).
   // Sprint 5 Task 8 (R13): the per-run visibility wins (Gate 2 writes its own choice into it, so a later change with
   // runs.updateSettings, for example after a failed upload, is the one published with).
-  const privacyStatus = run.creationOptions?.privacyStatus ?? gate2Output.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
+  const privacyStatus = effectivePrivacy(run.creationOptions, gate2Output, DEFAULT_PRIVACY_STATUS);
 
   const videoGenStage = await findLatestAttempt(runId, 'video_generation');
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {

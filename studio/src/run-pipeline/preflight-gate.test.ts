@@ -6,11 +6,13 @@ const mocks = vi.hoisted(() => ({
   updatePipelineRun: vi.fn(),
   sumUsageCostForRun: vi.fn(),
   loadResolvedConfig: vi.fn(),
+  findLatestCompletedAttempt: vi.fn(),
 }));
 vi.mock('../models/repositories/channel.repository', () => ({ findChannelById: mocks.findChannelById }));
 vi.mock('../models/repositories/agent-credential.repository', () => ({ findByChannel: mocks.findByChannel }));
 vi.mock('../models/repositories/pipeline-run.repository', () => ({ updatePipelineRun: mocks.updatePipelineRun }));
 vi.mock('../models/repositories/usage-event.repository', () => ({ sumUsageCostForRun: mocks.sumUsageCostForRun }));
+vi.mock('../models/repositories/pipeline-stage.repository', () => ({ findLatestCompletedAttempt: mocks.findLatestCompletedAttempt }));
 vi.mock('./resolved-config', () => ({ loadResolvedConfig: mocks.loadResolvedConfig }));
 
 import { preflightGate } from './preflight-gate';
@@ -24,6 +26,7 @@ beforeEach(() => {
   mocks.findChannelById.mockResolvedValue({ id: 'c1', brandAssets: {} });
   mocks.findByChannel.mockResolvedValue({ id: 'cred' });
   mocks.loadResolvedConfig.mockResolvedValue(baseConfig);
+  mocks.findLatestCompletedAttempt.mockResolvedValue(null);
   mocks.updatePipelineRun.mockImplementation(async (_id, patch) => ({ id: 'r1', ...patch }));
 });
 
@@ -57,5 +60,24 @@ describe('preflightGate', () => {
     mocks.findChannelById.mockResolvedValue({ id: 'c1', brandAssets: { youtubeAuthError: { at: 'x', code: 'invalid_grant' } } });
     const blocked = await preflightGate(run(), 'publishing', deps(), false);
     expect(blocked).toMatchObject({ status: 'needs_attention', currentStage: 'publishing' });
+  });
+});
+
+describe('a regeneration is not priced as a new video (real run, 19 Oct)', () => {
+  const tight = (spent: number) => ({ probeProvider: vi.fn().mockResolvedValue(undefined), musicTracks: vi.fn().mockReturnValue([]), spentUsd: vi.fn().mockResolvedValue(spent) });
+
+  it('blocks a first video attempt that cannot fit, as before', async () => {
+    const blocked = await preflightGate(run({ maxCostUsd: 0.5 }), 'video_generation', tight(0.36), false);
+    expect(blocked).toMatchObject({ status: 'needs_attention' });
+  });
+
+  it('lets a regeneration through when only planning is left to pay for, because the pictures and narration are cached', async () => {
+    mocks.findLatestCompletedAttempt.mockResolvedValue({ attemptNumber: 1, status: 'completed' });
+    expect(await preflightGate(run({ maxCostUsd: 0.5 }), 'video_generation', tight(0.36), false)).toBeNull();
+  });
+
+  it('still blocks a regeneration that has really used up the limit', async () => {
+    mocks.findLatestCompletedAttempt.mockResolvedValue({ attemptNumber: 1, status: 'completed' });
+    expect(await preflightGate(run({ maxCostUsd: 0.5 }), 'video_generation', tight(0.499), false)).toMatchObject({ status: 'needs_attention' });
   });
 });

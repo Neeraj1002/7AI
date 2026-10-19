@@ -1,13 +1,66 @@
 # Sprint 5 Task 8: Sprint 4 and 5 test failures and backend fixes: report
 
-**Branch** `SPRINT5_TASK8_BE`, worktree `D:\Study Material\7AI-SPRINT5\task8`, one draft PR for all four groups (R1-R12). Written 2026-10-19.
+**Branch** `SPRINT5_TASK8_BE`, worktree `D:\Study Material\7AI-SPRINT5\task8`, draft PR [#107](https://github.com/Neeraj1002/7AI/pull/107) for all four groups (R1-R13). Written 2026-10-19.
 
-**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,054 tests pass, 65 skipped as before); **not merged, not deployed**; the real-model checks that need Anthropic could not run because the Anthropic account is out of credit (see "Real-model checks").
+**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,066 tests pass, 65 skipped as before); **not merged, not deployed**; the R13 real check ran on a scratch database but did **not** reach a finished run (it found and I fixed three defects; finishing it needs about $0.35 more than your $0.50 ceiling, see "R13 real check").
 
 Three separate statements, as the task asks:
 - **Code-complete:** yes for R1 to R13 (R10 Part B built after your confirmation; its section lists what is not done), with the exceptions under Deviations.
 - **Merged:** no. PR #104 (voice-to-model mapping) merged to `main` on 19 Oct; this branch has `main` merged in and builds on it (see "Overlap with PR #104").
 - **Deployed / live-verified:** no. Nothing here was run against production or the dev database.
+
+## Status of R1 to R13
+
+"Verified" means checked by a test and, where a live call is possible, by one. "Unverified" means built and unit-tested only.
+
+| R | What | Status | Evidence and what is missing |
+|---|---|---|---|
+| R1 | Voice valid for its model | Done and verified | #104's mapping (reused); live calls on all 13 voices in its report; preflight check unit-tested and probed live |
+| R2 | Preflight before spend | Done and verified | 20 unit tests; live: the Anthropic probe reported "credit balance too low" on 19 Oct; in the R13 run it stopped a run at intake on a spend limit and another on an invalid voice, both "Nothing was spent". Found and fixed in the R13 run: it priced a regeneration as a new video |
+| R3 | A review failure must not rebuild the video | Done, partly verified | Plan check, timing repair and "0 picture calls" proven by a real-FFmpeg replay with stub pictures. The real run (19 Oct) failed review at 10.4 s although the plan's longest scene was 6.4 s: cut detection cannot see a cut between look-alike stills. Fixed (the gate now reads the rendered scene lengths), unit-tested; **not yet re-run live to a finish** (see R13 check) |
+| R4 | Provider errors are not defects | Done and verified (tests), live trigger unverified | Review-limit tests (video and pictures untouched, retry reviews the same file); the out-of-credit answer is classified. A provider limit during a real review was not triggered |
+| R5 | Honest attempt status | Done and verified | Tests; live: `runs.get` of the real run shows `failed_review` with the reason code and per-attempt cost |
+| R6 | No logos or invented text | Done and verified, one gap | Real pictures: 7 of 16 with readable text or brand names before, 0 of 16 after (by eye). The picture check ran live in the R13 run (5 vision calls, $0.0166 for 27 pictures; 3 pictures were made again). Contradiction counting was not measured |
+| R7 | Length near the target | Done and verified (tests) | 273 words at 167 words per minute predicts 98 s; real narration of the R13 run came out at 122.8 s for a 120 s target. Not compared with a second voice |
+| R8 | Cost | Done and verified | Live ledger of the R13 run: voice $0.0562, transcription $0.0121, pictures $0.1529, planner $0.0725, picture check $0.0166; parts add up to the total; no "unknown" provider row. Retry allowance not triggered live |
+| R9 | Sonnet 5.5 | Done and verified | Live: `claude-sonnet-5-5` ran the script ($0.0451) and the planner (4 calls, $0.0725) in the R13 run. Price is an assumption equal to Sonnet 5 (Task 6's branch records the same) |
+| R10 | Voice samples and catalog | Done and verified | Part A samples made live; Part B catalog on #104's mapping, previews for 15 voices uploaded to R2 and two fetched (200, audio/mpeg) |
+| R11 | Carry-overs | Done, unverified live | Unit tests for each. Not reproducible or not fixable here: the quality-spec test (passes), the thumbnail 403 (needs YouTube). The title/description check is a copy until Task 6 merges |
+| R12 | Runs list | Done, unverified on a real database | Tests over a stand-in for Prisma (75 runs, 160 notification rows); backend cause of the Inbox limit identified by reading code |
+| R13 | `runs.updateSettings` | Done, **not verified to a finish** | 33 unit and router tests; real check on a scratch database stopped short of a finished run (below) |
+
+Not started: nothing. Still open for the founder: finish the R13 live check (needs about $0.35 more, see below), Part B previews are done, and the items listed under Deviations.
+
+## R13 real check (item 8), what was run
+
+**Where.** The shared dev database is behind `main` by two migrations (`pipeline_runs.publishingRecovery` and `users.isPlatformAdmin`), and applying migrations needs your approval, so I did **not** touch it. I created an empty database `task8_r13_scratch` on the same local server, applied `main`'s migrations to it, seeded one tenant and its weekly budget, and ran everything else for real (real Anthropic and OpenAI calls, real FFmpeg; YouTube and analytics stubbed; both gates off so no notification can go out; the server was never started, so resume-on-startup touched nothing). Script: `studio/scripts/task8-r13-verify.ts`; evidence: `reports/task8-assets/r13-dev-verification.json`.
+
+**Result, in order:**
+1. A 2-minute video with a $0.12 spend limit was **stopped by preflight at intake**: "Stopped before spending anything: ... estimated at $0.26, which is over its $0.12 limit." Spent $0.00.
+2. Three calls that must be refused were refused, and saved nothing (history stayed empty, run still in Needs attention): visibility other than private with Gate 2 off; another tenant ("not allowed to resolve gates"); a spend limit above the ceiling.
+3. `runs.updateSettings({ maxCostUsd: 0.50, audioLayer: 'inspirational', retry: true })` was accepted in one call and returned the changes (Music calm to inspirational, Max spend $0.12 to $0.50); the run went to Running.
+4. **Defect found:** the retry stopped dead, because the runner never re-entered intake. Fixed (`pipeline-runner.ts`, new test).
+5. The run then made the script, review, Gate 1 (auto), narration, 24 pictures (3 made again after the picture check), render and review. `runs.get` showed the history line with the user and both changes, the cost per attempt and stage, and `failed_review`.
+6. **Defect found:** Video Review failed the video for "longest shot 10.4 s" although the rendered scenes were at most 6.4 s; cut detection cannot see a cut between look-alike stills. Fixed (the gate reads the rendered scene lengths), tested with the numbers of this run.
+7. **Defect found:** the automatic regeneration was then stopped by preflight at $0.36 of the $0.50 limit, because preflight priced a regeneration as a whole new video although the pictures and narration are cached. Fixed (a run with a finished attempt is priced for planning only), tested.
+8. A second run with a stale invalid voice stopped before spending anything; `runs.updateSettings({ voice: 'coral' })` fixed it without a retry; the history shows "Voice: robot to Coral"; the run was then cancelled.
+
+**Not done:** the first run did not finish. It had spent **$0.3616** of the $0.50 ceiling; its caches were removed by my cleanup before I knew it would need them (the script now keeps them for an unfinished run), so a continuation pays for narration and pictures again: about $0.25 to $0.35, which would pass the ceiling. I stopped there. The channel is archived; the scratch database and its two runs are still there for a continuation. To finish: raise the ceiling to about $0.75, or say drop it.
+
+## Hard rules 5 to 7 (this PR)
+
+- **Branch, worktree, PR (rule 7):** `SPRINT5_TASK8_BE`, `D:\Study Material\7AI-SPRINT5\task8`, PR [#107](https://github.com/Neeraj1002/7AI/pull/107) (draft). The architect records them in `STATUS.md`.
+- **Rule 5, task doc sync:** my copy of `tasks/task8.md` was the r1 text. I diffed it against the architect's source (`D:\Study Material\7AI\docs\execution\sprint5\tasks\task8.md`), found r2 (adds R13, the delivery order and the revision log) and copied the source in whole. R13 was already being built from the same text; the delivery order did not change anything already built. Committed with "Task doc updated to r2".
+- **Rule 6, pull main and docs scope:** `git fetch origin`; `main` has no commits that are not in this branch (last merge: #104 at `2c2e19c`). Typecheck, lint, build and the full tests were re-run after the last change (1,066 tests passed, 65 skipped). Conflicts resolved when #104 was merged: `media/registry.ts`, `media/client.ts`, `media/index.ts` and `media/registry.test.ts` (took `main`'s version, catalog rebuilt on top) and `run-pipeline/state-machine.ts` (kept #104's early voice check, moved after preflight). Docs the branch changes against `main`: this task's doc (identical to the source), this report with its assets folder, and `BUSINESS_LOGIC.md`, which the task tells me to update. I did **not** run `gh pr ready`: you did not ask for it and the live check is not finished.
+- **Rule 7, who owns which doc:** I had edited `STATUS.md` (a Task 8 row); I reverted it, so the branch no longer changes it. The only docs I write are this report and what the task orders (`BUSINESS_LOGIC.md`).
+- **CI:** the PR's checks on the last pushed commit: "Typecheck, lint and build" passed (50 s), "Deploy to VPS" skipped (draft). CI does not run the test suite; the tests were run locally.
+
+## R13 questions answered
+
+- **Tenant and role rules:** the same as `runs.retry`: `assertGateOwnership` (same tenant AND either the channel's owner or a tenant owner), an active channel, then the run state. Tests: another tenant refused, a member who does not own the channel refused, the channel owner and a tenant owner accepted, an archived channel refused with retry's message; and the real check refused another tenant.
+- **Is max spend the existing raise-spend-limit rule?** Yes. `validateMaxCostUsd` is the code that was inside `runs.retry`, now shared; `runs.retry({ maxCostUsd })` still exists and uses it, and `updateSettings` uses it too, writing the same `creationOptions.maxCostUsd` (and lifting a retry-allowance pause the same way when retrying). So there is one rule and one stored value, but two entry points; say if you want `retry`'s own parameter removed.
+- **Is `by` in `settingsChanges`?** Yes: `by: { userId, name }`, name taken from the user record (null if the lookup fails; a failed lookup no longer blocks the change, found on the dev database that lacks a migration).
+- **Tests against R13 item 7:** each allowed state (needs_attention, paused_gate1, paused_gate2): done; a rejected state (running): done; a rejected stage rule (voice, music, pictures after the video is made; visibility with Gate 2 off or after upload; stock footage on a long video): done; a blocked preflight that saves nothing: done; `retry: true` (one write, manual count, cap refusal, only from Needs attention): done; tenant isolation: done (added); the publish step reading the override: **partly**. The rule publishing uses is one function, `effectivePrivacy` (unit-tested: override, then Gate 2's choice, then the channel default), and the Gate 2 call's default and Gate 2's write-back are tested; `runPublishingStage` itself was not driven end to end with an override, because that stage needs a claimed upload. Also added: a retry of a run stopped at intake (runner), preflight pricing of a regeneration, and the shot-length figures from the rendered scenes.
 
 ## R0. What the code really does
 
@@ -151,7 +204,7 @@ Added after the first report (founder and architect request; contract from the T
 
 Spent **$0.1928** in total, no database, no publish (`reports/task8-assets/spend-ledger.json`, `scripts/task8-acceptance.ts`):
 - Voice samples $0.030 and before/after pictures $0.163 (OpenAI).
-- **Not run: the Anthropic checks** (script on Sonnet 5 and 5.5, the planner, the picture check). The Anthropic account returned 400 "Your credit balance is too low" on 19 Oct. This is the same family as E4 and now parks a run for Retry; the preflight caught it live. Re-run `npx tsx scripts/task8-acceptance.ts r9 r6` once credit is added (about $0.45).
+- **Update, later on 19 Oct:** Anthropic credit came back. Sonnet 5.5, the planner and the picture check then ran live inside the R13 real check (models and costs in the status table); `scripts/task8-acceptance.ts r9` (script on 5 against 5.5) was not re-run.
 
 ## Deviations and things to decide
 
@@ -176,4 +229,4 @@ Spent **$0.1928** in total, no database, no publish (`reports/task8-assets/spend
 
 ## Tests
 
-`npm run typecheck`, `npm run lint`, `npm run build` clean; `npx vitest run`: 132 files passed, 12 skipped (database tests, as before), 1,054 tests passed, 65 skipped. New: preflight (12) and gate (5), shot balance and plan (9), timing repair (4), review provider limit and allowance (8), still check (7), metadata claims (10), length forecast (8), script versions (6), runs.get outcomes and cost (3), list paging (5 + 2), long-form replay with real FFmpeg (2), plus extended registry, run-budget, cost-estimate, scene-prompt, resume and publishing tests. Skipped: the Anthropic real-model checks, live YouTube, any run against a database.
+`npm run typecheck`, `npm run lint`, `npm run build` clean; `npx vitest run`: 132 files passed, 12 skipped (database tests, as before), 1,066 tests passed, 65 skipped. New: preflight (12) and gate (5), shot balance and plan (9), timing repair (4), review provider limit and allowance (8), still check (7), metadata claims (10), length forecast (8), script versions (6), runs.get outcomes and cost (3), list paging (5 + 2), long-form replay with real FFmpeg (2), plus extended registry, run-budget, cost-estimate, scene-prompt, resume and publishing tests. Skipped: the Anthropic real-model checks, live YouTube, any run against a database.
