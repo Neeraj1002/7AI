@@ -31,7 +31,7 @@ import { isCancellationRequested } from './cancellation-registry';
 import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError, NonTransientStageError } from './retry-with-backoff';
-import { resolveMediaPurpose } from '../media';
+import { resolveMediaPurpose, assertSupportedVoice } from '../media';
 import { preflightGate } from './preflight-gate';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
@@ -976,6 +976,9 @@ export async function runVideoGenerationStage(
   // paid call; a failure parks the run with a plain message and leaves the attempt count alone.
   const preflightBlocked = await preflightGate(run, 'video_generation');
   if (preflightBlocked) return preflightBlocked;
+  // PR #104's backstop, kept as it was (moved after preflight, which parks a bad voice cleanly first): before the
+  // stage row or any paid call, an unsupported voice must fail here, not mid-render.
+  try { assertSupportedVoice(resolvedVoice); } catch (e) { throw new NonTransientStageError((e as Error).message); }
 
   const previousAttempt = await findLatestAttempt(runId, 'video_generation');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;

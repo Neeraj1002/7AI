@@ -16,6 +16,9 @@ export type SynthesizeSpeechResult = {
   audioPath: string;
   characterCount: number;
   costUsd: string; // NUMERIC as string, matching UsageEvent.costUsd's DB representation
+  // 'duration' = measured audio length x per-minute rate; 'characters' = per-character rate (the only
+  // basis for tts-1-hd, and the fallback when the audio could not be measured).
+  costBasis?: 'duration' | 'characters';
 };
 
 export type TranscriptSegment = {

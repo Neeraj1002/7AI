@@ -38,7 +38,7 @@ import {
   recordManualRetry,
   retryTargetStage,
 } from '../../run-pipeline/manual-retries';
-import { TTS_VOICE_KEYS } from '../../media';
+import { TTS_VOICE_KEYS, assertSupportedVoice } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema } from '../../agents/publishing';
 import { readPublishingReceipt } from '../../models/repositories/publishing-recovery.repository';
@@ -603,6 +603,9 @@ export const runsRouter = router({
         legacyStyleGuide: channel.styleGuide,
         legacyDefaultVoice: channel.defaultVoice,
       });
+      // The voice this run will actually use, from any level (a stale channel default included), is
+      // checked now so the user hears about it before the run exists, not at the Video step.
+      try { assertSupportedVoice(resolvedOptions.voice.key); } catch (e) { badRequest((e as Error).message); }
       const creationOptions = {
         ...(input.voice && { voice: input.voice }),
         ...(input.visualSource && { visualSource: input.visualSource }),

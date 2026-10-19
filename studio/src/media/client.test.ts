@@ -58,3 +58,36 @@ describe('synthesizeSpeechViaProvider error classification', () => {
     await expect(synthesizeSpeechViaProvider({ text: 'x', voiceConfig: {}, model: 'tts-1-hd' })).rejects.toBeInstanceOf(NonTransientStageError);
   });
 });
+
+// Review of #104: gpt-4o-mini-tts is booked by measured audio duration; tts-1-hd stays per character.
+const probeMock = vi.hoisted(() => vi.fn());
+vi.mock('./probe', () => ({ probeAudioSeconds: probeMock }));
+
+describe('synthesizeSpeechViaProvider cost basis', () => {
+  beforeEach(() => {
+    speechCreateMock.mockReset();
+    speechCreateMock.mockResolvedValue({ arrayBuffer: async () => new ArrayBuffer(8) });
+    probeMock.mockReset();
+  });
+
+  it('books gpt-4o-mini-tts by audio duration, not characters', async () => {
+    probeMock.mockResolvedValue(120);
+    const r = await synthesizeSpeechViaProvider({ text: 'x'.repeat(5000), voiceConfig: { voice: 'ballad' }, model: 'gpt-4o-mini-tts' });
+    expect(r.costBasis).toBe('duration');
+    expect(r.costUsd).toBe('0.030000'); // 2 min x $0.015, whatever the character count
+  });
+
+  it('books tts-1-hd per character and never probes the audio', async () => {
+    const r = await synthesizeSpeechViaProvider({ text: 'x'.repeat(1000), voiceConfig: { voice: 'onyx' }, model: 'tts-1-hd' });
+    expect(r.costBasis).toBe('characters');
+    expect(r.costUsd).toBe('0.030000');
+    expect(probeMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the per-character figure, never $0, when the audio cannot be measured', async () => {
+    probeMock.mockRejectedValue(new Error('no ffprobe'));
+    const r = await synthesizeSpeechViaProvider({ text: 'x'.repeat(930), voiceConfig: { voice: 'ballad' }, model: 'gpt-4o-mini-tts' });
+    expect(r.costBasis).toBe('characters');
+    expect(Number(r.costUsd)).toBeGreaterThan(0);
+  });
+});

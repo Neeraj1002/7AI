@@ -16,44 +16,23 @@ export const MEDIA_REGISTRY: Record<MediaPurpose, RegistryEntry> = {
 };
 
 // tts-1-hd accepts only the nine original voices; the newer ones are
-// gpt-4o-mini-tts only (OpenAI 400s otherwise, run 7a90cd6e).
+// gpt-4o-mini-tts only (OpenAI 400s otherwise).
 export const TTS_NEWER_MODEL = 'gpt-4o-mini-tts';
-export const TTS_ORIGINAL_MODEL = MEDIA_REGISTRY.tts.model;
-
-// What each speech model really accepts: the one place that answers "can this model speak this
-// voice". A voice's own model (TTS_VOICES) must be listed here, and a test holds the two together.
-export const TTS_MODEL_VOICES: Record<string, ReadonlySet<string>> = {
-  [TTS_ORIGINAL_MODEL]: new Set(['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']),
-  [TTS_NEWER_MODEL]: new Set([
-    'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse', 'marin', 'cedar',
-  ]),
-};
-
-export function ttsModelAcceptsVoice(model: string, voice: string): boolean {
-  return TTS_MODEL_VOICES[model]?.has(voice) ?? false;
-}
+const NEWER_VOICES: ReadonlySet<string> = new Set(['ballad', 'verse', 'marin', 'cedar']);
 
 // Pass the voice to get the model that can actually speak it.
 export function resolveMediaPurpose(purpose: MediaPurpose, voice?: string | null): RegistryEntry {
-  if (purpose === 'tts' && voice && voice in TTS_VOICES) {
-    return { provider: 'openai', model: TTS_VOICES[voice as keyof typeof TTS_VOICES].model };
+  if (purpose === 'tts' && voice && NEWER_VOICES.has(voice)) {
+    return { provider: 'openai', model: TTS_NEWER_MODEL };
   }
   return MEDIA_REGISTRY[purpose];
 }
 
-// Fail before any spend: a voice the provider would reject is found here, not after the script,
-// stills and earlier chunks were already paid for. A voice the configured model cannot speak
-// (for example Ballad on tts-1-hd) is refused with the model named, unless the model is the one
-// resolveMediaPurpose picked for it.
-export function assertSupportedVoice(voice: string | null | undefined, model?: string): void {
-  if (!voice) return;
-  if (!(voice in TTS_VOICES)) {
+// Fail before any spend: an unknown voice would only be rejected by the provider after the script,
+// stills and earlier chunks were already paid for.
+export function assertSupportedVoice(voice: string | null | undefined): void {
+  if (voice && !(voice in TTS_VOICES)) {
     throw new Error(`Voice '${voice}' is not supported. Choose one of: ${Object.keys(TTS_VOICES).join(', ')}.`);
-  }
-  const speaking = model ?? resolveMediaPurpose('tts', voice).model;
-  if (!ttsModelAcceptsVoice(speaking, voice)) {
-    const needs = TTS_VOICES[voice as keyof typeof TTS_VOICES].model;
-    throw new Error(`Voice '${voice}' cannot be spoken by ${speaking}; it needs ${needs}. Pick another voice or change the speech model.`);
   }
 }
 
@@ -62,23 +41,20 @@ export function assertSupportedVoice(voice: string | null | undefined, model?: s
 // doc comment (node_modules/openai/resources/audio/speech.d.ts), not a
 // guessed list. `label` is what the app shows a human; the key is the exact
 // string OpenAI's API expects.
-// `model` is the speech model that speaks this voice (Sprint 5 Task 8 R1).
-const ORIGINAL = TTS_ORIGINAL_MODEL;
-const NEWER = TTS_NEWER_MODEL;
 export const TTS_VOICES = {
-  alloy: { label: 'Alloy', model: ORIGINAL },
-  ash: { label: 'Ash', model: ORIGINAL },
-  ballad: { label: 'Ballad', model: NEWER },
-  coral: { label: 'Coral', model: ORIGINAL },
-  echo: { label: 'Echo', model: ORIGINAL },
-  fable: { label: 'Fable', model: ORIGINAL },
-  onyx: { label: 'Onyx', model: ORIGINAL },
-  nova: { label: 'Nova', model: ORIGINAL },
-  sage: { label: 'Sage', model: ORIGINAL },
-  shimmer: { label: 'Shimmer', model: ORIGINAL },
-  verse: { label: 'Verse', model: NEWER },
-  marin: { label: 'Marin', model: NEWER },
-  cedar: { label: 'Cedar', model: NEWER },
+  alloy: { label: 'Alloy' },
+  ash: { label: 'Ash' },
+  ballad: { label: 'Ballad' },
+  coral: { label: 'Coral' },
+  echo: { label: 'Echo' },
+  fable: { label: 'Fable' },
+  onyx: { label: 'Onyx' },
+  nova: { label: 'Nova' },
+  sage: { label: 'Sage' },
+  shimmer: { label: 'Shimmer' },
+  verse: { label: 'Verse' },
+  marin: { label: 'Marin' },
+  cedar: { label: 'Cedar' },
 } as const;
 export type TtsVoice = keyof typeof TTS_VOICES;
 // Zod's z.enum needs a non-empty tuple, not a plain string[] — this is that
@@ -106,7 +82,9 @@ export function resolveVoice(params: { overrideVoice?: string | null; channelDef
 // Pricing, sitting alongside the registry (same reasoning as
 // studio/src/llm/registry.ts's MODEL_PRICING). Sourced from OpenAI's own
 // published rates (2026-09): tts-1-hd $30/1M characters; whisper-1 $0.006/minute.
-export type TtsPricingEntry = { perCharacterUsd: number };
+// perCharacterUsd prices the pre-flight estimate (and tts-1-hd's bill). perMinuteUsd, when set, is how
+// that model is billed: the cost booked for a real call is the measured audio duration x this rate.
+export type TtsPricingEntry = { perCharacterUsd: number; perMinuteUsd?: number };
 export type TranscriptionPricingEntry = { perSecondUsd: number };
 
 export const TTS_PRICING: Record<string, TtsPricingEntry> = {
@@ -114,7 +92,7 @@ export const TTS_PRICING: Record<string, TtsPricingEntry> = {
   // OpenAI lists gpt-4o-mini-tts at ~$0.015/minute of audio; expressed per character at the
   // estimate's pace (155 words/min x 6 chars/word) so the same arithmetic applies. About half
   // of tts-1-hd's ~$0.028/min, so the estimate (priced on tts-1-hd) stays an upper bound.
-  [TTS_NEWER_MODEL]: { perCharacterUsd: 0.015 / (155 * 6) },
+  [TTS_NEWER_MODEL]: { perCharacterUsd: 0.015 / (155 * 6), perMinuteUsd: 0.015 },
 };
 
 export const TRANSCRIPTION_PRICING: Record<string, TranscriptionPricingEntry> = {

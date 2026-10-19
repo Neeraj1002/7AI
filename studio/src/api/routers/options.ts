@@ -1,5 +1,5 @@
 import { router, publicProcedure } from '../trpc';
-import { TTS_VOICES, TTS_VOICE_KEYS } from '../../media';
+import { TTS_VOICES, TTS_VOICE_KEYS, resolveMediaPurpose } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 
 // Sprint 3 Task 9 (R5, optional) — read-only, tenant-independent static data
@@ -9,7 +9,7 @@ import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan
 // nothing here is sensitive or scoped to a caller.
 export const optionsRouter = router({
   list: publicProcedure.query(async () => ({
-    voices: TTS_VOICE_KEYS.map((key) => ({ key, label: TTS_VOICES[key].label, model: TTS_VOICES[key].model })),
+    voices: TTS_VOICE_KEYS.map((key) => ({ key, label: TTS_VOICES[key].label, model: resolveMediaPurpose('tts', key).model })),
     visualSources: VISUAL_SOURCES,
     moodTags: AUDIO_LAYERS,
   })),
