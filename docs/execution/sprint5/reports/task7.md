@@ -5,7 +5,7 @@
 **Written**: 2026-10-19
 
 **Status in three separate statements**
-- Code-complete: R1, R2 (app side), R3, R5 (app side), R7, R9, R10, R11. R6 built on a stub catalog. R4 and R8 not coded (reasons below).
+- Code-complete: R1, R2 (app side), R3, R4 (app side), R5 (app side), R7, R9, R10, R11. R6 built on a stub catalog. R8 not coded (reason below). R4 calls `runs.updateSettings`, which the server does not have yet; on a server without it the sheet says so.
 - Merged: no. Deployed: no. App build number: none yet (no EAS build was made; the founder's phone has not seen any of this).
 - Verified: app type-check clean, lint clean, 141 app tests pass (82 before this task), web bundle exports. **Nothing was run on a phone or emulator**, and no screen was looked at in a phone-size layout. Layout fixes below are reasoned from the code, not seen.
 
@@ -25,7 +25,7 @@
 | A1 | **Fixed (code)** | Every run gets a card; 20 at a time, "Showing N of M runs", loads on scroll and by button. Unit-tested with 45 runs / 3 notifications. |
 | A2 | **Partly fixed; rest waits on Task 8 R8.7** | Cost card on the Run screen (spent so far or final cost, estimate, limit) works now from `spentUsd` / `maxCostUsd`. Estimate, per-attempt and per-stage cost wait on `runs.get.costBreakdown` (see contract). The Admin view groups its events now (A10). |
 | A3 | **Fixed (code)** | Script tab shows the approved text with its real word count and length, "This is the script the video was made from", and a collapsed "Original draft · not used". Read from the Gate 1 output today; `approvedScript` / `originalDraft` win when Task 8 R11.1 sends them. |
-| A4 | **Waiting on the architect** | R4 not coded: the stage-by-setting table and the call I need are below. Max spend can already be changed on a stopped run (Retry + raise limit). |
+| A4 | **Built; works end to end only when the server has `runs.updateSettings`** | "Edit settings" on the failure card, the needs-attention bar and the Gate 1 / Gate 2 screens. Lists voice, music, pictures, YouTube visibility and max spend with the rule for this point of the run (free, or "redoes finished work" with what and a cost warning); topic, format and length are shown as unavailable with the reason. "Save and retry this step" (stopped run) or "Save settings" (waiting run) calls `runs.updateSettings`, then `runs.retry`; the server's preflight message is shown as sent. Changes are recorded as lines in Step history (`runs.get.settingsChanges` when the server sends it, else the lines saved in this session). The table was approved by the founder 2026-10-19. |
 | A5 | **Fixed in the app (label); notification waits on the backend** | An attempt that failed Video Review reads "failed review" with the reviewer's reason, amber, never "done". Derived from the review row until `stage.outcome` arrives. D2 pushes must be emitted by the server; the app already opens the run from any push that carries a `runId` (`_layout.tsx`) and groups them into the run's Inbox card. |
 | A6 | **Fixed (code)** | Failure card: plain sentence for a voice the model rejects, a provider usage limit (with the return date when given), our spend limit ("This video used $0.51 of its $0.50 limit" + "Raise the limit and retry" button), a failed review (with the reviewer's reason). Unknown errors: one short sentence, whole text under Technical details; never cut inside a bracket. |
 | A7 | **Built; samples wait on Task 8 R10 Part B** | `VoiceSheet`: name, tone tags, play/pause beside each voice, one at a time, selected state, no provider ids; on run setup and channel settings. Today the catalog is the server's `options.list`, with no sample, so the buttons are disabled and the sheet says "Voice samples aren't available yet". |
@@ -44,7 +44,7 @@
 - **R1** `lib/inbox.ts` (`buildInboxCards` adds a card for every run, `pageEarlier`), `lib/use-run-lists.ts` (shared lists; a run that leaves the active list refetches the ended list so it moves across), `notifications.tsx`. Task 8 R12 should still add a cursor and total to `runs.list`; the app does not need it to be correct. Tests: 45 runs, pull to refresh (existing refetch), a run finishing (`someRunLeft`).
 - **R2** `CostCard`, `lib/run-cost.ts`, attempt cost in `StepHistory` (expands to per-stage; a $0 failed call reads "failed, not charged"; 4 decimals only under one cent), `lib/admin-cost.ts`. Fixture test: three attempts add up to $0.5492.
 - **R3** `lib/script-versions.ts`, `ScriptVersionsCard`. The long-video preview chapters also use the approved chapters.
-- **R4** not coded, see below.
+- **R4** `lib/run-settings.ts` (rules per the approved table, diff, wording, history lines; 11 tests), `EditSettingsSheet`, `NeedsAttentionCard` ("Change the voice" when the failure is a rejected voice). Sheet needs the server call; contract: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd? })`, plus optional `runs.get.settingsChanges[{ at, changes[{ label, from, to }] }]`. Note: `privacyStatus` is not in `creationOptions` today, so the sheet shows the channel's default as the current value; the backend needs somewhere to keep it. Not seen on a device; the nested voice sheet inside the settings sheet is two stacked modals, unchecked on Android.
 - **R5** `lib/attempt-outcome.ts`, `lib/failure-text.ts`, `NeedsAttentionCard`, `humanizeRunError`. Attempt pairing between a video attempt and its review uses the same attempt number; if a review is retried on its own, numbers can diverge and the `outcome` field from Task 8 R5 should be used.
 - **R6** `lib/voice-catalog.ts`, `VoiceSheet`. Per-run override and channel default are kept as before (the "default" row in the sheet).
 - **R7** `ScriptEditorModal`, `lib/script-editor.ts` (mirrors the server's `parseChapterSheet`; words per minute 155, as the server's `LONG_WORDS_PER_MINUTE`).
@@ -62,7 +62,7 @@
 
 ## Questions for the architect
 
-1. **R4, please confirm before I code.** Proposed call: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd? })`, allowed when the run is `needs_attention`, `paused_gate1` or `paused_gate2`, which patches `creationOptions`, re-runs the Task 8 preflight (voice valid for its model, music track long enough, estimate vs limit, provider quota) and returns the same BAD_REQUEST messages as run creation; then the existing `runs.retry` reruns the failed step. It must write a step-history entry ("Voice changed from X to Y"). Table (D1):
+1. **R4 (approved by the founder 2026-10-19; backend still has to build it).** Call: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd? })`, allowed when the run is `needs_attention`, `paused_gate1` or `paused_gate2`, which patches `creationOptions`, re-runs the Task 8 preflight (voice valid for its model, music track long enough, estimate vs limit, provider quota) and returns the same BAD_REQUEST messages as run creation; then the existing `runs.retry` reruns the failed step. It must write a step-history entry ("Voice changed from X to Y"). Table (D1):
 
    | Setting | Read by | Failed or waiting at... | Allowed? | What it invalidates |
    |---|---|---|---|---|
@@ -82,23 +82,23 @@
 
 ## What waits on Task 8
 
-R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outcome (derived until then) and the two D2 pushes; R6 samples (voice catalog); R4 backend call; optional `approvedScript`; `runs.list` cursor and total (R12).
+R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outcome (derived until then) and the two D2 pushes; R6 samples (voice catalog); R4 backend call (`runs.updateSettings`, `settingsChanges`, somewhere to store visibility); optional `approvedScript`; `runs.list` cursor and total (R12).
 
 ## Deviations
 
 - Copy button is a share sheet on a phone (no clipboard module); see A8.
-- R4 and R8 not coded; R6 has no samples yet.
+- R8 not coded; R6 has no samples yet; R4 needs the backend call before it does anything.
 - The CI job does not gate the server deploy.
 - I changed three existing lint errors (two blob hooks, one eslint-disable with a reason in `channel-context.tsx`) and the eslint config (test files may import `vitest`), so lint could be a CI gate. No behaviour change intended in the hooks; they now keep the fetched blob keyed by its url instead of clearing state in an effect.
 
 ## Screenshots
 
-None. Missing: Inbox with more than 8 runs, cost view, Edit settings sheet (not built), voice picker. No phone or emulator was available in this session.
+None. Missing: Inbox with more than 8 runs, cost view, Edit settings sheet, voice picker. No phone or emulator was available in this session.
 
 ## Tests
 
-`cd studio && npx vitest run --root ../app`: 23 files, 141 passed. `cd app && npx tsc --noEmit`: clean. `npx eslint .`: clean. `npx expo export --platform web`: bundles. Nothing skipped. Not run: any device or emulator, any live backend.
+`cd studio && npx vitest run --root ../app`: 24 files, 152 passed. `cd app && npx tsc --noEmit`: clean. `npx eslint .`: clean. `npx expo export --platform web`: bundles. Nothing skipped. Not run: any device or emulator, any live backend.
 
 ## One line for the founder
 
-The Inbox now lists every run and the Queue no longer jumps; cost, the approved script, plain failure messages and the full-screen script editor are in the app code but not on your phone yet (needs a build), and "Edit settings" waits on one backend call the architect has to confirm.
+The Inbox now lists every run and the Queue no longer jumps; cost, the approved script, plain failure messages and the full-screen script editor are in the app code but not on your phone yet (needs a build), and "Edit settings" is built but needs one backend call (`runs.updateSettings`) that does not exist yet.

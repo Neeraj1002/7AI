@@ -14,6 +14,9 @@ import { chapterWarningOf, manualRetryOf, videoFallbackUsed } from '../../../lib
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, relativeTime, runTopic, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { shortSentence } from '../../../lib/failure-text';
 import type { StepperEnd } from '../../../lib/stepper-colors';
+import { EditSettingsSheet, type CurrentSettings } from '../../../components/EditSettingsSheet';
+import { canEditSettings, settingsChangeNotes } from '../../../lib/run-settings';
+import { VOICES } from '../../../lib/pipeline-options';
 import { CostCard } from '../../../components/CostCard';
 import { costBreakdownOf, costMapOf } from '../../../lib/run-cost';
 import { ScriptVersionsCard } from '../../../components/ScriptVersionsCard';
@@ -185,6 +188,9 @@ export default function RunDetailScreen() {
   // and follow-up UI since a running cancel isn't guaranteed synchronous.
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
+  // R4: Edit settings sheet, and the lines it just recorded (shown in Step history until the server's own list arrives).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savedSettingNotes, setSavedSettingNotes] = useState<string[]>([]);
   const retryMutation = useMutation(
     trpc.runs.retry.mutationOptions({
       onSuccess: () => {
@@ -354,7 +360,18 @@ export default function RunDetailScreen() {
   const historyNotes = [
     ...(run.lastError ? [`${run.lastError.includes('regen cap') ? "Reviewer's reason" : 'Last error'}: ${shortSentence(run.lastError, 160)}`] : []),
     ...(videoFallbackUsed(data) ? ['Switched to AI stills after stock footage failed review'] : []),
+    // R4: setting changes are part of the history; the server's list wins once it sends one.
+    ...(settingsChangeNotes(data).length > 0 ? settingsChangeNotes(data) : savedSettingNotes),
   ];
+  const settingsRunnable = canEditSettings(run.status);
+  const currentSettings: CurrentSettings = {
+    voice: run.creationOptions?.voice ?? null,
+    audioLayer: run.creationOptions?.audioLayer ?? null,
+    visualSource: run.creationOptions?.visualSource ?? null,
+    privacyStatus: defaultPrivacy ?? 'private',
+    maxCostUsd: data.maxCostUsd ?? null,
+  };
+  const channelVoiceLabel = VOICES.find((v) => v.value === channel?.defaultVoice)?.label ?? 'Alloy';
   // R11.3: the tag form is for a run that failed or a video that has had time to collect its first numbers.
   const showPostHoc = run.status === 'failed' || (run.status === 'completed' && ageHours(run.completedAt ?? run.createdAt) >= 6);
   // Default tab follows the state: the video at Gate 2, the script while it is made or reviewed, the brief once ended.
@@ -409,6 +426,12 @@ export default function RunDetailScreen() {
           onPress={() => (atLimit ? setLimitOpen(true) : retryMutation.mutate({ runId: run.id }))}
         />
         {manualRetry?.retryCapReached ? <Text style={styles.meta}>{manualRetry.message}</Text> : null}
+        <SecondaryButton
+          label="Edit settings"
+          icon="sliders"
+          disabled={retryMutation.isPending || cancelMutation.isPending}
+          onPress={() => setSettingsOpen(true)}
+        />
         <DangerOutlineButton
           label="Cancel run"
           icon="x"
@@ -498,6 +521,31 @@ export default function RunDetailScreen() {
 
       {mutationError ? <Text style={styles.errorText}>{mutationError}</Text> : null}
 
+      {/* R4: a waiting run can have its settings changed too; a stopped one gets the button in the action bar. */}
+      {(isGate1 || isGate2) && !decisionSent && settingsRunnable ? (
+        <Pressable onPress={() => setSettingsOpen(true)} accessibilityRole="button" style={styles.editSettings}>
+          <Feather name="sliders" size={16} color={color.accentText} />
+          <Text style={styles.editSettingsText}>Edit settings</Text>
+        </Pressable>
+      ) : null}
+
+      {settingsRunnable ? (
+        <EditSettingsSheet
+          visible={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          runId={run.id}
+          status={run.status}
+          stages={stages}
+          current={currentSettings}
+          spentUsd={data.spentUsd ?? 0}
+          channelDefaultVoice={channelVoiceLabel}
+          onDone={({ lines }) => {
+            setSavedSettingNotes((prev) => [...prev, ...lines.map((l) => `Settings changed · ${l}`)]);
+            void invalidate();
+          }}
+        />
+      ) : null}
+
       {isNeedsAttention ? (
         <NeedsAttentionCard
           stage={run.currentStage}
@@ -509,6 +557,7 @@ export default function RunDetailScreen() {
           reviewReason={lastFailedReviewReason}
           videoAttempts={videoAttempts}
           onRaiseLimit={atLimit ? () => setLimitOpen(true) : undefined}
+          onEditSettings={() => setSettingsOpen(true)}
         />
       ) : null}
 
@@ -867,6 +916,8 @@ const styles = StyleSheet.create({
   runTitle: { fontFamily: font.black, fontSize: 22, lineHeight: 28, letterSpacing: -0.2, color: color.ink },
   cardMeta: { fontFamily: font.semibold, fontSize: 12, lineHeight: 16, color: color.muted },
   cardTitle: { ...type.sectionTitle, color: color.ink },
+  editSettings: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, alignSelf: 'flex-start' },
+  editSettingsText: { fontFamily: font.black, fontSize: 14, color: color.accentText },
   scriptHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm },
   body: { ...type.body, color: color.ink },
   meta: { ...type.meta },

@@ -23,6 +23,7 @@ export function NeedsAttentionCard({
   reviewReason,
   videoAttempts,
   onRaiseLimit,
+  onEditSettings,
 }: {
   stage: string | null | undefined;
   stages: StageLike[];
@@ -36,6 +37,8 @@ export function NeedsAttentionCard({
   videoAttempts?: number;
   /** Opens the control that raises the spend limit; shown on a spend-limit stop (Sprint 5 Task 7 R5). */
   onRaiseLimit?: () => void;
+  /** Opens Edit settings; offered when the fix is a setting (a voice the model rejects). */
+  onEditSettings?: () => void;
 }) {
   const [raw, setRaw] = useState(false);
   const failure = describeFailure(lastError, { spentUsd, maxCostUsd, reviewReason, tries: videoAttempts });
@@ -51,6 +54,7 @@ export function NeedsAttentionCard({
         </>
       )}
       {failure.fix === 'limit' && onRaiseLimit ? <PrimaryButton label="Raise the limit and retry" icon="trending-up" onPress={onRaiseLimit} /> : null}
+      {failure.fix === 'voice' && onEditSettings ? <PrimaryButton label="Change the voice" icon="sliders" onPress={onEditSettings} /> : null}
       <Text style={styles.meta}>Retry runs this step again. Cancel stops the run; nothing is published.</Text>
       {extra ? <Text style={styles.meta}>{extra}</Text> : null}
       {lastError ? (
