@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
+import { probeAudioSeconds } from './probe';
 import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE } from './registry';
 import type { SynthesizeSpeechResult, TranscribeResult, VoiceConfig } from './types';
 import { DATA_DIR } from '../config/paths';
@@ -70,9 +71,18 @@ export async function synthesizeSpeechViaProvider(params: {
 
     const characterCount = params.text.length;
     const pricing = resolveTtsPricing(params.model);
-    const costUsd = (characterCount * pricing.perCharacterUsd).toFixed(6);
+    let costUsd = (characterCount * pricing.perCharacterUsd).toFixed(6);
+    let costBasis: 'duration' | 'characters' = 'characters';
+    if (pricing.perMinuteUsd !== undefined) {
+      try {
+        costUsd = (((await probeAudioSeconds(audioPath)) / 60) * pricing.perMinuteUsd).toFixed(6);
+        costBasis = 'duration';
+      } catch {
+        // Keep the per-character figure rather than book $0 for audio already paid for.
+      }
+    }
 
-    return { audioPath, characterCount, costUsd };
+    return { audioPath, characterCount, costUsd, costBasis };
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapOpenAiError(error, { provider: 'openai', model: params.model });
