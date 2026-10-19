@@ -63,7 +63,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   mocks.findPipelineRunById.mockResolvedValue({ id: 'r', tenantId: 't', channelId: 'c', intakeParsed: { topic: 'history' }, creationOptions: { videoKind: 'long' } });
   mocks.findChannelById.mockResolvedValue({ id: 'c', platform: 'youtube', brandAssets: {} });
-  mocks.config.mockResolvedValue({ videoKind: 'long', audioDefaultVoice: 'v', targetSeconds: 600 });
+  mocks.config.mockResolvedValue({ videoKind: 'long', audioDefaultVoice: 'alloy', targetSeconds: 600 });
   mocks.findLatestAttempt.mockImplementation(async (_id, stage) => stage === 'gate1' ? { status: 'completed', output: { sanctionedScriptText: 'the script', chapters } } : previous);
   mocks.createStageAttempt.mockResolvedValue({ id: 'new', attemptNumber: 1 });
   mocks.checkBudget.mockResolvedValue({ ok: true });
@@ -82,7 +82,7 @@ describe('persisted plan recovery in video generation', () => {
     expect(mocks.planLong).not.toHaveBeenCalled();
     expect(mocks.generateLong).toHaveBeenLastCalledWith(expect.objectContaining({ plan, chapters }));
     expect(mocks.patchStageOutput).toHaveBeenCalledWith('new', checkpoint);
-    mocks.config.mockResolvedValue({ videoKind: 'long', audioDefaultVoice: 'different', targetSeconds: 600 });
+    mocks.config.mockResolvedValue({ videoKind: 'long', audioDefaultVoice: 'onyx', targetSeconds: 600 });
     await runVideoGenerationStage('r');
     expect(mocks.planLong).toHaveBeenCalledTimes(1);
   });

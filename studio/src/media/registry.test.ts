@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveVoice, TTS_VOICES, TTS_VOICE_KEYS, DEFAULT_TTS_VOICE } from './registry';
+import { resolveVoice, TTS_VOICES, TTS_VOICE_KEYS, DEFAULT_TTS_VOICE, resolveMediaPurpose, resolveTtsPricing, assertSupportedVoice } from './registry';
 
 // Sprint 2 Task 1 (D1/D2) — resolveVoice is the pure, DB-free three-step
 // "creation option resolution" rule (override -> channel default -> hardcoded
@@ -42,5 +42,33 @@ describe('TTS_VOICES', () => {
 
   it('TTS_VOICE_KEYS matches TTS_VOICES exactly, for the API layer\'s z.enum validation', () => {
     expect(TTS_VOICE_KEYS.sort()).toEqual(Object.keys(TTS_VOICES).sort());
+  });
+});
+
+describe('TTS model per voice', () => {
+  const ORIGINAL_NINE = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'];
+
+  it('keeps tts-1-hd for the nine voices it accepts', () => {
+    for (const v of ORIGINAL_NINE) expect(resolveMediaPurpose('tts', v).model).toBe('tts-1-hd');
+    expect(resolveMediaPurpose('tts').model).toBe('tts-1-hd');
+  });
+
+  it('routes every other listed voice to gpt-4o-mini-tts', () => {
+    for (const v of TTS_VOICE_KEYS.filter((k) => !ORIGINAL_NINE.includes(k))) {
+      expect(resolveMediaPurpose('tts', v).model).toBe('gpt-4o-mini-tts');
+    }
+    expect(resolveMediaPurpose('tts', 'ballad').model).toBe('gpt-4o-mini-tts');
+  });
+
+  it('prices the newer model per minute within the estimate (tts-1-hd rate)', () => {
+    const perMin = (m: string) => 155 * 6 * resolveTtsPricing(m).perCharacterUsd;
+    expect(perMin('gpt-4o-mini-tts')).toBeCloseTo(0.015, 4);
+    expect(perMin('gpt-4o-mini-tts')).toBeLessThanOrEqual(perMin('tts-1-hd'));
+  });
+
+  it('rejects an unknown voice before any spend, accepts known and unset', () => {
+    expect(() => assertSupportedVoice('ballad')).not.toThrow();
+    expect(() => assertSupportedVoice(undefined)).not.toThrow();
+    expect(() => assertSupportedVoice('robot')).toThrow(/not supported/);
   });
 });

@@ -32,6 +32,7 @@ import { isCancellationRequested } from './cancellation-registry';
 import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/spend';
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError, NonTransientStageError } from './retry-with-backoff';
+import { resolveMediaPurpose, assertSupportedVoice } from '../media';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
@@ -939,6 +940,8 @@ export async function runVideoGenerationStage(
   // resolveVoice did before.
   const config = await loadResolvedConfig(run, channel);
   const resolvedVoice = config.audioDefaultVoice;
+  // Before the stage row or any paid call: an unsupported voice must fail here, not mid-render.
+  try { assertSupportedVoice(resolvedVoice); } catch (e) { throw new NonTransientStageError((e as Error).message); }
   // Sprint 4 Task 9: a long run narrates, plans and renders chapter by chapter, with its per-video spend
   // limit checked between paid calls. A Short takes none of these branches.
   const isLong = config.videoKind === 'long';
@@ -1257,7 +1260,7 @@ export async function runVideoGenerationStage(
             // Narration and stills are booked one call at a time, as they are paid for.
             onNarrationPaid: async (paid) => {
               await bookPaidCall({
-                model: paid.transcriptionCostUsd > 0 ? 'whisper-1' : 'tts-1-hd',
+                model: paid.transcriptionCostUsd > 0 ? 'whisper-1' : resolveMediaPurpose('tts', resolvedVoice).model,
                 costUsd: paid.ttsCostUsd + paid.transcriptionCostUsd,
                 characterCount: paid.ttsCharacters || undefined,
                 audioDurationSeconds: paid.transcriptionSeconds || undefined,

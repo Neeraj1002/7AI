@@ -424,7 +424,7 @@ export async function generateVideo(params: {
   // Section 2 and Sprint 2 Task 2 (E2).
   const tts = await synthesizeSpeech(params.scriptText, { voice: params.voice });
   if (params.spend) {
-    const entry = resolveMediaPurpose('tts');
+    const entry = resolveMediaPurpose('tts', params.voice);
     params.spend.ttsProvider = entry.provider;
     params.spend.ttsModel = entry.model;
     params.spend.ttsCharacters = tts.characterCount;
@@ -694,7 +694,7 @@ export async function generateVideo(params: {
   const videoPath = path.join(outputDir, videoFilename);
   const durationSeconds = await probeDurationSeconds(videoPath);
 
-  const ttsEntry = resolveMediaPurpose('tts');
+  const ttsEntry = resolveMediaPurpose('tts', params.voice);
   const transcriptionEntry = resolveMediaPurpose('transcription');
   const visualCostUsd = stockFootageMeta ? Number(stockFootageMeta.costUsd) : Number(aiVisualsMeta?.costUsd ?? '0');
   const costUsd = (Number(tts.costUsd) + Number(asr.costUsd) + visualCostUsd).toFixed(6);
