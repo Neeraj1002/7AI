@@ -82,7 +82,9 @@ export function resolveVoice(params: { overrideVoice?: string | null; channelDef
 // Pricing, sitting alongside the registry (same reasoning as
 // studio/src/llm/registry.ts's MODEL_PRICING). Sourced from OpenAI's own
 // published rates (2026-09): tts-1-hd $30/1M characters; whisper-1 $0.006/minute.
-export type TtsPricingEntry = { perCharacterUsd: number };
+// perCharacterUsd prices the pre-flight estimate (and tts-1-hd's bill). perMinuteUsd, when set, is how
+// that model is billed: the cost booked for a real call is the measured audio duration x this rate.
+export type TtsPricingEntry = { perCharacterUsd: number; perMinuteUsd?: number };
 export type TranscriptionPricingEntry = { perSecondUsd: number };
 
 export const TTS_PRICING: Record<string, TtsPricingEntry> = {
@@ -90,7 +92,7 @@ export const TTS_PRICING: Record<string, TtsPricingEntry> = {
   // OpenAI lists gpt-4o-mini-tts at ~$0.015/minute of audio; expressed per character at the
   // estimate's pace (155 words/min x 6 chars/word) so the same arithmetic applies. About half
   // of tts-1-hd's ~$0.028/min, so the estimate (priced on tts-1-hd) stays an upper bound.
-  [TTS_NEWER_MODEL]: { perCharacterUsd: 0.015 / (155 * 6) },
+  [TTS_NEWER_MODEL]: { perCharacterUsd: 0.015 / (155 * 6), perMinuteUsd: 0.015 },
 };
 
 export const TRANSCRIPTION_PRICING: Record<string, TranscriptionPricingEntry> = {

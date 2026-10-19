@@ -133,4 +133,13 @@ describe('end tail (P8)', () => {
     expect(endOf(held)).not.toBe(endOf(plain));
     expect(buildAss({ words, style: 'sentence-grouped', holdLastCueMs: 0 }).ass).toBe(plain);
   });
+  it('names the duration-priced model and books its cost (usage-event fields, not the DB write)', () => {
+    const spend = emptyVideoSpend(STUBS);
+    Object.assign(spend, { ttsModel: 'gpt-4o-mini-tts', ttsCharacters: 354, ttsCostUsd: 0.006458,
+      transcriptionModel: 'whisper-1', transcriptionSeconds: 25.84, transcriptionCostUsd: 0.002584 });
+    const usage = failedRenderUsage(spend, new Error('x'))!;
+    expect(usage.model).toBe('gpt-4o-mini-tts+whisper-1');
+    expect(Number(usage.costUsd)).toBeCloseTo(0.009042, 6);
+  });
 });
+
