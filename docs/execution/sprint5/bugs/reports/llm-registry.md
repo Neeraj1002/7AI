@@ -90,6 +90,10 @@ Scale: S-1 uses about 3 to 5% of the new limits. The long form (L-1, T18) is not
 - `scripts/llm-registry-real-check.ts` is committed as the evidence for R4 step 3; Part B's `llm:canary` supersedes it.
 - The throwaway database `sevenai_llm_registry_check` stays until Part B finishes, then is dropped.
 
+## Before marking ready (template Hard rule 6)
+
+`git fetch` then merge of `origin/main` into this branch: already up to date, no conflicts. Build, lint, type-check and the full test run repeated after that (953 passed, 65 skipped, 0 failed). `git diff --name-only origin/main...HEAD -- docs/` lists only this report. The task doc was not touched.
+
 ## Sign-off (Part A)
 
 - Task objective: met (criteria 1 and 2 verified; criterion 3 is the founder's T09 after merge and deploy)
