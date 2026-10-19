@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mocks.callLLM }));
 
-import { generateScript, SCRIPT_MAX_TOKENS } from './index';
+import { generateScript } from './index';
+import { LLMCutOffError } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
 
@@ -14,8 +15,16 @@ const reply = (text: string, extra: Record<string, unknown> = {}) => ({
   costUsd: '0.001000',
   provider: 'anthropic',
   model: 'claude-sonnet-5',
+  maxOutputTokens: 16000,
   ...extra,
 });
+// What callLLM throws after a reply is cut off twice: the last reply on the error, the first call under priorAttempts.
+const cutOff = (text: string) => {
+  const first = { provider: 'anthropic' as const, model: 'claude-sonnet-5', usage: { inputTokens: 100, outputTokens: 16000 }, costUsd: '0.001000', stopReason: 'length', maxOutputTokens: 16000, replyLength: 0 };
+  const last = reply(text, { stopReason: 'length', usage: { inputTokens: 100, outputTokens: 32000 }, maxOutputTokens: 32000, priorAttempts: [first] });
+  const row = (c: { usage: { inputTokens: number; outputTokens: number }; costUsd: string }) => ({ provider: 'anthropic', model: 'claude-sonnet-5', inputTokens: c.usage.inputTokens, outputTokens: c.usage.outputTokens, costUsd: c.costUsd });
+  return new LLMCutOffError('Script Generation: cut off', { calls: [row(first), row(last)], rawReply: text, stopReason: 'length', replyLength: text.length }, last as never);
+};
 const GOOD = '{"scriptText":"Hello there.","captions":"Hello there.","hashtags":["a","b"]}';
 const params = { topic: 't', constraints: [] as string[] };
 const QUOTE_BUG = '{"scriptText":"He said "no" to salt. ' + 'x'.repeat(500) + '","captions":"c","hashtags":[]}';
@@ -32,7 +41,8 @@ describe('generateScript — first call', () => {
     expect(output.scriptText).toBe('Hello there.');
     expect(calls).toHaveLength(1);
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);
-    expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(SCRIPT_MAX_TOKENS);
+    // The limit belongs to the registry: the agent passes no number.
+    expect(mocks.callLLM.mock.calls[0][0]).not.toHaveProperty('maxTokens');
   });
 });
 
@@ -62,7 +72,7 @@ describe('generateScript — Bugs Task 11 R5 fallback retry', () => {
     expect(calls).toHaveLength(2);
     expect(llm.costUsd).toBe('0.002000');
     const retry = mocks.callLLM.mock.calls[1][0];
-    expect(retry.maxTokens).toBe(SCRIPT_MAX_TOKENS);
+    expect(retry).not.toHaveProperty('maxTokens');
     expect(retry.messages).toHaveLength(3);
     expect(retry.messages[1]).toEqual({ role: 'assistant', content: QUOTE_BUG });
     expect(retry.messages[2].content).toMatch(/could not be parsed as JSON \(.*position \d+/);
@@ -74,28 +84,28 @@ describe('generateScript — Bugs Task 11 R5 fallback retry', () => {
     expect(mocks.callLLM.mock.calls[1][0].messages[2].content).toContain('did not match the required shape');
   });
 
-  it('R4: a reply cut off at the output cap fails with a clear cut-off message, not a parse error, and is not retried', async () => {
-    mocks.callLLM.mockResolvedValueOnce(reply('{"scriptText":"cut off mid', { stopReason: 'length', usage: { inputTokens: 100, outputTokens: 4096 } }));
+  it('a reply cut off even after the client retry fails the stage with the cut-off text, is not retried here, and books both calls', async () => {
+    mocks.callLLM.mockRejectedValueOnce(cutOff('{"scriptText":"cut off mid'));
     const error = await generateScript(params).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(NonTransientStageError);
-    const message = (error as Error).message;
-    expect(message).toContain('cut off at the output cap');
-    expect(message).toContain('stopReason=length');
-    expect(message).not.toContain('valid JSON');
+    expect((error as Error).message).toContain('cut off');
+    expect((error as Error).message).not.toContain('valid JSON');
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);
     const context = getStageErrorContext(error)!;
     expect(context.rawReply).toBe('{"scriptText":"cut off mid');
     expect(context.stopReason).toBe('length');
-    // the call's real spend is still booked
-    expect(failureUsageEvents(error)).toEqual([expect.objectContaining({ outputTokens: 4096 })]);
+    // both billed calls are booked as their own usage rows
+    expect(failureUsageEvents(error)).toEqual([
+      expect.objectContaining({ outputTokens: 16000 }),
+      expect.objectContaining({ outputTokens: 32000 }),
+    ]);
   });
 
-  it('R4: the output cap was raised from 2048 and the prompt tells the model to use curly quotes', async () => {
+  it('the request carries no output limit, and the prompt tells the model to use curly quotes', async () => {
     mocks.callLLM.mockResolvedValueOnce(reply(GOOD));
     await generateScript(params);
     const request = mocks.callLLM.mock.calls[0][0];
-    expect(SCRIPT_MAX_TOKENS).toBeGreaterThan(2048);
-    expect(request.maxTokens).toBe(SCRIPT_MAX_TOKENS);
+    expect(request).not.toHaveProperty('maxTokens');
     expect(request.system).toContain('Never use the straight double-quote character');
     expect(request.system).toContain('curly quotes');
   });

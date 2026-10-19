@@ -387,7 +387,6 @@ export async function reviewVideo(params: {
           })),
         },
       ],
-      maxTokens: 512,
     }),
   );
 

@@ -178,6 +178,6 @@ describe('generateScript (long)', () => {
     mocks.callLLM.mockResolvedValueOnce(reply(JSON.stringify({ scriptText: 'Hello there.', captions: 'x', hashtags: [] })));
     const { output } = await generateScript({ topic: 'T', constraints: [], targetSeconds: 45 });
     expect(output.chapters).toBeUndefined();
-    expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(4096);
+    expect(mocks.callLLM.mock.calls[0][0]).not.toHaveProperty('maxTokens');
   });
 });

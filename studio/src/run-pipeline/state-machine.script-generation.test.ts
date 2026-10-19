@@ -57,6 +57,7 @@ const llm = (overrides: Record<string, unknown> = {}) => ({
   costUsd: '0.008100',
   provider: 'anthropic' as const,
   model: 'claude-sonnet-5',
+  maxOutputTokens: 16000,
   ...overrides,
 });
 const OUTPUT = { scriptText: 'x', captions: 'c', hashtags: [] as string[] };

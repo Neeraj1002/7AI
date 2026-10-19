@@ -14,7 +14,8 @@ const base = {
   model: 'claude-sonnet-5',
   system: 's',
   messages: [{ role: 'user' as const, content: 'hi' }],
-  maxTokens: 100,
+  maxOutputTokens: 100,
+  reasoning: 'off' as const,
   outputSchema: z.object({ a: z.string() }),
 };
 const apiError = (statusCode: number) =>

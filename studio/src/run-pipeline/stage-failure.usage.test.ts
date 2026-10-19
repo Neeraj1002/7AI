@@ -9,6 +9,7 @@ const llmCall = {
   costUsd: '0.008100',
   provider: 'anthropic' as const,
   model: 'claude-sonnet-5',
+  maxOutputTokens: 16000,
 };
 
 describe('failureUsageFields (Bugs Task 11 R2)', () => {
