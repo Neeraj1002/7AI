@@ -1,5 +1,7 @@
 # Not In Your Textbook: Channel Playbook (single source of truth)
 
+> **Update 2026-10-18:** the channel identity is now defined in `NIYT_CHANNEL_CONFIG.md`, which wins wherever it disagrees with this playbook (the money method is now an optional series, not a channel rule). Gate checklists and brief lessons (§11, §12) here still apply.
+
 **Channel:** Not In Your Textbook (@NotInYourTextbook) · **Owner:** Neeraj · **Version:** 1.8 (2026-10-11)
 **This is the only channel document.** It replaced `HISTORY_CHANNEL_BIBLE.md` and `PRICE_OF_THE_PAST_CHANNEL_BIBLE.md`, which were deleted on 2026-10-06.
 

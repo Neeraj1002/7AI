@@ -228,3 +228,11 @@ describe('deriveChapters', () => {
     expect(deriveChapters([stage(1, { chapters }), stage(2, { chapters: [] }, 'running')])).toEqual(chapters);
   });
 });
+
+describe('runs.create: stale channel voice (review of #104)', () => {
+  it('refuses a channel default voice that is no longer offered, before any run exists', async () => {
+    mocks.findChannelById.mockResolvedValue({ ...(await mocks.findChannelById()), defaultVoice: 'retired-voice' });
+    await expect(caller().create(base)).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringContaining('retired-voice') });
+    expect(mocks.createRun).not.toHaveBeenCalled();
+  });
+});

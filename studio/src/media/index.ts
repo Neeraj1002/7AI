@@ -21,6 +21,7 @@ export {
   TTS_VOICE_KEYS,
   DEFAULT_TTS_VOICE,
   resolveVoice,
+  assertSupportedVoice,
   resolveMediaPurpose,
   resolveTtsPricing,
   resolveTranscriptionPricing,
@@ -39,7 +40,7 @@ export async function synthesizeSpeech(
   if (env.MEDIA_STUB === '1') {
     return stubSynthesizeSpeech(text, voiceConfig);
   }
-  const { model } = resolveMediaPurpose('tts');
+  const { model } = resolveMediaPurpose('tts', voiceConfig.voice);
   return synthesizeSpeechViaProvider({ text, voiceConfig, model });
 }
 
