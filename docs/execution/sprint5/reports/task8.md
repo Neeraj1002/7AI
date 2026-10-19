@@ -2,11 +2,11 @@
 
 **Branch** `SPRINT5_TASK8_BE`, worktree `D:\Study Material\7AI-SPRINT5\task8`, one draft PR for all four groups (R1-R12). Written 2026-10-19.
 
-**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,009 tests pass, 65 skipped as before); **not merged, not deployed**; the real-model checks that need Anthropic could not run because the Anthropic account is out of credit (see "Real-model checks").
+**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,026 tests pass, 65 skipped as before); **not merged, not deployed**; the real-model checks that need Anthropic could not run because the Anthropic account is out of credit (see "Real-model checks").
 
 Three separate statements, as the task asks:
-- **Code-complete:** yes for R1 to R12, with the exceptions listed under Deviations and the R10 Part B stop-and-confirm.
-- **Merged:** no. The branch contains the one commit from open PR #104 (`6096a69`, Ballad needs `gpt-4o-mini-tts`), which R1 builds on. If #104 merges first this branch merges cleanly over it.
+- **Code-complete:** yes for R1 to R12 (R10 Part B built after your confirmation; its section lists what is not done), with the exceptions under Deviations.
+- **Merged:** no. PR #104 (voice-to-model mapping) merged to `main` on 19 Oct; this branch has `main` merged in and builds on it (see "Overlap with PR #104").
 - **Deployed / live-verified:** no. Nothing here was run against production or the dev database.
 
 ## R0. What the code really does
@@ -33,14 +33,14 @@ Three separate statements, as the task asks:
 | E6 logos, invented text, wrong imagery | **Fixed in the prompt and the check; verified by eye on real pictures** (7 of 16 before, 0 of 16 after). The vision check itself was **not run against the real model** (Anthropic out of credit) | R6 |
 | E7 cost 2.3 x estimate, unreadable ledger | **Fixed** (range, allowance, per-attempt and per-stage cost, unknown/unknown row, failed rows marked). The Lego run's voice and transcription amounts **could not be read** here (no database access) | R8 |
 | E8 Sonnet 5.5 | **Switched** in the registry (script writing and planner). The id was **not confirmed against the API** (no credit); Task 6's branch records the same price verified on 18 Oct | R9 |
-| E9 voices sound generic | **Part A done** (samples below). **Part B waits for your confirmation** | R10 |
+| E9 voices sound generic | **Part A done** (samples below); **Part B built** (catalog, API, preview script; previews not yet generated for all voices) | R10 |
 | E10 Script tab showed the draft | **Fixed in the data** (`runs.get` returns both, and which one the video used); the screen is Task 7 R3 | R11.1 |
 | E11 Inbox stops at 7 or 8 runs | **Backend cause found and fixed:** the Inbox is built from `notifications.list`, which returns the newest 50 rows, and each run has several rows. `runs.list` has no limit and is not the cause. Paged lists added | R12 |
 | E12 carried-in items | Stale rows **fixed**; quality-spec test **not reproducible** (see R11.3); Compare **fixed**; `chapterWarning` **declared**; thumbnail 403 **cannot be reproduced here, cause written down, plain message added**; title/description check **added**; Failed filter **confirmed** | R11 |
 
 ## R1. Voice valid for its model
 
-`TTS_VOICES` now carries each voice's model; `TTS_MODEL_VOICES` lists what each model accepts and a test holds the two together. `assertSupportedVoice(voice, model?)` refuses a mismatch ("Voice 'ballad' cannot be spoken by tts-1-hd; it needs gpt-4o-mini-tts") and the speech client calls it before the paid request. Run create, channel update and the profile schema already validate the name; the model is derived from it, so the pair can no longer disagree. `options.list` returns each voice's `model`. Tests: Ballad on the old model is refused, Ballad on its own model works, Coral is unchanged.
+**Done by PR #104, reused as it is.** `resolveMediaPurpose(purpose, voice)` maps Ballad, Verse, Marin and Cedar to `gpt-4o-mini-tts` and the other nine stay on `tts-1-hd`; `assertSupportedVoice` refuses an unknown voice at `runs.create` and in the state machine; the pricing rows (including `perMinuteUsd` and booking by measured duration) are #104's. My first R1 version (a per-voice model field, a `TTS_MODEL_VOICES` table and a model-mismatch guard in the speech client) overlapped it and was **dropped when `main` was merged**; nothing of it remains. What R1 still adds on top is in R2: the same voice check runs in preflight, which parks a run cleanly (no stage row, free Retry) instead of throwing, and #104's state-machine check is kept after it as the backstop. Tests are #104's (Ballad on the old model is refused by the provider, Ballad maps to its own model, Coral unchanged).
 
 ## R2. Preflight
 
@@ -106,11 +106,16 @@ Stages on `claude-sonnet-5` were **script writing and the planner** (`script-gen
 
 The newer model costs about half (priced at $0.015 per audio minute, an estimate the repository already used; the bill will show the real rate) and takes a direction line, which the current `synthesizeSpeech` cannot pass (it has no `instructions` field). Listening and choosing is yours.
 
-**Part B: stop and confirm.** Proposal, nothing built:
+**Part B: built after your confirmation (config file), on top of #104's mapping.**
 - **Fields** per voice: `id`, `displayName`, `provider`, `model`, `providerVoiceId`, `toneTags[]`, `defaultDirection`, `licenceNote`, `enabled`, `previews {sad, hopeful}` (R2 keys) and an optional per-channel preview (R2 key cached by a hash of voice, direction and the channel's text).
 - **Storage (D2):** a config file in the repository (JSON beside `media/registry.ts`), no migration. R0 says it can hold previews because they are R2 keys, not files. A database table only becomes necessary if people must add or disable voices without a deploy.
 - **API:** `options.voices` lists enabled voices with signed preview URLs; a channel and a run refer to a catalog id; only voices valid for their model are enabled (R1's table is the check); `VoiceConfig` gains `direction`. Seed: the 13 current voices plus the Part A voices. Per-channel settings stay config-driven.
-- Please confirm the field list and the config-file choice (or say database) before I build it.
+- **What was built:** `studio/src/media/voice-catalog.config.ts` holds the catalog: 15 entries, the 13 current voices keeping their ids (no stored setting changes) plus `ballad-documentary` and `marin-documentary` (the Part A voices with the sampled direction). The speech model is **not stored** in the catalog: it is #104's `resolveMediaPurpose` applied to the entry's provider voice, so there is one source for it. `media/registry.ts` builds and validates the table at load (unique ids, an enabled entry must name a voice OpenAI offers, a direction only with the newer model); a bad edit fails on boot, never after spend. `TTS_VOICES` and `TTS_VOICE_KEYS` now come from the catalog, so run create, channel update and the profile schema accept exactly the enabled ids. The speech client sends the provider voice name and the direction (`instructions`, `gpt-4o-mini-tts` only), and narration chunk caching includes the direction. `options.list` returns each enabled voice with `key` (the stored id), `label`, `provider`, `model`, `toneTags`, `defaultDirection`, `licenceNote` and `previews {sad, hopeful}` as signed R2 links (null until generated). `scripts/generate-voice-previews.ts [--upload] [--only id,id]` makes the two fixed sentences per voice through the same speech path and prints the `previews` block to paste in (about $0.0025 per voice; run once for `ballad-documentary`, files only). Tests: `voice-catalog.test.ts` (seed, validation, what reaches the provider) and `options.voices.test.ts`.
+- **Not done:** previews are **not generated or uploaded** for the other voices (uploading writes to the R2 bucket, so it needs your go-ahead: about $0.04 for all 15), and the optional per-channel preview from the channel's own text is **not built** (optional in the spec; it needs a paid call and an R2 write per request, so it waits for the picker). Voice stays config-driven per channel, never hard-coded.
+
+### Overlap with PR #104
+
+Both tasks touched voices and speech pricing. Reused from #104, not rebuilt: the voice-to-model mapping (`resolveMediaPurpose`, `NEWER_VOICES`), `assertSupportedVoice` and its two call sites, the `gpt-4o-mini-tts` pricing row and duration-based booking (`probe.ts`, `costBasis`), and its report (`reports/voice-model-mapping.md`, not edited). Dropped from my branch: my own mapping field, `TTS_MODEL_VOICES`, the model-mismatch guard and my first pricing test. Kept as additions: preflight (parks cleanly before #104's check), the speech probe, and the catalog. Merge resolution: `media/registry.ts`, `client.ts`, `index.ts` and `registry.test.ts` took `main`'s version, then the catalog was added on top; `state-machine.ts` keeps #104's early voice check, moved after preflight. #104's report also confirms my pace finding (Ballad and Verse speak slower), which R7 now handles.
 
 ## R11. Carry-over fixes
 
@@ -134,7 +139,7 @@ Spent **$0.1928** in total, no database, no publish (`reports/task8-assets/spend
 
 ## Deviations and things to decide
 
-- The branch includes #104's commit; merge order does not matter, but #104 should not be reverted.
+- Overlap with #104 is resolved by reuse (see the Part B section); no part of its mapping or pricing was rebuilt.
 - **Default spend limit changed** from 1.5 x to 2 x the estimate (D1), so the brief screen's "suggested limit" is higher; the estimate itself rose slightly (Video Review is now in it).
 - Music check: the bed loops with a crossfade, so a track shorter than the video is not an error; a missing, unlicensed or absent mood is. (The task asked for a track at least as long as the video.)
 - Re-planning "patches only failing scenes" is done for timing failures and Task 5's single located defect; a content failure with no located scene still plans all scenes again.
@@ -150,9 +155,9 @@ Spent **$0.1928** in total, no database, no publish (`reports/task8-assets/spend
 - `runs.estimateCost` adds `retryAllowanceUsd` and `rangeUsd {minUsd, maxUsd}` (show the range); `runs.expectedLength({runId, scriptText})` for the Gate 1 edit screen.
 - A run paused by the retry allowance has `lastError` starting "Automatic retry allowance used"; Retry accepts `maxCostUsd` and lifts the allowance.
 - `runs.list` rows have `endReason`; `runs.listPage` and `notifications.listPage` for the Inbox and the Queue (use `nextCursor`, show `total`).
-- `options.list.voices[]` has `model`; publishing output may have `coverFrameMessage`; video review output has `reasonCode`.
+- `options.list.voices[]` has `key` (catalog id, store this), `label`, `provider`, `model`, `toneTags`, `defaultDirection`, `licenceNote`, `previews {sad, hopeful} | null` (signed links, valid 1 hour); publishing output may have `coverFrameMessage`; video review output has `reasonCode`.
 - `dashboard.comparison` rows have `longFormWatch`.
 
 ## Tests
 
-`npm run typecheck`, `npm run lint`, `npm run build` clean; `npx vitest run`: 132 files passed, 12 skipped (database tests, as before), 1,009 tests passed, 65 skipped. New: preflight (12) and gate (5), shot balance and plan (9), timing repair (4), review provider limit and allowance (8), still check (7), metadata claims (10), length forecast (8), script versions (6), runs.get outcomes and cost (3), list paging (5 + 2), long-form replay with real FFmpeg (2), plus extended registry, run-budget, cost-estimate, scene-prompt, resume and publishing tests. Skipped: the Anthropic real-model checks, live YouTube, any run against a database.
+`npm run typecheck`, `npm run lint`, `npm run build` clean; `npx vitest run`: 132 files passed, 12 skipped (database tests, as before), 1,026 tests passed, 65 skipped. New: preflight (12) and gate (5), shot balance and plan (9), timing repair (4), review provider limit and allowance (8), still check (7), metadata claims (10), length forecast (8), script versions (6), runs.get outcomes and cost (3), list paging (5 + 2), long-form replay with real FFmpeg (2), plus extended registry, run-budget, cost-estimate, scene-prompt, resume and publishing tests. Skipped: the Anthropic real-model checks, live YouTube, any run against a database.

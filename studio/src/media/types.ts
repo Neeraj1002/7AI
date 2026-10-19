@@ -9,7 +9,9 @@ export const MEDIA_PROVIDERS = ['openai'] as const;
 export type MediaProvider = (typeof MEDIA_PROVIDERS)[number];
 
 export type VoiceConfig = {
-  voice?: string; // provider-specific voice name, e.g. OpenAI's 'alloy'
+  voice?: string; // a voice catalog id (media/voice-catalog.config.ts), e.g. 'coral' or 'ballad-documentary'
+  // Sprint 5 Task 8 (R10 Part B): overrides the catalog voice's own direction (samples and previews).
+  direction?: string;
 };
 
 export type SynthesizeSpeechResult = {
