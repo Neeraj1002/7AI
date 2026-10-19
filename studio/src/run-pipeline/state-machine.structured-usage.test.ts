@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // real here; only the SDK's generateText and the repositories are mocked.
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
+  streamText: vi.fn(),
   findPipelineRunById: vi.fn(),
   updatePipelineRun: vi.fn(),
   findChannelById: vi.fn(),
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   checkBudget: vi.fn(),
 }));
 
-vi.mock('ai', async (orig) => ({ ...(await orig<object>()), generateText: mocks.generateText }));
+vi.mock('ai', async (orig) => ({ ...(await orig<object>()), generateText: mocks.generateText, streamText: mocks.streamText }));
 vi.mock('../models/prisma-client', () => ({
   prisma: { $transaction: async (fn: (tx: object) => unknown) => fn({}) },
 }));
@@ -86,21 +87,43 @@ describe('structured-output usage reaches usage_events', () => {
     expect(mocks.completeStage).toHaveBeenCalled();
   });
 
-  it('a structured call the SDK could not build into the object (cut off) still books its real usage and fails with the cut-off message', async () => {
-    mocks.generateText.mockRejectedValue(
-      new NoObjectGeneratedError({
-        message: 'No object generated',
-        text: '{"scriptText":"cut off',
-        response: { id: 'r', timestamp: new Date(), modelId: 'm' },
-        usage: { inputTokens: 1500, outputTokens: 4096 } as never,
-        finishReason: 'length',
-      }),
-    );
+  const cutOffCall = (outputTokens: number) =>
+    new NoObjectGeneratedError({
+      message: 'No object generated',
+      text: '{"scriptText":"cut off',
+      response: { id: 'r', timestamp: new Date(), modelId: 'm' },
+      usage: { inputTokens: 1500, outputTokens } as never,
+      finishReason: 'length',
+    });
+  // The retry at a larger limit streams.
+  const streamed = (text: string, outputTokens: number, finishReason: string) => ({
+    text: Promise.resolve(text),
+    usage: Promise.resolve({ inputTokens: 1500, outputTokens }),
+    finishReason: Promise.resolve(finishReason),
+  });
+
+  it('a reply cut off, then complete on the automatic retry, books both calls and completes the stage', async () => {
+    mocks.generateText.mockRejectedValueOnce(cutOffCall(16000));
+    mocks.streamText.mockReturnValueOnce(streamed('{"scriptText":"Hello there.","captions":"c","hashtags":["a"]}', 700, 'stop'));
     await runScriptGenerationStage(RUN_ID);
-    expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(1);
-    expect(mocks.insertUsageEvent.mock.calls[0][0]).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5', inputTokens: 1500, outputTokens: 4096 });
+    expect(mocks.generateText.mock.calls[0][0]).toMatchObject({ maxOutputTokens: 16000, providerOptions: { anthropic: { thinking: { type: 'disabled' } } } });
+    expect(mocks.streamText.mock.calls[0][0]).toMatchObject({ maxOutputTokens: 32000, providerOptions: { anthropic: { thinking: { type: 'disabled' } } } });
+    expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].outputTokens)).toEqual([16000, 700]);
+    expect(mocks.completeStage).toHaveBeenCalled();
+    expect(mocks.failStage).not.toHaveBeenCalled();
+  });
+
+  it('a reply cut off twice books both calls and fails with the honest cut-off message', async () => {
+    mocks.generateText.mockRejectedValueOnce(cutOffCall(16000));
+    mocks.streamText.mockReturnValueOnce(streamed('{"scriptText":"cut off', 32000, 'length'));
+    await runScriptGenerationStage(RUN_ID);
+    expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(2);
+    expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].outputTokens)).toEqual([16000, 32000]);
+    expect(mocks.insertUsageEvent.mock.calls[0][0]).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5', inputTokens: 1500 });
     expect(Number(mocks.insertUsageEvent.mock.calls[0][0].costUsd)).toBeGreaterThan(0);
-    expect(mocks.failStage.mock.calls[0][1]).toContain('cut off at the output cap');
+    const message = mocks.failStage.mock.calls[0][1] as string;
+    expect(message).toContain('cut off even after one automatic retry');
+    expect(message).not.toContain('shorten the brief');
     expect(mocks.failStage.mock.calls[0][3]).toMatchObject({ rawReply: '{"scriptText":"cut off', stopReason: 'length' });
   });
 });

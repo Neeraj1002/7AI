@@ -17,8 +17,6 @@ export const LONG_MAX_LENGTH_REPAIRS = 2;
 export const LONG_MIN_CHAPTERS = 3;
 export const LONG_MAX_CHAPTERS = 6;
 export const LONG_MIN_CHAPTER_WORDS = 25;
-// 15 minutes is about 2,200 words (~3,300 tokens); this is headroom, not a target.
-export const LONG_SCRIPT_MAX_TOKENS = 12_000;
 
 export const ScriptChapterSchema = z.object({
   title: z.string().min(1),

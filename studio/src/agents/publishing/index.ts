@@ -71,7 +71,6 @@ export async function generatePublishingMetadata(
     // Sprint 4 Task 5 (R17): packaging guidance is appended only when the channel
     // set it; with none, this is exactly the old message.
     messages: [{ role: 'user', content: buildMetadataUserMessage(params) }],
-    maxTokens: 512,
   });
 
   let parsedJson: unknown;
