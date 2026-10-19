@@ -4,10 +4,17 @@
 **PRs**: [#106](https://github.com/Neeraj1002/7AI/pull/106) (draft). One PR carries all the work so far; further PRs only if review asks for a split.
 **Written**: 2026-10-19
 
+**Hard rules that applied (Git workflow, template)**
+1. Never push or merge to `main`; everything is on `SPRINT5_TASK7_FE` and a draft PR (#106). Merging is the founder's.
+2. Only commit to a branch I created: this one, created this session; no other branch was touched.
+3. The branch and worktree are recorded in my row of `sprint5/STATUS.md`, written when I created it.
+4. One worktree per session: `D:\Study Material\7AI-SPRINT5\task7`; no git command was run in another session's folder.
+5. `main` was merged into the branch (no rebase, 27ea8ec); I first removed my own untracked copies of the task docs, because main now tracks them. Code-complete, merged and deployed are reported separately below.
+
 **Status in three separate statements**
 - Code-complete: R1, R2 (app side), R3, R4 (app side), R5 (app side), R7, R9, R10, R11. R6 built on a stub catalog. R8 not coded (reason below). R4 calls `runs.updateSettings`, which the server does not have yet; on a server without it the sheet says so.
 - Merged: no. Deployed: no. App build number: none yet (no EAS build was made; the founder's phone has not seen any of this).
-- Verified: app type-check clean, lint clean, 141 app tests pass (82 before this task), web bundle exports. **Nothing was run on a phone or emulator**, and no screen was looked at in a phone-size layout. Layout fixes below are reasoned from the code, not seen.
+- Verified: app type-check clean, lint clean, 152 app tests pass (82 before this task), re-run after merging main, web bundle exports. **Nothing was run on a phone or emulator**, and no screen was looked at in a phone-size layout. Layout fixes below are reasoned from the code, not seen.
 
 ## R0. Read the code first
 
@@ -19,6 +26,29 @@
 | 4 | How the Edit sheet validates chapters | **Only on the server**: `runs.gate1` runs `parseChapterSheet` and rejects with "needs at least 3 chapters" (BAD_REQUEST). The app had no check, which is why the error came after Save. |
 
 ## A1 to A16 status
+
+"Fixed" means fixed in code, unit-tested and merged with main's latest; none of it has been seen on a phone.
+
+| # | Status | Waiting on Task 8 (field) or deferred (reason) |
+|---|---|---|
+| A1 Inbox stops at 7 or 8 | **Fixed** | none |
+| A2 No cost on the Run screen | **Fixed in part**: spent so far / final, limit | **Waiting on Task 8 R8.7**: `runs.get.costBreakdown` (estimate, per attempt, per stage) |
+| A3 Script tab shows the draft | **Fixed** (reads the Gate 1 output) | optional: `runs.get.approvedScript`, `originalDraft` (Task 8 R11.1) |
+| A4 Cannot change a setting on a failed run | **Built** (Edit settings sheet) | **Waiting on a Task 8 follow-up**: `runs.updateSettings`, `runs.get.settingsChanges`, a stored visibility |
+| A5 Attempt 1 shown as done; no notification | **Label fixed** (derived from the review row) | **Waiting on Task 8 R5**: stage `outcome`; the two D2 pushes are emitted by the server |
+| A6 Raw, cut-off failure text | **Fixed** | none |
+| A7 Voice picker without samples | **Picker built** | **Waiting on Task 8 R10 Part B**: voice catalog `{ id, displayName, toneTags, description, previewUrl }` |
+| A8 Script editor on a phone | **Fixed** (copy opens the share sheet) | true clipboard needs `expo-clipboard` and a new native build |
+| A9 Cannot share or download the video | **Deferred** | needs a signed share link for a Short (backend) or file and sharing modules (native build); sampled frames are not in `runs.get` |
+| A10 Admin cost list and labels | **Fixed** (grouped by time window) | optional: stage and attempt on each usage event |
+| A11 Carry-overs | **Checked**: Admin entry (no code cause; needs the phone's `admin.whoami`), "(default)" and bug chips already done; app tests now in CI | per-channel colour **deferred** (needs a new channel field and a design choice); R10.3 is backend (Task 8) |
+| A12 Queue layout jumps | **Fixed** | none |
+| A13 Failed list empty with a channel picked | **Not a bug under the rule; made visible** | backend confirmation: Task 8 R11.7 |
+| A14 Brief cut off, long Script preview | **Fixed** | none |
+| A15 Two history sections | **Fixed** | none |
+| A16 Tag form and all-red bar | **Fixed** (tag form kept, shown only when useful) | none |
+
+### Detail per item
 
 | # | Status | Notes |
 |---|---|---|
@@ -93,7 +123,16 @@ R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outc
 
 ## Screenshots
 
-None. Missing: Inbox with more than 8 runs, cost view, Edit settings sheet, voice picker. No phone or emulator was available in this session.
+All **missing**: no phone or emulator was available, so none was taken. Wanted for review:
+
+| Screenshot | Status |
+|---|---|
+| Inbox with more than 8 runs and "Showing N of M runs" | missing |
+| Run screen cost card and a cost-per-attempt expansion | missing (per-attempt needs Task 8 `costBreakdown`) |
+| Edit settings sheet | missing |
+| Voice picker with play buttons | missing (no samples until Task 8 R10 Part B) |
+| Queue under the Failed filter (banner stays put) | missing |
+| Script tab with the approved script and "Original draft" | missing |
 
 ## Tests
 
