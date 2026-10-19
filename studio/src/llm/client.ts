@@ -2,6 +2,7 @@ import { generateText, streamText, APICallError, NoObjectGeneratedError, Output 
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
+import { isTimeoutLike } from './failure-policy';
 import { MODEL_FACTS, resolveModelFacts } from './models';
 import { resolvePricing } from './registry';
 import type { LLMMessage, LLMProvider, LLMRequest, LLMUsage, ProviderCallResult, Reasoning } from './types';
@@ -108,6 +109,45 @@ function usageOf(raw: { inputTokens?: number; outputTokens?: number; outputToken
   };
 }
 
+// R6 - reply part kinds with counts, in the provider's own words mapped to plain ones ('reasoning' -> 'thinking'),
+// for example 'thinking:1,text:0'. text and thinking are always listed so an empty reply reads as text:0.
+export function describeBlocks(parts: ReadonlyArray<{ type: string }> | undefined, fallback: { text: string; reasoningTokens?: number }): string {
+  const counts = new Map<string, number>([['thinking', 0], ['text', 0]]);
+  if (parts) {
+    for (const part of parts) {
+      const kind = part.type === 'reasoning' ? 'thinking' : part.type === 'text' ? 'text' : part.type;
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+  } else {
+    // A structured request that the SDK could not turn into an object returns no parts: infer what we can.
+    counts.set('text', fallback.text.length > 0 ? 1 : 0);
+    counts.set('thinking', (fallback.reasoningTokens ?? 0) > 0 ? 1 : 0);
+  }
+  return [...counts.entries()].map(([kind, count]) => `${kind}:${count}`).join(',');
+}
+
+const KEPT_HEADERS = ['request-id', 'x-request-id', 'retry-after', 'anthropic-ratelimit-requests-remaining', 'anthropic-ratelimit-output-tokens-remaining'];
+
+// R6 - the response metadata kept for a failed call: ids, model, timestamp, a few headers and the provider's own
+// metadata. Never the prompt and never the reply body (the reply is kept separately, capped, by the stage).
+export function responseMetaOf(
+  response: { id?: string; modelId?: string; timestamp?: Date; headers?: Record<string, string> } | undefined,
+  providerMetadata: unknown,
+): Record<string, unknown> {
+  const headers: Record<string, string> = {};
+  for (const key of KEPT_HEADERS) {
+    const value = response?.headers?.[key];
+    if (typeof value === 'string') headers[key] = value;
+  }
+  return {
+    ...(response?.id ? { id: response.id } : {}),
+    ...(response?.modelId ? { modelId: response.modelId } : {}),
+    ...(response?.timestamp ? { timestamp: response.timestamp.toISOString() } : {}),
+    ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    ...(providerMetadata ? { providerMetadata } : {}),
+  };
+}
+
 export async function callProviderModel(params: {
   provider: LLMProvider;
   model: string;
@@ -139,12 +179,15 @@ export async function callProviderModel(params: {
       let streamError: unknown;
       const streamed = streamText({ ...request, onError: ({ error }) => { streamError = error; } });
       try {
-        const [text, rawUsage, finishReason] = await Promise.all([streamed.text, streamed.usage, streamed.finishReason]);
+        const [text, rawUsage, finishReason, finalStep] = await Promise.all([streamed.text, streamed.usage, streamed.finishReason, streamed.finalStep]);
         const usage = usageOf(rawUsage);
         return {
           text,
           usage,
           stopReason: finishReason,
+          rawFinishReason: finalStep.rawFinishReason ?? null,
+          blocks: describeBlocks(finalStep.content, { text, reasoningTokens: usage.reasoningTokens }),
+          responseMeta: responseMetaOf(finalStep.response, finalStep.providerMetadata),
           costUsd: computeCostUsd(params.model, usage.inputTokens, usage.outputTokens),
         };
       } catch (error) {
@@ -160,6 +203,9 @@ export async function callProviderModel(params: {
       text: result.text,
       usage,
       stopReason: result.finishReason,
+      rawFinishReason: result.rawFinishReason ?? null,
+      blocks: describeBlocks(result.content, { text: result.text, reasoningTokens: usage.reasoningTokens }),
+      responseMeta: responseMetaOf(result.response, result.providerMetadata),
       costUsd: computeCostUsd(params.model, usage.inputTokens, usage.outputTokens),
     };
   } catch (error) {
@@ -175,6 +221,9 @@ export async function callProviderModel(params: {
         text: error.text,
         usage,
         stopReason: error.finishReason ?? 'unknown',
+        rawFinishReason: null,
+        blocks: describeBlocks(undefined, { text: error.text, reasoningTokens: usage.reasoningTokens }),
+        responseMeta: responseMetaOf(error.response, undefined),
         costUsd: computeCostUsd(params.model, usage.inputTokens, usage.outputTokens),
       };
     }
@@ -197,6 +246,8 @@ export async function callProviderModel(params: {
       // automatic retry and become manually resumable only if that is spent.
       context.providerErrorMessage = error.message;
       context.providerResponseBody = error.responseBody;
+      // R5: the headers the retry policy reads (retry-after) and R6's evidence keeps.
+      if (error.responseHeaders) context.responseHeaders = error.responseHeaders;
       const detail = `${error.message} ${error.responseBody ?? ""}`.toLowerCase();
       if (
         params.provider === 'anthropic' && error.statusCode === 429 &&
@@ -210,6 +261,10 @@ export async function callProviderModel(params: {
         throw new TransientStageError(`LLM provider call failed (retryable): ${error.message}`, error, context);
       }
       throw new NonTransientStageError(`LLM provider call failed: ${error.message}`, error, context);
+    }
+    // R5: a timeout or a dropped connection that did not arrive as an APICallError is as transient as one that did.
+    if (isTimeoutLike(error)) {
+      throw new TransientStageError(`LLM provider call failed (timeout or network error): ${error instanceof Error ? error.message : String(error)}`, error, context);
     }
     throw new NonTransientStageError('LLM provider call failed with an unrecognized error', error, context);
   }

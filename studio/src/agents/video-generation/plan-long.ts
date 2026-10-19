@@ -3,10 +3,12 @@ import { createHash } from "node:crypto";
 import { MOOD_TAGS } from "../../audio-bed";
 import {
   callLLM,
+  CallLedger,
   describeJsonError,
   extractJsonObjectText,
   LLMCutOffError,
   type LLMResponse,
+  type RetryGuard,
   resolvePurpose,
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
@@ -166,6 +168,7 @@ async function planChapter(params: {
   offset: number; totalCount: number; allAnchors: string[]; fixNotes?: string;
   calls: LLMResponse[]; reusedSceneCount: number; onCall?: (llm: LLMResponse, metadata: LongPlanningCallMetadata) => Promise<void>;
   beforeCall?: () => Promise<void>;
+  retryGuard?: RetryGuard;
 }): Promise<{ scenes: { words: string; prompt: string; purpose: ScenePurpose }[]; audioLayer?: AudioLayer }> {
   const ids = params.anchors.map((_, j) => "scene_" + (params.offset + j));
   const words = params.chapter.text.trim().split(/\s+/);
@@ -188,8 +191,18 @@ async function planChapter(params: {
   ].filter(Boolean).join("\n\n");
   const schema = batchReplySchema(ids);
   let firstFailure: { llm: LLMResponse; parseError: string } | undefined;
+  // One ledger per batch call: the cut-off retry, transient retries and the correction attempt share the ceiling.
+  const ledger = new CallLedger({ guard: params.retryGuard });
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     await params.beforeCall?.();
+    if (attempt > 1 && firstFailure) {
+      // The correction attempt is the bad-reply repair call: it takes its place in the two-extra-calls ceiling.
+      const taken = await ledger.take("video-production-planning", "bad-json");
+      if (!taken.ok) {
+        const reason = taken.why === "budget" ? taken.detail : "the extra-call allowance for this batch was used";
+        throw new PlanningReplyInvalid("Video production planning for chapter " + (params.index + 1) + ' ("' + params.chapter.title + '") was unusable and was not corrected: ' + reason + ": " + firstFailure.parseError, undefined, { ...llmUsageContext(firstFailure.llm), rawReply: firstFailure.llm.text, parseError: firstFailure.parseError, failureKind: "schema_violation" });
+      }
+    }
     const messages = firstFailure ? [
       { role: "user" as const, content: user },
       { role: "assistant" as const, content: firstFailure.llm.text },
@@ -200,7 +213,7 @@ async function planChapter(params: {
     let llm: LLMResponse;
     let cutOffNote: string | undefined;
     try {
-      llm = await callLLM({ purpose: "video-production-planning", system: params.system, messages, outputSchema: schema });
+      llm = await callLLM({ purpose: "video-production-planning", system: params.system, messages, outputSchema: schema, ledger });
     } catch (error) {
       if (!(error instanceof LLMCutOffError)) throw error;
       llm = error.response;
@@ -286,6 +299,7 @@ export async function planLongVideoProduction(params: {
   fixNotes?: string;
   onCall?: (llm: LLMResponse, metadata: LongPlanningCallMetadata) => Promise<void>;
   beforeCall?: () => Promise<void>;
+  retryGuard?: RetryGuard;
   checkpoint?: unknown;
   onCheckpoint?: (checkpoint: LongPlanningCheckpoint) => Promise<void>;
 }): Promise<{ plan: ProductionPlan; calls: LLMResponse[] }> {
@@ -313,7 +327,7 @@ export async function planLongVideoProduction(params: {
           topic: params.topic, chapter: params.chapters[i], index: i,
           chapterCount: params.chapters.length, titles, count, offset,
           totalCount: counts[i], allAnchors: anchors, anchors: anchors.slice(offset, offset + count),
-          fixNotes: params.fixNotes, calls, reusedSceneCount, onCall: params.onCall, beforeCall: params.beforeCall,
+          fixNotes: params.fixNotes, calls, reusedSceneCount, onCall: params.onCall, beforeCall: params.beforeCall, retryGuard: params.retryGuard,
         });
       } catch (error) {
         if (!(error instanceof PlanningOutputExhausted || error instanceof PlanningReplyInvalid) || count === 1) throw error;

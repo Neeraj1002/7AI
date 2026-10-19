@@ -33,6 +33,7 @@ import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError, NonTransientStageError } from './retry-with-backoff';
 import { resolveMediaPurpose, assertSupportedVoice } from '../media';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
+import { makeLlmRetryGuard } from './llm-retry-guard';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failureOutputFromError, failureUsageEvents, llmUsageRows, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
@@ -213,7 +214,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   // stage since Week 1 — undercounting real spend against every budget check.
   const attemptOnce = async (): Promise<IntakeParsed> => {
     try {
-      const { output, llm } = await intakeProcessor(run.briefText);
+      const { output, llm } = await intakeProcessor(run.briefText, makeLlmRetryGuard(run));
       for (const call of llmUsageRows(llm)) {
         await insertUsageEvent({
           tenantId: run.tenantId,
@@ -412,6 +413,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     };
     try {
       const { output, calls } = await generateScript({
+        retryGuard: makeLlmRetryGuard(run),
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
@@ -519,7 +521,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
   // call, including retries, writes its own UsageEvent row.
   const attemptOnce = async (): Promise<ScriptReviewOutput & { evidenceRef?: EvidenceRef }> => {
     try {
-      const { output, llm } = await reviewScript(stageInput);
+      const { output, llm } = await reviewScript({ ...stageInput, retryGuard: makeLlmRetryGuard(run) });
       for (const call of llmUsageRows(llm)) {
         await insertUsageEvent({
           tenantId: run.tenantId,
@@ -1074,6 +1076,7 @@ export async function runVideoGenerationStage(
       await runLimitGuard?.();
       const { plan } = await planLongVideoProduction({
         beforeCall: runLimitGuard,
+        retryGuard: makeLlmRetryGuard(run),
         checkpoint: planningCheckpoint,
         onCheckpoint: async (checkpoint: LongPlanningCheckpoint) => {
           await patchStageOutput(stage.id, { longPlanningCheckpoint: checkpoint });
@@ -1098,10 +1101,14 @@ export async function runVideoGenerationStage(
               pipelineRunId: runId,
               stageId: stage.id,
               agent: 'video-production-planning',
-              metadata: index < rows.length - 1
-                ? { ...metadata, finishReason: 'length', validationOutcome: 'output_token_exhaustion', validationError: 'output cap reached; retried once at a larger limit' }
-                : metadata,
               ...call,
+              // The planner's own call metadata, plus the call's LLM evidence (metadata.llm, R6) from llmUsageRows.
+              metadata: {
+                ...(index < rows.length - 1
+                  ? { ...metadata, finishReason: 'length', validationOutcome: 'output_token_exhaustion', validationError: 'output cap reached; retried once at a larger limit' }
+                  : metadata),
+                ...(call.metadata ?? {}),
+              },
             });
           }
         },
@@ -1110,6 +1117,7 @@ export async function runVideoGenerationStage(
     }
     try {
       const { plan, llm } = await planVideoProduction({
+        retryGuard: makeLlmRetryGuard(run),
         scriptText: sanctionedScriptText,
         topic: run.intakeParsed!.topic,
         fixNotes: fixNotes ?? undefined,
@@ -1495,6 +1503,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
 
   try {
     const outcome = await reviewVideo({
+      retryGuard: makeLlmRetryGuard(run),
       videoPath: videoOutput.videoPath,
       topic: run.intakeParsed.topic,
       scriptText: sanctionedScriptText,
@@ -2010,6 +2019,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
     try {
       const { metadata, llm } = await generatePublishingMetadata({
+        retryGuard: makeLlmRetryGuard(run),
         scriptText: sanctionedScriptText,
         hashtags,
         titleGuidance: config.titleGuidance,

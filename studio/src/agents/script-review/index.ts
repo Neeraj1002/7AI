@@ -4,6 +4,7 @@ import {
   describeJsonError,
   extractJsonText,
   type LLMResponse,
+  type RetryGuard,
 } from "../../llm";
 import { NonTransientStageError } from "../../run-pipeline/retry-with-backoff";
 import { llmUsageContext } from "../../run-pipeline/stage-failure";
@@ -152,6 +153,8 @@ action, generated tracking/drone movement, lip sync and motion-model footage are
 A low score or failed fit checks are still a valid review outcome, not an error. Respond with raw JSON only, no markdown code fences, no commentary.`;
 
 export type ReviewScriptParams = {
+  // LLM Registry task (R5): the stage's budget check, asked before every extra provider call.
+  retryGuard?: RetryGuard;
   scriptText: string;
   captions: string;
   nicheDescription: string;
@@ -231,6 +234,7 @@ export async function reviewScript(
     purpose: "script-review",
     system: (isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT) + evidenceInstruction,
     messages: [{ role: "user", content: buildUserMessage(params) }],
+    retryGuard: params.retryGuard,
   });
 
   let parsedJson: unknown;

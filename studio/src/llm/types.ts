@@ -65,15 +65,45 @@ export type ProviderCallResult = {
   text: string;
   usage: LLMUsage;
   stopReason: string;
+  // LLM Registry task (R6): the provider's own finish reason, unmapped ('max_tokens', 'refusal', ...), the kinds
+  // of reply parts it returned with counts ('thinking:1,text:0'), and the response metadata worth keeping for a
+  // failed call (ids, model, a few headers, provider metadata; never the prompt and never the reply body).
+  rawFinishReason?: string | null;
+  blocks?: string;
+  responseMeta?: Record<string, unknown>;
   // NUMERIC as string, matching UsageEvent.costUsd's DB representation —
   // computed in client.ts from token counts and registry.ts's pricing table,
   // per docs/execution/week2/SCHEMA.md's "Where costUsd comes from" note.
   costUsd: string;
 };
 
+// LLM Registry task (R6): what one provider call used against what it was allowed. Stored on its usage event
+// (usage_events.metadata.llm), carried on a failure's error and shown in the technical line of a message.
+export type LLMCallEvidence = {
+  purpose: Purpose;
+  model: string;
+  // 1-based count of provider calls inside the callLLM that made it (a retry is attempt 2).
+  attempt: number;
+  kind: 'first' | 'cut-off-retry' | 'transient-retry' | 'structured-fallback';
+  limit: number;
+  outputTokens: number;
+  reasoningTokens: number | null;
+  // outputTokens as a percent of the limit, one decimal.
+  percentUsed: number;
+  // True at 60% of the limit or more.
+  nearMiss: boolean;
+  // callLLM's normalized stop reason ('stop', 'length', ...) and the provider's raw one.
+  stopReason: string;
+  finishReason: string | null;
+  blocks: string;
+  // What was sent: 'off', or the reasoning budget.
+  reasoning: 'off' | number;
+};
+
 // One model call that ended at the output limit before the reply that finally came back (LLM Registry
 // task, R2). Each is billed, so each is booked as its own usage event.
 export type LLMPriorAttempt = {
+  evidence?: LLMCallEvidence;
   provider: LLMProvider;
   model: string;
   usage: LLMUsage;
@@ -87,6 +117,11 @@ export type LLMPriorAttempt = {
 // resolved for this purpose, so call sites can write a UsageEvent row without
 // importing registry.ts directly (only index.ts/client.ts may).
 export type LLMResponse = ProviderCallResult & {
+  // R6: set by callLLM on every reply.
+  evidence?: LLMCallEvidence;
+  // R5: true when the provider rejected the structured-output request (400 or 422) and this reply came from
+  // the plain-text fallback. A caller that makes more calls should stop sending the schema too.
+  structuredOutputFallback?: boolean;
   provider: LLMProvider;
   model: string;
   // The output limit of the call that produced this reply (the registry's, or its retry's).

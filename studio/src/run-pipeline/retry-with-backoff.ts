@@ -101,6 +101,12 @@ export async function withRetryAndCircuitBreaker<T>(
         throw error;
       }
       lastError = error;
+      // LLM Registry task (R5): callLLM already retried this transient failure with backoff and its own
+      // ceiling (at most two extra provider calls per stage call); running the stage again would stack a
+      // second round of retries on top, so the breaker trips now.
+      if (error instanceof TransientStageError && error.context?.llmRetriesSpent === true) {
+        throw new CircuitBreakerTrippedError(`Stage attempt failed after ${attempt} attempt${attempt === 1 ? '' : 's'} (the model call was already retried)`, lastError);
+      }
       if (attempt < maxRetries) {
         await sleep(baseDelayMs * 2 ** (attempt - 1));
       }

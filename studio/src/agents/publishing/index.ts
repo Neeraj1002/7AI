@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse, type RetryGuard } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import { getOAuthClient, setThumbnailViaProvider, uploadCaptionsViaProvider, type CaptionsUploadParams } from './youtube-client';
@@ -63,7 +63,7 @@ frame for the cover: a clear visual, not the first or last ~5%.
 Respond with raw JSON only - no markdown code fences, no commentary.`;
 
 export async function generatePublishingMetadata(
-  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long' } & PackagingParams,
+  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long'; retryGuard?: RetryGuard } & PackagingParams,
 ): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {
   const llm = await callLLM({
     purpose: 'metadata-generation',
@@ -71,6 +71,7 @@ export async function generatePublishingMetadata(
     // Sprint 4 Task 5 (R17): packaging guidance is appended only when the channel
     // set it; with none, this is exactly the old message.
     messages: [{ role: 'user', content: buildMetadataUserMessage(params) }],
+    retryGuard: params.retryGuard,
   });
 
   let parsedJson: unknown;
