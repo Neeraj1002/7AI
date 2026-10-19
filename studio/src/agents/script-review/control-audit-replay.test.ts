@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
-import originals from '../../content-evidence/fixtures/sr-pre-gate.json';
+const originals = { evaluationCases: JSON.parse(readFileSync('../docs/execution/sprint5/reports/task6-sonnet-evidence.json','utf8')).fixtureSnapshots as Fixture[] };
 import { buildEvidencePacket } from '../../content-evidence/packet';
-import { reviewScript, type ScriptReviewOutput } from './index';
+import { reviewScript as reviewAuditedScript, type ScriptReviewOutput } from './index';
 import type { LLMResponse } from '../../llm';
 type Fixture={caseId:string;briefText:string;scriptText:string;videoKind:'short'|'long';targetSeconds:number;chapterTitles?:string[];factPolicy:'brief-only'};
 const file='../docs/execution/sprint5/reports/task6-control-audit-evidence.json';
@@ -23,3 +23,6 @@ it('evidence has no credential material, header fields/IDs, account/contact data
   expect(s).not.toMatch(/sk-ant-[a-zA-Z0-9_-]{15,}|Bearer\s+[a-zA-Z0-9_-]{15,}|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|\b(?:\d{1,3}\.){3}\d{1,3}\b/);
  }
 });
+
+// Frozen historical replies predate the private scoreAudit wire field.
+const reviewScript: typeof reviewAuditedScript = (params, complete) => reviewAuditedScript(params, complete, { legacyReplay: true });

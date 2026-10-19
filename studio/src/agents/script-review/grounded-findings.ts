@@ -1,3 +1,4 @@
+import { scenePropStatus } from './scene-props';
 import { numberMentions } from './numbers';
 /** Reject only narrowly provable model-invented requirements; never infer semantic permission. */
 import type { ScriptReviewOutput } from './index';
@@ -35,7 +36,7 @@ export function explicitlyAllowedRhetoric(brief: string, script: string, finding
 export function groundModelFindings(output: ScriptReviewOutput, brief: string, script: string): ScriptReviewOutput {
   const dismissed: string[] = [];
   const filter = (findings: string[]) => findings.filter(f => {
-    const reason = unsupportedDocumentedCoverage(brief, f) ? 'DOCUMENTED is an allowed evidence set, without an explicit all-facts coverage requirement' : explicitlyAllowedRhetoric(brief, script, f) ? 'the brief expressly permits this exact rhetorical line' : null;
+    const reason = scenePropStatus(brief, script, f) === 'listed' ? 'the IMAGINED scene-props line expressly lists this prop' : unsupportedDocumentedCoverage(brief, f) ? 'DOCUMENTED is an allowed evidence set, without an explicit all-facts coverage requirement' : explicitlyAllowedRhetoric(brief, script, f) ? 'the brief expressly permits this exact rhetorical line' : null;
     if (!reason) return true;
     dismissed.push('Reviewer correction (advisory, no new cap): ' + reason + '. Original finding: ' + f);
     return false;

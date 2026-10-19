@@ -1,7 +1,7 @@
 import { expect,it,vi } from 'vitest';
 import fixtures from '../../content-evidence/fixtures/sr-pre-gate.json';
 import { buildEvidencePacket } from '../../content-evidence/packet';
-import { reviewScript } from './index';
+import { reviewScript as reviewAuditedScript } from './index';
 import { checkBrief } from './brief-checks';
 import { reviewRules } from './rules';
 const output={score:9,notes:'Supported within the supplied allowance.',hookScore:8,hookNotes:'Clear.',videoGenFit:{fitsLengthLimit:true,pacingRealistic:true,visualsProducible:true,flags:[]},factualConcerns:[],styleGuideViolations:[]};
@@ -20,3 +20,6 @@ it('names remain hints, but an actual invented-name/quotation finding is capped 
 it.each([false,true])('both prompts distinguish allowed imagination, factual dialogue and modern-term advice (long=%s)',long=>{
  const rules=reviewRules(long);expect(rules).toContain('IMAGINED allowance supports');expect(rules).toContain('invented quotations from real named people');expect(rules).toContain('SR-4 advisory anachronisms');expect(rules).toContain('The allowance never licenses new numbers');
 });
+
+// Frozen historical replies predate the private scoreAudit wire field.
+const reviewScript: typeof reviewAuditedScript = (params, complete) => reviewAuditedScript(params, complete, { legacyReplay: true });

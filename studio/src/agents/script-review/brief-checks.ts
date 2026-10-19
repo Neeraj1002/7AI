@@ -1,4 +1,4 @@
-import { numberMentions, numericVerdicts, sentenceSpans } from './numbers';
+import { numberMentions, numericVerdicts, sentenceSpans, numericSourceText } from './numbers';
 /** Candidate extraction only: no candidate becomes a factual verdict without review. */
 export type BriefHint = { id: string; kind: 'number' | 'name' | 'absolute' | 'hedge' | 'required-term' | 'conversion' | 'detail' | 'arithmetic'; text: string; evidence?: string };
 export type BriefChecks = { hints: BriefHint[]; exactViolations: string[]; supportedNumericValues: number[]; numericViolations: string[] };
@@ -14,7 +14,7 @@ export function checkBrief(brief: string, script: string): BriefChecks {
       hints.push({ id: 'H' + (hints.length + 1), kind, text, ...(evidence && { evidence }) });
   };
   const lowerBrief = brief.toLowerCase();
-  const briefNumbers = new Set(normalizedNumbers(brief));
+  const briefNumbers = new Set(normalizedNumbers(numericSourceText(brief)));
   const numericChecks = numericVerdicts(brief, script);
   for (const text of numericChecks.derivedHints) add('arithmetic', text, 'Derived arithmetic: confirm relationship; no automatic factual verdict.');
   const common = new Set('A An The This That These Those It In At On So But And For As Of To By Today People They He She We You There What How When Why From With'.split(' '));

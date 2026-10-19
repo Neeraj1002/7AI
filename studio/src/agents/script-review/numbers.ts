@@ -63,7 +63,9 @@ function derived(n:NumberMention,source:NumberMention[],sentence:string):boolean
   const values=[...new Set(source.map(m=>m.value))].filter(v=>v>0&&v<1e9).slice(0,50);
   return values.some(a=>values.some(b=>[a+b,a-b,a*b,a/b].some(v=>Math.abs(v-n.value)<1e-8)));
 }
+export function numericSourceText(brief:string):string { return brief.replace(/^SCENE PROPS:[^\r\n]*(?:\r?\n|$)/gmi,''); }
 export function numericVerdicts(brief:string,script:string):{violations:string[];derivedHints:string[]}{
+  brief=numericSourceText(brief);
   const source=numberMentions(brief),candidates=numberMentions(script),violations:string[]=[],derivedHints:string[]=[];
   const sourceSpans=sentenceSpans(brief),scriptSpans=sentenceSpans(script);
   for(const n of candidates){

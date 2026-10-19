@@ -10,7 +10,7 @@ const packet = buildEvidencePacket({ briefText: 'The date may be 1812, according
   factPolicy: 'brief-only', sources: ['https://example.test/unfetched'] });
 const response = (text: string) => ({ text, usage: { inputTokens: 20, outputTokens: 20 },
   stopReason: 'stop', costUsd: '0.000001', provider: 'anthropic', model: 'mock' });
-const review = JSON.stringify({ score: 8, notes: 'ok', hookScore: 8, hookNotes: 'ok',
+const review = JSON.stringify({ scoreAudit: {rubricScore:8,deductions:[]}, score: 8, notes: 'ok', hookScore: 8, hookNotes: 'ok',
   videoGenFit: { fitsLengthLimit: true, pacingRealistic: true, visualsProducible: true, flags: [] },
   factualConcerns: [], styleGuideViolations: [] });
 beforeEach(() => mocks.callLLM.mockReset());

@@ -367,3 +367,8 @@ The prompt explicitly prohibits lowering scores for SR-3/4/5 or mandated openers
 - **Remaining**: founder decisions on the proposed original-control corrections/boundaries, plus reviewer control acceptance (especially Appendix A below-threshold scoring). Seven supplementary reviews from the stopped old run remain unattempted; no paid calls were silently added to complete them. **NOT READY.**
 
 Final local verification: **1,171 tests passed, 9 skipped** across 145 test files; focused reviewer/LLM **196 passed**. Typecheck, build and lint passed. The original fixtures/proposed candidates/raw historical replay bytes remain unchanged; task6.md matches main whole. Evidence privacy and ledger tests pass; no scores or provider replies were edited.
+
+
+## Founder-approved corrections and D2 implementation, in progress
+
+Founder authorised (A) both Lego control length corrections, now 240 words each; (B) Appendix A elevator sentence changed to "Owners pushed automatic elevators."; (C) explicit IMAGINED SCENE PROPS policy in both D4 controls, listing stone/stone weights/balance, with unlisted incidental props soft SR-9 capped at 8. The five approved fixtures changed; immutable historical raw snapshots remain. New internal required scoreAudit records a rubric grade and rule-linked deductions; code excludes SR-3/4/5 and applies factual/brief caps, without a fixed passing floor or public output-shape change. Legacy raw replay mode is explicit and confined to historical tests. Policy cap numbers are excluded from factual numeric support. Focused free tests: 226 passed. No paid calls yet under the new $0.60 authorization. Integrating main Part A before final checks/run. PR remains draft.

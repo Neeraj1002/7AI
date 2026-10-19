@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const mocks=vi.hoisted(()=>({callLLM:vi.fn()}));vi.mock('../../llm',async orig=>({...await orig<object>(),callLLM:mocks.callLLM}));
-import { reviewScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_MAX_TOKENS, SCRIPT_REVIEW_RETRY_MAX_TOKENS } from './index';
+import { reviewScript as reviewAuditedScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_MAX_TOKENS, SCRIPT_REVIEW_RETRY_MAX_TOKENS, ScriptReviewWireSchema } from './index';
 import { getStageErrorContext } from '../../run-pipeline/retry-with-backoff';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
 import replays from '../../content-evidence/fixtures/sr-offline-replays.json';
@@ -24,7 +24,7 @@ it('applies new numeric verdicts even when a saved/model output says clean',asyn
 it.each(['length','max_tokens'])('rejects even parseable clean JSON on stop %s, then retries once',async reason=>{
  mocks.callLLM.mockResolvedValueOnce(call(JSON.stringify(clean()),reason)).mockResolvedValueOnce(call(JSON.stringify(clean())));
  const r=await reviewScript(params);expect(mocks.callLLM).toHaveBeenCalledTimes(2);expect(r.calls).toHaveLength(2);expect(r.llm.costUsd).toBe('0.000600');
- expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(SCRIPT_REVIEW_MAX_TOKENS.short);expect(mocks.callLLM.mock.calls[1][0].maxTokens).toBe(SCRIPT_REVIEW_RETRY_MAX_TOKENS.short);expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBe(ScriptReviewOutputSchema);
+ expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(SCRIPT_REVIEW_MAX_TOKENS.short);expect(mocks.callLLM.mock.calls[1][0].maxTokens).toBe(SCRIPT_REVIEW_RETRY_MAX_TOKENS.short);expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBe(ScriptReviewWireSchema);
 });
 it('invalid JSON twice fails closed, retains raw replies/reason/usage, and never returns a score',async()=>{
  mocks.callLLM.mockResolvedValue(call('{"score":10,"notes":"cut off','length'));
@@ -41,7 +41,8 @@ it('does not dismiss explicitly required numeric spelling',async()=>{
 });
 
 import comparison from '../../content-evidence/fixtures/sr-comparison-results.json';
-import evaluationFixtures from '../../content-evidence/fixtures/sr-pre-gate.json';
+import { readFileSync } from 'node:fs';
+const evaluationFixtures = { evaluationCases: JSON.parse(readFileSync('../docs/execution/sprint5/reports/task6-sonnet-evidence.json','utf8')).fixtureSnapshots as {caseId:string;briefText:string;scriptText:string;videoKind:string;targetSeconds:number;chapterTitles?:string[];factPolicy:string}[] };
 import { buildEvidencePacket } from '../../content-evidence/packet';
 import type { LLMResponse } from '../../llm';
 it.each(comparison.round.calls.filter(c=>c.response))('replays actual $model / $caseId / $repeat with no provider call',async recorded=>{
@@ -54,3 +55,6 @@ it.each(comparison.round.calls.filter(c=>c.response))('replays actual $model / $
  if(['clean-short','appendix-A-clean'].includes(c.caseId)){expect(r.output.factualConcerns).toEqual([]);expect(r.output.styleGuideViolations).toEqual([]);}
  if(c.caseId==='SR-case-4')expect(r.output.factualConcerns.join(' ')).not.toContain('matching brief number carries an approximation/limit hedge');
 });
+
+// Frozen historical replies predate the private scoreAudit wire field.
+const reviewScript: typeof reviewAuditedScript = (params, complete) => reviewAuditedScript(params, complete, { legacyReplay: true });

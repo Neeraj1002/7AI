@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import replays from '../../content-evidence/fixtures/sr-sonnet-round3-replays.json';
 import { explicitlyAllowedRhetoric, groundModelFindings, unsupportedDocumentedCoverage } from './grounded-findings';
-import { reviewScript, ScriptReviewOutputSchema } from './index';
+import { reviewScript as reviewAuditedScript, ScriptReviewOutputSchema } from './index';
 import { buildEvidencePacket } from '../../content-evidence/packet';
 const d4 = replays.cases.find(c => c.caseId === 'd4-imagined-clean')!.fixture;
 const omission = replays.cases.find(c => c.caseId === 'd4-imagined-clean' && c.repeat === 2)!.output.styleGuideViolations[0];
@@ -34,3 +34,6 @@ it('a corrected optional omission cannot hide an invented number',async()=>{
  const r=await reviewScript({scriptText:f.scriptText,captions:'',nicheDescription:'history',evidence:buildEvidencePacket({briefText:f.briefText,factPolicy:'brief-only'})},complete);
  expect(r.output.score).toBe(6);expect(r.output.factualConcerns.join(' ')).toContain('777');expect(r.output.styleGuideViolations).toEqual([]);
 });
+
+// Frozen historical replies predate the private scoreAudit wire field.
+const reviewScript: typeof reviewAuditedScript = (params, complete) => reviewAuditedScript(params, complete, { legacyReplay: true });

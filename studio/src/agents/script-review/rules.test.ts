@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async orig => ({ ...await orig<object>(), callLLM: mocks.callLLM }));
-import { buildUserMessage, reviewScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD, MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS, SCRIPT_REVIEW_MAX_TOKENS } from './index';
+import { buildUserMessage, reviewScript as reviewAuditedScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD, MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS, SCRIPT_REVIEW_MAX_TOKENS } from './index';
 import { calibrateReview, reviewRules, scriptRetryFeedback } from './rules';
 import { checkBrief, normalizedNumbers } from './brief-checks';
 import { buildEvidencePacket } from '../../content-evidence/packet';
@@ -83,3 +83,6 @@ describe('SR enforcement without a stored shape change', () => {
     for (const item of [...output.factualConcerns, ...output.styleGuideViolations]) expect(feedback).toContain(item);
   });
 });
+
+// Frozen historical replies predate the private scoreAudit wire field.
+const reviewScript: typeof reviewAuditedScript = (params, complete) => reviewAuditedScript(params, complete, { legacyReplay: true });

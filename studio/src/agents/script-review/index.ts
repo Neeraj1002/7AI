@@ -1,3 +1,5 @@
+import { ScoreAuditSchema, scoreWithoutAdvisories, type ScoreAudit } from './score-audit';
+import { scenePropStatus } from './scene-props';
 import { groundModelFindings } from './grounded-findings';
 import { numberFormattingEquivalent } from './numbers';
 import { checkBrief } from './brief-checks';
@@ -65,6 +67,8 @@ export const ScriptReviewOutputSchema = z.object({
     .array(z.object({ chapterTitle: z.string(), note: z.string() }))
     .optional(),
 });
+export const ScriptReviewWireSchema = ScriptReviewOutputSchema.extend({ scoreAudit: ScoreAuditSchema });
+const LegacyReviewWireSchema = ScriptReviewWireSchema.partial({ scoreAudit: true });
 export type ScriptReviewOutput = z.infer<typeof ScriptReviewOutputSchema>;
 
 export type ScriptReviewResult = {
@@ -77,7 +81,7 @@ export const SYSTEM_PROMPT = `You review a short-form vertical video script (You
 before it goes to production. Respond with ONLY a JSON object of the shape:
 {"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[]}
 
-"score" is 0-10, scoring quality, engagement, clarity, and brand alignment together.
+"score" is 0-10 for factual accuracy, explicit brief compliance and the eligible rubric. SR-3 filler/repetition, SR-4 spoken clarity, and SR-5 pronunciation never lower it. Judge hook/brand/structure only for issues outside those excluded categories; brief-mandated wording takes precedence.
 "notes" explains the score — what works, what doesn't, in a few sentences.
 
 "hookScore" is a SEPARATE 0-10 score judging ONLY the first 1-2 seconds of narration — a script can
@@ -120,10 +124,7 @@ export const LONG_FORM_SYSTEM_PROMPT = `You review a long-form (2 to 15 minute, 
 written in chapters, before it goes into cinematic video production. Respond with ONLY a JSON object of the shape:
 {"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[], "chapterNotes": [{"chapterTitle": string, "note": string}]}
 
-"score" is 0-10, scoring narrative quality, tension, structure, and premium brand alignment together. Judge:
-- Chapter flow: does each chapter open with active historical conflict or a turning point rather than a boring question? Does the text build momentum without repeating ideas?
-- Open loops: every mysterious historical question or promise raised early must be closed logically by a later chapter to drive audience retention. List loops left completely open or resolved too early.
-- Closing line: does the video end on a lingering, provocative thought or cliffhanger pointing forward, avoiding generic sign-offs or summaries?
+"score" is 0-10 for factual accuracy, explicit brief compliance and the eligible long-form rubric. Evaluate chapter order, unclosed promises, inconsistent narrative causality and brand alignment. Preserve the brief's mandated openings, questions and ending. Repetition/filler (SR-3), spoken awkwardness (SR-4), pronunciation (SR-5), and their synonyms are advisory, never score deductions or reasons to lower the rubric grade. Do not require more scene, tension or a different ending where doing so penalises those excluded categories or contradicts the brief.
 "notes" explains the score in a few sentences.
 
 "hookScore" is a SEPARATE 0-10 score judging ONLY the cold open (the first 50-100 words of narration):
@@ -223,6 +224,7 @@ export const SCRIPT_REVIEW_RETRY_MAX_TOKENS = { short: 8192, long: 12288 } as co
 export async function reviewScript(
   params: ReviewScriptParams,
   complete: typeof callLLM = callLLM,
+  options: { legacyReplay?: true } = {},
 ): Promise<ScriptReviewResult> {
   if (params.evidence) validateEvidenceArguments(params.evidence, params);
   const isLong = params.videoKind === "long";
@@ -240,10 +242,10 @@ export async function reviewScript(
     try {
       llm = await complete({ purpose: 'script-review', system,
         messages: attempt === 0 ? messages : [...messages, { role: 'assistant', content: calls[0].text.slice(0, 16000) },
-          { role: 'user', content: 'The previous reply was incomplete or invalid JSON/schema. Return the COMPLETE schema-conforming review. A truncated or unparsable reply cannot be scored or treated as clean. Do not change the factual assessment just to fit the format.' }],
+          { role: 'user', content: 'The previous reply was incomplete or invalid JSON/schema/score audit. Return the COMPLETE schema-conforming review, including a consistent scoreAudit. A truncated or unparsable reply cannot be scored or treated as clean. Do not change the factual assessment just to fit the format.' }],
         maxTokens: attempt === 0 ? (isLong ? SCRIPT_REVIEW_MAX_TOKENS.long : SCRIPT_REVIEW_MAX_TOKENS.short)
           : (isLong ? SCRIPT_REVIEW_RETRY_MAX_TOKENS.long : SCRIPT_REVIEW_RETRY_MAX_TOKENS.short),
-        outputSchema: ScriptReviewOutputSchema });
+        outputSchema: ScriptReviewWireSchema });
     } catch (error) {
       if (!calls.length) throw error;
       const context = { ...getStageErrorContext(error), ...llmCallsContext(calls), rawReply: calls.at(-1)!.text };
@@ -252,9 +254,12 @@ export async function reviewScript(
     }
     calls.push(llm);
     let output: ScriptReviewOutput;
+    let audit: ScoreAudit | undefined;
     try {
       if (llm.stopReason === 'length' || llm.stopReason === 'max_tokens') throw new Error('output token limit reached; response incomplete');
-      output = ScriptReviewOutputSchema.parse(JSON.parse(extractJsonText(llm.text)));
+      const wire = (options.legacyReplay ? LegacyReviewWireSchema : ScriptReviewWireSchema).parse(JSON.parse(extractJsonText(llm.text)));
+      audit = wire.scoreAudit;
+      output = ScriptReviewOutputSchema.parse(wire);
     } catch (error) { lastFailure = error; continue; }
       const brief = params.evidence?.briefText ?? params.briefText;
       const checks = brief ? checkBrief(brief, params.scriptText) : null;
@@ -265,7 +270,10 @@ export async function reviewScript(
         /\b(spelled|numerals?|digits?|numeric form)\b/i.test(text) && numberFormattingEquivalent(brief!, params.scriptText, text)));
       const formatted = { ...output, styleGuideViolations };
       const corrected = brief ? groundModelFindings(formatted, brief, params.scriptText) : formatted;
-      const calibrated = calibrateReview(corrected, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], isLong || params.evidence?.factPolicy === 'brief-only');
+      const softProp = (finding: string) => Boolean(brief && scenePropStatus(brief, params.scriptText, finding) === 'soft');
+      let scored: ScriptReviewOutput;
+      try { scored = audit ? scoreWithoutAdvisories(output, corrected, audit, softProp) : corrected; } catch (error) { lastFailure = error; continue; }
+      const calibrated = calibrateReview(scored, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], isLong || params.evidence?.factPolicy === 'brief-only', softProp);
       return { output: calibrated, llm, ...(calls.length > 1 ? { calls } : {}) };
   }
   const last = calls.at(-1)!;
