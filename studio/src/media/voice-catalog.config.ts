@@ -6,8 +6,8 @@
 // unique, an enabled entry must name a voice OpenAI offers, and a direction only goes with the newer model; a bad
 // enabled entry throws at startup, so a bad edit is found on boot and never after money is spent.
 //
-// To add a voice: add an entry here, run `npx tsx scripts/generate-voice-previews.ts --upload`, then paste the
-// printed `previews` block into the entry. To retire one, set `enabled: false` (stored settings keep working).
+// To add a voice: add an entry here and run `npx tsx scripts/generate-voice-previews.ts --upload --only <id>`; the
+// preview keys follow the id (`voice-previews/<id>/sad.mp3` and `hopeful.mp3`), so nothing needs pasting. To retire one, set `enabled: false` (stored settings keep working).
 
 export type VoiceCatalogEntry = {
   id: string;
@@ -29,6 +29,8 @@ const OPENAI_LICENCE =
 const DOCUMENTARY =
   'Calm documentary narrator, human pauses, heavier on loss, lifting at recovery.';
 
+const previewKeys = (id: string) => ({ sad: `voice-previews/${id}/sad.mp3`, hopeful: `voice-previews/${id}/hopeful.mp3` });
+
 const v = (
   id: string,
   displayName: string,
@@ -43,7 +45,8 @@ const v = (
   defaultDirection: extra.defaultDirection ?? null,
   licenceNote: OPENAI_LICENCE,
   enabled: true,
-  previews: null,
+  // Generated and uploaded 19 Oct 2026 by scripts/generate-voice-previews.ts (keys are fixed by voice id).
+  previews: previewKeys(id),
 });
 
 export const VOICE_CATALOG: VoiceCatalogEntry[] = [

@@ -26,10 +26,11 @@ describe('options.list voices', () => {
     expect(ballad.licenceNote.length).toBeGreaterThan(0);
   });
 
-  it('signs the two preview links when generated, null otherwise or without storage', async () => {
+  it('signs the two preview links of every voice, null without storage', async () => {
     const { voices } = await caller().list();
     expect(voices.find((v) => v.key === 'coral')!.previews).toEqual({ sad: 'https://signed.example/voice-previews/coral/sad.mp3', hopeful: 'https://signed.example/voice-previews/coral/hopeful.mp3' });
-    expect(voices.find((v) => v.key === 'alloy')!.previews).toBeNull();
+    // every catalog voice has its two previews (uploaded 19 Oct 2026)
+    expect(voices.every((v) => v.previews?.sad.includes(`voice-previews/${v.key}/sad.mp3`))).toBe(true);
     r2.configured = false;
     expect((await caller().list()).voices.find((v) => v.key === 'coral')!.previews).toBeNull();
     r2.configured = true;
