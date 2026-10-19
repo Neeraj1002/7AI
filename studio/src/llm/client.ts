@@ -2,7 +2,7 @@ import { generateText, streamText, APICallError, NoObjectGeneratedError, Output 
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
-import { resolveModelFacts } from './models';
+import { MODEL_FACTS, resolveModelFacts } from './models';
 import { resolvePricing } from './registry';
 import type { LLMMessage, LLMProvider, LLMRequest, LLMUsage, ProviderCallResult, Reasoning } from './types';
 
@@ -14,10 +14,29 @@ import type { LLMMessage, LLMProvider, LLMRequest, LLMUsage, ProviderCallResult,
 // Swapping the underlying library means rewriting this one file, no call site
 // changes.
 
+// Claude Sonnet 5.5 rejects `thinking: { type: "disabled" }` and takes `{ type: "between_tools" }` as its
+// lowest setting. The installed @ai-sdk/anthropic only knows adaptive / enabled / disabled, so the request
+// is built as `disabled` and rewritten on the wire for the models whose facts say so (llm/models.ts).
+export function rewriteThinkingBody(body: unknown): unknown {
+  if (typeof body !== 'string') return body;
+  try {
+    const parsed = JSON.parse(body) as { model?: string; thinking?: { type?: string } };
+    if (parsed.thinking?.type === 'disabled' && parsed.model && MODEL_FACTS[parsed.model]?.thinking === 'adaptive-between-tools') {
+      return JSON.stringify({ ...parsed, thinking: { type: 'between_tools' } });
+    }
+  } catch {
+    // Not JSON: leave it exactly as the SDK built it.
+  }
+  return body;
+}
+
 let anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
 function getAnthropicProvider() {
   if (!anthropicProvider) {
-    anthropicProvider = createAnthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    anthropicProvider = createAnthropic({
+      apiKey: env.ANTHROPIC_API_KEY,
+      fetch: (input, init) => fetch(input, init ? { ...init, body: rewriteThinkingBody(init.body) as typeof init.body } : init),
+    });
   }
   return anthropicProvider;
 }
@@ -70,13 +89,8 @@ function toModelMessages(messages: LLMMessage[]) {
 function buildThinking(model: string, reasoning: Reasoning) {
   const facts = resolveModelFacts(model);
   if (reasoning === 'off') {
-    if (facts.thinking === 'adaptive-between-tools') {
-      // The provider rejects `disabled` here and wants `between_tools`, which the installed
-      // @ai-sdk/anthropic cannot send. Fail before the call instead of paying for default reasoning.
-      throw new NonTransientStageError(
-        `${model} can only be run without up-front reasoning with thinking type 'between_tools', which the installed @ai-sdk/anthropic cannot send. Upgrade the SDK (or send it through the client) before moving a purpose to this model.`,
-      );
-    }
+    // Sent as `disabled` for every model; rewriteThinkingBody turns it into `between_tools` where the
+    // model requires that (Claude Sonnet 5.5 rejects `disabled`).
     return { type: 'disabled' as const };
   }
   if (facts.thinking !== 'extended') {

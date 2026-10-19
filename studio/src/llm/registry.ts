@@ -147,6 +147,9 @@ export type PricingEntry = {
 
 export const MODEL_PRICING: Record<string, PricingEntry> = {
   "claude-sonnet-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
+  // $2 / $10 per MTok, platform.claude.com/docs/en/models/overview, 2026-10-19. No purpose uses it on this
+  // branch; the row lets a purpose move to it (and the real check call it) without a pricing error.
+  "claude-sonnet-5-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
   "claude-haiku-4-5": { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
 };
 

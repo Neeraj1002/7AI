@@ -7,7 +7,7 @@ vi.mock('../config/env', () => ({ env: { ANTHROPIC_API_KEY: 'test-key' } }));
 
 import { APICallError, NoObjectGeneratedError } from 'ai';
 import { getStageErrorContext, TransientStageError } from '../run-pipeline/retry-with-backoff';
-import { callProviderModel } from './client';
+import { callProviderModel, rewriteThinkingBody } from './client';
 
 const schema = z.object({ scriptText: z.string().min(1) });
 const base = {
@@ -92,9 +92,16 @@ describe('callProviderModel: reasoning setting, reasoning tokens, streaming', ()
     expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
-  it('refuses reasoning off on a model the installed SDK cannot switch off, before any call', async () => {
-    await expect(callProviderModel({ ...base, model: 'claude-sonnet-5-5' })).rejects.toThrow(/between_tools/);
-    expect(mocks.generateText).not.toHaveBeenCalled();
+  it('sends reasoning off as disabled for a model that takes disabled, and rewrites it to between_tools on the wire for Sonnet 5.5', () => {
+    const body = (model: string) => JSON.stringify({ model, max_tokens: 100, thinking: { type: 'disabled' } });
+    expect(rewriteThinkingBody(body('claude-sonnet-5'))).toBe(body('claude-sonnet-5'));
+    expect(rewriteThinkingBody(body('claude-haiku-4-5'))).toBe(body('claude-haiku-4-5'));
+    expect(JSON.parse(rewriteThinkingBody(body('claude-sonnet-5-5')) as string)).toEqual({ model: 'claude-sonnet-5-5', max_tokens: 100, thinking: { type: 'between_tools' } });
+    // anything else passes through untouched
+    expect(rewriteThinkingBody('not json')).toBe('not json');
+    expect(rewriteThinkingBody(undefined)).toBeUndefined();
+    const adaptive = JSON.stringify({ model: 'claude-sonnet-5-5', thinking: { type: 'adaptive' } });
+    expect(rewriteThinkingBody(adaptive)).toBe(adaptive);
   });
 
   it('reads the reasoning tokens from the usage details', async () => {
