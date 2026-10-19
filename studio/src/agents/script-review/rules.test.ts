@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async orig => ({ ...await orig<object>(), callLLM: mocks.callLLM }));
-import { buildUserMessage, reviewScript as reviewAuditedScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD, MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS, SCRIPT_REVIEW_MAX_TOKENS } from './index';
+import { buildUserMessage, reviewScript as reviewAuditedScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD, MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS } from './index';
 import { calibrateReview, reviewRules, scriptRetryFeedback } from './rules';
 import { checkBrief, normalizedNumbers } from './brief-checks';
 import { buildEvidencePacket } from '../../content-evidence/packet';
@@ -67,7 +67,7 @@ describe('SR enforcement without a stored shape change', () => {
     expect(reviewRules(isLong).includes('2.5 seconds')).toBe(!isLong);
     expect(call.system).not.toContain('based on what you already know');
     expect(call.system).toContain('A pass is represented by []');
-    expect(call.purpose).toBe('script-review'); expect(call.maxTokens).toBe(isLong ? SCRIPT_REVIEW_MAX_TOKENS.long : SCRIPT_REVIEW_MAX_TOKENS.short);
+    expect(call.purpose).toBe('script-review'); expect(call).not.toHaveProperty('maxTokens');
     if (isLong) { expect(call.system).toContain('within 20%'); expect(call.system).toContain('chapterNotes'); }
   });
   it('keeps candidate content escaped as data and uses the same packet, without URL fetching', () => {

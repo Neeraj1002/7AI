@@ -19,7 +19,7 @@ async function main(){
  const keyFile=process.argv[process.argv.indexOf('--key-env-file')+1];if(process.argv.includes('--key-env-file'))process.env.ANTHROPIC_API_KEY=dotenv.parse(readFileSync(keyFile)).ANTHROPIC_API_KEY;
  if(!process.env.ANTHROPIC_API_KEY)throw new Error('Existing credential unavailable');
  const {reviewScript}=await import('../src/agents/script-review');const {buildEvidencePacket}=await import('../src/content-evidence/packet');
- const {callScriptReviewForEvaluation,resolvePricing}=await import('../src/llm');
+ const {callScriptReviewForEvaluation,resolvePricing,resolvePurpose}=await import('../src/llm');
  const fixtures=JSON.parse(readFileSync('src/content-evidence/fixtures/sr-pre-gate.json','utf8')).evaluationCases as {caseId:string;briefText:string;scriptText:string;videoKind:'short'|'long';targetSeconds:number;chapterTitles?:string[];factPolicy:'brief-only'|'brief-plus-common'}[];
  const directory='data/task6-evaluation';mkdirSync(directory,{recursive:true});const file=directory+'/comparison-round.json',lock=file+'.lock';const fd=openSync(lock,'wx');
  try{
@@ -38,10 +38,10 @@ async function main(){
    try{
     const result=await reviewScript({scriptText:c.scriptText,captions:'',nicheDescription:'Historical stories',videoKind:c.videoKind,targetSeconds:c.targetSeconds,chapterTitles:c.chapterTitles,evidence},async req=>{
      const body=JSON.stringify({system:req.system,messages:req.messages});const bytes=Buffer.byteLength(body)+16384;
-     let reservedUsd:number;try{reservedUsd=callReservation(charged(),bytes,req.maxTokens,resolvePricing(model));}catch(error){stopped=true;throw error;}
+     let reservedUsd:number;try{reservedUsd=callReservation(charged(),bytes,resolvePurpose('script-review').maxOutputTokens,resolvePricing(model));}catch(error){stopped=true;throw error;}
      const attempt=ledger.calls.filter(x=>x.model===model&&x.caseId===c.caseId&&x.repeat===repeat).length+1;if(attempt>2)throw new Error('More than one format retry prohibited');
-     const call:Call={model,caseId:c.caseId,repeat,attempt,maxTokens:req.maxTokens,reservedUsd,status:'reserved',requestHash:createHash('sha256').update(body).digest('hex')};ledger.calls.push(call);save();
-     try{const response=await callScriptReviewForEvaluation(req,model);call.response=response;call.status='metered';save();return response;}catch(error){call.status='unmetered-failure';call.failure=reviewFailureEvidence(error,model,req.maxTokens);call.error=error instanceof Error?error.name:'UnknownError';save();throw error;}
+     const call:Call={model,caseId:c.caseId,repeat,attempt,maxTokens:resolvePurpose('script-review').maxOutputTokens,reservedUsd,status:'reserved',requestHash:createHash('sha256').update(body).digest('hex')};ledger.calls.push(call);save();
+     try{const response=await callScriptReviewForEvaluation(req,model);call.response=response;call.status='metered';save();return response;}catch(error){call.status='unmetered-failure';call.failure=reviewFailureEvidence(error,model,resolvePurpose('script-review').maxOutputTokens);call.error=error instanceof Error?error.name:'UnknownError';save();throw error;}
     });row.output=result.output;row.status='complete';save();console.log(model+' '+c.caseId+' '+repeat+'/3 score='+row.output.score+' campaign USD '+charged().toFixed(6));
    }catch(error){row.status='failed';row.error=error instanceof Error?error.name:'UnknownError';save();console.log(model+' '+c.caseId+' '+repeat+'/3 failed; campaign USD '+charged().toFixed(6));
     if(stopped||ledger.calls.some(x=>x.model===model&&x.status==='unmetered-failure'))break modelLoop;

@@ -35,7 +35,7 @@ import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTripped
 import { resolveMediaPurpose, assertSupportedVoice } from '../media';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
-import { failureOutputFromError, failureUsageEvents, failureUsageFields, type FailureUsageFields } from './stage-failure';
+import { failureOutputFromError, failureUsageEvents, llmUsageRows, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { evidenceRef, factualBaseline, type EvidenceRef } from '../content-evidence/packet';
 import { generationEvidenceSnapshot, reviewEvidenceSnapshot } from '../content-evidence/stage-snapshot';
@@ -215,28 +215,28 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   const attemptOnce = async (): Promise<IntakeParsed> => {
     try {
       const { output, llm } = await intakeProcessor(run.briefText);
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'intake',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      for (const call of llmUsageRows(llm)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'intake',
+          ...call,
+        });
+      }
       return output;
     } catch (error) {
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'intake',
-        ...failureUsageFields(error),
-      });
+      for (const spent of failureUsageEvents(error)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'intake',
+          ...spent,
+        });
+      }
       throw error;
     }
   };
@@ -427,15 +427,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         ...(stageInput.sources !== undefined && { sources: stageInput.sources }),
         ...(config.videoKind === 'long' && { videoKind: 'long' as const }),
       });
-      await bookCalls(
-        calls.map((llm) => ({
-          provider: llm.provider,
-          model: llm.model,
-          inputTokens: llm.usage.inputTokens,
-          outputTokens: llm.usage.outputTokens,
-          costUsd: llm.costUsd,
-        })),
-      );
+      await bookCalls(calls.flatMap(llmUsageRows));
       return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
     } catch (error) {
       await bookCalls(failureUsageEvents(error));
@@ -529,7 +521,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
   const attemptOnce = async (): Promise<ScriptReviewOutput & { evidenceRef?: EvidenceRef }> => {
     try {
       const { output, llm, calls } = await reviewScript(stageInput);
-      for (const reviewedCall of calls ?? [llm]) await insertUsageEvent({
+      for (const reviewedCall of (calls ?? [llm]).flatMap(llmUsageRows)) await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
         pipelineRunId: runId,
@@ -537,8 +529,8 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
         agent: 'script-review',
         provider: reviewedCall.provider,
         model: reviewedCall.model,
-        inputTokens: reviewedCall.usage.inputTokens,
-        outputTokens: reviewedCall.usage.outputTokens,
+        inputTokens: reviewedCall.inputTokens,
+        outputTokens: reviewedCall.outputTokens,
         costUsd: reviewedCall.costUsd,
       });
       return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
@@ -1097,19 +1089,22 @@ export async function runVideoGenerationStage(
         scriptGuide: config.scriptGuide,
         fixNotes: fixNotes ?? undefined,
         onCall: async (llm, metadata) => {
-          await insertUsageEvent({
-            tenantId: run.tenantId,
-            channelId: run.channelId,
-            pipelineRunId: runId,
-            stageId: stage.id,
-            agent: 'video-production-planning',
-            metadata,
-            provider: llm.provider,
-            model: llm.model,
-            inputTokens: llm.usage.inputTokens,
-            outputTokens: llm.usage.outputTokens,
-            costUsd: llm.costUsd,
-          });
+          // An automatic cut-off retry inside callLLM is two billed calls: the cut-off ones first, each
+          // marked as such, then the reply this metadata describes.
+          const rows = llmUsageRows(llm);
+          for (const [index, call] of rows.entries()) {
+            await insertUsageEvent({
+              tenantId: run.tenantId,
+              channelId: run.channelId,
+              pipelineRunId: runId,
+              stageId: stage.id,
+              agent: 'video-production-planning',
+              metadata: index < rows.length - 1
+                ? { ...metadata, finishReason: 'length', validationOutcome: 'output_token_exhaustion', validationError: 'output cap reached; retried once at a larger limit' }
+                : metadata,
+              ...call,
+            });
+          }
         },
       });
       return plan;
@@ -1143,28 +1138,28 @@ export async function runVideoGenerationStage(
         // Sprint 4 Task 3 (R10): only when the profile sets secondsPerStill.
         desiredStillCount: computeDesiredStillCount(config.targetSeconds, config.visualSecondsPerStill),
       });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'video-production-planning',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      for (const call of llmUsageRows(llm)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'video-production-planning',
+          ...call,
+        });
+      }
       return plan;
     } catch (error) {
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'video-production-planning',
-        ...failureUsageFields(error),
-      });
+      for (const spent of failureUsageEvents(error)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'video-production-planning',
+          ...spent,
+        });
+      }
       throw error;
     }
   };
@@ -1528,18 +1523,16 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // A UsageEvent row only when the multimodal pass actually ran — a
     // deterministic-only fail has no LLM cost to meter.
     if (outcome.multimodalRan && outcome.llm) {
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'video-intelligence-own-draft',
-        provider: outcome.llm.provider,
-        model: outcome.llm.model,
-        inputTokens: outcome.llm.usage.inputTokens,
-        outputTokens: outcome.llm.usage.outputTokens,
-        costUsd: outcome.llm.costUsd,
-      });
+      for (const call of llmUsageRows(outcome.llm)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'video-intelligence-own-draft',
+          ...call,
+        });
+      }
     }
 
     // Sprint 3 Task 9 (R2) — only the passing verdict is affected; the regen
@@ -1672,8 +1665,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // Bugs Task 11 (R2) — a multimodal pass whose reply was rejected after the
     // call completed still cost real money; the success path above is the only
     // place this stage wrote a UsageEvent, so that spend was never booked.
-    const spent = failureUsageFields(error);
-    if (spent.provider !== 'unknown') {
+    for (const spent of failureUsageEvents(error)) {
+      if (spent.provider === 'unknown') continue;
       await insertUsageEvent({
         tenantId: run.tenantId,
         channelId: run.channelId,
@@ -2028,28 +2021,28 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
         sources: run.creationOptions?.sources,
         ...(isLongForm && { videoKind: 'long' as const }),
       });
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'metadata-generation',
-        provider: llm.provider,
-        model: llm.model,
-        inputTokens: llm.usage.inputTokens,
-        outputTokens: llm.usage.outputTokens,
-        costUsd: llm.costUsd,
-      });
+      for (const call of llmUsageRows(llm)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'metadata-generation',
+          ...call,
+        });
+      }
       return metadata;
     } catch (error) {
-      await insertUsageEvent({
-        tenantId: run.tenantId,
-        channelId: run.channelId,
-        pipelineRunId: runId,
-        stageId: stage.id,
-        agent: 'metadata-generation',
-        ...failureUsageFields(error),
-      });
+      for (const spent of failureUsageEvents(error)) {
+        await insertUsageEvent({
+          tenantId: run.tenantId,
+          channelId: run.channelId,
+          pipelineRunId: runId,
+          stageId: stage.id,
+          agent: 'metadata-generation',
+          ...spent,
+        });
+      }
       throw error;
     }
   };

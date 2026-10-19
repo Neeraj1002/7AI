@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const mocks=vi.hoisted(()=>({callLLM:vi.fn()}));vi.mock('../../llm',async orig=>({...await orig<object>(),callLLM:mocks.callLLM}));
-import { reviewScript as reviewAuditedScript, ScriptReviewOutputSchema, SCRIPT_REVIEW_MAX_TOKENS, SCRIPT_REVIEW_RETRY_MAX_TOKENS, ScriptReviewWireSchema } from './index';
+import { reviewScript as reviewAuditedScript, ScriptReviewWireSchema } from './index';
 import { getStageErrorContext } from '../../run-pipeline/retry-with-backoff';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
 import replays from '../../content-evidence/fixtures/sr-offline-replays.json';
@@ -24,7 +24,7 @@ it('applies new numeric verdicts even when a saved/model output says clean',asyn
 it.each(['length','max_tokens'])('rejects even parseable clean JSON on stop %s, then retries once',async reason=>{
  mocks.callLLM.mockResolvedValueOnce(call(JSON.stringify(clean()),reason)).mockResolvedValueOnce(call(JSON.stringify(clean())));
  const r=await reviewScript(params);expect(mocks.callLLM).toHaveBeenCalledTimes(2);expect(r.calls).toHaveLength(2);expect(r.llm.costUsd).toBe('0.000600');
- expect(mocks.callLLM.mock.calls[0][0].maxTokens).toBe(SCRIPT_REVIEW_MAX_TOKENS.short);expect(mocks.callLLM.mock.calls[1][0].maxTokens).toBe(SCRIPT_REVIEW_RETRY_MAX_TOKENS.short);expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBe(ScriptReviewWireSchema);
+ expect(mocks.callLLM.mock.calls[0][0]).not.toHaveProperty('maxTokens');expect(mocks.callLLM.mock.calls[1][0]).not.toHaveProperty('maxTokens');expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBe(ScriptReviewWireSchema);
 });
 it('invalid JSON twice fails closed, retains raw replies/reason/usage, and never returns a score',async()=>{
  mocks.callLLM.mockResolvedValue(call('{"score":10,"notes":"cut off','length'));

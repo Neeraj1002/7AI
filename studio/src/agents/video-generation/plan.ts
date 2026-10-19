@@ -275,8 +275,6 @@ export async function planVideoProduction(params: {
       params.desiredStillCount ?? estimateStillCount(params.scriptText),
     ),
     messages: [{ role: 'user', content: `Topic: ${params.topic}\nScript: ${params.scriptText}\n\n${attemptContext}` }],
-    // Up to 20 scene prompts or 8 stock queries, plus the rest of the plan.
-    maxTokens: 2048,
   });
 
   let parsedJson: unknown;

@@ -218,8 +218,6 @@ export function buildUserMessage(params: ReviewScriptParams): string {
   return lines.join("\n\n");
 }
 
-export const SCRIPT_REVIEW_MAX_TOKENS = { short: 4096, long: 8192 } as const;
-export const SCRIPT_REVIEW_RETRY_MAX_TOKENS = { short: 8192, long: 12288 } as const;
 
 export async function reviewScript(
   params: ReviewScriptParams,
@@ -243,12 +241,12 @@ export async function reviewScript(
       llm = await complete({ purpose: 'script-review', system,
         messages: attempt === 0 ? messages : [...messages, { role: 'assistant', content: calls[0].text.slice(0, 16000) },
           { role: 'user', content: 'The previous reply was incomplete or invalid JSON/schema/score audit. Return the COMPLETE schema-conforming review, including a consistent scoreAudit. A truncated or unparsable reply cannot be scored or treated as clean. Do not change the factual assessment just to fit the format.' }],
-        maxTokens: attempt === 0 ? (isLong ? SCRIPT_REVIEW_MAX_TOKENS.long : SCRIPT_REVIEW_MAX_TOKENS.short)
-          : (isLong ? SCRIPT_REVIEW_RETRY_MAX_TOKENS.long : SCRIPT_REVIEW_RETRY_MAX_TOKENS.short),
         outputSchema: ScriptReviewWireSchema });
     } catch (error) {
       if (!calls.length) throw error;
-      const context = { ...getStageErrorContext(error), ...llmCallsContext(calls), rawReply: calls.at(-1)!.text };
+      const failedContext = getStageErrorContext(error);
+      const completedCalls = llmCallsContext(calls).calls as unknown[];
+      const context = { ...failedContext, calls: [...completedCalls, ...(Array.isArray(failedContext?.calls) ? failedContext.calls : [])], rawReply: calls.at(-1)!.text };
       if (error instanceof TransientStageError) throw new TransientStageError(error.message, error, context);
       throw new NonTransientStageError('Script Review retry call failed', error, context);
     }

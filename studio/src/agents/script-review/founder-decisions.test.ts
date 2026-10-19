@@ -1,3 +1,4 @@
+import { failureUsageEvents } from '../../run-pipeline/stage-failure';
 import { expect,it,vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import fixtures from '../../content-evidence/fixtures/sr-pre-gate.json';
@@ -9,7 +10,7 @@ import { scenePropStatus } from './scene-props';
 import { scoreWithoutAdvisories } from './score-audit';
 import type { LLMResponse } from '../../llm';
 const clean={score:4,notes:'SR-3: repetitive. SR-4: awkward. SR-5: pronunciation.',hookScore:7,hookNotes:'Direct.',videoGenFit:{fitsLengthLimit:true,pacingRealistic:true,visualsProducible:true,flags:[]},factualConcerns:[] as string[],styleGuideViolations:[] as string[]};
-const response=(o:unknown):LLMResponse=>({text:JSON.stringify(o),stopReason:'stop',provider:'anthropic',model:'claude-sonnet-5-5',usage:{inputTokens:100,outputTokens:100},costUsd:'0.001200'});
+const response=(o:unknown):LLMResponse=>({text:JSON.stringify(o),stopReason:'stop',provider:'anthropic',model:'claude-sonnet-5-5',usage:{inputTokens:100,outputTokens:100},costUsd:'0.001200',maxOutputTokens:16000});
 const c=fixtures.evaluationCases.find(c=>c.caseId==='d4-imagined-clean')!;
 const params={scriptText:c.scriptText,captions:'',nicheDescription:'History',evidence:buildEvidencePacket({briefText:c.briefText,factPolicy:'brief-only'})};
 const audit={rubricScore:9,deductions:[{rule:'SR-3' as const,points:3,finding:'repetitive'},{rule:'SR-4' as const,points:1,finding:'awkward'},{rule:'SR-5' as const,points:1,finding:'pronunciation'}]};
@@ -43,4 +44,10 @@ it('applies only the five founder-approved fixture corrections; historical snaps
  const changed=fixtures.evaluationCases.filter(c=>JSON.stringify(c)!==JSON.stringify(old.find(o=>o.caseId===c.caseId))).map(c=>c.caseId).sort();expect(changed).toEqual(['appendix-A-clean','d4-imagined-clean','d4-sensory-speech-clean','lego-facts-control','lego-rhetoric-control'].sort());
  for(const id of ['lego-facts-control','lego-rhetoric-control']){const c=fixtures.evaluationCases.find(c=>c.caseId===id)!;expect(c.scriptText.trim().split(/\s+/)).toHaveLength(240);expect(checkBrief(c.briefText,c.scriptText).numericViolations).toEqual([]);expect(checkBrief(c.briefText,c.scriptText).exactViolations).toEqual([]);}
  const a=fixtures.evaluationCases.find(c=>c.caseId==='appendix-A-clean')!;expect(a.scriptText).not.toContain('the answer from owners');expect(a.scriptText).toContain('Owners pushed automatic elevators.');expect(checkBrief(a.briefText,a.scriptText).exactViolations).toEqual([]);
+});
+
+it('books all native attempts behind both format replies when parsing finally fails',async()=>{
+ const prior={provider:'anthropic' as const,model:'claude-sonnet-5-5',usage:{inputTokens:20,outputTokens:10},costUsd:'0.000140',stopReason:'length',maxOutputTokens:16000,replyLength:0};
+ const complete=vi.fn().mockResolvedValue({...response({not:'a review'}),priorAttempts:[prior]});
+ try{await reviewScript(params,complete);expect.fail('Must fail closed');}catch(error){expect(complete).toHaveBeenCalledTimes(2);expect(failureUsageEvents(error)).toHaveLength(4);expect(failureUsageEvents(error).map(u=>u.costUsd)).toEqual(['0.000140','0.001200','0.000140','0.001200']);}
 });

@@ -1,9 +1,10 @@
-import { generateText, APICallError, NoObjectGeneratedError, Output } from 'ai';
+import { generateText, streamText, APICallError, NoObjectGeneratedError, Output } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
+import { MODEL_FACTS, resolveModelFacts } from './models';
 import { resolvePricing } from './registry';
-import type { LLMMessage, LLMProvider, LLMRequest, ProviderCallResult } from './types';
+import type { LLMMessage, LLMProvider, LLMRequest, LLMUsage, ProviderCallResult, Reasoning } from './types';
 
 // The only file allowed to import Vercel AI SDK or a provider SDK — see
 // docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md. Everything this
@@ -13,10 +14,29 @@ import type { LLMMessage, LLMProvider, LLMRequest, ProviderCallResult } from './
 // Swapping the underlying library means rewriting this one file, no call site
 // changes.
 
+// Claude Sonnet 5.5 rejects `thinking: { type: "disabled" }` and takes `{ type: "between_tools" }` as its
+// lowest setting. The installed @ai-sdk/anthropic only knows adaptive / enabled / disabled, so the request
+// is built as `disabled` and rewritten on the wire for the models whose facts say so (llm/models.ts).
+export function rewriteThinkingBody(body: unknown): unknown {
+  if (typeof body !== 'string') return body;
+  try {
+    const parsed = JSON.parse(body) as { model?: string; thinking?: { type?: string } };
+    if (parsed.thinking?.type === 'disabled' && parsed.model && MODEL_FACTS[parsed.model]?.thinking === 'adaptive-between-tools') {
+      return JSON.stringify({ ...parsed, thinking: { type: 'between_tools' } });
+    }
+  } catch {
+    // Not JSON: leave it exactly as the SDK built it.
+  }
+  return body;
+}
+
 let anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
 function getAnthropicProvider() {
   if (!anthropicProvider) {
-    anthropicProvider = createAnthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    anthropicProvider = createAnthropic({
+      apiKey: env.ANTHROPIC_API_KEY,
+      fetch: (input, init) => fetch(input, init ? { ...init, body: rewriteThinkingBody(init.body) as typeof init.body } : init),
+    });
   }
   return anthropicProvider;
 }
@@ -64,37 +84,83 @@ function toModelMessages(messages: LLMMessage[]) {
   });
 }
 
+// LLM Registry task (R1): the thinking setting is always sent, never left to the provider's default
+// (Claude Sonnet 5 reasons by default and the reasoning counts against the output limit).
+function buildThinking(model: string, reasoning: Reasoning) {
+  const facts = resolveModelFacts(model);
+  if (reasoning === 'off') {
+    // Sent as `disabled` for every model; rewriteThinkingBody turns it into `between_tools` where the
+    // model requires that (Claude Sonnet 5.5 rejects `disabled`).
+    return { type: 'disabled' as const };
+  }
+  if (facts.thinking !== 'extended') {
+    throw new NonTransientStageError(`${model} rejects a manual reasoning budget; it reasons adaptively.`);
+  }
+  return { type: 'enabled' as const, budgetTokens: reasoning.budgetTokens };
+}
+
+function usageOf(raw: { inputTokens?: number; outputTokens?: number; outputTokenDetails?: { reasoningTokens?: number } } | undefined): LLMUsage {
+  const reasoningTokens = raw?.outputTokenDetails?.reasoningTokens;
+  return {
+    inputTokens: raw?.inputTokens ?? 0,
+    outputTokens: raw?.outputTokens ?? 0,
+    ...(typeof reasoningTokens === 'number' ? { reasoningTokens } : {}),
+  };
+}
+
 export async function callProviderModel(params: {
   provider: LLMProvider;
   model: string;
   system: string;
   messages: LLMMessage[];
-  maxTokens: number;
+  maxOutputTokens: number;
+  reasoning: Reasoning;
+  // The retry at a large limit streams, as the provider documents for requests above ~21k output tokens.
+  stream?: boolean;
   outputSchema?: LLMRequest['outputSchema'];
 }): Promise<ProviderCallResult> {
+  // Built before the try so its refusal is not re-wrapped as an unrecognized provider error.
+  const thinking = buildThinking(params.model, params.reasoning);
   try {
-    const result = await generateText({
+    const request = {
       model: resolveModel(params.provider, params.model),
       system: params.system,
       messages: toModelMessages(params.messages),
-      maxOutputTokens: params.maxTokens,
+      maxOutputTokens: params.maxOutputTokens,
       maxRetries: 0, // The stage wrapper owns bounded retries and capacity stops.
+      providerOptions: { anthropic: { thinking } },
       // Bugs Task 11 (R3) — schema-constrained decoding where the provider supports
       // it for this model (the SDK moves constraints the provider's schema
       // dialect lacks, e.g. minLength, into the schema description).
       ...(params.outputSchema ? { output: Output.object({ schema: params.outputSchema }) } : {}),
-    });
+    };
 
-    const inputTokens = result.usage.inputTokens ?? 0;
-    const outputTokens = result.usage.outputTokens ?? 0;
+    if (params.stream) {
+      let streamError: unknown;
+      const streamed = streamText({ ...request, onError: ({ error }) => { streamError = error; } });
+      try {
+        const [text, rawUsage, finishReason] = await Promise.all([streamed.text, streamed.usage, streamed.finishReason]);
+        const usage = usageOf(rawUsage);
+        return {
+          text,
+          usage,
+          stopReason: finishReason,
+          costUsd: computeCostUsd(params.model, usage.inputTokens, usage.outputTokens),
+        };
+      } catch (error) {
+        throw streamError ?? error;
+      }
+    }
+
+    const result = await generateText(request);
+
+    const usage = usageOf(result.usage);
 
     return {
       text: result.text,
-      usage: { inputTokens, outputTokens, ...(result.usage.outputTokenDetails?.reasoningTokens !== undefined ? { reasoningTokens: result.usage.outputTokenDetails.reasoningTokens } : {}) },
+      usage,
       stopReason: result.finishReason,
-      ...(result.response?.modelId ? { responseModel: result.response.modelId } : {}),
-      ...(result.rawFinishReason ? { rawStopReason: result.rawFinishReason } : {}),
-      costUsd: computeCostUsd(params.model, inputTokens, outputTokens),
+      costUsd: computeCostUsd(params.model, usage.inputTokens, usage.outputTokens),
     };
   } catch (error) {
     // Bugs Task 11 (R3) — with an output schema the SDK itself parses the reply and
@@ -104,14 +170,12 @@ export async function callProviderModel(params: {
     // retry and usage accounting then handle it like any other unusable reply,
     // instead of the real usage being lost inside an error.
     if (params.outputSchema && NoObjectGeneratedError.isInstance(error) && typeof error.text === 'string' && error.usage) {
-      const inputTokens = error.usage.inputTokens ?? 0;
-      const outputTokens = error.usage.outputTokens ?? 0;
+      const usage = usageOf(error.usage);
       return {
         text: error.text,
-        usage: { inputTokens, outputTokens, ...(error.usage.outputTokenDetails?.reasoningTokens !== undefined ? { reasoningTokens: error.usage.outputTokenDetails.reasoningTokens } : {}) },
+        usage,
         stopReason: error.finishReason ?? 'unknown',
-        ...(error.response?.modelId ? { responseModel: error.response.modelId } : {}),
-        costUsd: computeCostUsd(params.model, inputTokens, outputTokens),
+        costUsd: computeCostUsd(params.model, usage.inputTokens, usage.outputTokens),
       };
     }
     // Attach provider/model so a caller that needs to write a UsageEvent row
