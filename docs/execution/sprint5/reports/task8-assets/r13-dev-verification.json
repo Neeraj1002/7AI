@@ -127,5 +127,179 @@
   "runIds": [
     "bdb04c47-49cc-4e18-9a3b-d5cdcf7c4912",
     "e1637f42-a391-445f-b097-b05c335c4389"
-  ]
+  ],
+  "A_continuation": {
+    "spentBeforeUsd": 0.3616,
+    "ceilingUsd": 0.75,
+    "call": {
+      "changes": [
+        {
+          "label": "Max spend",
+          "from": "$0.50",
+          "to": "$0.75"
+        }
+      ],
+      "statusReturned": "running"
+    },
+    "final": {
+      "status": "needs_attention",
+      "stage": "publishing",
+      "lastError": "Stopped before spending anything: This channel is not connected to YouTube. Connect it in Channel settings, then tap Retry.",
+      "spentUsd": 0.5865,
+      "maxCostUsd": 0.75,
+      "settingsChanges": [
+        {
+          "at": "2026-10-19T10:58:42.373Z",
+          "by": {
+            "name": "Neeraj",
+            "userId": "00000000-0000-0000-0000-0000000000f1"
+          },
+          "changes": [
+            {
+              "to": "inspirational",
+              "from": "calm",
+              "label": "Music"
+            },
+            {
+              "to": "$0.50",
+              "from": "$0.12",
+              "label": "Max spend"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-19T13:59:09.708Z",
+          "by": {
+            "name": null,
+            "userId": null
+          },
+          "changes": [
+            {
+              "to": "$0.75",
+              "from": "$0.50",
+              "label": "Max spend"
+            }
+          ]
+        }
+      ],
+      "videoAttempts": [
+        {
+          "attempt": 1,
+          "outcome": "failed_review",
+          "reasonCode": "shot_length",
+          "costUsd": 0.3103
+        },
+        {
+          "attempt": 2,
+          "outcome": "completed",
+          "costUsd": 0.2249
+        }
+      ],
+      "cost": {
+        "spentUsd": 0.5865,
+        "limitUsd": 0.75,
+        "attemptsUsd": 0.5352,
+        "otherStagesUsd": 0.0513,
+        "unattributedUsd": 0
+      },
+      "publishingPrivacy": null,
+      "stageOutcomes": [
+        "intake#1:completed",
+        "script_generation#1:completed",
+        "script_review#1:completed",
+        "gate1#1:completed",
+        "video_generation#1:completed",
+        "video_review#1:failed_review",
+        "video_generation#2:completed",
+        "video_review#2:completed",
+        "gate2#1:completed"
+      ],
+      "longestShotInReview": 6.74
+    }
+  },
+  "A_continuation_2": {
+    "spentBeforeUsd": 0.5865,
+    "ceilingUsd": 0.75,
+    "call": {
+      "changes": [],
+      "statusReturned": "running"
+    },
+    "final": {
+      "status": "completed",
+      "stage": null,
+      "lastError": null,
+      "spentUsd": 0.5881,
+      "maxCostUsd": 0.75,
+      "settingsChanges": [
+        {
+          "at": "2026-10-19T10:58:42.373Z",
+          "by": {
+            "name": "Neeraj",
+            "userId": "00000000-0000-0000-0000-0000000000f1"
+          },
+          "changes": [
+            {
+              "to": "inspirational",
+              "from": "calm",
+              "label": "Music"
+            },
+            {
+              "to": "$0.50",
+              "from": "$0.12",
+              "label": "Max spend"
+            }
+          ]
+        },
+        {
+          "at": "2026-10-19T13:59:09.708Z",
+          "by": {
+            "name": null,
+            "userId": null
+          },
+          "changes": [
+            {
+              "to": "$0.75",
+              "from": "$0.50",
+              "label": "Max spend"
+            }
+          ]
+        }
+      ],
+      "videoAttempts": [
+        {
+          "attempt": 1,
+          "outcome": "failed_review",
+          "reasonCode": "shot_length",
+          "costUsd": 0.3103
+        },
+        {
+          "attempt": 2,
+          "outcome": "completed",
+          "costUsd": 0.2249
+        }
+      ],
+      "cost": {
+        "spentUsd": 0.5881,
+        "limitUsd": 0.75,
+        "attemptsUsd": 0.5352,
+        "otherStagesUsd": 0.0529,
+        "unattributedUsd": 0
+      },
+      "publishingPrivacy": "private",
+      "stageOutcomes": [
+        "intake#1:completed",
+        "script_generation#1:completed",
+        "script_review#1:completed",
+        "gate1#1:completed",
+        "video_generation#1:completed",
+        "video_review#1:failed_review",
+        "video_generation#2:completed",
+        "video_review#2:completed",
+        "gate2#1:completed",
+        "publishing#1:completed",
+        "analytics#1:completed"
+      ],
+      "longestShotInReview": 6.74
+    }
+  }
 }

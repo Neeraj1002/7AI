@@ -2,7 +2,7 @@
 
 **Branch** `SPRINT5_TASK8_BE`, worktree `D:\Study Material\7AI-SPRINT5\task8`, draft PR [#107](https://github.com/Neeraj1002/7AI/pull/107) for all four groups (R1-R13). Written 2026-10-19.
 
-**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,066 tests pass, 65 skipped as before); **not merged, not deployed**; the R13 real check ran on a scratch database but did **not** reach a finished run (it found and I fixed three defects; finishing it needs about $0.35 more than your $0.50 ceiling, see "R13 real check").
+**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,066 tests pass, 65 skipped as before); **not merged, not deployed**; the R13 real check ran on a scratch database and **finished a run** (stopped, changed through `runs.updateSettings` with `retry: true`, completed; total $0.5881 against your $0.75 ceiling); it found and I fixed three defects along the way (see "R13 real check").
 
 Three separate statements, as the task asks:
 - **Code-complete:** yes for R1 to R13 (R10 Part B built after your confirmation; its section lists what is not done), with the exceptions under Deviations.
@@ -17,7 +17,7 @@ Three separate statements, as the task asks:
 |---|---|---|---|
 | R1 | Voice valid for its model | Done and verified | #104's mapping (reused); live calls on all 13 voices in its report; preflight check unit-tested and probed live |
 | R2 | Preflight before spend | Done and verified | 20 unit tests; live: the Anthropic probe reported "credit balance too low" on 19 Oct; in the R13 run it stopped a run at intake on a spend limit and another on an invalid voice, both "Nothing was spent". Found and fixed in the R13 run: it priced a regeneration as a new video |
-| R3 | A review failure must not rebuild the video | Done, partly verified | Plan check, timing repair and "0 picture calls" proven by a real-FFmpeg replay with stub pictures. The real run (19 Oct) failed review at 10.4 s although the plan's longest scene was 6.4 s: cut detection cannot see a cut between look-alike stills. Fixed (the gate now reads the rendered scene lengths), unit-tested; **not yet re-run live to a finish** (see R13 check) |
+| R3 | A review failure must not rebuild the video | Done and verified | Plan check, timing repair and "0 picture calls" proven by a real-FFmpeg replay with stub pictures. The real run failed review at 10.4 s although the plan's longest scene was 6.4 s: cut detection cannot see a cut between look-alike stills. Fixed (the gate reads the rendered scene lengths); the live re-run passed review with a longest shot of 6.74 s. Note: that re-run made the pictures again because my cleanup had removed the cache (not a design fault) |
 | R4 | Provider errors are not defects | Done and verified (tests), live trigger unverified | Review-limit tests (video and pictures untouched, retry reviews the same file); the out-of-credit answer is classified. A provider limit during a real review was not triggered |
 | R5 | Honest attempt status | Done and verified | Tests; live: `runs.get` of the real run shows `failed_review` with the reason code and per-attempt cost |
 | R6 | No logos or invented text | Done and verified, one gap | Real pictures: 7 of 16 with readable text or brand names before, 0 of 16 after (by eye). The picture check ran live in the R13 run (5 vision calls, $0.0166 for 27 pictures; 3 pictures were made again). Contradiction counting was not measured |
@@ -27,9 +27,9 @@ Three separate statements, as the task asks:
 | R10 | Voice samples and catalog | Done and verified | Part A samples made live; Part B catalog on #104's mapping, previews for 15 voices uploaded to R2 and two fetched (200, audio/mpeg) |
 | R11 | Carry-overs | Done, unverified live | Unit tests for each. Not reproducible or not fixable here: the quality-spec test (passes), the thumbnail 403 (needs YouTube). The title/description check is a copy until Task 6 merges |
 | R12 | Runs list | Done, unverified on a real database | Tests over a stand-in for Prisma (75 runs, 160 notification rows); backend cause of the Inbox limit identified by reading code |
-| R13 | `runs.updateSettings` | Done, **not verified to a finish** | 33 unit and router tests; real check on a scratch database stopped short of a finished run (below) |
+| R13 | `runs.updateSettings` | Done and verified | 33 unit and router tests; real check on a scratch database: a stopped run changed with `retry: true`, run to `completed`, history shown by `runs.get` (below). Publishing with a per-run visibility other than private was not driven live (Gate 2 was off, so private only); that rule is unit-tested |
 
-Not started: nothing. Still open for the founder: finish the R13 live check (needs about $0.35 more, see below), Part B previews are done, and the items listed under Deviations.
+Not started: nothing. Still open for the founder: the items listed under Deviations, and the shared dev database still needs `main`'s two migrations before anyone runs the pipeline there.
 
 ## R13 real check (item 8), what was run
 
@@ -45,7 +45,9 @@ Not started: nothing. Still open for the founder: finish the R13 live check (nee
 7. **Defect found:** the automatic regeneration was then stopped by preflight at $0.36 of the $0.50 limit, because preflight priced a regeneration as a whole new video although the pictures and narration are cached. Fixed (a run with a finished attempt is priced for planning only), tested.
 8. A second run with a stale invalid voice stopped before spending anything; `runs.updateSettings({ voice: 'coral' })` fixed it without a retry; the history shows "Voice: robot to Coral"; the run was then cancelled.
 
-**Not done:** the first run did not finish. It had spent **$0.3616** of the $0.50 ceiling; its caches were removed by my cleanup before I knew it would need them (the script now keeps them for an unfinished run), so a continuation pays for narration and pictures again: about $0.25 to $0.35, which would pass the ceiling. I stopped there. The channel is archived; the scratch database and its two runs are still there for a continuation. To finish: raise the ceiling to about $0.75, or say drop it.
+9. **Continuation (ceiling raised to $0.75 by you).** The same run was continued with `runs.updateSettings({ maxCostUsd: 0.75, retry: true })` (history line 2, "Max spend $0.50 to $0.75"). The Retry went back to video generation: attempt 2 planned again, paid for narration and pictures again (the cleanup had removed the caches), rendered 123.3 s, and **Video Review passed it (longest shot 6.74 s)**. Gate 2 was auto-approved, then publishing's preflight stopped the run: "This channel is not connected to YouTube". That was my own cleanup (it had removed the throwaway credential), found by the real preflight. I put the credential back and Retried with **no settings change** (`retry: true` alone, an empty `changes`), and the run went through publishing (YouTube stubbed, visibility private) and analytics to **completed**.
+10. **Final state, from `runs.get`:** status completed; spent **$0.5881** of the $0.75 ceiling; `videoAttempts`: attempt 1 `failed_review` (reason code `shot_length`, $0.3103), attempt 2 `completed` ($0.2249); `settingsChanges` has the two entries with their changes (the first by the user, the second by the ops path, so `by` is `{ userId: null, name: null }`); cost parts add up (`attemptsUsd + otherStagesUsd + unattributedUsd = spentUsd`); every stage row has its outcome. Models actually used: `claude-sonnet-5-5` for the script and the planner, `claude-haiku-4-5` for intake, review and the picture check, `gpt-image-2.5-flare-2026-09-08` for pictures, `tts-1-hd` and `whisper-1` for narration.
+11. **Cleanup:** the throwaway channel is archived and its credential removed, the run's work files are removed, and the scratch database is dropped. The shared dev database was not touched. Total live spend of the check: $0.5881.
 
 ## Hard rules 5 to 7 (this PR)
 
