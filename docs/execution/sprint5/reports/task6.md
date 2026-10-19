@@ -1,6 +1,8 @@
 # Sprint 5 Task 6: Script Review SR-1 to SR-9
 
-Implementation prepared; R5 acceptance failed on SPRINT5_TASK6_BE, own worktree D:\Study Material\7AI-SPRINT5\task6. Fresh main baseline 6852fa5. Task 4 #94 and Sprint 4 long-form review #93 are merged. Owner workflow: combined Sprint 4-5 acceptance after Task 5; no Sprint 4 closure or live-upload hold. No merge/deployment performed.
+**Current Round 3 preparation (2026-10-19): NOT READY. Branch `SPRINT5_TASK6_BE`; worktree `D:\Study Material\7AI-SPRINT5\task6`; [PR #105](https://github.com/Neeraj1002/7AI/pull/105), draft. Main `2c2e19c1a03d7715c4cba588a424a67cdf608c26` integrated. Both review lengths are now configured to Sonnet 5.5; paid continuation is held for the two sanitized failure records selected by the owner.**
+
+Historical initial baseline: implementation prepared; R5 acceptance failed on SPRINT5_TASK6_BE, own worktree D:\Study Material\7AI-SPRINT5\task6. Fresh main baseline 6852fa5. Task 4 #94 and Sprint 4 long-form review #93 are merged. Owner workflow: combined Sprint 4-5 acceptance after Task 5; no Sprint 4 closure or live-upload hold. No merge/deployment performed.
 
 The R0-R5 sections below preserve the initial 2026-10-18 implementation and four-round history. The 2026-10-19 owner revision at the end supersedes candidate-only numeric handling and the original token caps.
 
@@ -167,3 +169,58 @@ Means cover successful reviews only; failed calls are not treated as free and ar
 - Merge/deploy: not performed. Following eventual approved merge/deploy, owner checks Gate 1 readback during the combined Sprint 4-5 acceptance pass after Task 5.
 
 Founder status: **NOT READY - [PR #105](https://github.com/Neeraj1002/7AI/pull/105) remains draft; offline checks pass, reviewer acceptance incomplete/failed.**
+
+## Round 3: failure evidence, Sonnet configuration and control preparation
+
+### What can and cannot be established before spending
+
+The two Round 2 failures occurred inside the provider-call wrapper before it returned an LLMResponse. The old harness retained only NonTransientStageError and the requested model/limit. It discarded the HTTP status, error body/type, request ID, stop reason and token usage. Those details cannot be reconstructed from a class name or the cost reservation. **Neither cut-off, workspace limit nor overload has been established.** The 53 successful calls ending with end_turn do not establish the cause of the two failures. There have been **zero new paid calls in Round 3**.
+
+| Failed request | Requested model | Configured output limit (not tokens used) | HTTP / stopReason / actual tokens | Conservative unresolved charge |
+| --- | --- | --- | --- | --- |
+| Original historical failure | Haiku 4.5 | Not retained here | Unknown | $0.031893 |
+| Round 2 Appendix A invented-details, repeat 3 | claude-haiku-4-5 | 8192 | All unknown | $0.088256 |
+| Round 2 clean-short, repeat 1 | claude-sonnet-5-5 | 4096 | All unknown | $0.099242 |
+| Total | | | | **$0.219391** |
+
+These amounts are maximum input/output reservations recorded before each request, not measured invoices and not proof that the calls were billed that amount. They remain fully charged until returned usage or billing evidence reconciles them. Known metered total remains **$1.780191**; conservative total **$1.999582/$3**; remaining conservative allowance **$1.000418**. Nothing is reset or written off. The owner selected providing sanitized failure records; none were included in that selection. The missing records were requested again. The explicit before-spending evidence prerequisite remains open.
+
+### Narrow implementation and offline preparation
+
+The central typed registry now maps the script-review purpose to **claude-sonnet-5-5**, covering Shorts and long-form through the existing purpose resolution. No model is selected in the agent or by video length. Haiku's SR-1/4/5/7/8 misses justify the switch under D3 and the owner's Round 3 direction. Pricing is already present. This is branch configuration, not a deployment.
+
+Because no cut-off has been established, the conditional larger-limit/reasoning-off change is **not asserted or applied**. Existing reviewer caps and its bounded format retry remain. LLM Registry Part A owns the general registry-limit/reasoning/retry solution; this task does not implement it. If the missing evidence establishes cut-off, the narrow reviewer-purpose configuration must be completed and checked before paid continuation.
+
+Reviewer-evaluation-only failure diagnostics now preserve sanitized HTTP status, stop reason, actual input/output/reasoning counts when available, request ID and evidence-based category. They distinguish an unknown failure from a verified length stop, provider credit limit, workspace limit, overload or throttling without retaining keys, headers, response bodies or raw exception messages. Focused tests exercise redaction and prevent unknown usage from becoming zero. This does not introduce a shared LLM retry/failure policy. The archived Round 2 paid runner is explicitly disabled after archive, preventing a fresh checkout from restarting with its obsolete $0.937710 baseline.
+
+The prompt now honors explicit DOCUMENTED/INFERRED/COMMENTARY-ONLY/IMAGINED boundaries. Allowed first-person thoughts, senses, gestures and properly tagged everyday speech by unnamed people are supported by the allowance. Numbers, names, dates, prices, factual speech and invented real-person quotations remain subject to factual review; modern terms alone are advisory. Imagined framing never exempts a new number from the code verdict. No blanket deterministic suppression of model concerns is added.
+
+Eight clearly labelled synthetic fixtures add two Lego clean controls, two excerpt-based negative Lego scripts, and two D4 families (each allowed version plus an invented-number/factual-quote variant). The full historical Lego drafts and founder-edited 273-word script were unavailable; these fixtures are reconstructed from the architect's allowed facts and quoted passages, **not claimed as recovered original scripts**. Existing 53 raw replies continue to replay offline. Unit tests confirm code-level numeric/exact checks leave allowed controls uncapped, invented 777 still caps at 6 even with a falsely clean completion, and name/quotation findings remain model findings under brief-only. Mocked outcomes are not real-model acceptance.
+
+### Per-control Round 3 result and continuation order
+
+| Control | Configured/requested model | Round 3 actual score | Round 3 actual flags |
+| --- | --- | --- | --- |
+| clean-short | claude-sonnet-5-5 | Not run; prior repeat 1 failed | Unknown |
+| Lego facts control (synthetic) | claude-sonnet-5-5 | Not run | Unknown |
+| Lego rhetoric control (synthetic) | claude-sonnet-5-5 | Not run | Unknown |
+| Appendix A clean | claude-sonnet-5-5 | Not run | Unknown |
+| D4 imagined first person | claude-sonnet-5-5 | Not run | Unknown |
+| D4 senses and tagged speech | claude-sonnet-5-5 | Not run | Unknown |
+
+The exact **11 previously unattempted Sonnet reviews** remain: clean-short repeats 2/3; Appendix A clean repeats 1/2/3; Appendix A dropped hedge repeats 1/2/3; Appendix A invented details repeats 1/2/3. The prior failed control is separately retained as failed, not relabelled unattempted or clean. The requested new controls are additional to those 11. Preparation records controls-first ordering and the full cumulative baseline in [sr-round3-preparation.json](../../../../studio/src/content-evidence/fixtures/sr-round3-preparation.json). Any later actual request needs a durable worst-case reservation including all prior unresolved charges; stop before a request that could exceed $3. The paid continuation has not begun and no control is claimed to pass.
+
+### Hard rules 5-7 and integration
+
+Pulled main into the session's own branch/worktree. **One conflict:** add/add in task6.md. Resolution: copied the architect's complete latest source from D:\Study Material\7AI\docs\execution\sprint5\tasks\task6.md, without editing or hand-merging the task text. It is byte-identical to that source; no revision marker exists, so the actual diff governed synchronization. The state-machine integration merged automatically; its current-main TTS changes are preserved.
+
+Removed this PR's previous STATUS.md and BUSINESS_LOGIC.md edits, preserving the current architect/main versions. The remaining docs diff against main contains **only this report**; the task doc is identical to main/source. This supersedes earlier historical statements that the task updated those shared docs. No other task docs, status rows, plans or bug ledgers were edited. Source identity and docs scope are checked again before the implementation commit. PR #105 stays draft; no gh pr ready, merge, deploy, live upload or production generation.
+
+**Round 3 checks:** build, typecheck and lint exit 0; full integrated suite **1099 passed, 9 skipped** (139 passed files, one skipped). Focused Script Review/LLM suite **162 passed**; affected fixture/budget integration tests **17 passed**; final D4/numeric controls **28 passed**. The archived paid-run guard exits 1 before key loading. No provider calls were made.
+**Exact blocker:** sanitized historical failure records are still absent; the before-spending prerequisite and real Sonnet control acceptance are incomplete. No further provider call is authorized through an assumption about those failures.
+
+### Round 3 integration-check corrections and sign-off
+
+The first integrated full suite exposed three test issues. The fixture count expected 11 rather than the now-extended 19; the weekly pre-check expected the cheaper Haiku-based estimate rather than the Sonnet-based $1.10; and the existing Admin bulk/single comparison depended on unspecified database channel order. Test-only corrections update the fixture count and exact cost expectation and compare channel tuples in channel-ID order. Every channel/value/status is still checked. No runtime budget policy, quota, ceiling or credentials were changed. The final complete suite passes as recorded above.
+
+Task doc synchronization: source byte-identical immediately before commit; main unchanged at 2c2e19c. Docs scope: only this report. Both lengths select Sonnet in the central purpose registry. Control scores and flags remain unassessed by Sonnet in Round 3. **NOT READY:** missing historical failure records prevent the paid continuation required by the owner's step 1; Sonnet controls have not passed. Conservative charge remains $1.999582/$3, with $0 new paid spend. PR #105 remains draft; no merge or deployment.

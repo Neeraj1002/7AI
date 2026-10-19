@@ -108,8 +108,8 @@ describe.skipIf(!SANDBOX)('admin.budget.get (sandbox database)', () => {
     const bulk = all.get(tenantF9)!;
     expect(bulk.gateSpentUsd).toBeCloseTo(single.gateSpentUsd, 6);
     expect(bulk.warnings.map((w) => w.code)).toEqual(single.warnings.map((w) => w.code));
-    expect(bulk.channels.map((c) => [c.channelId, c.effectiveCeilingUsd, c.status])).toEqual(
-      single.channels.map((c) => [c.channelId, c.effectiveCeilingUsd, c.status]),
+    expect([...bulk.channels].sort((a, b) => a.channelId.localeCompare(b.channelId)).map((c) => [c.channelId, c.effectiveCeilingUsd, c.status])).toEqual(
+      [...single.channels].sort((a, b) => a.channelId.localeCompare(b.channelId)).map((c) => [c.channelId, c.effectiveCeilingUsd, c.status]),
     );
     expect(all.get(tenantNoQuota)!.warnings.map((w) => w.code)).toEqual(['no_quota']);
   });

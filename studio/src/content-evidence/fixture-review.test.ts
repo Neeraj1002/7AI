@@ -5,7 +5,7 @@ import { buildEvidencePacket } from './packet';
 import { buildUserMessage } from '../agents/script-review';
 it('retains pre-gate contract fixtures and labels incomplete historical provenance', () => {
   expect(fixture.recordedCases).toHaveLength(7);
-  expect(fixture.evaluationCases).toHaveLength(11);
+  expect(fixture.evaluationCases).toHaveLength(19);
   expect(fixture.evaluationCases.filter(c => c.caseId.startsWith('SR-case-'))).toHaveLength(6);
   for (const c of fixture.evaluationCases) {
     expect(c.briefText.length).toBeGreaterThan(20);

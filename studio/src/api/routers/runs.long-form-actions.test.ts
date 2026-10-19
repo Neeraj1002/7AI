@@ -75,7 +75,7 @@ describe('runs.create weekly pre-check (R7.2)', () => {
   it('refuses a long video that does not fit what is left this week, stating both numbers', async () => {
     mocks.getRemainingWeeklyUsd.mockResolvedValue(0.8);
     await expect(caller().create({ channelId: CHANNEL_ID, briefText: 'b', videoKind: 'long' })).rejects.toThrow(
-      /Estimated \$1\.0\d for this video, \$0\.80 left this week for this channel/,
+      'Estimated $1.10 for this video, $0.80 left this week for this channel',
     );
     expect(mocks.createRun).not.toHaveBeenCalled();
   });

@@ -284,6 +284,114 @@
         "SR-9"
       ],
       "control": false
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "lego-facts-control",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. That is where the story began.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "chapterTitles": [
+        "How much money was missing?",
+        "So what did going back to basics mean?",
+        "Where did that leave Lego ten years later?"
+      ],
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "lego-rhetoric-control",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. It was a hard time for everyone involved.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys. This was the change at the center of the story: a return to the toys themselves. Make the brick the center of everything again, and trust it. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "chapterTitles": [
+        "How much money was missing?",
+        "So what did going back to basics mean?",
+        "Where did that leave Lego ten years later?"
+      ],
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [
+        "SR-9"
+      ],
+      "caseId": "lego-draft-1-excerpts",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. Shelves that once overflowed with colorful bricks grew thin. The board could not look away. Workers who once managed amusement parks were replaced by designers again.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "control": false
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [
+        "SR-9"
+      ],
+      "caseId": "lego-draft-2-excerpts",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still. Store shelves that once sat half empty were now stacked high with boxes.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "control": false
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "d4-imagined-clean",
+      "briefText": "A short first-person imagined market morning, about 45 seconds. DOCUMENTED: cubical stone weights use the binary series 1, 2, 4, 8, 16 and 32; larger weights use decimal steps; sizes were only roughly alike from place to place and showed significant variability. INFERRED: many small weights were likely used for light goods. COMMENTARY-ONLY: modern terms such as grams and BCE may appear in commentary. IMAGINED: allow the nameless narrator thoughts, feelings, wants, small worries, body sensations, morning weather, light, sounds, smells, small gestures and unnamed neighbours. At most two short everyday lines by unnamed people, each with a speech tag; no facts, numbers or names in dialogue. Do not invent names, numbers, dates, places, trade partners, prices, rules, beliefs or rituals.",
+      "scriptText": "This is an imagined market morning. Cool air touches my hands. I want the balance to settle, but the stones make me hesitate. I move them gently and listen to the market waking around me. The stone fits my palm. The weights were only roughly alike from place to place, with significant variability. Many small weights were likely used for light goods. That is what the finds support; the morning and my small worry are imagined. I think in grams while the small stone rests in my palm. I let my hands rest beside the balance.",
+      "videoKind": "short",
+      "targetSeconds": 45,
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [
+        "SR-1",
+        "SR-9"
+      ],
+      "caseId": "d4-imagined-invented-number",
+      "briefText": "A short first-person imagined market morning, about 45 seconds. DOCUMENTED: cubical stone weights use the binary series 1, 2, 4, 8, 16 and 32; larger weights use decimal steps; sizes were only roughly alike from place to place and showed significant variability. INFERRED: many small weights were likely used for light goods. COMMENTARY-ONLY: modern terms such as grams and BCE may appear in commentary. IMAGINED: allow the nameless narrator thoughts, feelings, wants, small worries, body sensations, morning weather, light, sounds, smells, small gestures and unnamed neighbours. At most two short everyday lines by unnamed people, each with a speech tag; no facts, numbers or names in dialogue. Do not invent names, numbers, dates, places, trade partners, prices, rules, beliefs or rituals.",
+      "scriptText": "This is an imagined market morning. Cool air touches my hands. I want the balance to settle, but the stones make me hesitate. I move them gently and listen to the market waking around me. The stone fits my palm. The weights were only roughly alike from place to place, with significant variability. Many small weights were likely used for light goods. That is what the finds support; the morning and my small worry are imagined. I think in grams while the small stone rests in my palm. I let my hands rest beside the balance. I charge 777 coins.",
+      "videoKind": "short",
+      "targetSeconds": 45,
+      "control": false
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "d4-sensory-speech-clean",
+      "briefText": "A short first-person imagined market morning, about 45 seconds. DOCUMENTED: cubical stone weights use the binary series 1, 2, 4, 8, 16 and 32; larger weights use decimal steps; sizes were only roughly alike from place to place and showed significant variability. INFERRED: many small weights were likely used for light goods. COMMENTARY-ONLY: modern terms such as grams and BCE may appear in commentary. IMAGINED: allow the nameless narrator thoughts, feelings, wants, small worries, body sensations, morning weather, light, sounds, smells, small gestures and unnamed neighbours. At most two short everyday lines by unnamed people, each with a speech tag; no facts, numbers or names in dialogue. Do not invent names, numbers, dates, places, trade partners, prices, rules, beliefs or rituals.",
+      "scriptText": "This is an imagined market morning. My fingers tighten around a stone. The balance tilts, so I move it gently. An unnamed neighbour says, \"Take your time.\" I loosen my grip. Morning light reaches the edge of the balance, and the market murmurs around me. The stone settles beneath my hand. The weights were only roughly alike from place to place, with significant variability. Many small weights were likely used for light goods. The hands, the light and the neighbour's everyday words are imagined; the weight findings are the factual baseline.",
+      "videoKind": "short",
+      "targetSeconds": 45,
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [
+        "SR-1",
+        "SR-9"
+      ],
+      "caseId": "d4-sensory-speech-invented-quote",
+      "briefText": "A short first-person imagined market morning, about 45 seconds. DOCUMENTED: cubical stone weights use the binary series 1, 2, 4, 8, 16 and 32; larger weights use decimal steps; sizes were only roughly alike from place to place and showed significant variability. INFERRED: many small weights were likely used for light goods. COMMENTARY-ONLY: modern terms such as grams and BCE may appear in commentary. IMAGINED: allow the nameless narrator thoughts, feelings, wants, small worries, body sensations, morning weather, light, sounds, smells, small gestures and unnamed neighbours. At most two short everyday lines by unnamed people, each with a speech tag; no facts, numbers or names in dialogue. Do not invent names, numbers, dates, places, trade partners, prices, rules, beliefs or rituals.",
+      "scriptText": "This is an imagined market morning. My fingers tighten around a stone. The balance tilts, so I move it gently. Dagan says, \"Pay 777 coins.\" I loosen my grip. Morning light reaches the edge of the balance, and the market murmurs around me. The stone settles beneath my hand. The weights were only roughly alike from place to place, with significant variability. Many small weights were likely used for light goods. The hands, the light and the neighbour's everyday words are imagined; the weight findings are the factual baseline.",
+      "videoKind": "short",
+      "targetSeconds": 45,
+      "control": false
     }
   ],
   "evaluationVersion": 1,

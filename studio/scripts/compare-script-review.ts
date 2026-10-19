@@ -4,11 +4,13 @@ import { createHash } from 'node:crypto';
 import dotenv from 'dotenv';
 import { evaluationHash, requireOfflineProof, callReservation, COMPARISON_MODELS, type ComparisonModel } from '../src/agents/script-review/evaluation-budget';
 import type { LLMResponse } from '../src/llm';
+import { reviewFailureEvidence } from '../src/agents/script-review/evaluation-failure';
 import type { ScriptReviewOutput } from '../src/agents/script-review';
-type Call={model:ComparisonModel;caseId:string;repeat:number;attempt:number;maxTokens:number;reservedUsd:number;status:'reserved'|'metered'|'unmetered-failure';requestHash:string;response?:LLMResponse;error?:string};
+type Call={model:ComparisonModel;caseId:string;repeat:number;attempt:number;maxTokens:number;reservedUsd:number;status:'reserved'|'metered'|'unmetered-failure';requestHash:string;response?:LLMResponse;error?:string;failure?:ReturnType<typeof reviewFailureEvidence>};
 type Review={model:ComparisonModel;caseId:string;repeat:number;status:'running'|'complete'|'failed';output?:ScriptReviewOutput;error?:string};
 async function main(){
  if(!process.argv.includes('--run-paid-comparison'))throw new Error('Explicit --run-paid-comparison required; offline only otherwise.');
+ if(existsSync('src/content-evidence/fixtures/sr-comparison-results.json'))throw new Error('Round 2 is already archived; do not restart or reset its ledger. Round 3 requires reconciled failure evidence and the cumulative reservation baseline.');
  const proofFile=process.argv[process.argv.indexOf('--offline-proof')+1];if(!process.argv.includes('--offline-proof'))throw new Error('Offline proof required');
  const hash=evaluationHash(); requireOfflineProof(hash,JSON.parse(readFileSync(proofFile,'utf8')));
  const baselineBytes=readFileSync('src/content-evidence/fixtures/sr-evaluation-results.json');const baseline=JSON.parse(baselineBytes.toString());
@@ -39,7 +41,7 @@ async function main(){
      let reservedUsd:number;try{reservedUsd=callReservation(charged(),bytes,req.maxTokens,resolvePricing(model));}catch(error){stopped=true;throw error;}
      const attempt=ledger.calls.filter(x=>x.model===model&&x.caseId===c.caseId&&x.repeat===repeat).length+1;if(attempt>2)throw new Error('More than one format retry prohibited');
      const call:Call={model,caseId:c.caseId,repeat,attempt,maxTokens:req.maxTokens,reservedUsd,status:'reserved',requestHash:createHash('sha256').update(body).digest('hex')};ledger.calls.push(call);save();
-     try{const response=await callScriptReviewForEvaluation(req,model);call.response=response;call.status='metered';save();return response;}catch(error){call.status='unmetered-failure';call.error=error instanceof Error?error.name:'UnknownError';save();throw error;}
+     try{const response=await callScriptReviewForEvaluation(req,model);call.response=response;call.status='metered';save();return response;}catch(error){call.status='unmetered-failure';call.failure=reviewFailureEvidence(error,model,req.maxTokens);call.error=error instanceof Error?error.name:'UnknownError';save();throw error;}
     });row.output=result.output;row.status='complete';save();console.log(model+' '+c.caseId+' '+repeat+'/3 score='+row.output.score+' campaign USD '+charged().toFixed(6));
    }catch(error){row.status='failed';row.error=error instanceof Error?error.name:'UnknownError';save();console.log(model+' '+c.caseId+' '+repeat+'/3 failed; campaign USD '+charged().toFixed(6));
     if(stopped||ledger.calls.some(x=>x.model===model&&x.status==='unmetered-failure'))break modelLoop;
