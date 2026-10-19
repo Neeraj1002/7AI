@@ -1,3 +1,4 @@
+import { groundModelFindings } from './grounded-findings';
 import { numberFormattingEquivalent } from './numbers';
 import { checkBrief } from './brief-checks';
 import { calibrateReview, reviewRules } from './rules';
@@ -262,7 +263,8 @@ export async function reviewScript(
       const styleGuideViolations = output.styleGuideViolations.filter(text => !(
         !explicitSpelling && checks && !checks.numericViolations.some(v => v.startsWith('SR-1:')) &&
         /\b(spelled|numerals?|digits?|numeric form)\b/i.test(text) && numberFormattingEquivalent(brief!, params.scriptText, text)));
-      const corrected = { ...output, styleGuideViolations };
+      const formatted = { ...output, styleGuideViolations };
+      const corrected = brief ? groundModelFindings(formatted, brief, params.scriptText) : formatted;
       const calibrated = calibrateReview(corrected, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], isLong || params.evidence?.factPolicy === 'brief-only');
       return { output: calibrated, llm, ...(calls.length > 1 ? { calls } : {}) };
   }

@@ -9,5 +9,5 @@ it('retains real cut-off evidence and keeps the configured limit separate from u
 });
 it.each([[429,'rate_limit_error','workspace API usage limit','workspace-limit'],[529,'overloaded_error','overloaded','overload'],[400,'invalid_request_error','credit balance too low','provider-credit-limit']])('classifies HTTP %s without persisting credentials or provider bodies',(status,type,message,classification)=>{
  const secret='sk-ant-test-must-not-be-retained';const cause=Object.assign(new Error(secret),{statusCode:status,responseHeaders:{'request-id':'req_safe123','authorization':secret},responseBody:JSON.stringify({error:{type,message},secret})});
- const r=reviewFailureEvidence(new NonTransientStageError(secret,cause),'claude-sonnet-5-5',8192);expect(r).toMatchObject({statusCode:status,classification,requestId:'req_safe123'});expect(JSON.stringify(r)).not.toContain(secret);expect(r.outputTokens).toBeNull();
+ const r=reviewFailureEvidence(new NonTransientStageError(secret,cause),'claude-sonnet-5-5',8192);expect(r).toMatchObject({statusCode:status,classification});expect(JSON.stringify(r)).not.toContain(secret);expect(JSON.stringify(r)).not.toContain('req_safe123');expect(r).not.toHaveProperty('requestId');expect(r.outputTokens).toBeNull();
 });
