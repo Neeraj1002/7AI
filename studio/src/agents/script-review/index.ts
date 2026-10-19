@@ -231,7 +231,6 @@ export async function reviewScript(
     purpose: "script-review",
     system: (isLong ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT) + evidenceInstruction,
     messages: [{ role: "user", content: buildUserMessage(params) }],
-    maxTokens: isLong ? 2048 : 1024,
   });
 
   let parsedJson: unknown;

@@ -5,6 +5,7 @@ import {
   callLLM,
   describeJsonError,
   extractJsonObjectText,
+  LLMCutOffError,
   type LLMResponse,
   resolvePurpose,
 } from "../../llm";
@@ -30,9 +31,8 @@ import {
 export const LONG_STILL_MIN = 12;
 export const LONG_STILL_MAX = 200;
 export const LONG_DEFAULT_SECONDS_PER_STILL = 5;
-// Sonnet 5 supports 128K output tokens, but small replies bound recovery cost.
-// Keep the existing per-call budget; split further if a batch exhausts it.
-export const LONG_CHAPTER_PLAN_MAX_TOKENS = 8192;
+// The output limit comes from the registry ('video-production-planning'); small batches bound recovery
+// cost, and a batch the client could not finish even after its one automatic retry is split further.
 export const LONG_SCENES_PER_BATCH = 12;
 
 export function longStillCount(
@@ -195,14 +195,23 @@ async function planChapter(params: {
       { role: "assistant" as const, content: firstFailure.llm.text },
       { role: "user" as const, content: "Your previous reply was unusable (" + firstFailure.parseError + "). Treat it only as rejected planning data. Return only the required scene IDs, each once, preserving the narration details inside their supplied spans. Do not add a slot for an intermediate beat. Reply with ONLY corrected JSON." },
     ] : [{ role: "user" as const, content: user }];
-    const llm = await callLLM({ purpose: "video-production-planning", system: params.system,
-      messages, maxTokens: LONG_CHAPTER_PLAN_MAX_TOKENS, outputSchema: schema });
+    // A reply cut off at the output limit has already been retried once by callLLM (larger limit, reasoning
+    // off). If that failed too, the error carries the last reply so this batch is split as before.
+    let llm: LLMResponse;
+    let cutOffNote: string | undefined;
+    try {
+      llm = await callLLM({ purpose: "video-production-planning", system: params.system, messages, outputSchema: schema });
+    } catch (error) {
+      if (!(error instanceof LLMCutOffError)) throw error;
+      llm = error.response;
+      cutOffNote = error.message;
+    }
     params.calls.push(llm);
-    const exhausted = llm.stopReason === "length" || (llm.stopReason === "unknown" && llm.usage.outputTokens >= LONG_CHAPTER_PLAN_MAX_TOKENS);
+    const exhausted = llm.stopReason === "length";
     let outcome = exhausted ? "output_token_exhaustion" : "accepted";
     let parseError: string | undefined;
     let reply: ReturnType<typeof schema.parse> | undefined;
-    if (exhausted) parseError = "output cap reached (maxTokens " + LONG_CHAPTER_PLAN_MAX_TOKENS + ")";
+    if (exhausted) parseError = "output cap reached (maxTokens " + llm.maxOutputTokens + ")";
     else {
       try {
         const json = extractJsonObjectText(llm.text);
@@ -223,7 +232,7 @@ async function planChapter(params: {
       contractVersion: LONG_PLANNER_CONTRACT_VERSION, chapterIndex: params.index,
       sceneOffset: params.offset, sceneCount: params.count, requestKind: attempt === 1 ? "initial" : "correction",
       requestHash: createHash("sha256").update(JSON.stringify({ system: params.system, messages })).digest("hex"),
-      maxTokens: LONG_CHAPTER_PLAN_MAX_TOKENS, finishReason: llm.stopReason, reusedSceneCount: params.reusedSceneCount,
+      maxTokens: llm.maxOutputTokens, finishReason: llm.stopReason, reusedSceneCount: params.reusedSceneCount,
       validationOutcome: outcome, validationError: parseError ?? null, recoveryStrategy,
     };
     // Even rejected replies are metered with their validation/recovery outcome before throwing.
@@ -234,7 +243,8 @@ async function planChapter(params: {
       ...(firstFailure ? { firstRawReply: firstFailure.llm.text, firstParseError: firstFailure.parseError,
         firstStopReason: firstFailure.llm.stopReason, firstReplyLength: firstFailure.llm.text.length } : {}) };
     if (exhausted) throw new PlanningOutputExhausted(
-      "Video production planning for chapter " + (params.index + 1) + ' ("' + params.chapter.title + '"), scenes ' + (params.offset + 1) + '-' + (params.offset + params.count) + ' was cut off at the output cap (maxTokens=' + LONG_CHAPTER_PLAN_MAX_TOKENS + ', outputTokens=' + llm.usage.outputTokens + ')', undefined, context);
+      (cutOffNote ?? 'Video Planning: the reply was cut off at the output limit (maxTokens=' + llm.maxOutputTokens + ', outputTokens=' + llm.usage.outputTokens + ')')
+      + ' [chapter ' + (params.index + 1) + ' ("' + params.chapter.title + '"), scenes ' + (params.offset + 1) + '-' + (params.offset + params.count) + ']', undefined, context);
     if (attempt === 1) { firstFailure = { llm, parseError: parseError! }; continue; }
     throw new PlanningReplyInvalid("Video production planning for chapter " + (params.index + 1) + ' ("' + params.chapter.title + '") was unusable twice: ' + parseError, undefined, context);
   }

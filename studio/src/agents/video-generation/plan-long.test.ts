@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mocks.callLLM }));
-import { planLongVideoProduction, LONG_CHAPTER_PLAN_MAX_TOKENS, type LongPlanningCheckpoint, longPlanningInputHash, reusableLongPlanningCheckpoint } from './plan-long';
+import { planLongVideoProduction, type LongPlanningCheckpoint, longPlanningInputHash, reusableLongPlanningCheckpoint } from './plan-long';
 import { ProductionPlanSchema } from './plan';
+import { LLMCutOffError } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 const chapters = [
   { title: 'Opening', text: Array.from({ length: 200 }, (_, i) => `opening${i}`).join(' ') },
@@ -10,14 +11,16 @@ const chapters = [
   { title: 'The Daily Commute: the workers who adjusted to the wall', text: Array.from({ length: 600 }, (_, i) => `commute${i}`).join(' ') },
 ];
 const params = { chapters, topic: 'The wall', targetSeconds: 600 };
-const llm = (text: string, extra: Record<string, unknown> = {}) => ({ text, usage: { inputTokens: 500, outputTokens: 400 }, stopReason: 'stop', costUsd: '0.001000', provider: 'anthropic', model: 'claude-sonnet-5', ...extra });
+const llm = (text: string, extra: Record<string, unknown> = {}) => ({ text, usage: { inputTokens: 500, outputTokens: 400 }, stopReason: 'stop', costUsd: '0.001000', provider: 'anthropic', model: 'claude-sonnet-5', maxOutputTokens: 16000, ...extra });
 function anchors(req: { messages: { content: string }[] }): string[] {
   return JSON.parse(req.messages[0].content.match(/Required batch anchors in order: (\[[^\n]*\])/)![1]);
 }
 function goodReply(req: Parameters<typeof anchors>[0]) {
   return llm(JSON.stringify({ scenes: Object.fromEntries(JSON.parse(req.messages[0].content.match(/Required scene slots: (\[[^\n]*\])/)![1]).map((slot: {id:string;anchor:string}) => [slot.id, {prompt: `A still composition of ${slot.anchor}, period clothing and drifting smoke.`, purpose: 'illustration'}])), audioLayer: 'mysterious' }));
 }
-const capped = () => llm('{"scenes":[', { stopReason: 'length', usage: { inputTokens: 500, outputTokens: LONG_CHAPTER_PLAN_MAX_TOKENS } });
+const capped = () => llm('{"scenes":[', { stopReason: 'length', usage: { inputTokens: 500, outputTokens: 16000 } });
+// What the real callLLM throws when a batch is cut off twice: the registry limit is the client's, the batch is split here.
+const cutOffTwice = () => { const last = capped(); throw new LLMCutOffError('Video Planning: the reply was cut off even after one automatic retry with a larger limit.', { rawReply: last.text, stopReason: 'length' }, last as never); };
 describe('bounded long-form planning', () => {
   beforeEach(() => { mocks.callLLM.mockReset(); mocks.callLLM.mockImplementation(goodReply); });
   it('requests renderable still compositions without generated motion or video providers', async () => {
@@ -52,7 +55,7 @@ describe('bounded long-form planning', () => {
     expect(Object.keys(saved[0].scenes)).toHaveLength(12);
     for (const [req] of mocks.callLLM.mock.calls) {
       expect(anchors(req).length).toBeLessThanOrEqual(12);
-      expect(req.maxTokens).toBe(8192);
+      expect(req).not.toHaveProperty('maxTokens');
       expect(req.outputSchema).toBeDefined();
       expect(req.messages[0].content).toContain('Chapters in order: 1. Opening; 2. The quarry; 3. The Daily Commute');
       if (req.messages[0].content.includes('This is chapter 3')) expect(req.messages[0].content).toContain(chapters[2].text);
@@ -67,11 +70,6 @@ describe('bounded long-form planning', () => {
     expect(calls).toHaveLength(12);
     expect(mocks.callLLM.mock.calls.slice(0, 3).map(([r]) => anchors(r).length)).toEqual([12, 6, 6]);
     expect(plan.longScenes!.slice(0, 12).map(s => s.words)).toEqual(anchors(mocks.callLLM.mock.calls[0][0]));
-  });
-  it('detects cap exhaustion even with an unknown stop reason', async () => {
-    mocks.callLLM.mockImplementationOnce(() => ({ ...capped(), stopReason: 'unknown' }));
-    expect((await planLongVideoProduction(params)).plan.longScenes).toHaveLength(120);
-    expect(anchors(mocks.callLLM.mock.calls[1][0])).toHaveLength(6);
   });
   it('recovers chapter 3 exhaustion after the first two chapters are already planned', async () => {
     let exhausted = false;
@@ -98,10 +96,18 @@ describe('bounded long-form planning', () => {
     const book = vi.fn();
     const error = await planLongVideoProduction({ ...params, onCall: book }).catch(e => e);
     expect(error).toBeInstanceOf(NonTransientStageError);
-    expect(error.message).toContain('cut off at the output cap');
+    expect(error.message).toContain('cut off');
     expect(mocks.callLLM.mock.calls.map(([r]) => anchors(r).length)).toEqual([12, 6, 3, 1]);
     expect(book).toHaveBeenCalledTimes(4);
     expect(getStageErrorContext(error)).toMatchObject({ failureKind: 'output_token_exhaustion', sceneCount: 1, stopReason: 'length', rawReply: '{"scenes":[', attempts: 1 });
+  });
+  it('splits a batch the client could not finish after its own retry, from the error it throws', async () => {
+    mocks.callLLM.mockImplementationOnce(cutOffTwice);
+    const book = vi.fn();
+    const { plan } = await planLongVideoProduction({ ...params, onCall: book });
+    expect(plan.longScenes).toHaveLength(120);
+    expect(mocks.callLLM.mock.calls.slice(0, 3).map(([r]) => anchors(r).length)).toEqual([12, 6, 6]);
+    expect(book.mock.calls[0][1]).toMatchObject({ finishReason: 'length', validationOutcome: 'output_token_exhaustion', sceneCount: 12 });
   });
   it('reuses completed batches after provider failure, including the left half of a split', async () => {
     let checkpoint: LongPlanningCheckpoint | undefined;

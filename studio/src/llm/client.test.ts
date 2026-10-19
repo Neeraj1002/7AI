@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 
-const mocks = vi.hoisted(() => ({ generateText: vi.fn() }));
-vi.mock('ai', async (orig) => ({ ...(await orig<object>()), generateText: mocks.generateText }));
+const mocks = vi.hoisted(() => ({ generateText: vi.fn(), streamText: vi.fn() }));
+vi.mock('ai', async (orig) => ({ ...(await orig<object>()), generateText: mocks.generateText, streamText: mocks.streamText }));
 vi.mock('../config/env', () => ({ env: { ANTHROPIC_API_KEY: 'test-key' } }));
 
-import { NoObjectGeneratedError } from 'ai';
+import { APICallError, NoObjectGeneratedError } from 'ai';
+import { getStageErrorContext, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import { callProviderModel } from './client';
 
 const schema = z.object({ scriptText: z.string().min(1) });
@@ -14,7 +15,8 @@ const base = {
   model: 'claude-sonnet-5',
   system: 's',
   messages: [{ role: 'user' as const, content: 'hi' }],
-  maxTokens: 100,
+  maxOutputTokens: 100,
+  reasoning: 'off' as const,
 };
 const ok = (text: string) => ({ text, finishReason: 'stop', usage: { inputTokens: 10, outputTokens: 5 } });
 
@@ -63,5 +65,67 @@ describe('callProviderModel with an output schema (Bugs Task 11)', () => {
       }),
     );
     await expect(callProviderModel(base)).rejects.toThrow();
+  });
+});
+
+// LLM Registry task (R1/R2): the reasoning setting is always sent explicitly, the reasoning tokens are read
+// back, and a large retry limit streams.
+describe('callProviderModel: reasoning setting, reasoning tokens, streaming', () => {
+  it('sends thinking disabled explicitly for reasoning off, on a model that reasons by default', async () => {
+    mocks.generateText.mockResolvedValue(ok('plain'));
+    await callProviderModel(base);
+    expect(mocks.generateText.mock.calls[0][0]).toMatchObject({
+      maxOutputTokens: 100,
+      maxRetries: 0,
+      providerOptions: { anthropic: { thinking: { type: 'disabled' } } },
+    });
+  });
+
+  it('sends an explicit budget on a model that takes one', async () => {
+    mocks.generateText.mockResolvedValue(ok('plain'));
+    await callProviderModel({ ...base, model: 'claude-haiku-4-5', maxOutputTokens: 9000, reasoning: { budgetTokens: 4000 } });
+    expect(mocks.generateText.mock.calls[0][0].providerOptions).toEqual({ anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } } });
+  });
+
+  it('refuses a manual budget on a model that reasons adaptively, before any call', async () => {
+    await expect(callProviderModel({ ...base, reasoning: { budgetTokens: 4000 } })).rejects.toThrow(/rejects a manual reasoning budget/);
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it('refuses reasoning off on a model the installed SDK cannot switch off, before any call', async () => {
+    await expect(callProviderModel({ ...base, model: 'claude-sonnet-5-5' })).rejects.toThrow(/between_tools/);
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it('reads the reasoning tokens from the usage details', async () => {
+    mocks.generateText.mockResolvedValue({ text: '', finishReason: 'length', usage: { inputTokens: 10, outputTokens: 100, outputTokenDetails: { reasoningTokens: 100 } } });
+    const result = await callProviderModel(base);
+    expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 100, reasoningTokens: 100 });
+    expect(result.stopReason).toBe('length');
+  });
+
+  it('streams when asked, and returns the same shape', async () => {
+    mocks.streamText.mockReturnValue({
+      text: Promise.resolve('streamed'),
+      usage: Promise.resolve({ inputTokens: 5, outputTokens: 7 }),
+      finishReason: Promise.resolve('stop'),
+    });
+    const result = await callProviderModel({ ...base, maxOutputTokens: 32000, stream: true });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(mocks.streamText.mock.calls[0][0]).toMatchObject({ maxOutputTokens: 32000, providerOptions: { anthropic: { thinking: { type: 'disabled' } } } });
+    expect(result).toMatchObject({ text: 'streamed', usage: { inputTokens: 5, outputTokens: 7 }, stopReason: 'stop' });
+  });
+
+  it('a stream that errors surfaces the provider error, not a generic one', async () => {
+    mocks.streamText.mockImplementation((options: { onError: (event: { error: unknown }) => void }) => {
+      const providerError = new APICallError({ message: 'HTTP 529', url: 'https://api.example.test', requestBodyValues: {}, statusCode: 529 });
+      options.onError({ error: providerError });
+      const failed = Promise.reject(new Error('No output generated'));
+      failed.catch(() => undefined);
+      return { text: failed, usage: failed, finishReason: failed };
+    });
+    const error = await callProviderModel({ ...base, stream: true }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TransientStageError);
+    expect(getStageErrorContext(error)).toMatchObject({ statusCode: 529 });
   });
 });

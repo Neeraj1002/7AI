@@ -1,4 +1,4 @@
-import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../llm';
+import { callLLM, describeJsonError, extractJsonText, resolvePurpose, type LLMResponse } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
 import { llmUsageContext } from './stage-failure';
@@ -31,7 +31,6 @@ export async function parseBrief(briefText: string): Promise<{ output: IntakePar
     purpose: 'intake-parsing',
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: briefText }],
-    maxTokens: 512,
   });
   const raw = llm.text;
 
@@ -97,6 +96,7 @@ export async function stubParseBrief(briefText: string): Promise<{ output: Intak
     stopReason: 'stub',
     usage: { inputTokens: 0, outputTokens: 0 },
     costUsd: '0.000000',
+    maxOutputTokens: resolvePurpose('intake-parsing').maxOutputTokens,
   };
 
   return { output, llm };

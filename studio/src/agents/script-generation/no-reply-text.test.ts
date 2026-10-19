@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ callLLM: vi.fn() }));
 vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mocks.callLLM }));
 
 import { generateScript } from './index';
+import { LLMCutOffError } from '../../llm';
 import { getStageErrorContext } from '../../run-pipeline/retry-with-backoff';
 
 // The error message becomes pipeline_runs.lastError and pipeline_stages.error, both
@@ -17,6 +18,7 @@ const reply = (text: string, stopReason = 'stop') => ({
   costUsd: '0.001000',
   provider: 'anthropic',
   model: 'claude-sonnet-5',
+  maxOutputTokens: 16000,
 });
 const params = { topic: 't', constraints: [] as string[] };
 
@@ -47,9 +49,10 @@ describe('script generation errors carry no reply text in their message', () => 
   });
 
   it('after a cut-off reply', async () => {
-    mocks.callLLM.mockResolvedValueOnce(reply(`{"scriptText":"${SECRET}`, 'length'));
+    const last = reply(`{"scriptText":"${SECRET}`, 'length');
+    mocks.callLLM.mockRejectedValueOnce(new LLMCutOffError('Script Generation: the reply was cut off even after one automatic retry with a larger limit.', { rawReply: last.text, stopReason: 'length' }, last as never));
     const error = await generateScript(params).catch((e: unknown) => e);
     expect((error as Error).message).not.toContain(SECRET);
-    expect((error as Error).message).toContain('cut off at the output cap');
+    expect((error as Error).message).toContain('cut off');
   });
 });
