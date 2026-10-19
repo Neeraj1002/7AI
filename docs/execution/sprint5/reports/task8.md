@@ -2,10 +2,10 @@
 
 **Branch** `SPRINT5_TASK8_BE`, worktree `D:\Study Material\7AI-SPRINT5\task8`, one draft PR for all four groups (R1-R12). Written 2026-10-19.
 
-**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,026 tests pass, 65 skipped as before); **not merged, not deployed**; the real-model checks that need Anthropic could not run because the Anthropic account is out of credit (see "Real-model checks").
+**One-line status for the founder:** code-complete and tested locally (tsc, eslint, build, 1,054 tests pass, 65 skipped as before); **not merged, not deployed**; the real-model checks that need Anthropic could not run because the Anthropic account is out of credit (see "Real-model checks").
 
 Three separate statements, as the task asks:
-- **Code-complete:** yes for R1 to R12 (R10 Part B built after your confirmation; its section lists what is not done), with the exceptions under Deviations.
+- **Code-complete:** yes for R1 to R13 (R10 Part B built after your confirmation; its section lists what is not done), with the exceptions under Deviations.
 - **Merged:** no. PR #104 (voice-to-model mapping) merged to `main` on 19 Oct; this branch has `main` merged in and builds on it (see "Overlap with PR #104").
 - **Deployed / live-verified:** no. Nothing here was run against production or the dev database.
 
@@ -132,6 +132,21 @@ Both tasks touched voices and speech pricing. Reused from #104, not rebuilt: the
 
 `runs.list` has no limit, no cursor and orders by `updatedAt` (which is never updated on writes); it returns every run of the tenant. It is **not** the cause of E11. The Inbox is built from `notifications.list`, which returns the newest 50 notification rows; each run produces several (request, re-sends, result), so 50 rows are 7 or 8 runs. Added without changing either existing query: `runs.listPage` ({statuses, stage, channelId, limit up to 200, cursor} -> {items, nextCursor, total}, newest first by `createdAt`) and `notifications.listPage` ({limit up to 500, cursor} -> {items, nextCursor, total}). Tested with 75 runs and 160 notification rows (no row lost or repeated, tenant isolation, clamping, defaults).
 
+## R13. Change a waiting run's settings (`runs.updateSettings`)
+
+Added after the first report (founder and architect request; contract from the Task 7 report, R4). `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd?, retry? })` returns `{ run, changes[{label, from, to}] }`.
+
+- **Who and when:** same owner and tenant rules as retry (`assertGateOwnership`), an active channel, and the run in `needs_attention`, `paused_gate1` or `paused_gate2`. `retry: true` is only for `needs_attention`.
+- **Per-stage rules, enforced on the server** (`run-pipeline/run-settings.ts`). Voice, music and pictures are free at Gate 1 and for a failed stage at or before video generation (including a regeneration-cap or allowance pause, because that Retry makes a new video). They are **refused with a one-line reason** once the video is made: at Gate 2, after a blocked review, after a failed publish ("The video is already made, so the voice can't change here. Use Revise at Gate 2 to redo it."). Visibility is allowed at any waiting point until the video is on YouTube, and only `private` when the channel's Gate 2 is off (the existing `channels.update` invariant). Max spend is always allowed. A long video still refuses stock footage with run creation's message. A save that changes nothing is refused ("Nothing to change").
+  **Deviation from the table in the Task 7 report:** that table says voice, music and pictures at Gate 2 are "Yes, as a revision". The request here says to refuse changes that would invalidate finished work, so the server refuses them and points to Revise at Gate 2. Say if you want a change at Gate 2 to start a revision itself.
+- **Max spend: one way.** `validateMaxCostUsd` is the rule `runs.retry` already used (long videos only, under the per-video ceiling); both calls use it, and a Retry in the same call lifts a retry-allowance pause as before.
+- **Validate, preflight, one write.** Run creation's own messages first (voice check, spend limit, stock footage), then the rules, then `settingsPreflightIssues`: the same preflight as before spend, run against the options as they would be, for each stage the change or the retry touches (voice check left out, already applied), nothing written. Then a single `updatePipelineRun`: with `retry: true` the settings, the history entry and the retry (status, stage, count) land in one write via `prepareRetry` and `commitRetry`, which `runs.retry` now uses too. A refused call changes nothing. One case is not combined: a run in legacy planner recovery must be Retried on its own (one-line message).
+- **Visibility without a migration.** `creationOptions.privacyStatus` (JSON). Publishing reads it before Gate 2's recorded choice; Gate 2 writes its own choice into it when approving, so an explicit choice at Gate 2 is never overridden by an earlier one, and a change after a failed upload is what publishes. The Gate 2 call defaults to it when no explicit choice is sent. No schema change was needed.
+- **History.** `creationOptions.settingsChanges[{at, by{userId, name}, changes[{label, from, to}]}]`, returned as `runs.get.settingsChanges` (oldest first, empty when none). `resolvedOptions` is refreshed for the voice, pictures and music so the run screen shows the run's own choice. `runs.rerun` does not copy the history.
+- **Also:** a music mood changed after a plan was made applies to a timing-repair re-render (it reuses the old plan).
+- **Tests:** `run-settings.test.ts` (9) and `runs.update-settings.test.ts` (16): free at Gate 1, refused at Gate 2 with the reason and no write, retry in one write with the count, the cap and the budget refusals, preflight message blocks the save, max spend rules, Gate 2 off, already uploaded, nothing to change, and the Gate 2 default.
+- **Contract for the app:** `runs.get.settingsChanges`; the response `changes[]` can be shown as the confirmation; errors are BAD_REQUEST with the sentence to show (preflight messages are the same ones the run screen shows), CONFLICT when the run is not waiting or the retry cap is reached.
+
 ## Real-model checks (ceiling $2)
 
 Spent **$0.1928** in total, no database, no publish (`reports/task8-assets/spend-ledger.json`, `scripts/task8-acceptance.ts`):
@@ -161,4 +176,4 @@ Spent **$0.1928** in total, no database, no publish (`reports/task8-assets/spend
 
 ## Tests
 
-`npm run typecheck`, `npm run lint`, `npm run build` clean; `npx vitest run`: 132 files passed, 12 skipped (database tests, as before), 1,026 tests passed, 65 skipped. New: preflight (12) and gate (5), shot balance and plan (9), timing repair (4), review provider limit and allowance (8), still check (7), metadata claims (10), length forecast (8), script versions (6), runs.get outcomes and cost (3), list paging (5 + 2), long-form replay with real FFmpeg (2), plus extended registry, run-budget, cost-estimate, scene-prompt, resume and publishing tests. Skipped: the Anthropic real-model checks, live YouTube, any run against a database.
+`npm run typecheck`, `npm run lint`, `npm run build` clean; `npx vitest run`: 132 files passed, 12 skipped (database tests, as before), 1,054 tests passed, 65 skipped. New: preflight (12) and gate (5), shot balance and plan (9), timing repair (4), review provider limit and allowance (8), still check (7), metadata claims (10), length forecast (8), script versions (6), runs.get outcomes and cost (3), list paging (5 + 2), long-form replay with real FFmpeg (2), plus extended registry, run-budget, cost-estimate, scene-prompt, resume and publishing tests. Skipped: the Anthropic real-model checks, live YouTube, any run against a database.

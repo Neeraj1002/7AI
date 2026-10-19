@@ -40,7 +40,7 @@ import {
 } from '../../run-pipeline/manual-retries';
 import { TTS_VOICE_KEYS, assertSupportedVoice } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
-import { PrivacyStatusSchema } from '../../agents/publishing';
+import { PrivacyStatusSchema, type PrivacyStatus } from '../../agents/publishing';
 import { readPublishingReceipt } from '../../models/repositories/publishing-recovery.repository';
 import { FORMAT_KEYS, findFormat, type VideoKind } from '../../formats/manifest';
 import { isValidDuration, durationErrorMessage, resolveRequestedVideoKind } from '../../formats/video-kind';
@@ -59,7 +59,11 @@ import { estimateRunCost } from '../../run-pipeline/cost-estimate';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
-import type { Channel, PipelineRun, PipelineStage, ReviewLog } from '../../types';
+import type { Channel, CreationOptions, PipelineRun, PipelineStage, ReviewLog, StageName } from '../../types';
+import { planSettingsChange, SettingsRejected, SETTINGS_ALLOWED_STATUSES } from '../../run-pipeline/run-settings';
+import { settingsPreflightIssues } from '../../run-pipeline/preflight-gate';
+import type { PreflightStage } from '../../run-pipeline/preflight';
+import { findUserById } from '../../models/repositories/user.repository';
 import { withQualityRows, withQualitySpec } from '../../agents/video-intelligence/quality-metrics';
 import { qualityProfileFor, SHORT_PROFILE, type QualityMetrics, type QualityProfile } from '../../agents/video-generation/quality-spec';
 import { deriveLongFormRunFields, LINK_TTL_SECONDS } from '../../long-form/run-fields';
@@ -388,6 +392,8 @@ async function getRunDetail(id: string, ctx: Context) {
     // and the run's spend limit when it has one.
     spentUsd: Math.round(spentUsd * 10000) / 10000,
     ...(run.creationOptions?.maxCostUsd !== undefined && { maxCostUsd: run.creationOptions.maxCostUsd }),
+    // Sprint 5 Task 8 (R13): every settings change saved with runs.updateSettings, oldest first.
+    settingsChanges: run.creationOptions?.settingsChanges ?? [],
     // Sprint 5 Task 8 (R6): pictures that still showed a logo, readable text, an invented figure or a scene against
     // its narration after their one regeneration, from the latest video attempt. Empty when none.
     flaggedStills: deriveFlaggedStills(stages),
@@ -486,6 +492,103 @@ async function assertChannelCanRun(channel: Channel): Promise<void> {
       message: `Channel "${channel.name}" isn't connected to YouTube yet — connect it before starting a run`,
     });
   }
+}
+
+// The spend-limit rule of runs.retry, shared with runs.updateSettings so there is one way to change it (Sprint 5
+// Task 8, R13): long videos only, and not above the per-video ceiling.
+function validateMaxCostUsd(run: PipelineRun, value: number): number {
+  if (run.creationOptions?.videoKind !== 'long') {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'A spend limit can only be set for a long video' });
+  }
+  if (value > env.LONGFORM_MAX_RUN_USD_LIMIT) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `The spend limit cannot be more than $${env.LONGFORM_MAX_RUN_USD_LIMIT.toFixed(2)} per video` });
+  }
+  return value;
+}
+
+type RetryPlan = {
+  target: StageName;
+  regenCapped: boolean;
+  newMaxCostUsd: number | undefined;
+  liftedAllowance: number | undefined;
+  countsManual: boolean;
+  legacyRecovery: boolean;
+};
+
+// Everything runs.retry checks before it changes anything (no writes). Shared by runs.retry and runs.updateSettings
+// with retry: true, so a Retry after a settings change obeys exactly the same rules.
+async function prepareRetry(run: PipelineRun, channel: Channel, maxCostUsd: number | undefined): Promise<RetryPlan> {
+  if (!run.currentStage) {
+    throw new TRPCError({ code: 'CONFLICT', message: `Run ${run.id} has no stage to retry` });
+  }
+  // Bugs Task 9 (R4) - a regen-cap escalation parks at currentStage 'video_review'; Retry means "make one more
+  // video": step back to video_generation. Bugs Task 12 (R5b) - Retry restarts the stage that actually failed and
+  // never re-runs a gate.
+  const target = retryTargetStage(run);
+  if (!target) {
+    throw new TRPCError({ code: 'CONFLICT', message: `Run ${run.id} has no stage to retry` });
+  }
+  if (target === 'publishing') {
+    const receipt = await readPublishingReceipt(run.id);
+    if (receipt?.phase === 'ambiguous' || (receipt?.ownerToken && receipt.leaseUntil
+        && Date.parse(receipt.leaseUntil) > Date.now())
+        || (receipt?.uploadStarted && !receipt.youtubeVideoId && !receipt.sessionCiphertext)) {
+      throw new TRPCError({ code: 'CONFLICT',
+        message: 'Publishing is active or its YouTube outcome is unresolved. Refresh and review before retrying.' });
+    }
+  }
+  // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
+  const failedTarget = await findLatestAttempt(run.id, target);
+  // A run stopped by preflight never spent anything and made no attempt, so its Retry is free.
+  const eligibleRecovery = isEligibleRecovery(failedTarget) || Boolean(run.creationOptions?.preflightBlock);
+  let legacyRecovery = false;
+  if (isLegacyPlannerRecoveryCandidate(run, failedTarget)) {
+    const [gate, config, logs] = await Promise.all([findLatestAttempt(run.id, 'gate1'), loadResolvedConfig(run, channel), listReviewLogsForRun(run.id)]);
+    legacyRecovery = Boolean(legacyPlannerRecoveryCheckpoint(run, failedTarget, gate, config, latestPlanningFixNotes(logs)));
+  }
+  if (isRetryBlockedByCap(run, target, failedTarget, legacyRecovery)) {
+    throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
+  }
+  // Bugs Closure R1 - a Retry the budget gate would refuse at once only creates another skipped attempt; say why.
+  if (target === 'script_generation' || target === 'video_generation') {
+    const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+    if (!budget.ok) {
+      throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
+    }
+  }
+  // Sprint 4 Task 9 (R7.3): a run stopped at its spend limit can be retried with a higher one.
+  const newMaxCostUsd = maxCostUsd !== undefined ? validateMaxCostUsd(run, maxCostUsd) : undefined;
+  // Sprint 5 Task 8 (D1): a Retry after the automatic-retry allowance pause is the person agreeing to spend on, so
+  // the allowance moves up to the run's spend limit (the new one when they raised it).
+  const liftedAllowance = isRetryAllowancePause(run.lastError)
+    ? newMaxCostUsd ?? run.creationOptions?.maxCostUsd ?? RETRY_ALLOWANCE_UNLIMITED_USD
+    : undefined;
+  return {
+    target,
+    regenCapped: target !== run.currentStage,
+    newMaxCostUsd,
+    liftedAllowance,
+    countsManual: !eligibleRecovery && !isRetryAllowancePause(run.lastError),
+    legacyRecovery,
+  };
+}
+
+// The single write of a Retry. `extraMerge` carries settings changed in the same call, so they land with it.
+async function commitRetry(run: PipelineRun, plan: RetryPlan, extraMerge: Partial<CreationOptions> = {}): Promise<PipelineRun> {
+  if (plan.countsManual) await recordManualRetry(run, plan.target);
+  const merge: Partial<CreationOptions> = {
+    ...extraMerge,
+    ...(plan.newMaxCostUsd !== undefined && { maxCostUsd: plan.newMaxCostUsd }),
+    ...(plan.liftedAllowance !== undefined && { retryAllowanceUsd: plan.liftedAllowance }),
+  };
+  const updated = await updatePipelineRun(run.id, {
+    status: 'running',
+    lastError: null,
+    ...(plan.regenCapped && { currentStage: plan.target }),
+    ...(Object.keys(merge).length > 0 && { creationOptionsMerge: merge }),
+  });
+  continuePipelineInBackground(run.id);
+  return updated;
 }
 
 export const runsRouter = router({
@@ -939,13 +1042,15 @@ export const runsRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const channel = await assertGateOwnership(input.runId, ctx);
+      // Sprint 5 Task 8 (R13): a visibility chosen earlier with runs.updateSettings is the default here.
+      const overrideRun = input.action === 'approve' ? await findPipelineRunById(input.runId) : null;
 
       // Sprint 3 Task 8 (R1) — always send an explicit `approve <privacy>`
       // (matches parseGate2Reply's APPROVE_WITH_PRIVACY exactly): the explicit
       // choice wins, else the channel's own default — never a bare 'approve'.
       const replyText =
         input.action === 'approve'
-          ? `approve ${input.privacyStatus ?? channel.defaultPrivacyStatus}`
+          ? `approve ${input.privacyStatus ?? overrideRun?.creationOptions?.privacyStatus ?? channel.defaultPrivacyStatus}`
           : input.action === 'reject'
             ? `reject ${input.reason}`
             : input.notes;
@@ -999,92 +1104,113 @@ export const runsRouter = router({
         message: `Run ${input.runId} can only be retried from Needs attention (it is '${run?.status}')`,
       });
     }
-    if (!run.currentStage) {
-      throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
-    }
-    // Flip to 'running' first — the runner loop exits immediately on
-    // needs_attention.
-    // Bugs Task 9 (R4) — a regen-cap escalation parks at currentStage
-    // 'video_review'; re-reviewing the same video just hits the cap again
-    // (18a5e2f5). Retry means "make one more video": step back to
-    // video_generation, which feeds the latest review's fix notes forward.
-    // Bugs Task 12 (R5b) - Retry restarts the stage that actually failed and never re-runs a gate: a
-    // run parked at gate2 retries video_generation, at gate1 script_generation. (Re-running gate2
-    // here is what created the orphan 'running' gate attempt of 2026-10-10.)
-    const target = retryTargetStage(run);
-    if (!target) {
-      throw new TRPCError({ code: 'CONFLICT', message: `Run ${input.runId} has no stage to retry` });
-    }
-    if (target === 'publishing') {
-      const receipt = await readPublishingReceipt(run.id);
-      if (receipt?.phase === 'ambiguous' || (receipt?.ownerToken && receipt.leaseUntil
-          && Date.parse(receipt.leaseUntil) > Date.now())
-          || (receipt?.uploadStarted && !receipt.youtubeVideoId && !receipt.sessionCiphertext)) {
-        throw new TRPCError({ code: 'CONFLICT',
-          message: 'Publishing is active or its YouTube outcome is unresolved. Refresh and review before retrying.' });
-      }
-    }
-    // Bugs Task 12 (R2) - counted per stage; the 4th manual Retry is refused with the reason.
-    const failedTarget = await findLatestAttempt(run.id, target);
-    // A run stopped by preflight never spent anything and made no attempt, so its Retry is free.
-    const eligibleRecovery = isEligibleRecovery(failedTarget) || Boolean(run.creationOptions?.preflightBlock);
-    let legacyRecovery = false;
-    if (isLegacyPlannerRecoveryCandidate(run, failedTarget)) {
-      const [gate, config, logs] = await Promise.all([findLatestAttempt(run.id, 'gate1'), loadResolvedConfig(run, channel), listReviewLogsForRun(run.id)]);
-      legacyRecovery = Boolean(legacyPlannerRecoveryCheckpoint(run, failedTarget, gate, config, latestPlanningFixNotes(logs)));
-    }
-    if (isRetryBlockedByCap(run, target, failedTarget, legacyRecovery)) {
-      throw new TRPCError({ code: 'CONFLICT', message: MANUAL_RETRY_CAP_MESSAGE });
-    }
-    const regenCapped = target !== run.currentStage;
-    // Bugs Closure R1 — a Retry that would be refused by the budget gate at
-    // once only creates another skipped attempt and bounces back to Needs
-    // attention (reports "I retried 10 times"). Say why instead, with the numbers.
-    const retryStage = target;
-    if (retryStage === 'script_generation' || retryStage === 'video_generation') {
-      const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
-      if (!budget.ok) {
-        throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
-      }
-    }
-    // Sprint 4 Task 9 (R7.3): a run stopped at its spend limit can be retried with a higher one.
-    let newMaxCostUsd: number | undefined;
-    if (input.maxCostUsd !== undefined) {
-      if (run.creationOptions?.videoKind !== 'long') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'A spend limit can only be set for a long video' });
-      }
-      if (input.maxCostUsd > env.LONGFORM_MAX_RUN_USD_LIMIT) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: `The spend limit cannot be more than $${env.LONGFORM_MAX_RUN_USD_LIMIT.toFixed(2)} per video` });
-      }
-      newMaxCostUsd = input.maxCostUsd;
-    }
-    // Only a Retry that really starts a new attempt counts (budget refusal threw above).
-    if (legacyRecovery) {
-      const claimed = await claimPlannerContractRecovery(run, newMaxCostUsd);
+    const plan = await prepareRetry(run, channel, input.maxCostUsd);
+    // Only a Retry that really starts a new attempt counts (a refusal threw above).
+    if (plan.legacyRecovery) {
+      const claimed = await claimPlannerContractRecovery(run, plan.newMaxCostUsd);
       if (!claimed) throw new TRPCError({ code: 'CONFLICT', message: 'Planner recovery was already started or the run changed. Refresh this run.' });
       continuePipelineInBackground(run.id);
       return claimed;
     }
-    // Sprint 5 Task 8 (D1): a Retry after the automatic-retry allowance pause is the person agreeing to spend
-    // on, so the allowance moves up to the run's spend limit (the new one when they raised it).
-    const liftedAllowance = isRetryAllowancePause(run.lastError)
-      ? newMaxCostUsd ?? run.creationOptions?.maxCostUsd ?? RETRY_ALLOWANCE_UNLIMITED_USD
-      : undefined;
-    if (!eligibleRecovery && !isRetryAllowancePause(run.lastError)) await recordManualRetry(run, target);
-    const updated = await updatePipelineRun(run.id, {
-      status: 'running',
-      lastError: null,
-      ...(regenCapped && { currentStage: target }),
-      ...((newMaxCostUsd !== undefined || liftedAllowance !== undefined) && {
-        creationOptionsMerge: {
-          ...(newMaxCostUsd !== undefined && { maxCostUsd: newMaxCostUsd }),
-          ...(liftedAllowance !== undefined && { retryAllowanceUsd: liftedAllowance }),
-        },
-      }),
-    });
-    continuePipelineInBackground(run.id);
-    return updated;
+    return commitRetry(run, plan);
   }),
+
+  // Sprint 5 Task 8 (R13): change a waiting run's settings (voice, music, pictures, YouTube visibility, max spend),
+  // optionally retrying in the same call. Allowed while the run is in Needs attention or at a gate, with the same
+  // owner and tenant rules as retry. The server decides per stage: a change that would invalidate finished work is
+  // refused with a one-line reason. Everything is validated first (the same messages as run creation, then the
+  // preflight for the options as they would be) and written once, so a refused call changes nothing. Max spend goes
+  // through retry's own validation (validateMaxCostUsd). Each saved change is recorded in settingsChanges.
+  updateSettings: publicProcedure
+    .input(
+      z.object({
+        runId: z.string().uuid(),
+        voice: z.enum(TTS_VOICE_KEYS).optional(),
+        audioLayer: z.enum(AUDIO_LAYERS).optional(),
+        visualSource: z.enum(VISUAL_SOURCES).optional(),
+        privacyStatus: PrivacyStatusSchema.optional(),
+        maxCostUsd: z.number().positive().optional(),
+        retry: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const channel = await assertGateOwnership(input.runId, ctx);
+      if (!channel.isActive) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Channel ${channel.id} is archived — cancel this run instead` });
+      }
+      const run = await findPipelineRunById(input.runId);
+      if (!run || !(SETTINGS_ALLOWED_STATUSES as readonly string[]).includes(run.status)) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Settings can only be changed while a run is waiting for you (it is '${run?.status}')`,
+        });
+      }
+      if (input.retry && run.status !== 'needs_attention') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Retry only applies to a run in Needs attention' });
+      }
+      // The same checks run creation makes, with the same messages.
+      if (input.voice !== undefined) {
+        try { assertSupportedVoice(input.voice); } catch (e) { badRequest((e as Error).message); }
+      }
+      if (input.maxCostUsd !== undefined) validateMaxCostUsd(run, input.maxCostUsd);
+
+      const [config, stages, user, receipt] = await Promise.all([
+        loadResolvedConfig(run, channel),
+        listStagesForRun(run.id),
+        ctx.userId ? findUserById(ctx.userId) : Promise.resolve(null),
+        readPublishingReceipt(run.id),
+      ]);
+      const retryTarget = run.status === 'needs_attention' ? retryTargetStage(run) : null;
+      const gate2Choice = stages
+        .filter((st) => st.stageName === 'gate2' && st.status === 'completed')
+        .sort((a, b) => b.attemptNumber - a.attemptNumber)[0]?.output as { privacyStatus?: PrivacyStatus } | null | undefined;
+      let plan;
+      try {
+        plan = planSettingsChange(input, {
+          run,
+          retryTarget,
+          current: {
+            voice: config.audioDefaultVoice,
+            audioLayer: config.audioDefaultMoodTag,
+            visualSource: config.visualDefaultSource,
+            privacyStatus: run.creationOptions?.privacyStatus ?? gate2Choice?.privacyStatus ?? channel.defaultPrivacyStatus,
+            maxCostUsd: run.creationOptions?.maxCostUsd,
+          },
+          isLong: config.videoKind === 'long',
+          gate2Enabled: channel.approvalGateConfig.gate2Enabled !== false,
+          alreadyUploaded: Boolean(receipt?.youtubeVideoId),
+          by: { userId: ctx.userId ?? null, name: user ? user.name?.trim() || user.email : null },
+          now: new Date(),
+        });
+      } catch (error) {
+        if (error instanceof SettingsRejected) badRequest(error.message);
+        throw error;
+      }
+      if (plan.changes.length === 0 && !input.retry) {
+        badRequest('Nothing to change: these settings are already in use.');
+      }
+
+      const retryPlan = input.retry ? await prepareRetry(run, channel, input.maxCostUsd) : null;
+      if (retryPlan?.legacyRecovery) {
+        badRequest('This run needs its planner recovery started with Retry on its own; save the settings first, then Retry.');
+      }
+      // Preflight for the options as they would be, for each stage the change or the retry touches.
+      const checks = new Set<PreflightStage>();
+      const m = plan.merge;
+      if (m.voice !== undefined || m.audioLayer !== undefined || m.visualSource !== undefined || m.maxCostUsd !== undefined) checks.add('video_generation');
+      if (m.privacyStatus !== undefined) checks.add('publishing');
+      if (retryPlan) {
+        checks.add(retryPlan.target === 'publishing' ? 'publishing' : retryPlan.target === 'video_generation' || retryPlan.target === 'video_review' ? 'video_generation' : 'intake');
+      }
+      const issues = await settingsPreflightIssues(run, [...checks], { ...(run.creationOptions ?? {}), ...plan.merge });
+      if (issues.length > 0) badRequest(issues.map((i) => i.message).join(' '));
+
+      // All checks passed: one write.
+      const updated = retryPlan
+        ? await commitRetry(run, retryPlan, plan.merge)
+        : await updatePipelineRun(run.id, { creationOptionsMerge: plan.merge });
+      return { run: updated, changes: plan.changes };
+    }),
 
   // Sprint 3 Task 11 (R4/B12) — a dead-end run (rejected/cancelled/failed —
   // any ended run, not status-restricted the way `retry` is) can be re-run:
@@ -1104,7 +1230,7 @@ export const runsRouter = router({
     await assertChannelCanRun(channel);
     // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
     const picks = sourceRun.creationOptions
-      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, preflightBlock: _pb, estimateUsd: _e, retryAllowanceUsd: _ra, ...kept }) => kept)(sourceRun.creationOptions)
+      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, preflightBlock: _pb, settingsChanges: _sc, estimateUsd: _e, retryAllowanceUsd: _ra, ...kept }) => kept)(sourceRun.creationOptions)
       : undefined;
     // Sprint 4 Task 12 (R1): recomputed against the channel's current profile. A long run stores its
     // resolved length, so the length counts as a pick only if the source said it was one.

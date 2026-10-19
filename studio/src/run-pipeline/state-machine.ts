@@ -1048,7 +1048,9 @@ export async function runVideoGenerationStage(
       const baselineOut = baseline?.output as VideoGenerationOutput | null | undefined;
       if (baseline && baselineOut?.plan?.longScenes?.length &&
           (previousReview?.input as { videoPath?: string } | null)?.videoPath === baselineOut.videoPath) {
-        timingRepair = { baselineAttempt: baseline.attemptNumber, reasonCode: reviewOut.reasonCode, plan: baselineOut.plan as ProductionPlan };
+        // A music mood changed with runs.updateSettings since that plan was made still applies to the re-render.
+        const musicNow = resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined);
+        timingRepair = { baselineAttempt: baseline.attemptNumber, reasonCode: reviewOut.reasonCode, plan: { ...(baselineOut.plan as ProductionPlan), ...(musicNow && { audioLayer: musicNow }) } };
       }
     }
   }
@@ -1906,6 +1908,8 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           {
             status: 'running',
             currentStage: nextStageAfter('gate2'),
+            // Sprint 5 Task 8 (R13): the choice made here is the run's visibility from now on.
+            creationOptionsMerge: { privacyStatus },
           },
           tx,
         );
@@ -2007,7 +2011,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // Week 5 Task 5 (D2) added this field — an old completed run being
   // re-inspected, not a live resume path (publishing only ever reads the
   // gate2 attempt that led to it).
-  const privacyStatus = gate2Output.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
+  // Sprint 5 Task 8 (R13): the per-run visibility wins (Gate 2 writes its own choice into it, so a later change with
+  // runs.updateSettings, for example after a failed upload, is the one published with).
+  const privacyStatus = run.creationOptions?.privacyStatus ?? gate2Output.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
 
   const videoGenStage = await findLatestAttempt(runId, 'video_generation');
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {

@@ -64,6 +64,18 @@ export const CreationOptionsSchema = z.object({
   // Sprint 5 Task 8 (R2/R8) - run-owned bookkeeping, stripped by runs.rerun: the clean-attempt estimate
   // and the automatic-retry spend allowance (D1) set when the run was created, and the preflight
   // check that last stopped the run before any spend (null once it passes).
+  // Sprint 5 Task 8 (R13): the per-run YouTube visibility (publishing reads it before Gate 2's choice, and Gate 2
+  // writes its own choice back here), and the history of runs.updateSettings changes. No migration: JSON options.
+  privacyStatus: z.enum(['private', 'unlisted', 'public']).optional(),
+  settingsChanges: z
+    .array(
+      z.object({
+        at: z.string(),
+        by: z.object({ userId: z.string().nullable(), name: z.string().nullable() }),
+        changes: z.array(z.object({ label: z.string(), from: z.string(), to: z.string() })),
+      }),
+    )
+    .optional(),
   estimateUsd: z.number().nonnegative().optional(),
   retryAllowanceUsd: z.number().nonnegative().optional(),
   preflightBlock: z

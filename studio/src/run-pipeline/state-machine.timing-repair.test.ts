@@ -58,7 +58,7 @@ describe('timing repair after a shot-length review failure', () => {
     await runVideoGenerationStage('run');
     expect(mocks.callLLM).not.toHaveBeenCalled();
     const call = mocks.generateLongVideo.mock.calls[0][0];
-    expect(call.plan).toBe(keptPlan);
+    expect(call.plan).toEqual({ ...keptPlan, audioLayer: 'none' }); // the run's current music mood (none) applies to the re-render
     expect(call.maxShotSeconds).toBe(7.5);
     expect(mocks.createStageAttempt.mock.calls[0][0].input.timingRepair).toEqual({ baselineAttempt: 1, reasonCode: 'shot_length' });
   });
