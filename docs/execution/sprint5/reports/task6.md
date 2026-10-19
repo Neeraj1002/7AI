@@ -1,6 +1,6 @@
 # Sprint 5 Task 6: Script Review SR-1 to SR-9
 
-**Current Round 3 preparation (2026-10-19): NOT READY. Branch `SPRINT5_TASK6_BE`; worktree `D:\Study Material\7AI-SPRINT5\task6`; [PR #105](https://github.com/Neeraj1002/7AI/pull/105), draft. Main `2c2e19c1a03d7715c4cba588a424a67cdf608c26` integrated. Both review lengths are now configured to Sonnet 5.5; paid continuation is held for the two sanitized failure records selected by the owner.**
+**Current authorized Round 3 outcome (2026-10-19): NOT READY. Branch SPRINT5_TASK6_BE; worktree D:\Study Material\7AI-SPRINT5\task6; [PR #105](https://github.com/Neeraj1002/7AI/pull/105), draft. Sonnet failure not reproduced; all 11 previously unattempted reviews completed. Controls were rejected. The next worst-case reservation stopped further calls at $2.910662/$3 including old unresolved charges. Task doc is whole from main.**
 
 Historical initial baseline: implementation prepared; R5 acceptance failed on SPRINT5_TASK6_BE, own worktree D:\Study Material\7AI-SPRINT5\task6. Fresh main baseline 6852fa5. Task 4 #94 and Sprint 4 long-form review #93 are merged. Owner workflow: combined Sprint 4-5 acceptance after Task 5; no Sprint 4 closure or live-upload hold. No merge/deployment performed.
 
@@ -170,7 +170,7 @@ Means cover successful reviews only; failed calls are not treated as free and ar
 
 Founder status: **NOT READY - [PR #105](https://github.com/Neeraj1002/7AI/pull/105) remains draft; offline checks pass, reviewer acceptance incomplete/failed.**
 
-## Round 3: failure evidence, Sonnet configuration and control preparation
+## Round 3 pre-waiver checkpoint: failure evidence, Sonnet configuration and control preparation
 
 ### What can and cannot be established before spending
 
@@ -217,10 +217,72 @@ Pulled main into the session's own branch/worktree. **One conflict:** add/add in
 Removed this PR's previous STATUS.md and BUSINESS_LOGIC.md edits, preserving the current architect/main versions. The remaining docs diff against main contains **only this report**; the task doc is identical to main/source. This supersedes earlier historical statements that the task updated those shared docs. No other task docs, status rows, plans or bug ledgers were edited. Source identity and docs scope are checked again before the implementation commit. PR #105 stays draft; no gh pr ready, merge, deploy, live upload or production generation.
 
 **Round 3 checks:** build, typecheck and lint exit 0; full integrated suite **1099 passed, 9 skipped** (139 passed files, one skipped). Focused Script Review/LLM suite **162 passed**; affected fixture/budget integration tests **17 passed**; final D4/numeric controls **28 passed**. The archived paid-run guard exits 1 before key loading. No provider calls were made.
-**Exact blocker:** sanitized historical failure records are still absent; the before-spending prerequisite and real Sonnet control acceptance are incomplete. No further provider call is authorized through an assumption about those failures.
+**Historical pre-waiver blocker (superseded below):** sanitized historical failure records are still absent; the before-spending prerequisite and real Sonnet control acceptance are incomplete. No further provider call is authorized through an assumption about those failures.
 
 ### Round 3 integration-check corrections and sign-off
 
 The first integrated full suite exposed three test issues. The fixture count expected 11 rather than the now-extended 19; the weekly pre-check expected the cheaper Haiku-based estimate rather than the Sonnet-based $1.10; and the existing Admin bulk/single comparison depended on unspecified database channel order. Test-only corrections update the fixture count and exact cost expectation and compare channel tuples in channel-ID order. Every channel/value/status is still checked. No runtime budget policy, quota, ceiling or credentials were changed. The final complete suite passes as recorded above.
 
 Task doc synchronization: source byte-identical immediately before commit; main unchanged at 2c2e19c. Docs scope: only this report. Both lengths select Sonnet in the central purpose registry. Control scores and flags remain unassessed by Sonnet in Round 3. **NOT READY:** missing historical failure records prevent the paid continuation required by the owner's step 1; Sonnet controls have not passed. Conservative charge remains $1.999582/$3, with $0 new paid spend. PR #105 remains draft; no merge or deployment.
+
+## Authorized Sonnet reproduction and continuation (2026-10-19)
+
+The owner waived the unavailable historical records and authorized one request for each failed Sonnet review, under a separate $0.15 step cap, then controls-first continuation if the failure did not reproduce. The archive contains **one** failed Sonnet review (clean-short repeat 1); the other failed request was Haiku and was **not retried**. No historical reservation was released.
+
+### Diagnostic result: failure not reproduced
+
+| Model | Calls | HTTP | Stop / raw stop | Input / output / reasoning tokens | Reply length | Metered cost | Score / flags |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| claude-sonnet-5-5 | 1 | 200 | stop / end_turn | 5685 / 244 / 0 | 609 characters | $0.013810 | 7; no factual/style flags; advisory spoken ambiguity |
+
+The request reserved $0.101734 before sending, below the **$0.15 diagnostic cap**. SDK retries were disabled and a second format call was prohibited in this phase. **The failure did not reproduce.** This does not establish the old failures' causes: their HTTP/stop/usage evidence remains lost. Because no cut-off was reproduced, no conditional larger-limit/reasoning-off change was applied. General LLM Registry Part A remains out of scope. Shorts and long-form continue to resolve Sonnet 5.5 from the existing central purpose registry.
+
+**Sanitized evidence is committed in the requested report folder:** [task6-sonnet-evidence.json](task6-sonnet-evidence.json). It includes per-call requested/returned model, HTTP status, safe request ID/error type, stop reasons, input/output/reasoning usage, reply length, cap, reservation, actual raw reply and original fixture snapshots. It contains no keys, authorization headers or raw provider error bodies. All 29 calls returned HTTP 200 and stop/end_turn; none required a format retry. Observed input tokens: 5,685-11,773; output tokens: 244-2,990; reasoning tokens: 0-2,266; reply lengths: 609-2,351 characters. Reasoning is included in output cost once. No output cap was reached.
+
+### Completion and the hard budget stop
+
+Completed the diagnostic plus **all 11 previously unattempted Sonnet reviews**, then the additional controls and budget-permitted D4 negatives: **29 successful requests total** (one diagnostic, 28 continuation). The 11 are clean-short repeats 2/3 and all three repeats of Appendix A clean, dropped-hedge and invented-details. No provider failure occurred in the continuation.
+
+The next request, D4 sensory-speech invented-quote repeat 3, needed a **$0.106996** worst-case reservation. Adding that to **$2.910662** would reach **$3.017658**, so it was stopped **before sending**, with no charge. Seven supplementary requests remain unexecuted: that D4 negative repeat and six Lego negative-excerpt repeats. Their absence is not counted as a pass. No further paid calls were made or attempted after the stop.
+
+| Spending item | Amount |
+| --- | --- |
+| Historical known metered | $1.780191 |
+| New diagnostic plus continuation metered | $0.911080 |
+| Known metered cumulative | **$2.691271** |
+| Old unresolved reservations (unchanged) | **$0.219391** |
+| Conservative cumulative charge | **$2.910662 / $3** |
+| Remaining conservative allowance | **$0.089338** |
+
+The unresolved amount is still $0.031893 original + $0.088256 old Haiku + $0.099242 old Sonnet. A successful retry does not prove that an old failed call cost zero. New returned usage is fully retained; there are no new unknown-cost calls.
+
+### Per-control actual result
+
+All rows use requested and returned model **claude-sonnet-5-5**. Scores below 7 were rejected by the unchanged gate rule. Flags below distinguish actual constraint findings from advisory quality/production-fit notes; all exact strings are in the evidence JSON.
+
+| Control | Model | Actual scores, repeats 1/2/3 | Actual findings |
+| --- | --- | --- | --- |
+| clean-short (repeat 1 is the diagnostic) | Sonnet 5.5 | 7 / 7 / 7 | No factual/style or video flags. SR-3/4 advisory ambiguity on "carried 50 workers"; low hook/engagement ratings. No spelling false flag. |
+| Lego facts, synthetic | Sonnet 5.5 | 4 / 5 / 5 | SR-2 length in 3/3; zero factual concerns. SR-3/4/5 and illustration advisories. |
+| Lego rhetoric, synthetic | Sonnet 5.5 | 6 / 5 / 5 | SR-2 length in 3/3; zero factual concerns. Permitted rhetoric was not treated as SR-9. Spoken-clarity, filler and visual advisories. |
+| Appendix A clean | Sonnet 5.5 | 4 / 4 / 4 | SR-9 causal/referent interpretations in 2/3; no factual/style arrays in repeat 2. All three describe repetitive, self-referential narration and weak visual/engagement fit. |
+| D4 imagined first person | Sonnet 5.5 | 7 / 6 / 5 | No factual concerns. SR-2 omitted documented binary/cubical/decimal facts in 2/3. "I think in grams" was advisory, not an SR-9 cap. |
+| D4 senses and tagged speech | Sonnet 5.5 | 6 / 6 / 6 | Unsupported balance-scale prop SR-9 in 2/3; omitted documented facts SR-2 in 1/3. Tagged everyday speech was allowed; low factual payoff and wording advisories remain. |
+
+Other completed outcomes: Appendix A dropped hedge **4/4/3**; Appendix A invented details **4/4/4**; D4 invented 777 **4/4/4**; D4 factual/numbered speech **4/4**, third repeat not sent. These negative scores do not substitute for passing the clean controls.
+
+### Fixture accountability and zero-cost corrections
+
+I prepared both synthetic Lego controls at **215 words**, below the two-minute lower bound (232 words at 145 wpm). I missed that mechanical validity check before the paid run. Their SR-2 length rejections are **valid**, not model false positives. The synthetic D4 speech brief did not supply the balance device used in the script; "The balance tilts" / "edge of the balance" are concrete additions beyond its allowance. The stricter corrections remove the prop rather than expanding the brief to excuse it. They also include all supplied documented facts, avoiding the omitted-facts ambiguity.
+
+The Appendix control's flagged lines are **"the answer from owners was to push automatic elevators"** (a causal interpretation) and **"There were fewer tellers per branch" / "the change within a branch"** (a referent interpretation beyond the literal supplied wording). They are not ordinary transitions. The old control is retained as an **advisory-only borderline replay**. A stricter factual variant uses literal supplied wording and removes those interpretations; its wider narrative quality is still unverified. Empty factual arrays in repeat 2 did not prevent a quality score of 4; the benchmark needs a better production-quality control, not an artificial score floor.
+
+No old input, raw response or failed outcome was overwritten. [sr-sonnet-round3-replays.json](../../../../studio/src/content-evidence/fixtures/sr-sonnet-round3-replays.json) freezes all 29 actual input/response/output triples for zero-cost replay. [sr-strict-controls.json](../../../../studio/src/content-evidence/fixtures/sr-strict-controls.json) contains five separate **offline-only, unreviewed** candidate corrections: Lego controls at 264 words, D4 controls at 108/113 words, and the stricter Appendix factual variant at 1,014 words. The originals remain in the evidence snapshots and historical fixture set; corrected IDs are distinct. Mechanical word range, numeric/exact constraints and all 29 captured outcomes replay without provider calls. This is not paid acceptance of the corrected controls and does not make the PR ready.
+
+### Current sign-off
+
+**NOT READY.** Sonnet controls did not pass; corrected candidates have not been reviewed, and the next reservation would breach the $3 ceiling. The obsolete requirement to wait for historical error records is superseded by the owner's explicit waiver. Evidence capture, one-call reproduction and the 11-review continuation are complete. No merge, deployment, live upload, production generation, runtime budget-policy change, threshold change or general LLM retry-policy rewrite occurred.
+
+**Final validation:** build, typecheck and lint exit 0; full suite **1135 passed, 9 skipped** (141 passed files, one skipped). Focused reviewer/LLM checks before spending: **164 passed**. Captured-outcome replay plus strict offline fixture constraints: **34 passed**, with zero provider calls. Budget audit confirms exactly one diagnostic call, all original 11 completed, and no request for the budget-stopped row. Task doc is taken whole from main, as the latest owner instruction requires. Docs scope is this report plus the explicitly requested sanitized JSON evidence in the report folder; no STATUS.md, BUSINESS_LOGIC.md, plan or other authored doc changes remain.
+
+**Final branch state:** current main remains 2c2e19c1a03d7715c4cba588a424a67cdf608c26 and is fully included. task6.md is byte-identical to the whole main copy. The only docs outputs are this report and the explicitly requested task6-sonnet-evidence.json. Original raw evidence and failures are retained. **NOT READY - PR #105 remains draft; no further paid calls, merge or deployment.**
