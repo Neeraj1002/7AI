@@ -4,6 +4,7 @@ import { groundModelFindings, unsupportedSr2 } from './grounded-findings';
 import { numberFormattingEquivalent } from './numbers';
 import { checkBrief } from './brief-checks';
 import { calibrateReview, reviewRules } from './rules';
+import { confirmHardCaps, type HardCapCheck } from './hard-cap-confirmation';
 import { z } from "zod";
 import {
   callLLM,
@@ -75,6 +76,8 @@ export type ScriptReviewResult = {
   output: ScriptReviewOutput;
   llm: LLMResponse;
   calls?: LLMResponse[];
+  // Per-finding results of the SR-1/SR-9 hard-cap confirmation; absent when no check ran. Not part of the public review.
+  hardCapChecks?: HardCapCheck[];
 };
 
 export const SYSTEM_PROMPT = `You review a short-form vertical video script (YouTube Shorts)
@@ -271,10 +274,27 @@ export async function reviewScript(
       const dismissedSr2 = options.legacyReplay ? [] : grounded.styleGuideViolations.filter(unsupportedSr2);
       const corrected = { ...grounded, styleGuideViolations: grounded.styleGuideViolations.filter(f => options.legacyReplay || !unsupportedSr2(f)), notes: [grounded.notes, ...dismissedSr2.map(f => 'Reviewer correction (advisory, no new cap): SR-2 requires an absent explicit constraint. Original finding: ' + f)].join('\n') };
       const softProp = (finding: string) => Boolean(brief && scenePropStatus(brief, params.scriptText, finding) === 'soft');
+      const briefOnly = isLong || params.evidence?.factPolicy === 'brief-only';
+      // A hard cap (SR-1, brief-only SR-9) needs a second opinion on the quoted sentence; archived replays predate it.
+      let reviewed = corrected, hardCapChecks: HardCapCheck[] | undefined;
+      if (brief && !options.legacyReplay) {
+        const candidates = corrected.factualConcerns.filter(f => { const rule = Number(f.match(/^\s*\[?SR-([1-9])\b/i)?.[1] ?? 1); return rule === 1 || (rule === 9 && briefOnly && !softProp(f)); });
+        try { hardCapChecks = await confirmHardCaps({ findings: candidates, brief, script: params.scriptText, complete, calls }); }
+        catch (error) {
+          const failedContext = getStageErrorContext(error);
+          const context = { ...failedContext, calls: [...(llmCallsContext(calls).calls as unknown[]), ...(Array.isArray(failedContext?.calls) ? failedContext.calls : [])], rawReply: calls.at(-1)!.text };
+          if (error instanceof TransientStageError) throw new TransientStageError(error.message, error, context);
+          throw new NonTransientStageError('Script Review hard-cap confirmation failed', error, context);
+        }
+        const dismissed = hardCapChecks.filter(c => c.outcome === 'dismissed').map(c => c.finding);
+        if (dismissed.length) reviewed = { ...corrected, factualConcerns: corrected.factualConcerns.filter(f => !dismissed.includes(f)),
+          notes: [corrected.notes, ...dismissed.map(f => 'Reviewer correction (advisory, no new cap): confirmation found the quoted sentence supported by, or a paraphrase of, the brief facts. Original finding: ' + f)].join('\n') };
+      }
       let scored: ScriptReviewOutput;
-      try { scored = audit ? (options.legacyReplay ? scoreWithoutAdvisories(output, corrected, audit as LegacyScoreAudit, softProp, true) : scoreFromAudit(output, corrected, audit as ScoreAudit)) : corrected; } catch (error) { lastFailure = error; continue; }
-      const calibrated = calibrateReview(scored, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], isLong || params.evidence?.factPolicy === 'brief-only', softProp);
-      return { output: calibrated, llm, ...(calls.length > 1 ? { calls } : {}) };
+      try { scored = audit ? (options.legacyReplay ? scoreWithoutAdvisories(output, reviewed, audit as LegacyScoreAudit, softProp, true) : scoreFromAudit(output, reviewed, audit as ScoreAudit)) : reviewed; } catch (error) { lastFailure = error; continue; }
+      const confirmed = hardCapChecks && new Set(hardCapChecks.filter(c => c.outcome === 'confirmed').map(c => c.finding));
+      const calibrated = calibrateReview(scored, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], briefOnly, softProp, confirmed);
+      return { output: calibrated, llm, ...(calls.length > 1 ? { calls } : {}), ...(hardCapChecks?.length ? { hardCapChecks } : {}) };
   }
   const last = calls.at(-1)!;
   throw new NonTransientStageError('Script Review did not return a complete valid review after one format retry (' + describeJsonError(lastFailure) + ')', lastFailure,

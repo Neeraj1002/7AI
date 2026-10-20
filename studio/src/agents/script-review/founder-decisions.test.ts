@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import fixtures from '../../content-evidence/fixtures/sr-pre-gate.json';
 import { buildEvidencePacket } from '../../content-evidence/packet';
 import { reviewScript } from './index';
+import { CONFIRM_SYSTEM_PROMPT } from './hard-cap-confirmation';
 import { checkBrief } from './brief-checks';
 import { scoreFromAudit } from './score-audit';
 import type { LLMResponse } from '../../llm';
@@ -19,9 +20,11 @@ it('computes five-subscore average in code and excludes advisory findings',async
  const f='SR-3: repetitive';const complete=vi.fn().mockResolvedValue(response({...clean,score:0,scoreAudit:audit([{rule:'SR-3',finding:f}],{criterion:'brief-brand',score:1,finding:f}),notes:f}));
  const r=await reviewScript(params,complete);expect(r.output.score).toBe(10);expect(r.output).not.toHaveProperty('scoreAudit');expect(complete).toHaveBeenCalledTimes(1);
 });
-it('averages supported objective subscores and then applies caps',async()=>{
- const f='SR-1: Actual mismatch; restore the brief.';const o={...clean,factualConcerns:[f],scoreAudit:audit([{rule:'SR-1',finding:f}],{criterion:'factual-causality',score:5,finding:f})};
- const r=await reviewScript(params,vi.fn().mockResolvedValue(response(o)));expect(r.output.score).toBe(6);
+it('averages supported objective subscores and then applies caps only to a confirmed hard-cap finding',async()=>{
+ const f='SR-1: "'+c.scriptText.split(/(?<=[.!?])\s/)[0].replace(/"/g,'')+'" is an actual mismatch; restore the brief.';const o={...clean,factualConcerns:[f],scoreAudit:audit([{rule:'SR-1',finding:f}],{criterion:'factual-causality',score:5,finding:f})};
+ const routed=(verdict:string)=>vi.fn(async(req:{system:string})=>response(req.system===CONFIRM_SYSTEM_PROMPT?{verdict,reason:'t'}:o)) as never;
+ expect((await reviewScript(params,routed('unsupported'))).output.score).toBe(6);
+ const unconfirmed=await reviewScript(params,vi.fn().mockResolvedValue(response(o)));expect(unconfirmed.output.score).toBe(8);expect(unconfirmed.hardCapChecks?.[0].outcome).toBe('unconfirmed');
 });
 it('requires a private audit and a complete response',async()=>{
  const complete=vi.fn().mockResolvedValue(response(clean));await expect(reviewScript(params,complete)).rejects.toThrow('after one format retry');expect(complete).toHaveBeenCalledTimes(2);
