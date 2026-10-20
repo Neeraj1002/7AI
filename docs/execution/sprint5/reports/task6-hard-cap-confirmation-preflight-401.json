@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "hash": "e04e5e99563f119737c1b363e36f457d91be4615af55b40594b57e5765001da3",
+  "priorArtifactHash": "5af1d47951fef892feaf2027477f7b4dcc773631443c3f620d4783bb2339e10e",
+  "priorStepChargedUsd": 0.550154,
+  "baselineConservativeUsd": 3.44048,
+  "historicalReservationsUsd": 0.219391,
+  "reservationsReleased": false,
+  "stepCeilingUsd": 0.8,
+  "model": "claude-sonnet-5-5",
+  "productionOutputLimit": 16000,
+  "evaluationOutputLimit": 2560,
+  "estimatedInputMarginTokens": 1024,
+  "fixtures": [
+    {
+      "caseId": "appendix-A-clean",
+      "provenance": "Appendix A brief from approved Task 6 specification; synthetic narration, not production data. Founder-approved causal-sentence correction, 2026-10-19.",
+      "briefText": "Topic: four jobs that machines took over before AI, and what happened to the workers, Britain and America, 1900s to today. Constraints: about 1,240 words; four chapters in order (knocker-upper, elevator operator, human computers, bank teller), each told as a story with \"but\" and \"so\", each opening with the question it answers; **use only the facts in the chapters, no other facts, numbers, names, dates or details; no predictions about AI**; first sentence exactly \"Today, many people worry that AI will take their job. People have worried about machines before, and history kept the receipts.\"; last sentence exactly \"The cash machine didn't end the bank teller. The phone in your pocket did.\"; exact hedge words \"around 1900\", \"about 1.5 million\", \"more than 50 years\", \"only a handful\", \"over 400,000\", \"did not fall as ATMs rolled out\"; no dollar conversions; Dorothy Vaughan only through scenes and silhouettes, never as a portrait. Chapter facts (abridged): knocker-uppers woke workers with long sticks; Mary Smith in London's East End used a pea shooter and dried peas, 1900s to 1930s, sixpence a week, retired 1934; cheap alarm clocks ended the job. Automatic elevators invented around 1900 but not trusted; 1945 New York strike, about 1.5 million office workers stranded; owners pushed automatic elevators; calm recorded voice, red stop button, emergency phone; more than 50 years to feel normal; today only a handful of operators. NACA human computers; Dorothy Vaughan joined 1943, acting head of West Area Computers 1949, first Black supervisor at NACA; electronic computers arrived 1961; she taught herself FORTRAN and taught her co-workers; retired 1971. ATMs from the 1970s, over 400,000 in the United States; teller jobs did not fall as ATMs rolled out; branch tellers fell from 20 to 13 between 1988 and 2004, city branches rose 43 percent; teller job became helping customers; numbers fell later in the smartphone era.",
+      "scriptText": "Today, many people worry that AI will take their job. People have worried about machines before, and history kept the receipts.\n\nHow did workers wake up before an alarm clock ended the knocker-upper's job? A knocker-upper woke workers with a long stick. That was the job: waking workers. But Mary Smith used a different tool in London's East End. She used a pea shooter and dried peas. So the story of the knocker-upper includes both the long stick and Mary Smith's pea shooter. The tools differed, but the task was waking workers. Mary Smith did that work from the 1900s to the 1930s, for sixpence a week. Those are the terms of this story: a worker who woke other workers, a pea shooter, dried peas, and sixpence a week. But cheap alarm clocks ended the job. So the job's ending belongs to the alarm clock, rather than to an account of what Mary Smith did next. She retired in 1934. The brief gives us her retirement, and it gives us the machine that ended the job. It does not give us her life after that. What we can follow is the task itself. Workers needed waking, and knocker-uppers did the waking. But cheap alarm clocks took over that task, so the job ended. Mary Smith's story gives that change a name, a place and a tool: Mary Smith in London's East End, with a pea shooter and dried peas.\n\nWhy did automatic elevators take more than 50 years to feel normal? Automatic elevators were invented around 1900. But they were not trusted. So invention was not the same thing as acceptance. An automatic elevator existed, but people did not trust it. In 1945, a New York strike stranded about 1.5 million office workers. That is the size of the disruption in this account. Owners pushed automatic elevators. So the automatic machine became the alternative that owners pushed. A calm recorded voice, a red stop button and an emergency phone are the details of that change. They belong together in this story: the voice, the button, the phone. But the change did not feel normal immediately. It took more than 50 years to feel normal. So a story that begins with an invention around 1900 cannot end at the invention. It has to include the lack of trust, the strike in 1945 and the owners pushing the automatic alternative. Today there are only a handful of operators. The operator's job did not remain as it had been, but the machine did not feel normal just because it had been invented. So the contrast is between having an automatic elevator and accepting an automatic elevator. The machine was automatic, but trust did not arrive with its invention. So the story includes the recorded voice, the stop button and the emergency phone, as well as the strike and the owners pushing automatic elevators. The invention came around 1900; feeling normal took more than 50 years. The strike stranded about 1.5 million office workers, and owners pushed the automatic elevators.\n\nWhat did Dorothy Vaughan do when electronic computers arrived? She had joined NACA as a human computer in 1943. In 1949 she became acting head of West Area Computers, the first Black supervisor at NACA. That was her work before the electronic computers arrived. But electronic computers arrived in 1961. So the story turns from her position among human computers to what she did with the new computing work. She taught herself FORTRAN. She also taught her co-workers. Those are the actions in this account: learning FORTRAN herself and teaching her co-workers. But this is not a reason to invent a different ending for her. She retired in 1971. So the sequence stays with the facts: joining in 1943, acting head in 1949, electronic computers arriving in 1961, learning and teaching FORTRAN, retirement in 1971. Her story includes a machine arriving, but it also includes a worker learning. The human computer and the electronic computer belong to different parts of the account. Dorothy Vaughan belongs in both parts through the actions the brief records. She joined NACA, became acting head of West Area Computers and taught herself FORTRAN. So her co-workers belong in the story too: she taught them. We can tell that through scenes and silhouettes, without a portrait. The change in computing is part of the story, but learning and teaching are part of it too. Her retirement in 1971 closes the account given here.\n\nWhy did the cash machine not immediately end the bank teller? ATMs rolled out from the 1970s, with over 400,000 in the United States. But teller jobs did not fall as ATMs rolled out. So counting machines alone does not tell this story. Branch tellers fell from 20 to 13 between 1988 and 2004, but city branches rose 43 percent. There were fewer tellers per branch, but more city branches. So the change within a branch is not the same measure as the number of teller jobs. The teller's job became helping customers. That is the change in the work recorded here. But the account does not stop at the ATM rollout. Numbers fell later, in the smartphone era. So there are different changes to keep separate: fewer tellers in a branch, more city branches, a job becoming helping customers, and numbers falling later. The dates and figures belong to those changes. The 20 to 13 figure belongs to branch tellers between 1988 and 2004. The 43 percent figure belongs to the rise in city branches. The over 400,000 figure belongs to ATMs in the United States. But teller jobs did not fall as ATMs rolled out. So the later fall belongs to the smartphone era in this account. It is an ending that differs from the alarm clock ending the knocker-upper's job. It also differs from the long acceptance of automatic elevators and from Dorothy Vaughan learning FORTRAN. These accounts follow the workers as well as the machines, without predicting what AI will do. The cash machine didn't end the bank teller. The phone in your pocket did.",
+      "videoKind": "long",
+      "targetSeconds": 513,
+      "chapterTitles": [
+        "Knocker-upper",
+        "Elevator operator",
+        "Human computers",
+        "Bank teller"
+      ],
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script. Founder-approved minimum-length correction, 2026-10-19; original snapshots retained in prior evidence.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "lego-facts-control",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. That is where the story began.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys, going back to basics instead of chasing growth. The change was a return to the toys: the core business, with the brick at its center. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Keep those moments together. The shortfall belongs to 2003, the layoffs and the owner's money to 2004, and the park sale to 2005. The later comparison is with Mattel, in the first half of 2015. Its measure is sales. That is the path through this account, from the shortfall to the core toys and the sales comparison at the end. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "chapterTitles": [
+        "How much money was missing?",
+        "So what did going back to basics mean?",
+        "Where did that leave Lego ten years later?"
+      ],
+      "control": true
+    }
+  ],
+  "calls": [],
+  "reviews": [
+    {
+      "caseId": "appendix-A-clean",
+      "repeat": 1,
+      "status": "failed",
+      "callIds": [],
+      "failure": {
+        "model": "claude-sonnet-5-5",
+        "maxTokens": 2560,
+        "errorClass": "NonTransientStageError",
+        "statusCode": null,
+        "stopReason": null,
+        "rawStopReason": null,
+        "inputTokens": null,
+        "outputTokens": null,
+        "reasoningTokens": null,
+        "providerErrorType": null,
+        "classification": "unknown"
+      }
+    }
+  ],
+  "additionalChargedUsd": 0,
+  "stepChargedUsd": 0.550154,
+  "conservativeTotalUsd": 3.990634,
+  "complete": false,
+  "stopped": "free token-count preflight failed (HTTP 401)",
+  "passBar": {
+    "sixComplete": false,
+    "minScore": null,
+    "confirmedHardCapFindings": 0,
+    "dismissedFindings": 0,
+    "unconfirmedFindings": 0,
+    "met": false
+  }
+}
