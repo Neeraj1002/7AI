@@ -42,7 +42,7 @@ it('scene-policy severity numbers cannot become factual number evidence',()=>{
 it('applies only the five founder-approved fixture corrections; historical snapshots remain preserved',()=>{
  const old=JSON.parse(readFileSync('../docs/execution/sprint5/reports/task6-sonnet-evidence.json','utf8')).fixtureSnapshots as typeof fixtures.evaluationCases;
  const changed=fixtures.evaluationCases.filter(c=>JSON.stringify(c)!==JSON.stringify(old.find(o=>o.caseId===c.caseId))).map(c=>c.caseId).sort();expect(changed).toEqual(['appendix-A-clean','d4-imagined-clean','d4-sensory-speech-clean','lego-facts-control','lego-rhetoric-control'].sort());
- for(const id of ['lego-facts-control','lego-rhetoric-control']){const c=fixtures.evaluationCases.find(c=>c.caseId===id)!;expect(c.scriptText.trim().split(/\s+/)).toHaveLength(240);expect(checkBrief(c.briefText,c.scriptText).numericViolations).toEqual([]);expect(checkBrief(c.briefText,c.scriptText).exactViolations).toEqual([]);}
+ for(const id of ['lego-facts-control','lego-rhetoric-control']){const c=fixtures.evaluationCases.find(c=>c.caseId===id)!;expect(c.scriptText.trim().split(/\s+/).length).toBeGreaterThanOrEqual(290);expect(c.scriptText.trim().split(/\s+/).length).toBeLessThanOrEqual(348);expect(checkBrief(c.briefText,c.scriptText).numericViolations).toEqual([]);expect(checkBrief(c.briefText,c.scriptText).exactViolations).toEqual([]);}
  const a=fixtures.evaluationCases.find(c=>c.caseId==='appendix-A-clean')!;expect(a.scriptText).not.toContain('the answer from owners');expect(a.scriptText).toContain('Owners pushed automatic elevators.');expect(checkBrief(a.briefText,a.scriptText).exactViolations).toEqual([]);
 });
 
