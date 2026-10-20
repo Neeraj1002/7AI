@@ -36,6 +36,12 @@ export function numberMentions(text: string): NumberMention[] {
   }
   for(const m of text.matchAll(/\b(penny and a half|sixpence)\b/gi)) if(!occupied.some(([a,b])=>m.index!>=a&&m.index!<b))
     { output.push({value:m[1].toLowerCase()==='sixpence'?6:1.5,unit:'pence',text:m[0],index:m.index!,end:m.index!+m[0].length}); occupied.push([m.index!,m.index!+m[0].length]); }
+  // An attached magnitude suffix ("$220M", "1.4bn", "90K") is one figure; the word forms below never see it.
+  for (const m of text.matchAll(/(?<![\w.])([$\u00a3])?(\d[\d,]*(?:\.\d+)?)(bn|[MBK])\b/g)) {
+    const index=m.index!+(m[1]?1:0),end=m.index!+m[0].length,scale={K:1e3,M:1e6,B:1e9,bn:1e9}[m[3] as 'K'|'M'|'B'|'bn'];
+    output.push({value:parseFloat(m[2].replace(/,/g,''))*scale,unit:m[1]==='$'?'USD':m[1]?'GBP':null,text:text.slice(index,end),index,end});
+    occupied.push([index,end]);
+  }
   for (const m of text.matchAll(numeric)) {
     const index=m.index!,end=index+m[0].length;
     if(occupied.some(([a,b])=>index>=a&&index<b))continue;
@@ -56,7 +62,32 @@ export function sentenceSpans(text:string): {text:string; start:number; end:numb
   for(let i=0;i<text.length;i++)if(/[.!?]/.test(text[i])&&!(/\d/.test(text[i-1]??'')&&/\d/.test(text[i+1]??''))){spans.push({text:text.slice(start,i+1),start,end:i+1});start=i+1;}
   if(start<text.length)spans.push({text:text.slice(start),start,end:text.length});return spans;
 }
-const hedge=/\b(?:roughly|about|around|approximately|nearly|almost|estimated?|estimates|mostly|largely|at most|at least|more than|less than|over|up to|capped|maximum|minimum|ceiling|no more than|no less than)\b/i;
+const hedgeWords='roughly|about|around|approximately|nearly|almost|estimated?|estimates|mostly|largely|at most|at least|more than|less than|over|up to|capped|maximum|minimum|ceiling|no more than|no less than';
+const hedgeDirect=new RegExp('\\b(?:'+hedgeWords+')(?:\\s+(?:of|a|an|the))*$','i');
+// Estimation words reach over a short verb phrase: "estimates range from forty", "capped at three". Particles that
+// double as hedges ("around", "over", "about") get no such reach.
+const hedgeReach=/\b(?:estimates?|estimated|mostly|largely|capped)(?:\s+[\p{L}']+){0,2}$/iu;
+/**
+ * A hedge covers a figure only when it sits directly before it (with at most a currency sign or an article between:
+ * "about $5", "almost a thousand"), before the opening figure of a range ("about 1,200 to 1,500"), or is an estimation
+ * word within two words ("estimates range from forty"). A hedge elsewhere in the sentence does not count:
+ * "Turned Around Its $220M" and "Around the same time, it lost $220 million" are unhedged.
+ */
+function hedgedFigure(sentence:string,index:number,end:number):boolean{
+  // A limit word that closes the sentence still hedges its figure: "three pence a day, the official maximum".
+  if(/\b(?:maximum|minimum|ceiling)\s*[.!?]*\s*$/i.test(sentence.slice(end)))return true;
+  let before=sentence.slice(0,index);
+  for(let hop=0;hop<2;hop++){
+    const stripped=before.replace(/[$\u00a3\s]+$/,'');
+    if(hedgeDirect.test(stripped)||hedgeReach.test(stripped))return true;
+    const joiner=stripped.match(/\s(?:to|and|or)$|[-\u2013]$/i);
+    if(!joiner)return false;
+    const rest=stripped.slice(0,stripped.length-joiner[0].length),prior=numberMentions(rest).at(-1);
+    if(!prior||rest.slice(prior.end).trim()!=='')return false;
+    before=rest.slice(0,prior.index);
+  }
+  return false;
+}
 const same=(a:NumberMention,b:NumberMention)=>Math.abs(a.value-b.value)<1e-8&&(!a.unit||!b.unit||a.unit===b.unit);
 function derived(n:NumberMention,source:NumberMention[],sentence:string):boolean{
   if(!/\b(per|each|total|times|half|third|quarter|tenth|double|sum|difference|divided|ratio)\b/i.test(sentence))return false;
@@ -69,7 +100,7 @@ export function numericVerdicts(brief:string,script:string):{violations:string[]
   const source=numberMentions(brief),candidates=numberMentions(script),violations:string[]=[],derivedHints:string[]=[];
   const sourceSpans=sentenceSpans(brief),scriptSpans=sentenceSpans(script);
   for(const n of candidates){
-    const sentence=scriptSpans.find(s=>n.index>=s.start&&n.index<s.end)!.text.trim();
+    const span=scriptSpans.find(s=>n.index>=s.start&&n.index<s.end)!,sentence=span.text.trim();
     const matches=source.filter(b=>same(n,b));
     if(!matches.length){
       if(derived(n,source,sentence))derivedHints.push(sentence);
@@ -77,8 +108,8 @@ export function numericVerdicts(brief:string,script:string):{violations:string[]
       continue;
     }
     // If a value appears both hedged and unhedged in the brief, leave referent ambiguity to hints/model.
-    const hedged=matches.every(m=>{const s=sourceSpans.find(s=>m.index>=s.start&&m.index<s.end)!;const previous=source.filter(p=>p.end<=m.index&&p.index>=s.start).at(-1);return hedge.test(brief.slice(Math.max(s.start,previous?.end??s.start,m.index-65),m.index));});
-    if(hedged&&!hedge.test(sentence))violations.push('SR-8: dropped numeric hedge for '+JSON.stringify(n.text)+' in '+JSON.stringify(sentence)+'; matching brief number carries an approximation/limit hedge.');
+    const hedged=matches.every(m=>{const s=sourceSpans.find(s=>m.index>=s.start&&m.index<s.end)!;return hedgedFigure(s.text,m.index-s.start,m.end-s.start);});
+    if(hedged&&!hedgedFigure(span.text,n.index-span.start,n.end-span.start))violations.push('SR-8: dropped numeric hedge for '+JSON.stringify(n.text)+' in '+JSON.stringify(sentence)+'; matching brief number carries an approximation/limit hedge.');
   }
   return {violations:[...new Set(violations)],derivedHints:[...new Set(derivedHints)]};
 }

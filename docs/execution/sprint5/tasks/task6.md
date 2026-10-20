@@ -4,7 +4,7 @@
 
 **Keep replies and tool output short: no step-by-step narration, read only the files you need, one-line status messages.**
 
-**Revision**: r4, 2026-10-20, PR #105 merged; one live detection check left in a small follow-up PR.
+**Revision**: r5, 2026-10-21, live detection check passed (PR #110); one offline fix left: hedge word must sit next to its figure.
 
 **Written**: 2026-10-18 by the architect chat, at the founder's request. **Status**: PR #105 MERGED (20 Oct, by the founder). Open: one small follow-up PR with a live detection check (see Addendum r4). Not deployed yet. **Priority**: P0 for the first public long video.
 
@@ -121,6 +121,18 @@ Brief (2-minute Video, channel Underdogs): "Lego's recovery from financial crisi
 - **Do now (small follow-up PR, new branch off latest `main`, no code change unless the check fails; step cap raised to $0.90 by the founder)**: run Lego draft 1 and Lego draft 2 (the two recorded invented-fact scripts) once each against the live reviewer on Sonnet 5.5. Pass bar: each gets an SR-9 flag, the confirmation call fires and confirms it, and the score is capped at 6. Report per draft: quoted sentence, confirmation answer, score, cost. If a draft passes uncapped or the confirmation call never fires, stop without more spend and report; the fix decision is the founder's. If both pass, the PR holds only the report update and the evidence file; pull `main`, confirm CI, mark ready. Hard rules 5 to 7 apply.
 - **Founder actions**: merge the follow-up PR when green; deploy; run the Script Review part of the combined test (T09 area) after deploy.
 
+## Addendum r5 (2026-10-21, after the live detection check and Task 8's finding)
+
+- **Status**: PR #110 (live detection check) is ready, CI green. Result: Lego draft 1 and draft 2 each got two SR-9 findings, the confirmation call fired and confirmed all four as unsupported, and both scores were capped at 6 (cost about $0.032 per draft). The detection concern in Addendum r4 is cleared. Merge is the founder's; after the merge the agent closes the task per Hard rule 8.
+- **New defect found by Task 8 (merged code, no task covers it)**: the numeric check in `numericVerdicts` treats a hedge word as covering a figure when it appears anywhere in the same sentence. "Around" in "How Lego Turned Around Its $220M Crisis" is a verb particle, so the unhedged figure is not flagged (Task 8's test records this). The same sentence-level check runs on script text, so "Around the same time, it lost $220 million" would pass unhedged. This lets unhedged figures through.
+- **Do now (small follow-up PR, new branch off the latest `main` after #110 is merged and closed; offline only, no live calls)**:
+  1. A hedge word counts only when it is adjacent to the figure it hedges: within the two or three words before it, not anywhere in the sentence. Read the real code first and confirm where the match is made; do not assume.
+  2. Required behaviour, each with a test: "Turned Around Its $220M Crisis" is flagged; "Around the same time, it lost $220 million" is flagged; "around 1900", "about 1.5 million" and "roughly 220 million dollars" still pass.
+  3. Add Task 8's Lego title case ("How Lego Turned Around Its $220M Crisis") as a test, and update the Task 8 test that records the gap if it lives in a file this PR may edit; otherwise tell the architect which test needs updating after both PRs merge.
+  4. Replay the existing fixtures (miss-log cases and all controls): no control may change score. No live calls, no spend.
+  5. Hard rules 5 to 7 apply (sync this doc first, pull `main` before ready). Then close per Hard rule 8.
+- **Founder actions**: merge #110, then the follow-up; deploy; run the Script Review part of the combined test.
+
 ## Links
 
 [Miss log](../../../review_tuning/SCRIPT_REVIEW_MISSES.md) · [Task 4](task4.md) and its [report](../reports/task4.md) · [Sprint 4 Task 10](../../sprint4/tasks/task10.md) · [WORKFLOW](../WORKFLOW.md) · [Acceptance plan, Sprint 4 and 5](../SPRINT4_5_ACCEPTANCE_PLAN.md) (once on `main`)
@@ -130,3 +142,4 @@ Brief (2-minute Video, channel Underdogs): "Lego's recovery from financial crisi
 - r2, 2026-10-18: round 2 instructions (real-model acceptance, Sonnet 5.5 for long-form).
 - r3, 2026-10-19: D5 (correct fixtures that break the brief), D6 (scene props, soft cap 8), D7 (advisory notes never lower the score); status and next steps.
 - r4, 2026-10-20: PR #105 merged; Addendum r4 (what was built, evidence, spend, caveat, follow-up live detection check with cap $0.90).
+- r5, 2026-10-21: live detection check passed (PR #110); Addendum r5: hedge word must be adjacent to its figure (found by Task 8, offline fix, small follow-up PR).
