@@ -1,0 +1,460 @@
+{
+  "version": 1,
+  "hash": "14dd0abec88b50ad3154798bb1fc951f69ab70e1595064de6ed21310f5fdb386",
+  "priorArtifactHash": "1ab208b30563fb500e4a3a2dfc736c346ed0204a15505cf2f434be624a402b9b",
+  "priorStepChargedUsd": 0.732122,
+  "baselineConservativeUsd": 3.44048,
+  "historicalReservationsUsd": 0.219391,
+  "reservationsReleased": false,
+  "stepCeilingUsd": 0.9,
+  "model": "claude-sonnet-5-5",
+  "productionOutputLimit": 16000,
+  "evaluationOutputLimit": 2560,
+  "estimatedInputMarginTokens": 1024,
+  "fixtures": [
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [
+        "SR-9"
+      ],
+      "caseId": "lego-draft-1-excerpts",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. Shelves that once overflowed with colorful bricks grew thin. The board could not look away. Workers who once managed amusement parks were replaced by designers again.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "control": false
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script.",
+      "factPolicy": "brief-only",
+      "expectedRules": [
+        "SR-9"
+      ],
+      "caseId": "lego-draft-2-excerpts",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still. Store shelves that once sat half empty were now stacked high with boxes.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "control": false
+    }
+  ],
+  "calls": [
+    {
+      "id": 1,
+      "caseId": "lego-draft-1-excerpts",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.045996,
+      "estimatedInputTokens": 9174,
+      "inputMarginTokens": 1024,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 2560,
+      "reasoningMode": "between_tools",
+      "temperature": null,
+      "requestHash": "c491d8781aaa0acd9db12c2ff49c7e1ffd69d5dfaa9d140a86df22120994f5d7",
+      "startedAt": "2026-10-20T19:58:11.252Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9174,
+        "outputTokens": 876,
+        "text": "{\"score\":6,\"notes\":\"Opening and closing lines match the brief; chapter questions, hedges and figures are preserved. Unsupported concrete events remain: thin shelves and designers replacing park workers. SR-3 advisory: the 'back to basics'/'core toys' recap is repetitive. SR-4 advisory: 'By sales matters here' is awkward when spoken.\",\"hookScore\":7,\"hookNotes\":\"Brief-mandated opener is direct and urgent, though it is a statement rather than a scene.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Thin shelves and designers replacing park workers imply scenes not supported by the brief.\",\"No logos or brand lettering allowed; Lego bricks and parks must avoid visible branding.\"]},\"factualConcerns\":[\"SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.\",\"SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off.\"],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"Chapter 1\",\"note\":\"Strong crisis start, but the shelves and designers lines add invented events.\"},{\"chapterTitle\":\"Chapter 2\",\"note\":\"Park sale is clear; the brick-as-thread line and recap slow the pacing.\"},{\"chapterTitle\":\"Chapter 3\",\"note\":\"The Mattel comparison lands well; the closing recap is repetitive.\"}],\"scoreAudit\":{\"rubricSubscores\":[{\"criterion\":\"chapter-order\",\"score\":10,\"finding\":null},{\"criterion\":\"open-loop\",\"score\":10,\"finding\":null},{\"criterion\":\"factual-causality\",\"score\":7,\"finding\":\"SR-9: 'Workers who once managed amusement parks were replaced by designers again' invents a causal workforce change not in brief.\"},{\"criterion\":\"brief-brand\",\"score\":10,\"finding\":null},{\"criterion\":\"hook-promise\",\"score\":10,\"finding\":null}],\"findings\":[{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.\"},{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off.\"}]}}",
+        "replyLengthChars": 2221
+      },
+      "costUsd": 0.027108,
+      "endedAt": "2026-10-20T19:58:19.807Z"
+    },
+    {
+      "id": 2,
+      "caseId": "lego-draft-1-excerpts",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.007906,
+      "estimatedInputTokens": 929,
+      "inputMarginTokens": 1024,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 400,
+      "reasoningMode": "between_tools",
+      "temperature": null,
+      "requestHash": "333f2b355a3bfc31990ebebc57a7f29ec3b9c355b249b5e5b847eed8d0fe8ab6",
+      "startedAt": "2026-10-20T19:58:20.258Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 929,
+        "outputTokens": 65,
+        "text": "{\"verdict\":\"unsupported\",\"reason\":\"The brief says nothing about store shelves or product availability thinning; this is an invented checkable detail not in the facts, and not a listed harmless transition.\"}",
+        "replyLengthChars": 206
+      },
+      "costUsd": 0.002508,
+      "endedAt": "2026-10-20T19:58:22.921Z"
+    },
+    {
+      "id": 3,
+      "caseId": "lego-draft-1-excerpts",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.007904,
+      "estimatedInputTokens": 928,
+      "inputMarginTokens": 1024,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 400,
+      "reasoningMode": "between_tools",
+      "temperature": null,
+      "requestHash": "7dde3087aed74847435cb24480a5d552d713591731983173281a7ce778292a0b",
+      "startedAt": "2026-10-20T19:58:23.278Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 928,
+        "outputTokens": 66,
+        "text": "{\"verdict\": \"unsupported\", \"reason\": \"The facts say Legoland parks were sold in 2005; they never say park workers were replaced by designers. This claimed staffing change is not in the facts.\"}",
+        "replyLengthChars": 193
+      },
+      "costUsd": 0.002516,
+      "endedAt": "2026-10-20T19:58:25.912Z"
+    },
+    {
+      "id": 4,
+      "caseId": "lego-draft-2-excerpts",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.045946,
+      "estimatedInputTokens": 9149,
+      "inputMarginTokens": 1024,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 2560,
+      "reasoningMode": "between_tools",
+      "temperature": null,
+      "requestHash": "1b2d12f1c83deac4a1d983769e90e685091745bafea9d5d535467d42295d63e6",
+      "startedAt": "2026-10-20T19:58:26.290Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9149,
+        "outputTokens": 927,
+        "text": "{\"score\":7.5,\"notes\":\"Mandated opening and closing are intact, chapter questions are answered, and numbers/hedges are preserved. Concerns: unsupported concrete scene details (quiet factory floors, empty offices, half-empty shelves stacked with boxes). SR-3 advisory: recap lines in chapters 2 and 3 are repetitive filler.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-focused but plain; no vivid moment.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Instruction to avoid logos/brand lettering: depict bricks and parks generically.\",\"Abstract lines like 'thread connecting the beginning and the end' need symbolic stills.\"]},\"factualConcerns\":[\"SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'\",\"SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete.\"],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"In 2003, Lego was losing money fast.\",\"note\":\"Strong stakes and figures, but the invented quiet-factory imagery should go and the question-opener is clumsy.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Clear answer with the 2005 sale, but recap sentences repeat the same point.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff lands with correct figures; the 'by sales matters here' aside is filler.\"}],\"scoreAudit\":{\"rubricSubscores\":[{\"criterion\":\"chapter-order\",\"score\":10,\"finding\":null},{\"criterion\":\"open-loop\",\"score\":10,\"finding\":null},{\"criterion\":\"factual-causality\",\"score\":7,\"finding\":\"SR-9: invented quiet factory, empty offices and stacked store shelves are not supported by the brief.\"},{\"criterion\":\"brief-brand\",\"score\":10,\"finding\":null},{\"criterion\":\"hook-promise\",\"score\":10,\"finding\":null}],\"findings\":[{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'\"},{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete.\"}]}}",
+        "replyLengthChars": 2346
+      },
+      "costUsd": 0.027568,
+      "endedAt": "2026-10-20T19:58:35.416Z"
+    },
+    {
+      "id": 5,
+      "caseId": "lego-draft-2-excerpts",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.007928,
+      "estimatedInputTokens": 940,
+      "inputMarginTokens": 1024,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 400,
+      "reasoningMode": "between_tools",
+      "temperature": null,
+      "requestHash": "0e871341bd68562aae9df957ccbe261af0197c654202af7ef6dc84c451b2a602",
+      "startedAt": "2026-10-20T19:58:35.854Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 940,
+        "outputTokens": 74,
+        "text": "{\"verdict\": \"unsupported\", \"reason\": \"Describes quiet factory floors and empty, still offices, a specific scene the facts don't contain; they only mention layoffs of almost a thousand workers, not this imagery.\"}",
+        "replyLengthChars": 212
+      },
+      "costUsd": 0.00262,
+      "endedAt": "2026-10-20T19:58:38.699Z"
+    },
+    {
+      "id": 6,
+      "caseId": "lego-draft-2-excerpts",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.007908,
+      "estimatedInputTokens": 930,
+      "inputMarginTokens": 1024,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 400,
+      "reasoningMode": "between_tools",
+      "temperature": null,
+      "requestHash": "6d61524dfe06009fb8ff08ac687c95ad1e29571c535847f66fdf48b436f9a3f0",
+      "startedAt": "2026-10-20T19:58:39.046Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 930,
+        "outputTokens": 66,
+        "text": "{\"verdict\":\"unsupported\",\"reason\":\"The brief says nothing about store shelves being half empty or later stacked with boxes; this is an invented detail, not a harmless transition or paraphrase.\"}",
+        "replyLengthChars": 194
+      },
+      "costUsd": 0.00252,
+      "endedAt": "2026-10-20T19:58:41.808Z"
+    }
+  ],
+  "reviews": [
+    {
+      "caseId": "lego-draft-1-excerpts",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        1,
+        2,
+        3
+      ],
+      "output": {
+        "score": 6,
+        "notes": "Opening and closing lines match the brief; chapter questions, hedges and figures are preserved. Unsupported concrete events remain: thin shelves and designers replacing park workers. SR-3 advisory: the 'back to basics'/'core toys' recap is repetitive. SR-4 advisory: 'By sales matters here' is awkward when spoken.\nD2 score: code rubric average 10; advisory findings excluded.\ncapped at 6: SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.\ncapped at 6: SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off.",
+        "hookScore": 7,
+        "hookNotes": "Brief-mandated opener is direct and urgent, though it is a statement rather than a scene.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Thin shelves and designers replacing park workers imply scenes not supported by the brief.",
+            "No logos or brand lettering allowed; Lego bricks and parks must avoid visible branding."
+          ]
+        },
+        "factualConcerns": [
+          "SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.",
+          "SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off."
+        ],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "Chapter 1",
+            "note": "Strong crisis start, but the shelves and designers lines add invented events."
+          },
+          {
+            "chapterTitle": "Chapter 2",
+            "note": "Park sale is clear; the brick-as-thread line and recap slow the pacing."
+          },
+          {
+            "chapterTitle": "Chapter 3",
+            "note": "The Mattel comparison lands well; the closing recap is repetitive."
+          }
+        ]
+      },
+      "hardCapChecks": [
+        {
+          "finding": "SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.",
+          "sentences": [
+            "Shelves that once overflowed with colorful bricks grew thin."
+          ],
+          "outcome": "confirmed",
+          "verdicts": [
+            {
+              "sentence": "Shelves that once overflowed with colorful bricks grew thin.",
+              "verdict": "unsupported",
+              "reason": "The brief says nothing about store shelves or product availability thinning; this is an invented checkable detail not in the facts, and not a listed harmless transition."
+            }
+          ]
+        },
+        {
+          "finding": "SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off.",
+          "sentences": [
+            "Workers who once managed amusement parks were replaced by designers again."
+          ],
+          "outcome": "confirmed",
+          "verdicts": [
+            {
+              "sentence": "Workers who once managed amusement parks were replaced by designers again.",
+              "verdict": "unsupported",
+              "reason": "The facts say Legoland parks were sold in 2005; they never say park workers were replaced by designers. This claimed staffing change is not in the facts."
+            }
+          ]
+        }
+      ],
+      "responses": [
+        {
+          "text": "{\"score\":6,\"notes\":\"Opening and closing lines match the brief; chapter questions, hedges and figures are preserved. Unsupported concrete events remain: thin shelves and designers replacing park workers. SR-3 advisory: the 'back to basics'/'core toys' recap is repetitive. SR-4 advisory: 'By sales matters here' is awkward when spoken.\",\"hookScore\":7,\"hookNotes\":\"Brief-mandated opener is direct and urgent, though it is a statement rather than a scene.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Thin shelves and designers replacing park workers imply scenes not supported by the brief.\",\"No logos or brand lettering allowed; Lego bricks and parks must avoid visible branding.\"]},\"factualConcerns\":[\"SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.\",\"SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off.\"],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"Chapter 1\",\"note\":\"Strong crisis start, but the shelves and designers lines add invented events.\"},{\"chapterTitle\":\"Chapter 2\",\"note\":\"Park sale is clear; the brick-as-thread line and recap slow the pacing.\"},{\"chapterTitle\":\"Chapter 3\",\"note\":\"The Mattel comparison lands well; the closing recap is repetitive.\"}],\"scoreAudit\":{\"rubricSubscores\":[{\"criterion\":\"chapter-order\",\"score\":10,\"finding\":null},{\"criterion\":\"open-loop\",\"score\":10,\"finding\":null},{\"criterion\":\"factual-causality\",\"score\":7,\"finding\":\"SR-9: 'Workers who once managed amusement parks were replaced by designers again' invents a causal workforce change not in brief.\"},{\"criterion\":\"brief-brand\",\"score\":10,\"finding\":null},{\"criterion\":\"hook-promise\",\"score\":10,\"finding\":null}],\"findings\":[{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'Shelves that once overflowed with colorful bricks grew thin' is an unsupported concrete event; not in brief. Remove it.\"},{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'Workers who once managed amusement parks were replaced by designers again' is not in brief; cut it or say only that almost a thousand workers were laid off.\"}]}}",
+          "usage": {
+            "inputTokens": 9174,
+            "outputTokens": 876,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.027108",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 2560,
+          "priorAttempts": []
+        },
+        {
+          "text": "{\"verdict\":\"unsupported\",\"reason\":\"The brief says nothing about store shelves or product availability thinning; this is an invented checkable detail not in the facts, and not a listed harmless transition.\"}",
+          "usage": {
+            "inputTokens": 929,
+            "outputTokens": 65,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.002508",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 2560,
+          "priorAttempts": []
+        },
+        {
+          "text": "{\"verdict\": \"unsupported\", \"reason\": \"The facts say Legoland parks were sold in 2005; they never say park workers were replaced by designers. This claimed staffing change is not in the facts.\"}",
+          "usage": {
+            "inputTokens": 928,
+            "outputTokens": 66,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.002516",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 2560,
+          "priorAttempts": []
+        }
+      ],
+      "detection": {
+        "sr9Flagged": true,
+        "confirmationFired": true,
+        "confirmedUnsupported": true,
+        "score": 6,
+        "pass": true
+      }
+    },
+    {
+      "caseId": "lego-draft-2-excerpts",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        4,
+        5,
+        6
+      ],
+      "output": {
+        "score": 6,
+        "notes": "Mandated opening and closing are intact, chapter questions are answered, and numbers/hedges are preserved. Concerns: unsupported concrete scene details (quiet factory floors, empty offices, half-empty shelves stacked with boxes). SR-3 advisory: recap lines in chapters 2 and 3 are repetitive filler.\nD2 score: code rubric average 10; advisory findings excluded.\ncapped at 6: SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'\ncapped at 6: SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete.",
+        "hookScore": 6,
+        "hookNotes": "Brief-mandated opener is direct and stakes-focused but plain; no vivid moment.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Instruction to avoid logos/brand lettering: depict bricks and parks generically.",
+            "Abstract lines like 'thread connecting the beginning and the end' need symbolic stills."
+          ]
+        },
+        "factualConcerns": [
+          "SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'",
+          "SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete."
+        ],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "In 2003, Lego was losing money fast.",
+            "note": "Strong stakes and figures, but the invented quiet-factory imagery should go and the question-opener is clumsy."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "Clear answer with the 2005 sale, but recap sentences repeat the same point."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "Payoff lands with correct figures; the 'by sales matters here' aside is filler."
+          }
+        ]
+      },
+      "hardCapChecks": [
+        {
+          "finding": "SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'",
+          "sentences": [
+            "The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still."
+          ],
+          "outcome": "confirmed",
+          "verdicts": [
+            {
+              "sentence": "The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still.",
+              "verdict": "unsupported",
+              "reason": "Describes quiet factory floors and empty, still offices, a specific scene the facts don't contain; they only mention layoffs of almost a thousand workers, not this imagery."
+            }
+          ]
+        },
+        {
+          "finding": "SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete.",
+          "sentences": [
+            "Store shelves that once sat half empty were now stacked high with boxes."
+          ],
+          "outcome": "confirmed",
+          "verdicts": [
+            {
+              "sentence": "Store shelves that once sat half empty were now stacked high with boxes.",
+              "verdict": "unsupported",
+              "reason": "The brief says nothing about store shelves being half empty or later stacked with boxes; this is an invented detail, not a harmless transition or paraphrase."
+            }
+          ]
+        }
+      ],
+      "responses": [
+        {
+          "text": "{\"score\":7.5,\"notes\":\"Mandated opening and closing are intact, chapter questions are answered, and numbers/hedges are preserved. Concerns: unsupported concrete scene details (quiet factory floors, empty offices, half-empty shelves stacked with boxes). SR-3 advisory: recap lines in chapters 2 and 3 are repetitive filler.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-focused but plain; no vivid moment.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Instruction to avoid logos/brand lettering: depict bricks and parks generically.\",\"Abstract lines like 'thread connecting the beginning and the end' need symbolic stills.\"]},\"factualConcerns\":[\"SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'\",\"SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete.\"],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"In 2003, Lego was losing money fast.\",\"note\":\"Strong stakes and figures, but the invented quiet-factory imagery should go and the question-opener is clumsy.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Clear answer with the 2005 sale, but recap sentences repeat the same point.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff lands with correct figures; the 'by sales matters here' aside is filler.\"}],\"scoreAudit\":{\"rubricSubscores\":[{\"criterion\":\"chapter-order\",\"score\":10,\"finding\":null},{\"criterion\":\"open-loop\",\"score\":10,\"finding\":null},{\"criterion\":\"factual-causality\",\"score\":7,\"finding\":\"SR-9: invented quiet factory, empty offices and stacked store shelves are not supported by the brief.\"},{\"criterion\":\"brief-brand\",\"score\":10,\"finding\":null},{\"criterion\":\"hook-promise\",\"score\":10,\"finding\":null}],\"findings\":[{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'The factory floors grew quiet, and the offices that once buzzed with new ideas sat empty and still' is not in the brief; remove or limit to 'Almost a thousand workers were laid off.'\"},{\"rule\":\"SR-9\",\"finding\":\"SR-9: 'Store shelves that once sat half empty were now stacked high with boxes' invents a concrete retail situation; delete.\"}]}}",
+          "usage": {
+            "inputTokens": 9149,
+            "outputTokens": 927,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.027568",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 2560,
+          "priorAttempts": []
+        },
+        {
+          "text": "{\"verdict\": \"unsupported\", \"reason\": \"Describes quiet factory floors and empty, still offices, a specific scene the facts don't contain; they only mention layoffs of almost a thousand workers, not this imagery.\"}",
+          "usage": {
+            "inputTokens": 940,
+            "outputTokens": 74,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.002620",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 2560,
+          "priorAttempts": []
+        },
+        {
+          "text": "{\"verdict\":\"unsupported\",\"reason\":\"The brief says nothing about store shelves being half empty or later stacked with boxes; this is an invented detail, not a harmless transition or paraphrase.\"}",
+          "usage": {
+            "inputTokens": 930,
+            "outputTokens": 66,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.002520",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 2560,
+          "priorAttempts": []
+        }
+      ],
+      "detection": {
+        "sr9Flagged": true,
+        "confirmationFired": true,
+        "confirmedUnsupported": true,
+        "score": 6,
+        "pass": true
+      }
+    }
+  ],
+  "additionalChargedUsd": 0.06484,
+  "stepChargedUsd": 0.796962,
+  "conservativeTotalUsd": 4.237442,
+  "complete": true,
+  "passBar": {
+    "bothComplete": true,
+    "met": true
+  }
+}
