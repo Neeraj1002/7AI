@@ -68,7 +68,7 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
 
   "script-review": {
     provider: "anthropic",
-    model: "claude-haiku-4-5",
+    model: "claude-sonnet-5-5",
     label: "Script Review",
     maxOutputTokens: 16_000,
     reasoning: "off",

@@ -1,3 +1,4 @@
+import { scriptRetryFeedback } from '../agents/script-review/rules';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
@@ -531,29 +532,29 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
   // call, including retries, writes its own UsageEvent row.
   const attemptOnce = async (): Promise<ScriptReviewOutput & { evidenceRef?: EvidenceRef }> => {
     try {
-      const { output, llm } = await reviewScript(stageInput);
-      for (const call of llmUsageRows(llm)) {
-        await insertUsageEvent({
-          tenantId: run.tenantId,
-          channelId: run.channelId,
-          pipelineRunId: runId,
-          stageId: stage.id,
-          agent: 'script-review',
-          ...call,
-        });
-      }
+      const { output, llm, calls } = await reviewScript(stageInput);
+      for (const reviewedCall of (calls ?? [llm]).flatMap(llmUsageRows)) await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-review',
+        provider: reviewedCall.provider,
+        model: reviewedCall.model,
+        inputTokens: reviewedCall.inputTokens,
+        outputTokens: reviewedCall.outputTokens,
+        costUsd: reviewedCall.costUsd,
+      });
       return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
     } catch (error) {
-      for (const spent of failureUsageEvents(error)) {
-        await insertUsageEvent({
-          tenantId: run.tenantId,
-          channelId: run.channelId,
-          pipelineRunId: runId,
-          stageId: stage.id,
-          agent: 'script-review',
-          ...spent,
-        });
-      }
+      for (const usage of failureUsageEvents(error)) await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-review',
+        ...usage,
+      });
       throw error;
     }
   };
@@ -653,7 +654,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
             stageId: stage.id,
             agent: 'script-review',
             verdict: 'auto-reject',
-            rationale: output.notes,
+            rationale: scriptRetryFeedback(output),
           },
           tx,
         );

@@ -68,6 +68,8 @@ export function llmUsageContext(llm: LLMResponse): StageErrorContext {
     outputTokens: llm.usage.outputTokens,
     costUsd: llm.costUsd,
     stopReason: llm.stopReason,
+    ...(llm.rawStopReason ? { rawStopReason: llm.rawStopReason } : {}),
+    ...(llm.usage.reasoningTokens !== undefined ? { reasoningTokens: llm.usage.reasoningTokens } : {}),
     // A reply that came back after an automatic cut-off retry cost two calls: the failure path books each.
     ...((llm.priorAttempts?.length ?? 0) > 0 ? { calls: llmUsageRows(llm) } : {}),
   };

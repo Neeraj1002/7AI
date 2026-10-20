@@ -157,3 +157,12 @@ export async function probeLLMProvider(): Promise<void> {
     reasoning: 'off',
   });
 }
+
+/** Explicit comparison seam; the normal purpose registry is unchanged. */
+export async function callScriptReviewForEvaluation(req: Parameters<typeof callLLM>[0], model: 'claude-haiku-4-5' | 'claude-sonnet-5-5'): Promise<LLMResponse> {
+  if (req.purpose !== 'script-review') throw new Error('Evaluation override is limited to script-review');
+  const provider = 'anthropic' as const;
+  const entry = resolvePurpose(req.purpose);
+  const result = await callProviderModel({ ...req, provider, model, maxOutputTokens: entry.maxOutputTokens, reasoning: entry.reasoning, stream: entry.maxOutputTokens > resolveModelFacts(model).streamingAboveTokens });
+  return { ...result, provider, model, maxOutputTokens: entry.maxOutputTokens };
+}
