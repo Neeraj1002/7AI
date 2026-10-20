@@ -473,7 +473,7 @@ Before marking ready I fetched and pulled `main` (no new commits since `ed9faa5`
 
 ## Hedge adjacency fix (2026-10-21)
 
-Branch `SPRINT5_TASK6_HEDGE`, worktree `D:\Study MaterialAI-SPRINT5	ask6-hedge`, PR #111, cut from `main` at `bab2233`; the task doc was synced to r5 as the first commit. Offline only: no live calls, no spend.
+Branch `SPRINT5_TASK6_HEDGE`, worktree `D:\Study Material\7AI-SPRINT5\task6-hedge`, PR #111, cut from `main` at `bab2233`; the task doc was synced to r5 as the first commit. Offline only: no live calls, no spend.
 
 **Where the match was made (read first, not assumed).** In `numericVerdicts` (`studio/src/agents/script-review/numbers.ts`), a figure whose matching brief figure is hedged was passed if the hedge regex matched **anywhere in the script sentence**. A second, separate cause sat under it: `numberMentions` never parsed an attached magnitude such as `$220M` (the word-boundary regex needs a boundary after the digits), so "Turned Around Its $220M Crisis" had no figure at all and could not be flagged whatever the hedge rule said. Task 8 spells `$220M` out to `$220 million` before calling the rule, which hides this second cause on its path.
 
