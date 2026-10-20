@@ -83,6 +83,17 @@ export function describeFailure(
     };
   }
 
+  // Task 8: automatic retries have a spending allowance; past it the run waits for a person (Retry takes a higher limit).
+  if (/^Automatic retry allowance used/i.test(text)) {
+    return {
+      kind: 'spend_limit',
+      title: 'Automatic retries used up their spending allowance',
+      detail: 'Retry with a higher spend limit to keep going. Nothing made so far is lost.',
+      fix: 'limit',
+      technical,
+    };
+  }
+
   // Our own spend limit for this video.
   const capped = typeof opts.spentUsd === 'number' && typeof opts.maxCostUsd === 'number' && opts.spentUsd >= opts.maxCostUsd;
   if (capped || /budget ceiling|spend limit|max(imum)? (spend|cost)/i.test(text)) {

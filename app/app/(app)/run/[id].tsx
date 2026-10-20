@@ -17,6 +17,7 @@ import type { StepperEnd } from '../../../lib/stepper-colors';
 import { EditSettingsSheet, type CurrentSettings } from '../../../components/EditSettingsSheet';
 import { canEditSettings, settingsChangeNotes } from '../../../lib/run-settings';
 import { VOICES } from '../../../lib/pipeline-options';
+import { serverOutcomesOf } from '../../../lib/attempt-outcome';
 import { CostCard } from '../../../components/CostCard';
 import { costBreakdownOf, costMapOf } from '../../../lib/run-cost';
 import { ScriptVersionsCard } from '../../../components/ScriptVersionsCard';
@@ -284,6 +285,9 @@ export default function RunDetailScreen() {
   // Gate 1 edit sheet of a long script: chapters as "## Title" lines followed by their text (Task 9 R2.5).
   const editText = isLong ? (data.scriptEditText ?? scriptText) : scriptText;
   const atLimit = needsHigherLimit({ videoKind: data.videoKind, spentUsd: data.spentUsd, maxCostUsd: data.maxCostUsd });
+  // Task 8: a run paused by the automatic-retry allowance (not by the limit itself) is also continued with a higher limit.
+  const allowanceStop = Boolean(run.lastError?.startsWith('Automatic retry allowance used'));
+  const canRaiseLimit = atLimit || (allowanceStop && data.spentUsd !== undefined && data.maxCostUsd !== undefined);
   const lengthLabel = isLong && typeof data.qualityMetrics?.durationSeconds === 'number' ? mmss(data.qualityMetrics.durationSeconds) : null;
   // R3: after Gate 1 the screens show the approved (narrated) text, the writer's draft as a labelled extra.
   const scriptVersions = scriptVersionsOf(stages as unknown as Parameters<typeof scriptVersionsOf>[0], isLong, data);
@@ -357,6 +361,7 @@ export default function RunDetailScreen() {
     lastGateDecision,
     gateDecisions: data.gateDecisions,
     costs: costMapOf(costs),
+    server: serverOutcomesOf(data),
   });
   // What the old Details list added beyond the steps: the run's own last error and the stock-to-AI-stills switch.
   const historyNotes = [
@@ -426,7 +431,7 @@ export default function RunDetailScreen() {
           icon="rotate-cw"
           loading={retryMutation.isPending}
           disabled={cancelMutation.isPending || Boolean(manualRetry?.retryCapReached)}
-          onPress={() => (atLimit ? setLimitOpen(true) : retryMutation.mutate({ runId: run.id }))}
+          onPress={() => (canRaiseLimit ? setLimitOpen(true) : retryMutation.mutate({ runId: run.id }))}
         />
         {manualRetry?.retryCapReached ? <Text style={styles.meta}>{manualRetry.message}</Text> : null}
         <SecondaryButton
@@ -561,12 +566,12 @@ export default function RunDetailScreen() {
           maxCostUsd={data.maxCostUsd}
           reviewReason={lastFailedReviewReason}
           videoAttempts={videoAttempts}
-          onRaiseLimit={atLimit ? () => setLimitOpen(true) : undefined}
+          onRaiseLimit={canRaiseLimit ? () => setLimitOpen(true) : undefined}
           onEditSettings={() => setSettingsOpen(true)}
         />
       ) : null}
 
-      {atLimit && data.spentUsd !== undefined && data.maxCostUsd !== undefined ? (
+      {canRaiseLimit && data.spentUsd !== undefined && data.maxCostUsd !== undefined ? (
         <RaiseLimitSheet
           visible={limitOpen}
           onClose={() => setLimitOpen(false)}
@@ -764,6 +769,7 @@ export default function RunDetailScreen() {
           spentUsd={costs?.totalUsd ?? data.spentUsd}
           limitUsd={costs?.limitUsd ?? data.maxCostUsd}
           estimateUsd={costs?.estimateUsd}
+          retryAllowanceUsd={costs?.retryAllowanceUsd}
           ended={run.status === 'completed' || run.status === 'failed'}
           attemptsCount={videoAttempts}
         />

@@ -13,7 +13,7 @@
 **Status in three separate statements**
 - Code-complete: R1, R2 (app side), R3, R4 (app side), R5 (app side), R7, R9, R10, R11. R6 built on a stub catalog. R8 not coded (reason below). R4 is built against `runs.updateSettings` from PR #107 (open, not merged): on a server without it the sheet says "This server cannot change settings on a run yet."
 - Merged: no. Deployed: no. App build number: none yet (no EAS build was made; the founder's phone has not seen any of this).
-- Verified: app type-check clean, lint clean, 152 app tests pass (82 before this task), re-run after merging main, web bundle exports. **Nothing was run on a phone or emulator**, and no screen was looked at in a phone-size layout. Layout fixes below are reasoned from the code, not seen.
+- Verified: app type-check clean, lint clean, 162 app tests pass (82 before this task), re-run after merging main, web bundle exports. **Nothing was run on a phone or emulator**, and no screen was looked at in a phone-size layout. Layout fixes below are reasoned from the code, not seen.
 
 ## R0. Read the code first
 
@@ -31,13 +31,13 @@
 | # | Status | Waiting on Task 8 (field) or deferred (reason) |
 |---|---|---|
 | A1 Inbox stops at 7 or 8 | **Fixed** | none |
-| A2 No cost on the Run screen | **Fixed in part**: spent so far / final, limit | **Waiting on Task 8 R8.7**: `runs.get.costBreakdown` (estimate, per attempt, per stage) |
-| A3 Script tab shows the draft | **Fixed** (reads the Gate 1 output) | optional: `runs.get.approvedScript`, `originalDraft` (Task 8 R11.1) |
+| A2 No cost on the Run screen | **Fixed** (cost card; per attempt and per stage) | reads `runs.get.cost`, `videoAttempts[]`, `stageSummaries[]` (Task 8 report). Needs #107 deployed to show anything beyond spent / limit |
+| A3 Script tab shows the draft | **Fixed** | reads `runs.get.scripts { draft, approved, usedByVideo }`; says which one the video used |
 | A4 Cannot change a setting on a failed run | **Built** (Edit settings sheet) | **Waiting on PR #107 merge and deploy**: `runs.updateSettings`, `runs.get.settingsChanges`, stored per-run `privacyStatus` |
-| A5 Attempt 1 shown as done; no notification | **Label fixed** (derived from the review row) | **Waiting on Task 8 R5**: stage `outcome`; the two D2 pushes are emitted by the server |
+| A5 Attempt 1 shown as done; no notification | **Label fixed** | reads `stageSummaries[].outcome` / `videoAttempts[].outcome`; the two D2 pushes are emitted by the server |
 | A6 Raw, cut-off failure text | **Fixed** | none |
-| A7 Voice picker without samples | **Picker built** | **Waiting on Task 8 R10 Part B**: voice catalog `{ id, displayName, toneTags, description, previewUrl }` |
-| A8 Script editor on a phone | **Fixed** (copy opens the share sheet) | true clipboard needs `expo-clipboard` and a new native build |
+| A7 Voice picker without samples | **Picker built** (sad and hopeful line per voice) | reads `options.list.voices[] { key, label, toneTags, defaultDirection, previews { sad, hopeful } }`; samples exist only once #107 is deployed and previews are generated |
+| A8 Script editor on a phone | **Fixed**, true clipboard (`expo-clipboard`) | needs a new native build; on a phone still on an older build the button opens the share sheet instead |
 | A9 Cannot share or download the video | **Deferred** | needs a signed share link for a Short (backend) or file and sharing modules (native build); sampled frames are not in `runs.get` |
 | A10 Admin cost list and labels | **Fixed** (grouped by time window) | optional: stage and attempt on each usage event |
 | A11 Carry-overs | **Checked**: Admin entry (no code cause; needs the phone's `admin.whoami`), "(default)" and bug chips already done; app tests now in CI | per-channel colour **deferred** (needs a new channel field and a design choice); R10.3 is backend (Task 8) |
@@ -52,13 +52,13 @@
 | # | Status | Notes |
 |---|---|---|
 | A1 | **Fixed (code)** | Every run gets a card; 20 at a time, "Showing N of M runs", loads on scroll and by button. Unit-tested with 45 runs / 3 notifications. |
-| A2 | **Partly fixed; rest waits on Task 8 R8.7** | Cost card on the Run screen (spent so far or final cost, estimate, limit) works now from `spentUsd` / `maxCostUsd`. Estimate, per-attempt and per-stage cost wait on `runs.get.costBreakdown` (see contract). The Admin view groups its events now (A10). |
-| A3 | **Fixed (code)** | Script tab shows the approved text with its real word count and length, "This is the script the video was made from", and a collapsed "Original draft · not used". Read from the Gate 1 output today; `approvedScript` / `originalDraft` win when Task 8 R11.1 sends them. |
+| A2 | **Fixed in code** | Cost card on the Run screen: spent so far or final cost, estimate, limit, retry allowance (`cost`). Step history: each video attempt shows its cost and expands to its stages (`videoAttempts[].stages[].costUsd`); stages outside the loop show their own cost (`stageSummaries[]`). A $0 stage that did not go through reads "failed, not charged". The Admin view still groups by time window. On the server, voice, pictures and render are one stage (`video_generation`), so they are one line, not three. |
+| A3 | **Fixed (code)** | Script tab shows `scripts.approved` with its real word count and length, "This is the script the video was made from" when `usedByVideo` is `approved` (a warning when it is `draft`), and a collapsed "Original draft" when the text was edited (`approved.outcome` is `edit`). Without `scripts` (older server) it reads the Gate 1 stage output. |
 | A4 | **Built against PR #107 (Task 8 R13); works end to end once #107 is deployed** | "Edit settings" on the failure card, the needs-attention bar and the Gate 1 / Gate 2 screens. Lists voice, music, pictures, YouTube visibility and max spend. Voice, music and pictures are shown **unavailable with the server's own sentence** ("The video is already made, so the voice can't change here. Use Revise at Gate 2 to redo it.") once the video is made; topic, format and length are always unavailable with a reason. "Save and retry this step" sends one `runs.updateSettings({ ..., retry: true })` (validates first, saves nothing if refused, the server's message is shown as sent); a waiting run gets "Save settings". A run in legacy planner recovery is refused for `retry: true`, so the app saves without it and tells the user to tap "Retry this step". History: `runs.get.settingsChanges` (with who changed it) in Step history. The call is reached through a typed stub until #107 is merged; an old server gets "This server cannot change settings on a run yet." |
 | A5 | **Fixed in the app (label); notification waits on the backend** | An attempt that failed Video Review reads "failed review" with the reviewer's reason, amber, never "done". Derived from the review row until `stage.outcome` arrives. D2 pushes must be emitted by the server; the app already opens the run from any push that carries a `runId` (`_layout.tsx`) and groups them into the run's Inbox card. |
 | A6 | **Fixed (code)** | Failure card: plain sentence for a voice the model rejects, a provider usage limit (with the return date when given), our spend limit ("This video used $0.51 of its $0.50 limit" + "Raise the limit and retry" button), a failed review (with the reviewer's reason). Unknown errors: one short sentence, whole text under Technical details; never cut inside a bracket. |
 | A7 | **Built; samples wait on Task 8 R10 Part B** | `VoiceSheet`: name, tone tags, play/pause beside each voice, one at a time, selected state, no provider ids; on run setup and channel settings. Today the catalog is the server's `options.list`, with no sample, so the buttons are disabled and the sheet says "Voice samples aren't available yet". |
-| A8 | **Fixed (code), one deviation** | Full-screen editor, live chapter counter with the "needs at least 3" message before Save, `## Chapter title` hint, live word count and length against the target with a warning under 80%, server error shown as sent. **Copy**: no clipboard module in the app, so on a phone the button opens the system share sheet (which has Copy) and is labelled "Copy / share"; on web it copies. A true clipboard needs `expo-clipboard` (native, new build): one-line change in `lib/copy-text.ts`. **Cursor position** is not explicitly controlled; the full-screen layout removes the old remount, but I have not seen it on a device. |
+| A8 | **Fixed (code)** | Full-screen editor, live chapter counter with the "needs at least 3" message before Save, `## Chapter title` hint, live word count and length against the target with a warning under 80%, server error shown as sent. **Copy** uses `expo-clipboard` (added to `app/package.json` and the lockfile). It is a native module, so it needs a new build; it is loaded on first use, and an older build falls back to the share sheet instead of crashing. **Cursor position** is not explicitly controlled; the full-screen layout removes the old remount, not seen on a device. |
 | A9 | **Deferred** | Download/share of the preview needs either a signed share link for a Short (backend) or file-system and sharing modules (native build). The regenerations line already exists at Gate 2; the sampled frames the reviewer saw are not in `runs.get`. |
 | A10 | **Fixed (code)** | Admin stage cards read "Gate 2 · attempt 1 of 2" (not "Gate2 Running, Attempt 1"). Usage events are grouped by the stage attempt whose time window holds them, with subtotals; the screen states whether the subtotals match the total. Events still carry no stage/attempt of their own; a field from the backend would replace the time-window rule. The "unknown / unknown" row reads "provider and model not recorded". |
 | A11 | See R9 | |
@@ -93,15 +93,15 @@
 
 1. **R4**: resolved. The founder approved the table; Task 8 R13 (#107) implements the call. Nothing to decide, except the stub removal after #107 merges.
 2. R11.3: I kept the "Why didn't it work?" form (renamed, shown only when useful). Remove it?
-3. Field names I read defensively until Task 8 reports (all optional; absent means the old behaviour): `runs.get.costBreakdown { totalUsd, estimateUsd?, limitUsd?, attempts[{ stageName, attemptNumber, totalUsd, failed?, stages[{ name, usd, failed? }] }] }`; per stage row `outcome { kind: completed | failed_review | failed_error | blocked | cancelled | running, reason? }`; `runs.get.approvedScript { text, chapters?, edited }` and `originalDraft { text, chapters? }`; a voice catalog `{ id, displayName, toneTags[], description?, previewUrl }`. If Task 8 names them differently, each is one function (`costBreakdownOf`, `serverOutcome`, `scriptVersionsOf`, `parseVoiceEntry`).
+3. **Task 8 fields now mapped** (names from the Task 8 report, "App contract for Task 7"): `cost`, `videoAttempts[]`, `stageSummaries[]` (cost, attempt outcomes, stage outcomes), `scripts { draft, approved, usedByVideo }`, `options.list.voices[]`, `runs.updateSettings`, `settingsChanges`. All are read defensively, so an older server shows the old behaviour. **Contract fields not used yet**: `runs.listPage` / `notifications.listPage` with `nextCursor` and `total` (the Inbox pages on the phone from `runs.list`); `endReason` on `runs.list` rows (the Queue filter still reads `lastError`); `expectedLength` and `runs.expectedLength` (the editor uses its own 155 words-per-minute estimate, not the server's measured pace); `runs.estimateCost` `rangeUsd` and `retryAllowanceUsd` (New brief shows one estimate); `flaggedStills[]`, `preflightBlock`, `chapterWarning` (typed), publishing `coverFrameMessage`, video review `reasonCode`, `dashboard.comparison.longFormWatch`. **Differences from the stub I built first**: `cost` replaces `costBreakdown`; `scripts` replaces `approvedScript` / `originalDraft`; the outcome is a string on `stageSummaries` / `videoAttempts`, not an object on the stage row, with extra words `pending`, `skipped`, `rejected`, `revised`; a voice has `previews { sad, hopeful }` (two samples), not one `previewUrl`.
 
 ## What waits on Task 8
 
-R2 per-attempt and per-stage cost and estimate (`costBreakdown`); R5 stored outcome (derived until then) and the two D2 pushes; R6 samples (voice catalog); R4: PR #107 merged and deployed (`runs.updateSettings`, `settingsChanges`, stored visibility); optional `approvedScript`; `runs.list` cursor and total (R12).
+Nothing in the code. Everything above shows its full effect only once PR #107 (Task 8) is merged and deployed: until then an older server sends none of `cost`, `videoAttempts`, `stageSummaries`, `scripts`, voice `previews` or `settingsChanges`, and the app shows what it showed before. The D2 pushes are emitted by the server. `runs.updateSettings` is still called through a local type (`UpdateClient` in `EditSettingsSheet.tsx`) because #107 is open; remove it after #107 merges and main is pulled.
 
 ## Deviations
 
-- Copy button is a share sheet on a phone (no clipboard module); see A8.
+- The real clipboard needs a new native build (`expo-clipboard`); older builds get the share sheet.
 - R8 not coded; R6 has no samples yet; R4 needs the backend call before it does anything.
 - The CI job does not gate the server deploy.
 - I changed three existing lint errors (two blob hooks, one eslint-disable with a reason in `channel-context.tsx`) and the eslint config (test files may import `vitest`), so lint could be a CI gate. No behaviour change intended in the hooks; they now keep the fetched blob keyed by its url instead of clearing state in an effect.
@@ -121,7 +121,7 @@ All **missing**: no phone or emulator was available, so none was taken. Wanted f
 | Screenshot | Status |
 |---|---|
 | Inbox with more than 8 runs and "Showing N of M runs" | missing |
-| Run screen cost card and a cost-per-attempt expansion | missing (per-attempt needs Task 8 `costBreakdown`) |
+| Run screen cost card and a cost-per-attempt expansion | missing (needs #107 deployed) |
 | Edit settings sheet | missing |
 | Voice picker with play buttons | missing (no samples until Task 8 R10 Part B) |
 | Queue under the Failed filter (banner stays put) | missing |
@@ -129,7 +129,7 @@ All **missing**: no phone or emulator was available, so none was taken. Wanted f
 
 ## Tests
 
-`cd studio && npx vitest run --root ../app`: 24 files, 152 passed. `cd app && npx tsc --noEmit`: clean. `npx eslint .`: clean. `npx expo export --platform web`: bundles. Nothing skipped. Not run: any device or emulator, any live backend.
+`cd studio && npx vitest run --root ../app`: 24 files, 162 passed. `cd app && npx tsc --noEmit`: clean. `npx eslint .`: clean. `npx expo export --platform web`: bundles. Nothing skipped. Not run: any device or emulator, any live backend.
 
 ## One line for the founder
 

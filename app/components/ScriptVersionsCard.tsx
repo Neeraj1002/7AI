@@ -19,7 +19,7 @@ export function ScriptVersionsCard({
   showReviewScore: boolean;
 }) {
   const [draftOpen, setDraftOpen] = useState(false);
-  const { approved, draft } = versions;
+  const { approved, draft, usedByVideo } = versions;
   const shown = approved ?? draft;
   if (!shown) return <Text style={styles.meta}>The script isn&apos;t written yet.</Text>;
   const chapterCount = shown.chapters?.length ?? 0;
@@ -35,12 +35,20 @@ export function ScriptVersionsCard({
         </View>
         {showReviewScore && reviewScore !== undefined ? <StatusChip kind="neutral" label={`Review ${reviewScore}/10`} /> : null}
       </View>
-      {approved ? <Text style={styles.used}>✓ This is the script the video was made from.</Text> : null}
+      {approved ? (
+        usedByVideo === 'draft' ? (
+          <Text style={styles.usedWarn}>The video was made from the original draft, not from this approved script.</Text>
+        ) : usedByVideo === 'approved' ? (
+          <Text style={styles.used}>✓ This is the script the video was made from.</Text>
+        ) : (
+          <Text style={styles.meta}>The video will be made from this script.</Text>
+        )
+      ) : null}
       <ScriptPreview chapters={shown.chapters} scriptText={shown.text} lines={5} />
-      {approved?.edited && draft ? (
+      {(approved?.edited || usedByVideo === 'draft') && draft && approved ? (
         <View style={styles.draft}>
           <Pressable onPress={() => setDraftOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: draftOpen }} style={styles.draftHeader}>
-            <Text style={styles.draftTitle}>Original draft · not used</Text>
+            <Text style={styles.draftTitle}>{usedByVideo === 'draft' ? 'Original draft · used by the video' : 'Original draft · not used'}</Text>
             <Text style={styles.meta}>
               {lengthWords(draft, isLong)} {draftOpen ? '▲' : '▼'}
             </Text>
@@ -58,6 +66,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, gap: 2 },
   label: { fontFamily: font.black, fontSize: 15, color: color.ink },
   meta: { ...type.meta },
+  usedWarn: { fontFamily: font.bold, fontSize: 12, color: color.warnText },
   used: { fontFamily: font.bold, fontSize: 12, color: color.okText },
   draft: { borderTopWidth: 1, borderTopColor: color.border, paddingTop: space.xs },
   draftHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },

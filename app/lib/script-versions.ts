@@ -1,18 +1,23 @@
 // Sprint 5 Task 7 R3 — after Gate 1 the screens show the script that was approved (and narrated), with the writer's
 // draft as a labelled extra. Before, the Script tab always read the writer's draft, so an edited script looked unused.
 //
-// Source: the Gate 1 stage's completed output already holds `sanctionedScriptText` and, for a long script, `chapters`
-// (state-machine.ts: the edit replaces the draft there and the video reads it). When Task 8 R11.1 sends
-// `runs.get.approvedScript` / `originalDraft` those win; the field names are to be confirmed against its report.
+// Contract (Task 8 report, "App contract for Task 7"): `runs.get.scripts { draft, approved, usedByVideo }` where
+// draft = { text, chapters? } | null, approved = { text, chapters?, outcome: 'approve' | 'edit' } | null and usedByVideo =
+// 'approved' | 'draft' | null (null before any video attempt). `chapters` and `scriptEditText` on runs.get are the approved
+// script after Gate 1. Without `scripts` (an older server) the same is read from the Gate 1 stage output, which holds
+// `sanctionedScriptText` and `chapters`.
 import { narrationWords, WORDS_PER_MINUTE } from './script-editor';
 import { scriptStats } from './run-view';
 
 export type Chapter = { title: string; text: string };
 export type ScriptVersion = { text: string; chapters?: Chapter[]; words: number; seconds: number };
+export type UsedByVideo = 'approved' | 'draft' | null;
 export type ScriptVersions = {
   draft: ScriptVersion | null;
-  /** Null until Gate 1 is decided. */
+  /** Null until Gate 1 is decided. `edited` is true when the person changed the text. */
   approved: (ScriptVersion & { edited: boolean }) | null;
+  /** Which of the two the latest video was narrated from; null before a video exists or when the server does not say. */
+  usedByVideo: UsedByVideo;
 };
 
 type StageIn = { stageName: string; status: string; attemptNumber: number; output: Record<string, unknown> | null };
@@ -35,24 +40,30 @@ function latest(stages: StageIn[], name: string): StageIn | undefined {
     .sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
 }
 
+type ServerScripts = {
+  draft?: { text?: unknown; chapters?: unknown } | null;
+  approved?: { text?: unknown; chapters?: unknown; outcome?: unknown } | null;
+  usedByVideo?: unknown;
+};
+
 export function scriptVersionsOf(stages: StageIn[], isLong: boolean, server?: unknown): ScriptVersions {
+  const sv = (server as { scripts?: ServerScripts } | undefined)?.scripts;
+  if (sv && typeof sv === 'object') {
+    const d = sv.draft && typeof sv.draft.text === 'string' ? version(sv.draft.text, chaptersOf(sv.draft.chapters), isLong) : null;
+    const a = sv.approved && typeof sv.approved.text === 'string' ? { ...version(sv.approved.text, chaptersOf(sv.approved.chapters), isLong), edited: sv.approved.outcome === 'edit' } : null;
+    const used: UsedByVideo = sv.usedByVideo === 'approved' || sv.usedByVideo === 'draft' ? sv.usedByVideo : null;
+    return { draft: d, approved: a, usedByVideo: used };
+  }
+
   const gen = latest(stages, 'script_generation');
   const draftText = typeof gen?.output?.scriptText === 'string' ? gen.output.scriptText : '';
   const draft = draftText ? version(draftText, chaptersOf(gen?.output?.chapters), isLong) : null;
-
-  const s = server as { approvedScript?: { text?: unknown; chapters?: unknown; edited?: unknown }; originalDraft?: { text?: unknown; chapters?: unknown } } | undefined;
-  if (s?.approvedScript && typeof s.approvedScript.text === 'string') {
-    const approved = { ...version(s.approvedScript.text, chaptersOf(s.approvedScript.chapters), isLong), edited: s.approvedScript.edited === true };
-    const od = s.originalDraft && typeof s.originalDraft.text === 'string' ? version(s.originalDraft.text, chaptersOf(s.originalDraft.chapters), isLong) : draft;
-    return { draft: od, approved };
-  }
-
   const gate = latest(stages, 'gate1');
   const text = gate?.output?.sanctionedScriptText;
-  if (typeof text !== 'string' || !text.trim()) return { draft, approved: null };
+  if (typeof text !== 'string' || !text.trim()) return { draft, approved: null, usedByVideo: null };
   const approved = version(text, chaptersOf(gate?.output?.chapters), isLong);
   // "Edited" is read off the text itself: the same words as the draft is an approval as-is.
-  return { draft, approved: { ...approved, edited: draft !== null && draft.text.trim() !== approved.text.trim() } };
+  return { draft, approved: { ...approved, edited: draft !== null && draft.text.trim() !== approved.text.trim() }, usedByVideo: null };
 }
 
 export function lengthWords(v: { words: number; seconds: number }, isLong: boolean): string {

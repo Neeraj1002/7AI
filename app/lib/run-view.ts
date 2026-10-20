@@ -2,7 +2,7 @@
 // invented: every value is read from `runs.get` (or one of its optional Sprint 4 Task 12 fields) and every
 // missing field has the fallback the task doc names.
 import { humanizeRunError } from './run-labels';
-import { outcomeOfStage, type OutcomeKind, type OutcomeStage } from './attempt-outcome';
+import { outcomeOfStage, type OutcomeKind, type OutcomeStage, type ServerOutcomes } from './attempt-outcome';
 import type { AttemptCost } from './run-cost';
 import { MUSIC_MOODS, VISUAL_SOURCES, VOICES } from './pipeline-options';
 import type { inferRouterOutputs } from '@trpc/server';
@@ -204,6 +204,10 @@ const TONE_OF: Record<OutcomeKind, AttemptTone> = {
   blocked: 'warn',
   cancelled: 'muted',
   running: 'muted',
+  pending: 'muted',
+  skipped: 'muted',
+  rejected: 'muted',
+  revised: 'muted',
 };
 const NOT_PASSED: readonly OutcomeKind[] = ['failed_review', 'failed_error', 'blocked'];
 
@@ -213,6 +217,8 @@ export function buildStepHistory(args: {
   gateDecisions?: GateDecisionEntry[];
   /** Cost per attempt from the server (R2), keyed by stage name then attempt number. */
   costs?: Map<string, AttemptCost>;
+  /** Outcomes the server sent (runs.get.stageSummaries, videoAttempts); the rows are read when absent. */
+  server?: ServerOutcomes | null;
 }): { steps: HistoryStep[]; doneCount: number; summary: string } {
   const { stages } = args;
   const rowsOf = (stage: string) =>
@@ -226,7 +232,7 @@ export function buildStepHistory(args: {
     const rows = rowsOf(def.stage);
     const latest = rows[rows.length - 1];
     const laterStarted = hasRows.slice(i + 1).some(Boolean);
-    const outcomes = rows.map((r) => outcomeOfStage(r as unknown as OutcomeStage, outcomeRows));
+    const outcomes = rows.map((r) => outcomeOfStage(r as unknown as OutcomeStage, outcomeRows, args.server));
     const latestOutcome = outcomes[outcomes.length - 1];
     const failedRows = rows.filter((_, k) => NOT_PASSED.includes(outcomes[k].kind));
     failedCountOf.set(def.key, failedRows.length);
@@ -261,7 +267,7 @@ export function buildStepHistory(args: {
       warnNote = true;
     } else if (latestOutcome.kind === 'blocked') {
       state = 'failed';
-      note = 'blocked, waiting for the provider · retry this step';
+      note = latestOutcome.reason ? `waiting for provider, retry this step · ${lowerFirst(latestOutcome.reason)}` : 'waiting for provider, retry this step';
       warnNote = true;
     } else if (latestOutcome.kind === 'cancelled') {
       state = 'failed';

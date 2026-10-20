@@ -9,12 +9,15 @@ export function CostCard({
   spentUsd,
   limitUsd,
   estimateUsd,
+  retryAllowanceUsd,
   ended,
   attemptsCount,
 }: {
   spentUsd: number;
   limitUsd?: number | null;
   estimateUsd?: number | null;
+  /** What automatic retries may spend in all (Task 8 R8); past it the run waits for a person. */
+  retryAllowanceUsd?: number | null;
   /** The run is finished (published, failed or cancelled): the figure is final. */
   ended: boolean;
   attemptsCount?: number;
@@ -23,6 +26,7 @@ export function CostCard({
   const over = limitUsd != null && spentUsd >= limitUsd;
   const extra = [
     estimateUsd != null ? `Estimate ${formatMoney(estimateUsd)}` : null,
+    retryAllowanceUsd != null ? `Retries up to ${formatMoney(retryAllowanceUsd)}` : null,
     limitUsd != null ? `Limit ${formatMoney(limitUsd)}` : null,
     attemptsCount && attemptsCount > 1 ? `${attemptsCount} attempts` : null,
   ].filter(Boolean);

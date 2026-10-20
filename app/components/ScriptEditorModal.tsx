@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { PrimaryButton } from './Buttons';
 import { color, font, radius, space, type } from '../lib/theme';
 import { CHAPTER_HINT, checkChapterSheet, lengthStatus } from '../lib/script-editor';
-import { copyText, hasDirectCopy } from '../lib/copy-text';
+import { copyText } from '../lib/copy-text';
 
 // Sprint 5 Task 7 R7 — the Gate 1 script editor as a full screen, not a bottom sheet under the keyboard. The text box
 // takes all the room between the header and the keyboard; the chapter count, word count and length against the target
@@ -69,7 +69,7 @@ function EditorBody({ initialText, isLong, targetSeconds, pending, error, onClos
         <Text style={styles.title}>Edit script</Text>
         <Pressable onPress={() => void copy()} accessibilityRole="button" style={styles.copy}>
           <Feather name="copy" size={16} color={color.accentText} />
-          <Text style={styles.copyText}>{copied === 'copied' ? 'Copied' : hasDirectCopy() ? 'Copy script' : 'Copy / share'}</Text>
+          <Text style={styles.copyText}>{copied === 'copied' ? 'Copied' : copied === 'shared' ? 'Share opened' : 'Copy script'}</Text>
         </Pressable>
       </View>
 

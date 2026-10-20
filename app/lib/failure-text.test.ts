@@ -48,6 +48,12 @@ describe('describeFailure', () => {
   it('uses 4 decimals only under one cent', () => {
     expect(describeFailure('x', { spentUsd: 0.0053, maxCostUsd: 0.005 }).title).toBe('This video used $0.0053 of its $0.0050 limit');
   });
+  it('the retry allowance stop offers the limit control', () => {
+    const f = describeFailure('Automatic retry allowance used ($0.48 of $0.48); raise the limit to continue');
+    expect(f.kind).toBe('spend_limit');
+    expect(f.fix).toBe('limit');
+    expect(f.title).toContain('allowance');
+  });
   it('video review problem carries the reviewer reason', () => {
     const f = describeFailure('Video Intelligence regen cap reached', { reviewReason: 'Longest shot 8.3 s, limit 7.5 s. Spread the scenes.', tries: 3 });
     expect(f.kind).toBe('video_review');

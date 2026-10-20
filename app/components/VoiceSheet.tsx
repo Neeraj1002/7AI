@@ -6,7 +6,7 @@ import { useEvent } from 'expo';
 import { BottomSheet } from './BottomSheet';
 import { useAuth } from '../lib/auth';
 import { color, font, radius, space, type } from '../lib/theme';
-import { nextPlayback, useVoiceCatalog, type VoiceEntry } from '../lib/voice-catalog';
+import { nextPlayback, sampleId, useVoiceCatalog, type VoiceEntry } from '../lib/voice-catalog';
 
 // Sprint 5 Task 7 R6 — the voice picker: each enabled voice with its name, tone tags and a play/pause button that streams
 // its stored sample (one at a time); the selected voice is marked; no provider ids appear. Replaces the name-only list on
@@ -61,17 +61,17 @@ function VoiceList({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
 
-  const toggle = async (v: VoiceEntry) => {
-    if (!v.previewUrl) return;
-    const action = nextPlayback(isPlaying ? playingId : null, v.id);
+  // Each voice has two samples, a sad line and a hopeful line; one plays at a time.
+  const toggle = async (url: string, id: string) => {
+    const action = nextPlayback(isPlaying ? playingId : null, id);
     if (action === 'pause') {
       player.pause();
       return;
     }
     // A sample served by our own API needs the sign-in header; a signed storage link must not get it.
-    const own = apiUrl ? v.previewUrl.startsWith(apiUrl.replace(/\/$/, '')) : false;
-    await player.replaceAsync(own && token ? { uri: v.previewUrl, headers: { Authorization: `Bearer ${token}` } } : { uri: v.previewUrl });
-    setPlayingId(v.id);
+    const own = apiUrl ? url.startsWith(apiUrl.replace(/\/$/, '')) : false;
+    await player.replaceAsync(own && token ? { uri: url, headers: { Authorization: `Bearer ${token}` } } : { uri: url });
+    setPlayingId(id);
     player.play();
   };
 
@@ -95,7 +95,12 @@ function VoiceList({
             description={v.description}
             active={v.id === selected}
             onChoose={() => choose(v.id)}
-            sample={{ available: v.previewUrl !== null, playing: isPlaying && playingId === v.id, onToggle: () => void toggle(v) }}
+            samples={(['sad', 'hopeful'] as const).map((which) => ({
+              label: which === 'sad' ? 'Sad line' : 'Hopeful line',
+              available: v.previews !== null,
+              playing: isPlaying && playingId === sampleId(v.id, which),
+              onToggle: () => v.previews && void toggle(v.previews[which], sampleId(v.id, which)),
+            }))}
           />
         ))}
       </ScrollView>
@@ -103,42 +108,50 @@ function VoiceList({
   );
 }
 
+type Sample = { label: string; available: boolean; playing: boolean; onToggle: () => void };
+
 function Row({
   label,
   tags,
   description,
   active,
   onChoose,
-  sample,
+  samples,
 }: {
   label: string;
   tags?: string[];
   description?: string | null;
   active: boolean;
   onChoose: () => void;
-  sample?: { available: boolean; playing: boolean; onToggle: () => void };
+  samples?: Sample[];
 }) {
   return (
     <View style={[styles.row, active && styles.rowActive]}>
-      {sample ? (
-        <Pressable
-          onPress={sample.onToggle}
-          disabled={!sample.available}
-          hitSlop={6}
-          accessibilityRole="button"
-          accessibilityLabel={sample.available ? `${sample.playing ? 'Pause' : 'Play'} sample of ${label}` : `No sample for ${label} yet`}
-          style={[styles.play, !sample.available && styles.playOff]}
-        >
-          <Feather name={sample.playing ? 'pause' : 'play'} size={18} color={sample.available ? color.onAccent : color.muted} />
+      <View style={styles.text}>
+        <Pressable onPress={onChoose} accessibilityRole="radio" accessibilityState={{ selected: active }} style={styles.pick}>
+          <Text style={styles.label}>{label}</Text>
+          {tags && tags.length > 0 ? <Text style={styles.caption}>{tags.join(' · ')}</Text> : null}
+          {description ? <Text style={styles.caption}>{description}</Text> : null}
         </Pressable>
-      ) : (
-        <View style={styles.playSpacer} />
-      )}
-      <Pressable onPress={onChoose} accessibilityRole="radio" accessibilityState={{ selected: active }} style={styles.text}>
-        <Text style={styles.label}>{label}</Text>
-        {tags && tags.length > 0 ? <Text style={styles.caption}>{tags.join(' · ')}</Text> : null}
-        {description ? <Text style={styles.caption}>{description}</Text> : null}
-      </Pressable>
+        {samples ? (
+          <View style={styles.samples}>
+            {samples.map((smp) => (
+              <Pressable
+                key={smp.label}
+                onPress={smp.onToggle}
+                disabled={!smp.available}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={smp.available ? `${smp.playing ? 'Pause' : 'Play'} the ${smp.label.toLowerCase()} by ${label}` : `No sample for ${label} yet`}
+                style={[styles.play, !smp.available && styles.playOff]}
+              >
+                <Feather name={smp.playing ? 'pause' : 'play'} size={14} color={smp.available ? color.onAccent : color.muted} />
+                <Text style={[styles.playText, !smp.available && styles.playTextOff]}>{smp.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </View>
       <Pressable onPress={onChoose} hitSlop={8} accessibilityRole="radio" accessibilityState={{ selected: active }} style={[styles.radio, active && styles.radioActive]}>
         {active ? <Feather name="check" size={14} color={color.onAccent} /> : null}
       </Pressable>
@@ -153,10 +166,13 @@ const styles = StyleSheet.create({
   listContent: { gap: space.xs },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm, paddingHorizontal: space.sm, borderRadius: radius.md },
   rowActive: { backgroundColor: color.accentSoft },
-  play: { width: 40, height: 40, borderRadius: 20, backgroundColor: color.ink, alignItems: 'center', justifyContent: 'center' },
+  play: { minHeight: 36, paddingHorizontal: 12, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: color.ink },
   playOff: { backgroundColor: color.surface2 },
-  playSpacer: { width: 40 },
-  text: { flex: 1, gap: 2, minHeight: 44, justifyContent: 'center' },
+  playText: { fontFamily: font.bold, fontSize: 12, color: color.onAccent },
+  playTextOff: { color: color.muted },
+  samples: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  pick: { gap: 2, minHeight: 44, justifyContent: 'center' },
+  text: { flex: 1, gap: 6, justifyContent: 'center' },
   label: { fontFamily: font.bold, fontSize: 16, color: color.ink },
   caption: { ...type.meta, fontSize: 12 },
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: color.ink, alignItems: 'center', justifyContent: 'center' },

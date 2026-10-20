@@ -1,19 +1,18 @@
-// Sprint 5 Task 7 R7 — "Copy script". The app has no clipboard module yet (expo-clipboard needs a new native build), so
-// where the browser clipboard exists it is used, and on a phone the system share sheet opens, which has a Copy action.
+// Sprint 5 Task 7 R7 — "Copy script" puts the text on the clipboard (expo-clipboard).
+//
+// expo-clipboard is a native module. A phone still running an older build has no such module, and importing it there
+// throws when the module loads; that would take the whole Run screen down on an over-the-air update. So it is loaded on
+// first use, and if it is not there the system share sheet (which has a Copy action) is used instead.
 import { Share } from 'react-native';
 
-type ClipboardNav = { clipboard?: { writeText?: (t: string) => Promise<void> } };
-
-export function hasDirectCopy(): boolean {
-  return typeof navigator !== 'undefined' && typeof (navigator as unknown as ClipboardNav).clipboard?.writeText === 'function';
-}
-
-/** Returns true when the text was copied straight to the clipboard, false when the share sheet was used. */
+/** True when the text went straight to the clipboard, false when the share sheet had to be used. */
 export async function copyText(text: string): Promise<boolean> {
-  if (hasDirectCopy()) {
-    await (navigator as unknown as ClipboardNav).clipboard!.writeText!(text);
+  try {
+    const Clipboard = await import('expo-clipboard');
+    await Clipboard.setStringAsync(text);
     return true;
+  } catch {
+    await Share.share({ message: text });
+    return false;
   }
-  await Share.share({ message: text });
-  return false;
 }
