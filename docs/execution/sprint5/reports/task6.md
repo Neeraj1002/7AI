@@ -1,5 +1,7 @@
 # Sprint 5 Task 6: Script Review SR-1 to SR-9
 
+**Follow-up (hedge adjacency fix, 2026-10-21):** branch `SPRINT5_TASK6_HEDGE`, worktree `D:\Study Material\7AI-SPRINT5\task6-hedge`, PR #111. Offline only, no spend. See [Hedge adjacency fix](#hedge-adjacency-fix-2026-10-21).
+
 **Follow-up (post-merge live detection check, 2026-10-21):** branch `SPRINT5_TASK6_POSTMERGE_CHECK`, worktree `D:\Study Material\7AI-SPRINT5\task6-postmerge`, PR #110. Result: [passed](#post-merge-live-detection-check-2026-10-21); the reviewer is unchanged, and the check script is added as its own commit.
 
 **Current founder-approved control audit (2026-10-20): PR #105 remains draft. The revised D2 live acceptance stopped on Appendix A repeat 1 after two HTTP 200 replies; no valid scored review was accepted. The five approved fixture corrections and D2 audit ran through three Sonnet reviews each for $0.370290 of the new $0.60 cap. D4 controls have no factual/brief flags; Lego facts and Appendix A still receive disputed flags. The live run exposed advisory leakage into opaque rubric grades; a subsequent strict audit correction passes offline, but has not received another paid model pass. Known metered total $3.591379; $0.219391 historical reservations remain held; conservative total $3.810770. Acceptance remains open.**
@@ -468,3 +470,22 @@ Each review returned two SR-9 findings, both confirmed, so each draft cost one r
 New spend **$0.064840**; step total **$0.796962 of the raised $0.90** ($0.103038 unused), counted from $0.732122. Known metered cumulative **$4.018051**; conservative cumulative **$4.237442** (still including the $0.219391 of earlier unmetered reservations). Evidence: [task6-post-merge-live-detection-evidence.json](task6-post-merge-live-detection-evidence.json) holds the six raw replies, usage and the per-finding confirmation verdicts. No production generation, upload or deployment.
 
 Before marking ready I fetched and pulled `main` (no new commits since `ed9faa5`, so no conflicts to resolve), re-ran tests, typecheck, lint and build, and checked that the PR touches only docs allowed by Hard rule 6: this task's doc (identical to the architect's r4 source), this report and the evidence file.
+
+## Hedge adjacency fix (2026-10-21)
+
+Branch `SPRINT5_TASK6_HEDGE`, worktree `D:\Study MaterialAI-SPRINT5	ask6-hedge`, PR #111, cut from `main` at `bab2233`; the task doc was synced to r5 as the first commit. Offline only: no live calls, no spend.
+
+**Where the match was made (read first, not assumed).** In `numericVerdicts` (`studio/src/agents/script-review/numbers.ts`), a figure whose matching brief figure is hedged was passed if the hedge regex matched **anywhere in the script sentence**. A second, separate cause sat under it: `numberMentions` never parsed an attached magnitude such as `$220M` (the word-boundary regex needs a boundary after the digits), so "Turned Around Its $220M Crisis" had no figure at all and could not be flagged whatever the hedge rule said. Task 8 spells `$220M` out to `$220 million` before calling the rule, which hides this second cause on its path.
+
+**Change (`numbers.ts`).**
+- A hedge covers a figure only when it directly precedes it, allowing a currency sign, an article or "of" in between ("about $5", "almost a thousand", "a maximum of eight"); when it opens a range ("about 1,200 to 1,500"); when an estimation word (estimates, estimated, mostly, largely, capped) is within two words ("estimates range from forty", "capped at three"); or when a limit word (maximum, minimum, ceiling) closes the sentence ("three pence a day, the official maximum"). "Around", "over" and "about" get no reach beyond the figure, so "Turned Around Its $220M" and "Around the same time, it lost $220 million" are unhedged.
+- The brief side reads hedges with the same rule. The old 65-character window let "Maximum" in "Edict of Maximum Prices in 301 AD" hedge 301.
+- Attached magnitude suffixes (`$220M`, `1.4bn`, `90K`, uppercase M, B, K or lowercase bn, with an optional currency sign) are parsed as one figure. Lowercase `m` and `mm` stay units. If the architect prefers, this part can be dropped without affecting Task 8.
+
+**Tests (`numbers.test.ts`, 11 new).** Flagged: "How Lego Turned Around Its $220M Crisis" and its spelled-out form, and "Around the same time, it lost $220 million." Still passing: "roughly 220 million dollars", "around 1900", "about 1.5 million", plus "roughly $220M" and "almost a thousand". Task 8's Lego title is tested against Task 8's own brief. Further tests cover estimation-word reach, "maximum of", ranges, the "Maximum Prices in 301 AD" false hedge, and the suffix parsing.
+
+**Replay.** The existing replay tests (miss-log cases and all controls, saved model outputs through `reviewScript`) pass unchanged: full serial suite **1,260 passed / 9 skipped** (1,249 before plus the 11 new), typecheck, lint and build pass. I also compared the code-level checks (numeric verdicts, exact verdicts, supported values, hints) for all 19 fixture cases before and after the change. **Every control and every other case is identical.** The one difference is in miss-log case SR-case-3 (not a control): the old code's false SR-8 on "In 301 AD" is gone, and a true SR-8 appears on "A pint of ordinary wine cost 8 denarii, about one-third of a day's work", where the brief says the legal maximum was eight denarii and the script drops "maximum". Both are SR-8, which caps at 8, so that case's score is unchanged.
+
+**For the architect: Task 8's gap test.** It lives in `studio/src/agents/publishing/metadata-claims.test.ts` on `SPRINT5_TASK8_BE`, not on `main`, so this PR cannot edit it. After both PRs are merged, the test "the original Lego title still slips through" (expects `[]` for "How Lego Turned Around Its $220M Crisis") should expect one issue instead; its own comment says so. I checked that the spelled-out form Task 8 passes in is flagged by the new rule.
+
+Before marking ready: fetched and pulled `main`, re-ran tests, typecheck, lint and build, and checked that the PR touches only this task's doc (identical to the architect's r5 source) and this report in `docs/`.
