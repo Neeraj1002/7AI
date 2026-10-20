@@ -10,7 +10,7 @@ let dir: string;
 beforeEach(async () => { dir = await fs.mkdtemp(path.join(os.tmpdir(), 'still-check-')); });
 afterEach(async () => { await fs.rm(dir, { recursive: true, force: true }); });
 
-const llm = (text: string): LLMResponse => ({ text, usage: { inputTokens: 1500, outputTokens: 200 }, stopReason: 'stop', costUsd: '0.002', provider: 'anthropic', model: 'claude-haiku-4-5' });
+const llm = (text: string): LLMResponse => ({ text, usage: { inputTokens: 1500, outputTokens: 200 }, stopReason: 'stop', costUsd: '0.002', provider: 'anthropic', model: 'claude-haiku-4-5', maxOutputTokens: 4000 });
 async function stills(n: number) {
   const out = [];
   for (let i = 0; i < n; i++) {

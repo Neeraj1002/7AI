@@ -1,10 +1,9 @@
 import { z } from 'zod';
-import { callLLM, describeJsonError, extractJsonObjectText, type LLMMessage, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonObjectText, LLMCutOffError, type LLMMessage, type LLMResponse } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
 import { EvidenceRefSchema, renderEvidenceBlock, validateEvidenceArguments, type EvidencePacket } from '../../content-evidence/packet';
 import {
-  LONG_SCRIPT_MAX_TOKENS,
   LongScriptReplySchema,
   ScriptChapterSchema,
   buildLengthRepairMessage,
@@ -182,11 +181,6 @@ const REPLY_LOG_EDGE_CHARS = 300;
 const FEEDBACK_ERROR_CHARS = 500;
 const FEEDBACK_REPLY_CHARS = 8000;
 
-// Bugs Task 11 (R4) — raised from 2048. A 30-60s script is a few hundred tokens,
-// so this is headroom, not a target; a reply that still hits it is reported as
-// a cut-off (below), never as a JSON parse error.
-export const SCRIPT_MAX_TOKENS = 4096;
-
 type ReplyFailure = { what: string; cause: unknown; parseError: string };
 
 // Bugs Task 11 (R1) — run 248fae8a failed with only the first 200 characters
@@ -234,34 +228,14 @@ function buildReplyError(
   );
 }
 
-// Bugs Task 11 (R4) — a reply that stopped because it hit the output cap is
-// incomplete by definition. Say so plainly instead of letting the parser fail
-// on half a JSON object; the raw reply is still kept for the failed stage row.
-function buildCutOffError(llm: LLMResponse, calls: LLMResponse[]): NonTransientStageError {
-  const parseError = `output cap reached (maxTokens ${SCRIPT_MAX_TOKENS})`;
-  console.error(
-    `[script-generation] reply cut off at the output cap: stopReason=${llm.stopReason} replyLength=${llm.text.length} outputTokens=${llm.usage.outputTokens}\n` +
-      `  head: ${llm.text.slice(0, REPLY_LOG_EDGE_CHARS)}\n  tail: ${llm.text.slice(-REPLY_LOG_EDGE_CHARS)}`,
-  );
-  return new NonTransientStageError(
-    `Script Generation reply was cut off at the output cap (stopReason=length, maxTokens=${SCRIPT_MAX_TOKENS}, outputTokens=${llm.usage.outputTokens}, replyLength=${llm.text.length}). The script is too long for one reply: shorten the brief or lower the target length.`,
-    undefined,
-    {
-      ...llmUsageContext(llm),
-      ...llmCallsContext(calls),
-      replyLength: llm.text.length,
-      parseError,
-      rawReply: llm.text,
-      attempts: calls.length,
-    },
-  );
-}
-
 // A provider error on the retry call must not lose the first call's spend:
 // re-wrap it with the calls already completed.
 function withCompletedCalls(error: unknown, calls: LLMResponse[]): unknown {
   if (calls.length === 0) return error;
-  const context = { ...(getStageErrorContext(error) ?? {}), ...llmCallsContext(calls) };
+  const errorContext = getStageErrorContext(error) ?? {};
+  // Calls the failing callLLM already completed (a cut-off first attempt) come after the ones made earlier here.
+  const ownCalls = Array.isArray(errorContext.calls) ? errorContext.calls : [];
+  const context = { ...errorContext, calls: [...(llmCallsContext(calls).calls as unknown[]), ...ownCalls] };
   if (error instanceof TransientStageError) return new TransientStageError(error.message, error.cause, context);
   if (error instanceof NonTransientStageError) return new NonTransientStageError(error.message, error.cause, context);
   return error;
@@ -295,7 +269,7 @@ function buildRetryRequest(
   userMessage: string,
   failure: ReplyFailure,
   llm: LLMResponse,
-): { messages: LLMMessage[]; maxTokens: number } {
+): { messages: LLMMessage[] } {
   const detail = failure.parseError.slice(0, FEEDBACK_ERROR_CHARS);
   const problem =
     failure.what === 'did not return valid JSON'
@@ -310,7 +284,6 @@ function buildRetryRequest(
         content: `Your previous reply ${problem}. Reply again with ONLY the corrected JSON object. Escape every double quote inside a string value as \\" and write line breaks inside a string as \\n. No code fences, no commentary.`,
       },
     ],
-    maxTokens: SCRIPT_MAX_TOKENS,
   };
 }
 
@@ -323,13 +296,12 @@ function buildRetryRequest(
 // in the log. Shared by the Short and the long-form generators.
 function createCaller(system: string, outputSchema: z.ZodType, calls: LLMResponse[]) {
   let structured = true;
-  const call = async (messages: LLMMessage[], maxTokens: number): Promise<LLMResponse> => {
+  const call = async (messages: LLMMessage[]): Promise<LLMResponse> => {
     try {
       const llm = await callLLM({
         purpose: 'script-generation',
         system,
         messages,
-        maxTokens,
         ...(structured ? { outputSchema } : {}),
       });
       calls.push(llm);
@@ -341,9 +313,12 @@ function createCaller(system: string, outputSchema: z.ZodType, calls: LLMRespons
           `[script-generation] provider returned ${status} for the structured-output request, falling back to plain text: ${error instanceof Error ? error.message : String(error)}`,
         );
         structured = false;
-        return call(messages, maxTokens);
+        return call(messages);
       }
-      throw withCompletedCalls(error, calls);
+      // A reply cut off twice is still two billed calls, and a swallowed length repair must not lose them.
+      const failed = withCompletedCalls(error, calls);
+      if (error instanceof LLMCutOffError) calls.push(error.response);
+      throw failed;
     }
   };
   return call;
@@ -382,8 +357,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   const userMessage = buildUserMessage(params);
   const call = createCaller(buildLongSystemPrompt(Boolean(params.evidence)), LongScriptReplySchema, calls);
 
-  const first = await call([{ role: 'user', content: userMessage }], LONG_SCRIPT_MAX_TOKENS);
-  if (first.stopReason === 'length') throw buildCutOffError(first, calls);
+  const first = await call([{ role: 'user', content: userMessage }]);
   let current: { llm: LLMResponse; output: ScriptGenerationOutput };
   const firstParsed = parseLongScriptReply(first);
   if (firstParsed.ok) {
@@ -391,8 +365,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   } else {
     logReplyFailure(firstParsed.failure, first, 'long first call, retrying once');
     const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
-    const second = await call(retryRequest.messages, LONG_SCRIPT_MAX_TOKENS);
-    if (second.stopReason === 'length') throw buildCutOffError(second, calls);
+    const second = await call(retryRequest.messages);
     const secondParsed = parseLongScriptReply(second);
     if (!secondParsed.ok) {
       logReplyFailure(secondParsed.failure, second, 'long retry call, giving up');
@@ -413,9 +386,9 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
       { role: 'user', content: buildLengthRepairMessage(words, targetSeconds, pace) },
     ];
     try {
-      const repair = await call(repairMessages, LONG_SCRIPT_MAX_TOKENS);
-      const repaired = repair.stopReason === 'length' ? null : parseLongScriptReply(repair);
-      if (repaired?.ok) {
+      const repair = await call(repairMessages);
+      const repaired = parseLongScriptReply(repair);
+      if (repaired.ok) {
         const repairedWords = countWords(repaired.output.scriptText);
         if (lengthError(repairedWords, targetSeconds, pace) < lengthError(words, targetSeconds, pace)) {
           current = { llm: repair, output: repaired.output };
@@ -440,8 +413,7 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
   const userMessage = buildUserMessage(params);
   const call = createCaller(buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence)), ScriptGenerationOutputSchema, calls);
 
-  const first = await call([{ role: 'user', content: userMessage }], SCRIPT_MAX_TOKENS);
-  if (first.stopReason === 'length') throw buildCutOffError(first, calls);
+  const first = await call([{ role: 'user', content: userMessage }]);
   const firstParsed = parseScriptReply(first);
   if (firstParsed.ok) return { output: firstParsed.output, llm: first, calls };
 
@@ -449,8 +421,7 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
   // is the existing non-transient error, so it never loops.
   logReplyFailure(firstParsed.failure, first, 'first call, retrying once');
   const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
-  const second = await call(retryRequest.messages, retryRequest.maxTokens);
-  if (second.stopReason === 'length') throw buildCutOffError(second, calls);
+  const second = await call(retryRequest.messages);
   const secondParsed = parseScriptReply(second);
   if (secondParsed.ok) return { output: secondParsed.output, llm: second, calls };
 

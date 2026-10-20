@@ -78,7 +78,6 @@ export const defaultStillCheckDeps: StillCheckDeps = {
       purpose: 'video-intelligence-own-draft',
       system,
       messages: [{ role: 'user', content, attachments: imagesBase64.map((dataBase64) => ({ mediaType: 'image/jpeg', dataBase64 })) }],
-      maxTokens: 900,
     }),
   thumbnail: thumbnailBase64,
 };

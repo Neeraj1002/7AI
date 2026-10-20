@@ -68,6 +68,8 @@ export function llmUsageContext(llm: LLMResponse): StageErrorContext {
     outputTokens: llm.usage.outputTokens,
     costUsd: llm.costUsd,
     stopReason: llm.stopReason,
+    // A reply that came back after an automatic cut-off retry cost two calls: the failure path books each.
+    ...((llm.priorAttempts?.length ?? 0) > 0 ? { calls: llmUsageRows(llm) } : {}),
   };
 }
 
@@ -94,19 +96,32 @@ export function failureUsageFields(error: unknown): FailureUsageFields {
   };
 }
 
-// Bugs Task 11 (R3) — a stage that made several model calls in one attempt
-// (script generation's one retry) lists them all, so each is booked as its own
-// UsageEvent and the retry counts against the budget.
-export function llmCallsContext(calls: LLMResponse[]): StageErrorContext {
-  return {
-    calls: calls.map((llm) => ({
+// LLM Registry task (R2) — every billed call behind one reply: the calls callLLM made before it (cut off at
+// the output limit, then retried) followed by the reply itself. Each row is booked as its own UsageEvent.
+export function llmUsageRows(llm: LLMResponse): FailureUsageFields[] {
+  return [
+    ...(llm.priorAttempts ?? []).map((attempt) => ({
+      provider: attempt.provider,
+      model: attempt.model,
+      inputTokens: attempt.usage.inputTokens,
+      outputTokens: attempt.usage.outputTokens,
+      costUsd: attempt.costUsd,
+    })),
+    {
       provider: llm.provider,
       model: llm.model,
       inputTokens: llm.usage.inputTokens,
       outputTokens: llm.usage.outputTokens,
       costUsd: llm.costUsd,
-    })),
-  };
+    },
+  ];
+}
+
+// Bugs Task 11 (R3) — a stage that made several model calls in one attempt
+// (script generation's one retry) lists them all, so each is booked as its own
+// UsageEvent and the retry counts against the budget.
+export function llmCallsContext(calls: LLMResponse[]): StageErrorContext {
+  return { calls: calls.flatMap(llmUsageRows) };
 }
 
 // One entry per model call that completed before the failure, or the single

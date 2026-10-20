@@ -16,12 +16,12 @@ describe('resolvePurpose', () => {
   // (KNOWN_ISSUES_AND_BLOCKERS.md). This locks the fix in so the exact same
   // deviation can't silently reappear.
   it('resolves intake-parsing to the cheap/fast tier (claude-haiku-4-5), not the premium tier', () => {
-    expect(resolvePurpose('intake-parsing')).toEqual({ provider: 'anthropic', model: 'claude-haiku-4-5' });
+    expect(resolvePurpose('intake-parsing')).toMatchObject({ provider: 'anthropic', model: 'claude-haiku-4-5' });
   });
 
   it('keeps script-generation on the premium tier — the one place quality directly drives views', () => {
-    expect(resolvePurpose('script-generation')).toEqual({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
-    expect(resolvePurpose('video-production-planning')).toEqual({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
+    expect(resolvePurpose('script-generation')).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
+    expect(resolvePurpose('video-production-planning')).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
   });
 });
 
