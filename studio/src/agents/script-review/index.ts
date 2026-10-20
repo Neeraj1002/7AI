@@ -1,4 +1,4 @@
-import { ScoreAuditSchema, scoreWithoutAdvisories, type ScoreAudit } from './score-audit';
+import { ScoreAuditSchema, LegacyScoreAuditSchema, scoreWithoutAdvisories, type ScoreAudit, type LegacyScoreAudit } from './score-audit';
 import { scenePropStatus } from './scene-props';
 import { groundModelFindings } from './grounded-findings';
 import { numberFormattingEquivalent } from './numbers';
@@ -68,7 +68,7 @@ export const ScriptReviewOutputSchema = z.object({
     .optional(),
 });
 export const ScriptReviewWireSchema = ScriptReviewOutputSchema.extend({ scoreAudit: ScoreAuditSchema });
-const LegacyReviewWireSchema = ScriptReviewWireSchema.partial({ scoreAudit: true });
+const LegacyReviewWireSchema = ScriptReviewOutputSchema.extend({ scoreAudit: LegacyScoreAuditSchema.optional() });
 export type ScriptReviewOutput = z.infer<typeof ScriptReviewOutputSchema>;
 
 export type ScriptReviewResult = {
@@ -252,7 +252,7 @@ export async function reviewScript(
     }
     calls.push(llm);
     let output: ScriptReviewOutput;
-    let audit: ScoreAudit | undefined;
+    let audit: ScoreAudit | LegacyScoreAudit | undefined;
     try {
       if (llm.stopReason === 'length' || llm.stopReason === 'max_tokens') throw new Error('output token limit reached; response incomplete');
       const wire = (options.legacyReplay ? LegacyReviewWireSchema : ScriptReviewWireSchema).parse(JSON.parse(extractJsonText(llm.text)));
@@ -270,7 +270,7 @@ export async function reviewScript(
       const corrected = brief ? groundModelFindings(formatted, brief, params.scriptText) : formatted;
       const softProp = (finding: string) => Boolean(brief && scenePropStatus(brief, params.scriptText, finding) === 'soft');
       let scored: ScriptReviewOutput;
-      try { scored = audit ? scoreWithoutAdvisories(output, corrected, audit, softProp) : corrected; } catch (error) { lastFailure = error; continue; }
+      try { scored = audit ? scoreWithoutAdvisories(output, corrected, audit, softProp, Boolean(options.legacyReplay)) : corrected; } catch (error) { lastFailure = error; continue; }
       const calibrated = calibrateReview(scored, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], isLong || params.evidence?.factPolicy === 'brief-only', softProp);
       return { output: calibrated, llm, ...(calls.length > 1 ? { calls } : {}) };
   }

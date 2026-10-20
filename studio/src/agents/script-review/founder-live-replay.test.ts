@@ -14,7 +14,7 @@ describe('founder-approved Sonnet controls: saved-response replay',()=>{
  });
  it.each(ledger.reviews)('$caseId repeat $repeat reproduces the recorded review without a provider call',async entry=>{
   const c=ledger.fixtures.find(f=>f.caseId===entry.caseId)!;let next=0;
-  const result=await reviewScript({scriptText:c.scriptText,captions:'',nicheDescription:'Historical stories',videoKind:c.videoKind,targetSeconds:c.targetSeconds,chapterTitles:c.chapterTitles,evidence:buildEvidencePacket({briefText:c.briefText,factPolicy:c.factPolicy})},async()=>{const response=entry.responses[next++];if(!response)throw Error('Missing saved reply');return response});
+  const result=await reviewScript({scriptText:c.scriptText,captions:'',nicheDescription:'Historical stories',videoKind:c.videoKind,targetSeconds:c.targetSeconds,chapterTitles:c.chapterTitles,evidence:buildEvidencePacket({briefText:c.briefText,factPolicy:c.factPolicy})},async()=>{const response=entry.responses[next++];if(!response)throw Error('Missing saved reply');return response},{legacyReplay:true});
   expect(next).toBe(entry.responses.length);expect(result.output).toEqual(entry.output);
  });
 });
