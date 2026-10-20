@@ -6,7 +6,7 @@ import { requireOfflineProof } from '../src/agents/script-review/evaluation-budg
 import { founderHash,nativeReviewEvidence,FOUNDER_BASELINE_USD } from '../src/agents/script-review/evaluation-founder';
 import { reviewFailureEvidence } from '../src/agents/script-review/evaluation-failure';
 import type { ScriptReviewOutput } from '../src/agents/script-review';
-import { CONFIRM_SYSTEM_PROMPT, type HardCapCheck } from '../src/agents/script-review/hard-cap-confirmation';
+import type { HardCapCheck } from '../src/agents/script-review/hard-cap-confirmation';
 import type { LLMResponse } from '../src/llm';
 const OUTPUT_LIMIT=2560,INPUT_MARGIN_TOKENS=1024,EXPECTED_PRIOR_STEP=.550154,STEP_CEILING_USD=.80,CONFIRM_OUTPUT_LIMIT=400;
 const report='../docs/execution/sprint5/reports/task6-hard-cap-confirmation-evidence.json';
@@ -26,7 +26,7 @@ async function main(){
  const ids=['appendix-A-clean','lego-facts-control'],fixtures=ids.map(id=>all.find(c=>c.caseId===id)!);if(fixtures.some(c=>!c))throw Error('Approved control missing');
  const keyIndex=process.argv.indexOf('--key-env-file');if(keyIndex<0)throw Error('Existing approved key path required');const key=dotenv.parse(readFileSync(process.argv[keyIndex+1])).ANTHROPIC_API_KEY;if(!key)throw Error('Approved key unavailable');
  process.env.ANTHROPIC_API_KEY=key;process.env.NODE_ENV='test';process.env.DATABASE_URL='postgresql://fixtures:unused@127.0.0.1:1/task6_fixtures';
- const {reviewScript}=await import('../src/agents/script-review'),{buildEvidencePacket}=await import('../src/content-evidence/packet'),{callLLM,resolvePurpose,resolvePricing}=await import('../src/llm'),{llmUsageRows}=await import('../src/run-pipeline/stage-failure');
+ const {CONFIRM_SYSTEM_PROMPT}=await import('../src/agents/script-review/hard-cap-confirmation'),{reviewScript}=await import('../src/agents/script-review'),{buildEvidencePacket}=await import('../src/content-evidence/packet'),{callLLM,resolvePurpose,resolvePricing}=await import('../src/llm'),{llmUsageRows}=await import('../src/run-pipeline/stage-failure');
  const entry=resolvePurpose('script-review');if(entry.model!=='claude-sonnet-5-5'||entry.maxOutputTokens!==16000||entry.reasoning!=='off')throw Error('Unexpected production purpose');
  const productionLimit=entry.maxOutputTokens,lock='data/task6-evaluation/hard-cap-paid.lock',fd=openSync(lock,'wx'),nativeFetch=globalThis.fetch;
  const ledger:Ledger={version:1,hash,priorArtifactHash:createHash('sha256').update(priorBytes).digest('hex'),priorStepChargedUsd:EXPECTED_PRIOR_STEP,baselineConservativeUsd:FOUNDER_BASELINE_USD,historicalReservationsUsd:.219391,reservationsReleased:false,stepCeilingUsd:STEP_CEILING_USD,model:entry.model,productionOutputLimit:productionLimit,evaluationOutputLimit:OUTPUT_LIMIT,estimatedInputMarginTokens:INPUT_MARGIN_TOKENS,fixtures,calls:[],reviews:[],additionalChargedUsd:0,stepChargedUsd:EXPECTED_PRIOR_STEP,conservativeTotalUsd:FOUNDER_BASELINE_USD+EXPECTED_PRIOR_STEP,complete:false};
