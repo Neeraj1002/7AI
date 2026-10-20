@@ -3,45 +3,44 @@ import { expect,it,vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import fixtures from '../../content-evidence/fixtures/sr-pre-gate.json';
 import { buildEvidencePacket } from '../../content-evidence/packet';
-import { reviewScript, ScriptReviewOutputSchema } from './index';
+import { reviewScript } from './index';
 import { checkBrief } from './brief-checks';
-import { calibrateReview } from './rules';
-import { scenePropStatus } from './scene-props';
-import { scoreWithoutAdvisories } from './score-audit';
+import { scoreFromAudit } from './score-audit';
 import type { LLMResponse } from '../../llm';
 const clean={score:4,notes:'SR-3: repetitive. SR-4: awkward. SR-5: pronunciation.',hookScore:7,hookNotes:'Direct.',videoGenFit:{fitsLengthLimit:true,pacingRealistic:true,visualsProducible:true,flags:[]},factualConcerns:[] as string[],styleGuideViolations:[] as string[]};
 const response=(o:unknown):LLMResponse=>({text:JSON.stringify(o),stopReason:'stop',provider:'anthropic',model:'claude-sonnet-5-5',usage:{inputTokens:100,outputTokens:100},costUsd:'0.001200',maxOutputTokens:16000});
 const c=fixtures.evaluationCases.find(c=>c.caseId==='d4-imagined-clean')!;
 const params={scriptText:c.scriptText,captions:'',nicheDescription:'History',evidence:buildEvidencePacket({briefText:c.briefText,factPolicy:'brief-only'})};
-const audit={rubricScore:9,rubricDeductions:[{criterion:'chapter-order' as const,points:1,finding:'The required chapters are out of order.'}],deductions:[{rule:'SR-3' as const,points:3,finding:'repetitive'},{rule:'SR-4' as const,points:1,finding:'awkward'},{rule:'SR-5' as const,points:1,finding:'pronunciation'}]};
-it('D2 reconstructs the score from the explicit rubric, excluding all three advisory deductions',async()=>{
- const complete=vi.fn().mockResolvedValue(response({...clean,scoreAudit:audit}));const r=await reviewScript(params,complete);expect(r.output.score).toBe(9);expect(r.output.notes).toContain('SR-3');expect(r.output).not.toHaveProperty('scoreAudit');expect(Object.keys(r.output).sort()).toEqual(Object.keys(ScriptReviewOutputSchema.parse(clean)).sort());expect(complete).toHaveBeenCalledTimes(1);
+const criteria=['chapter-order','open-loop','factual-causality','brief-brand','hook-promise'] as const;
+const audit=(findings: {rule:'SR-1'|'SR-2'|'SR-3'|'SR-4'|'SR-5'|'SR-7'|'SR-8'|'SR-9';finding:string}[]=[],lower?:{criterion:typeof criteria[number];score:number;finding:string})=>({
+ rubricSubscores:criteria.map(criterion=>({criterion,score:criterion===lower?.criterion?lower.score:10,finding:criterion===lower?.criterion?lower.finding:null})),findings,
 });
-it('does not manufacture a passing score for an independently low rubric grade',async()=>{
- const r=await reviewScript(params,vi.fn().mockResolvedValue(response({...clean,scoreAudit:{...audit,rubricScore:4,rubricDeductions:[{criterion:'chapter-order',points:6,finding:'The required chapters are out of order.'}]}})));expect(r.output.score).toBe(4);
+it('computes five-subscore average in code and excludes advisory findings',async()=>{
+ const f='SR-3: repetitive';const complete=vi.fn().mockResolvedValue(response({...clean,score:0,scoreAudit:audit([{rule:'SR-3',finding:f}],{criterion:'brief-brand',score:1,finding:f}),notes:f}));
+ const r=await reviewScript(params,complete);expect(r.output.score).toBe(10);expect(r.output).not.toHaveProperty('scoreAudit');expect(complete).toHaveBeenCalledTimes(1);
 });
-it('rejects a low opaque rubric grade with no eligible rubric reason, even when advisory prose explains it',async()=>{
- const bad={...clean,notes:'Score reduced for repetitive padding and thin visuals (SR-3/4).',scoreAudit:{rubricScore:6,rubricDeductions:[],deductions:[]}};const complete=vi.fn().mockResolvedValue(response(bad));await expect(reviewScript(params,complete)).rejects.toThrow('after one format retry');expect(complete).toHaveBeenCalledTimes(2);
+it('averages supported objective subscores and then applies caps',async()=>{
+ const f='SR-1: Actual mismatch; restore the brief.';const o={...clean,factualConcerns:[f],scoreAudit:audit([{rule:'SR-1',finding:f}],{criterion:'factual-causality',score:5,finding:f})};
+ const r=await reviewScript(params,vi.fn().mockResolvedValue(response(o)));expect(r.output.score).toBe(6);
 });
-it('rejects an advisory reason disguised as an eligible rubric deduction',async()=>{
- const bad={...clean,scoreAudit:{rubricScore:8,rubricDeductions:[{criterion:'chapter-order',points:2,finding:'Heavy repetition and padding.'}],deductions:[]}};const complete=vi.fn().mockResolvedValue(response(bad));await expect(reviewScript(params,complete)).rejects.toThrow('after one format retry');expect(complete).toHaveBeenCalledTimes(2);
-});
-it.each([1,2,7,8,9])('eligible SR-%s deductions survive D2 and the correct cap still applies',async rule=>{
- const f='SR-'+rule+': Actual mismatch; restore the brief.';const o={...clean,factualConcerns:rule===2?[]:[f],styleGuideViolations:rule===2?[f]:[],scoreAudit:{rubricScore:10,rubricDeductions:[],deductions:[{rule:'SR-'+rule,points:1,finding:f},...audit.deductions]}};const r=await reviewScript(params,vi.fn().mockResolvedValue(response(o)));expect(r.output.score).toBe(rule===1||rule===9?6:8);expect([...r.output.factualConcerns,...r.output.styleGuideViolations]).toContain(f);
-});
-it('requires a score audit on live wire replies and fails closed after the existing single format retry',async()=>{
+it('requires a private audit and a complete response',async()=>{
  const complete=vi.fn().mockResolvedValue(response(clean));await expect(reviewScript(params,complete)).rejects.toThrow('after one format retry');expect(complete).toHaveBeenCalledTimes(2);
 });
-it('rejects an untraceable or duplicate non-advisory deduction rather than silently scoring clean',()=>{
- const f='SR-1: Actual mismatch';const o={...clean,factualConcerns:[f]};expect(()=>scoreWithoutAdvisories(o,o,{rubricScore:9,rubricDeductions:[{criterion:'chapter-order' as const,points:1,finding:'The required chapters are out of order.'}],deductions:[{rule:'SR-1',points:1,finding:'not a recorded finding'}]},()=>false)).toThrow('exact finding');expect(()=>scoreWithoutAdvisories(o,o,{rubricScore:9,rubricDeductions:[{criterion:'chapter-order' as const,points:1,finding:'The required chapters are out of order.'}],deductions:[{rule:'SR-1',points:1,finding:f},{rule:'SR-1',points:1,finding:f}]},()=>false)).toThrow('Duplicate');
+it('rejects duplicate or unmatched rule findings',async()=>{
+ const f='SR-1: Actual mismatch';const o={...clean,factualConcerns:[f]};expect(()=>scoreFromAudit(o,o,audit([{rule:'SR-1',finding:'SR-1: other'}]))).toThrow('exact concern');expect(()=>scoreFromAudit(o,o,audit([{rule:'SR-1',finding:f},{rule:'SR-1',finding:f}]))).toThrow('Duplicate');
 });
-it('explicitly listed balance is grounded, including an old exact provider finding',async()=>{
- const f='SR-9: "I want the balance to settle" and "beside the balance" add a specific weighing device not in the brief. Use "the weights" or a hand gesture instead.';expect(scenePropStatus(c.briefText,c.scriptText,f)).toBe('listed');const r=await reviewScript(params,vi.fn().mockResolvedValue(response({...clean,factualConcerns:[f],scoreAudit:{rubricScore:9,rubricDeductions:[{criterion:'chapter-order' as const,points:1,finding:'The required chapters are out of order.'}],deductions:[{rule:'SR-9',points:3,finding:f}]}})));expect(r.output.score).toBe(9);expect(r.output.factualConcerns).toEqual([]);
+it('dismisses a chapter meta-commentary SR-2 without a score cap',async()=>{
+ const f='SR-2: Chapters mostly restate facts in meta-commentary rather than narrating events.';const o={...clean,styleGuideViolations:[f],scoreAudit:audit([{rule:'SR-2',finding:f}],{criterion:'brief-brand',score:2,finding:f})};
+ const r=await reviewScript(params,vi.fn().mockResolvedValue(response(o)));expect(r.output.score).toBe(10);expect(r.output.styleGuideViolations).toEqual([]);
 });
-it('an unlisted ordinary prop is a visible soft SR-9 capped at eight, with no hidden hard deduction',async()=>{
- const script='I touch the bowl.';const f='SR-9 (scene-prop soft): "bowl" is an unlisted scene prop; use a listed prop.';expect(scenePropStatus(c.briefText,script,f)).toBe('soft');const r=await reviewScript({...params,scriptText:script},vi.fn().mockResolvedValue(response({...clean,factualConcerns:[f],scoreAudit:{rubricScore:10,rubricDeductions:[],deductions:[{rule:'SR-9',points:5,finding:f}]}})));expect(r.output.score).toBe(8);expect(r.output.factualConcerns).toEqual([f]);expect(calibrateReview({...clean,score:10,factualConcerns:[f]},[],true).score).toBe(6);
+it('listed scene prop is grounded while unlisted prop retains a soft cap',async()=>{
+ const f='SR-9: "I want the balance to settle" and "beside the balance" add a specific weighing device not in the brief. Use "the weights" or a hand gesture instead.';
+ const r=await reviewScript(params,vi.fn().mockResolvedValue(response({...clean,factualConcerns:[f],scoreAudit:audit([{rule:'SR-9',finding:f}])})));
+ expect(r.output.score).toBe(10);expect(r.output.factualConcerns).toEqual([]);
+ const soft='SR-9 (scene-prop soft): "bowl" is an unlisted scene prop; use a listed prop.';
+ const r2=await reviewScript({...params,scriptText:'I touch the bowl.'},vi.fn().mockResolvedValue(response({...clean,factualConcerns:[soft],scoreAudit:audit([{rule:'SR-9',finding:soft}])})));
+ expect(r2.output.score).toBe(8);expect(r2.output.factualConcerns).toEqual([soft]);
 });
-it.each(['SR-9 (scene-prop soft): "Dagan touches the balance" adds a prop.','SR-9 (scene-prop soft): "The bowl costs 777 coins" adds a prop.','SR-9 (scene-prop soft): "The bowl" adds a ritual prop.'])('does not downgrade a name, quantity, price or ritual: %s',f=>expect(scenePropStatus(c.briefText,'Dagan touches the balance. The bowl costs 777 coins. The bowl.',f)).toBeNull());
 it('scene-policy severity numbers cannot become factual number evidence',()=>{
  const checks=checkBrief(c.briefText,'There were 6 weights.');expect(checks.numericViolations.join(' ')).toContain('SR-1:');expect(checks.supportedNumericValues).not.toContain(6);
 });

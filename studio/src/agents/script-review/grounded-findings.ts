@@ -33,6 +33,13 @@ export function explicitlyAllowedRhetoric(brief: string, script: string, finding
   return claims.length > 0 && claims.every(c => allowed.includes(normalized(c)) && normalized(script).includes(normalized(c)));
 }
 
+export function unsupportedSr2(finding: string): boolean {
+  if (!/^SR-2:/i.test(finding)) return false;
+  // Only a missing required constraint is a score-bearing SR-2. Recap, weak scene work,
+  // or merely using a required line without dramatic flair is advisory.
+  return !/\b(?:missing|omitted|absent|not present|fails to include|does not include|lacks a required)\b/i.test(finding);
+}
+
 export function groundModelFindings(output: ScriptReviewOutput, brief: string, script: string): ScriptReviewOutput {
   const dismissed: string[] = [];
   const filter = (findings: string[]) => findings.filter(f => {

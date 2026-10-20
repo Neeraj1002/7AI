@@ -1,6 +1,6 @@
-import { ScoreAuditSchema, LegacyScoreAuditSchema, scoreWithoutAdvisories, type ScoreAudit, type LegacyScoreAudit } from './score-audit';
+import { ScoreAuditSchema, LegacyScoreAuditSchema, scoreWithoutAdvisories, scoreFromAudit, type ScoreAudit, type LegacyScoreAudit } from './score-audit';
 import { scenePropStatus } from './scene-props';
-import { groundModelFindings } from './grounded-findings';
+import { groundModelFindings, unsupportedSr2 } from './grounded-findings';
 import { numberFormattingEquivalent } from './numbers';
 import { checkBrief } from './brief-checks';
 import { calibrateReview, reviewRules } from './rules';
@@ -81,7 +81,7 @@ export const SYSTEM_PROMPT = `You review a short-form vertical video script (You
 before it goes to production. Respond with ONLY a JSON object of the shape:
 {"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[]}
 
-"score" is 0-10 for factual accuracy, explicit brief compliance and the eligible rubric. SR-3 filler/repetition, SR-4 spoken clarity, and SR-5 pronunciation never lower it. Judge hook/brand/structure only for issues outside those excluded categories; brief-mandated wording takes precedence.
+"score" is a provisional 0-10 estimate; code ignores it and computes the final grade from scoreAudit rubric subscores and SR caps. SR-3 filler/repetition, SR-4 spoken clarity, and SR-5 pronunciation never lower it. Judge hook/brand/structure only for issues outside those excluded categories; brief-mandated wording takes precedence.
 "notes" explains the score — what works, what doesn't, in a few sentences.
 
 "hookScore" is a SEPARATE 0-10 score judging ONLY the first 1-2 seconds of narration — a script can
@@ -124,7 +124,7 @@ export const LONG_FORM_SYSTEM_PROMPT = `You review a long-form (2 to 15 minute, 
 written in chapters, before it goes into cinematic video production. Respond with ONLY a JSON object of the shape:
 {"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[], "chapterNotes": [{"chapterTitle": string, "note": string}]}
 
-"score" is 0-10 for factual accuracy, explicit brief compliance and the eligible long-form rubric. Evaluate chapter order, unclosed promises, inconsistent narrative causality and brand alignment. Open loops: check whether promised questions are answered. Closing line: assess the payoff only where the brief does not mandate the wording; never deduct for obeying a required ending. Preserve the brief's mandated openings, questions and ending. Repetition/filler (SR-3), spoken awkwardness (SR-4), pronunciation (SR-5), and their synonyms are advisory, never score deductions or reasons to lower the rubric grade. Do not require more scene, tension or a different ending where doing so penalises those excluded categories or contradicts the brief.
+"score" is a provisional 0-10 estimate; code ignores it and computes the final grade from scoreAudit rubric subscores and SR caps. Evaluate chapter order, unclosed promises, inconsistent narrative causality and brand alignment. Open loops: check whether promised questions are answered. Closing line: assess the payoff only where the brief does not mandate the wording; never deduct for obeying a required ending. Preserve the brief's mandated openings, questions and ending. Repetition/filler (SR-3), spoken awkwardness (SR-4), pronunciation (SR-5), and their synonyms are advisory, never score deductions or reasons to lower the rubric grade. Do not require more scene, tension or a different ending where doing so penalises those excluded categories or contradicts the brief.
 "notes" explains the score in a few sentences.
 
 "hookScore" is a SEPARATE 0-10 score judging ONLY the cold open (the first 50-100 words of narration):
@@ -267,10 +267,12 @@ export async function reviewScript(
         !explicitSpelling && checks && !checks.numericViolations.some(v => v.startsWith('SR-1:')) &&
         /\b(spelled|numerals?|digits?|numeric form)\b/i.test(text) && numberFormattingEquivalent(brief!, params.scriptText, text)));
       const formatted = { ...output, styleGuideViolations };
-      const corrected = brief ? groundModelFindings(formatted, brief, params.scriptText) : formatted;
+      const grounded = brief ? groundModelFindings(formatted, brief, params.scriptText) : formatted;
+      const dismissedSr2 = options.legacyReplay ? [] : grounded.styleGuideViolations.filter(unsupportedSr2);
+      const corrected = { ...grounded, styleGuideViolations: grounded.styleGuideViolations.filter(f => options.legacyReplay || !unsupportedSr2(f)), notes: [grounded.notes, ...dismissedSr2.map(f => 'Reviewer correction (advisory, no new cap): SR-2 requires an absent explicit constraint. Original finding: ' + f)].join('\n') };
       const softProp = (finding: string) => Boolean(brief && scenePropStatus(brief, params.scriptText, finding) === 'soft');
       let scored: ScriptReviewOutput;
-      try { scored = audit ? scoreWithoutAdvisories(output, corrected, audit, softProp, Boolean(options.legacyReplay)) : corrected; } catch (error) { lastFailure = error; continue; }
+      try { scored = audit ? (options.legacyReplay ? scoreWithoutAdvisories(output, corrected, audit as LegacyScoreAudit, softProp, true) : scoreFromAudit(output, corrected, audit as ScoreAudit)) : corrected; } catch (error) { lastFailure = error; continue; }
       const calibrated = calibrateReview(scored, [...(checks?.exactViolations ?? []), ...(checks?.numericViolations ?? [])], isLong || params.evidence?.factPolicy === 'brief-only', softProp);
       return { output: calibrated, llm, ...(calls.length > 1 ? { calls } : {}) };
   }
