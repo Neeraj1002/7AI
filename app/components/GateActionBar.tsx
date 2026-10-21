@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { BottomSheet } from './BottomSheet';
 import { ConfirmSheet } from './ConfirmSheet';
+import { ScriptEditorModal } from './ScriptEditorModal';
 import { PrimaryButton, SecondaryButton } from './Buttons';
 import { flags } from '../lib/feature-flags';
 import { color, font, radius, space, type } from '../lib/theme';
@@ -38,6 +39,10 @@ export function GateActionBar(props: {
   keepEditOpen?: boolean;
   editError?: string | null;
   onEditOpen?: () => void;
+  // Sprint 5 Task 7 R7: the Gate 1 edit opens as a full-screen editor; a long script is also checked for its chapters
+  // while typing, and its length is shown against the target.
+  targetSeconds?: number;
+  isLongScript?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>(null);
   const [privacy, setPrivacy] = useState<Privacy>(props.defaultPrivacy ?? 'private');
@@ -105,8 +110,24 @@ export function GateActionBar(props: {
       {props.gate === 2 && props.reviseDisabledReason ? <Text style={styles.hint}>{props.reviseDisabledReason}</Text> : null}
       <PrimaryButton label={approveLabel} icon={props.gate === 1 ? 'check' : 'arrow-up'} onPress={handleApprove} />
 
+      {props.gate === 1 ? (
+        <ScriptEditorModal
+          visible={mode === 'edit'}
+          initialText={props.initialEditText ?? ''}
+          isLong={Boolean(props.isLongScript)}
+          targetSeconds={props.targetSeconds}
+          pending={Boolean(props.keepEditOpen && props.isSubmitting)}
+          error={props.keepEditOpen ? (props.editError ?? null) : null}
+          onClose={() => setMode(null)}
+          onSave={(text) => {
+            if (!props.keepEditOpen) setMode(null);
+            props.onEditOrRevise(text);
+          }}
+        />
+      ) : null}
+
       <TextEntrySheet
-        visible={mode !== null}
+        visible={mode === 'reject' || (mode === 'edit' && props.gate === 2)}
         title={
           mode === 'reject' ? 'Reason for rejection' : props.gate === 1 ? 'Edited script text' : 'Revision notes'
         }

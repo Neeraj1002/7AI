@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 import { font, color } from '../lib/theme';
 
-// Clamps long text to `lines`, with a toggle shown only when the text is
-// actually longer than that (checked via onTextLayout — Android's layout
-// pass reports the real line count even though numberOfLines then truncates
-// what's drawn). Task 5/R2: Run detail's review notes/script/rationale/error
-// text filled the whole screen with no length limit.
+// Clamps long text to `lines`, with a "Show more" directly under the clamped text, shown only when the text really is
+// longer. Task 5/R2: Run detail's review notes/script/rationale/error text filled the whole screen with no limit.
+//
+// Sprint 5 Task 7 R11.1: the real line count now comes from a second, invisible copy of the text laid out without a
+// limit. Reading it from the clamped text's own onTextLayout stopped at the clamp on some devices, so the brief ended in
+// "..." with no way to open it.
 export function ClampedText({
   text,
   lines,
@@ -21,22 +22,29 @@ export function ClampedText({
   lessLabel?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [lineCount, setLineCount] = useState<number | null>(null);
-  const canToggle = lineCount !== null && lineCount > lines;
+  const [measured, setMeasured] = useState<{ text: string; count: number } | null>(null);
+  // A measurement belongs to the text it was taken for; new text is measured again.
+  const canToggle = measured !== null && measured.text === text && measured.count > lines;
 
   return (
     <View>
+      <Text style={style} numberOfLines={expanded ? undefined : lines}>
+        {text}
+      </Text>
       <Text
-        style={style}
-        numberOfLines={expanded ? undefined : lines}
+        style={[style, styles.measure]}
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
         onTextLayout={(e) => {
-          if (lineCount === null) setLineCount(e.nativeEvent.lines.length);
+          const count = e.nativeEvent.lines.length;
+          setMeasured((m) => (m && m.text === text && m.count === count ? m : { text, count }));
         }}
       >
         {text}
       </Text>
       {canToggle ? (
-        <Pressable onPress={() => setExpanded((v) => !v)} accessibilityRole="button">
+        <Pressable onPress={() => setExpanded((v) => !v)} accessibilityRole="button" style={styles.hit}>
           <Text style={styles.toggle}>{expanded ? lessLabel : moreLabel}</Text>
         </Pressable>
       ) : null}
@@ -45,5 +53,8 @@ export function ClampedText({
 }
 
 const styles = StyleSheet.create({
-  toggle: { fontFamily: font.black, fontSize: 13, color: color.accentText, marginTop: 4 },
+  // Same width as the visible copy (it sits in the same View), no height of its own, never seen or touched.
+  measure: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
+  hit: { minHeight: 32, justifyContent: 'center', alignSelf: 'flex-start' },
+  toggle: { fontFamily: font.black, fontSize: 13, color: color.accentText },
 });

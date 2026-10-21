@@ -7,6 +7,8 @@ import { Card } from './Card';
 import { IndeterminateBar } from './IndeterminateBar';
 import { LONG_WAIT_NOTE, imageStageFraction, imageStageLine } from '../lib/long-video';
 import { endedTitle, needsAttentionText, plainReason, spentLine, stagePhrase, type EndReason, type StageLike } from '../lib/run-view';
+import { describeFailure } from '../lib/failure-text';
+import { PrimaryButton } from './Buttons';
 
 // The status card of the Run screen's states (NEXT 1 states board). Same layout in every state; only this card and
 // the action bar change.
@@ -16,18 +18,43 @@ export function NeedsAttentionCard({
   stages,
   lastError,
   extra,
+  spentUsd,
+  maxCostUsd,
+  reviewReason,
+  videoAttempts,
+  onRaiseLimit,
+  onEditSettings,
 }: {
   stage: string | null | undefined;
   stages: StageLike[];
   lastError: string | null | undefined;
   /** Run-specific next-step sentence (e.g. what the retry limit means for this run), shown under the helper. */
   extra?: string | null;
+  spentUsd?: number;
+  maxCostUsd?: number;
+  /** The video reviewer's own reason for the latest failed review. */
+  reviewReason?: string;
+  videoAttempts?: number;
+  /** Opens the control that raises the spend limit; shown on a spend-limit stop (Sprint 5 Task 7 R5). */
+  onRaiseLimit?: () => void;
+  /** Opens Edit settings; offered when the fix is a setting (a voice the model rejects). */
+  onEditSettings?: () => void;
 }) {
   const [raw, setRaw] = useState(false);
+  const failure = describeFailure(lastError, { spentUsd, maxCostUsd, reviewReason, tries: videoAttempts });
   return (
     <View style={[styles.card, styles.attention]}>
       <Text style={styles.title}>What went wrong</Text>
-      <Text style={styles.body}>{needsAttentionText({ stage, stages, lastError })}</Text>
+      {failure.kind === 'other' ? (
+        <Text style={styles.body}>{needsAttentionText({ stage, stages, lastError })}</Text>
+      ) : (
+        <>
+          <Text style={styles.body}>{failure.title}</Text>
+          {failure.detail ? <Text style={styles.meta}>{failure.detail}</Text> : null}
+        </>
+      )}
+      {failure.fix === 'limit' && onRaiseLimit ? <PrimaryButton label="Raise the limit and retry" icon="trending-up" onPress={onRaiseLimit} /> : null}
+      {failure.fix === 'voice' && onEditSettings ? <PrimaryButton label="Change the voice" icon="sliders" onPress={onEditSettings} /> : null}
       <Text style={styles.meta}>Retry runs this step again. Cancel stops the run; nothing is published.</Text>
       {extra ? <Text style={styles.meta}>{extra}</Text> : null}
       {lastError ? (
@@ -35,7 +62,7 @@ export function NeedsAttentionCard({
           <Pressable onPress={() => setRaw((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: raw }} style={styles.link}>
             <Text style={styles.linkText}>Technical details ›</Text>
           </Pressable>
-          {raw ? <Text style={styles.raw}>{lastError}</Text> : null}
+          {raw ? <Text style={styles.raw} selectable>{failure.technical}</Text> : null}
         </>
       ) : null}
     </View>

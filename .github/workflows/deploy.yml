@@ -33,6 +33,44 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  # Sprint 5 Task 7 R9: the app's unit tests, type-check and lint run on every PR. The app imports the server's
+  # router types (studio/src) and its tests run with the server's vitest, so the studio dependencies are installed too.
+  app-check:
+    name: App typecheck, lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            studio/package-lock.json
+            app/package-lock.json
+
+      - name: Install studio (types and vitest)
+        working-directory: studio
+        run: |
+          npm ci
+          npx prisma generate
+
+      - name: Install app
+        working-directory: app
+        run: npm ci
+
+      - name: App typecheck
+        working-directory: app
+        run: npm run typecheck
+
+      - name: App lint
+        working-directory: app
+        run: npx eslint .
+
+      - name: App tests
+        working-directory: studio
+        run: npx vitest run --root ../app
+
   deploy:
     name: Deploy to VPS
     needs: check
