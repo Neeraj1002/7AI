@@ -6,6 +6,9 @@
 // that points to Revise at Gate 2; that reason is shown as sent and those fields are marked unavailable. A run in legacy
 // planner recovery must be retried on its own: the server says so, and the app saves first and then asks for Retry.
 // Topic, format, length and the approved script are never changeable here. History: `runs.get.settingsChanges`.
+import type { inferRouterInputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
+
 export type SettingKey = 'voice' | 'audioLayer' | 'visualSource' | 'privacyStatus' | 'maxCostUsd';
 
 export type SettingMode = 'free' | 'locked';
@@ -121,9 +124,11 @@ export function needsRetryOnItsOwn(error: unknown): boolean {
   return error instanceof Error && /retry on its own/i.test(error.message);
 }
 
-export type UpdateInput = { runId: string; retry?: true } & Partial<{ voice: string; audioLayer: string; visualSource: string; privacyStatus: string; maxCostUsd: number }>;
+/** The router's own input type for `runs.updateSettings` (Task 8 R13). */
+export type UpdateInput = inferRouterInputs<AppRouter>['runs']['updateSettings'];
 
-/** The input for `runs.updateSettings`: only changed values and no nulls (the call has no "clear"), plus the retry flag. */
+/** The input for `runs.updateSettings`: only changed values and no nulls (the call has no "clear"), plus the retry flag.
+ *  The values come from pickers as plain strings; the server validates them and answers with its own message. */
 export function updateInput(runId: string, change: SettingsChange, retry: boolean): UpdateInput {
   const out: Record<string, unknown> = { runId };
   for (const [k, v] of Object.entries(change)) if (v !== null && v !== undefined) out[k] = v;

@@ -19,7 +19,6 @@ import {
   type SettingKey,
   type SettingRule,
   type SettingsChange,
-  type UpdateInput,
   updateInput,
 } from '../lib/run-settings';
 import { color, font, radius, space, type } from '../lib/theme';
@@ -37,9 +36,6 @@ const PRIVACY: { value: CurrentSettings['privacyStatus']; label: string }[] = [
   { value: 'unlisted', label: 'Unlisted' },
   { value: 'public', label: 'Public' },
 ];
-
-// The call may not exist on an older server; the client throws "No procedure found" then.
-type UpdateClient = { runs: { updateSettings: { mutate: (input: UpdateInput) => Promise<unknown> } } };
 
 // Sprint 5 Task 7 R4 — "Edit settings" on a stopped or waiting run (runs.updateSettings, Task 8 R13). Fields the server
 // would refuse are shown unavailable with its reason; the approved script, the money spent and every finished step are
@@ -127,7 +123,8 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
     }
     setPending(true);
     setError(null);
-    const call = (retry: boolean) => (client as unknown as UpdateClient).runs.updateSettings.mutate(updateInput(runId, change, retry));
+    // An older server has no such call: the client then throws "No procedure found" (see missingProcedure).
+    const call = (retry: boolean) => client.runs.updateSettings.mutate(updateInput(runId, change, retry));
     const lines = () => {
       const from = {
         voice: label.voice(current.voice),

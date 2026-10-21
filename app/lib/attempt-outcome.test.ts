@@ -63,6 +63,7 @@ describe('runs.get.stageSummaries and videoAttempts', () => {
     expect(o.kind).toBe('failed_review');
     expect(o.label).toBe('failed review');
     expect(o.reason).toBe('Longest shot 8.3 s, limit 7.5 s.');
+    expect(o.reasonCode).toBe('shot_length');
   });
   it('a blocked step reads "waiting for provider, retry this step" with the provider\'s return date', () => {
     const review = st('r3', 'video_review', 'failed', 3);

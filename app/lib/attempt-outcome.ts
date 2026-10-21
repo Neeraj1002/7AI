@@ -27,6 +27,8 @@ export type AttemptOutcome = {
   label: string;
   /** Plain reason, empty when there is nothing to add. */
   reason: string;
+  /** The server's stable code for a failed review (for example "shot_length"), when it sends one. */
+  reasonCode?: string;
 };
 
 export type OutcomeStage = {
@@ -97,7 +99,7 @@ function serverOutcome(stage: OutcomeStage, server: ServerOutcomes | null | unde
   if (!server) return null;
   // A video attempt's outcome is its review's; the other stages are looked up by their own row.
   const info = stage.stageName === 'video_generation' ? server.byVideoAttempt.get(stage.attemptNumber) : server.byStageId.get(stage.id);
-  return info ? { kind: info.outcome, label: OUTCOME_LABEL[info.outcome], reason: reasonOf(info) } : null;
+  return info ? { kind: info.outcome, label: OUTCOME_LABEL[info.outcome], reason: reasonOf(info), ...(info.reasonCode && { reasonCode: info.reasonCode }) } : null;
 }
 
 /** Provider limits are not defects of the video: the run waits and a retry reruns only the blocked step. */
