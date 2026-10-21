@@ -14,6 +14,8 @@ export const RECOVERABLE_FAILURE_KINDS = [
   'spend_limit',
   'provider_capacity',
   'rate_limit_exhausted',
+  // Sprint 5 Task 8 (R4): a provider rejected our key; the run waits for a fix and a Retry.
+  'provider_auth',
 ] as const;
 export type RecoverableFailureKind = (typeof RECOVERABLE_FAILURE_KINDS)[number];
 

@@ -79,7 +79,7 @@ describe('structured-output usage reaches usage_events', () => {
     expect(event).toMatchObject({
       agent: 'script-generation',
       provider: 'anthropic',
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       inputTokens: 1500,
       outputTokens: 321,
     });
@@ -119,7 +119,7 @@ describe('structured-output usage reaches usage_events', () => {
     await runScriptGenerationStage(RUN_ID);
     expect(mocks.insertUsageEvent).toHaveBeenCalledTimes(2);
     expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].outputTokens)).toEqual([16000, 32000]);
-    expect(mocks.insertUsageEvent.mock.calls[0][0]).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5', inputTokens: 1500 });
+    expect(mocks.insertUsageEvent.mock.calls[0][0]).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5', inputTokens: 1500 });
     expect(Number(mocks.insertUsageEvent.mock.calls[0][0].costUsd)).toBeGreaterThan(0);
     const message = mocks.failStage.mock.calls[0][1] as string;
     expect(message).toContain('cut off even after one automatic retry');

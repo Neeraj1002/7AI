@@ -26,11 +26,15 @@ export function isRunSpendLimitReached(spentUsd: number, limitUsd: number): bool
   return spentUsd >= limitUsd;
 }
 
+// Sprint 5 Task 8 (R8.2): `nextCallUsd` is what the call about to be made costs, so the stop comes before a
+// call that would pass the limit and not after it (run 7a90cd6e ended at $0.51 against a $0.50 limit). A
+// call's price is known to the cent for a picture and a narration chunk; a caller that cannot know passes 0.
 export async function assertWithinRunLimit(
   runId: string,
   limitUsd: number,
   sumSpend: (runId: string) => Promise<number> = sumUsageCostForRun,
+  nextCallUsd = 0,
 ): Promise<void> {
   const spent = await sumSpend(runId);
-  if (isRunSpendLimitReached(spent, limitUsd)) throw new RunSpendLimitError(spent, limitUsd);
+  if (isRunSpendLimitReached(spent, limitUsd) || spent + nextCallUsd > limitUsd) throw new RunSpendLimitError(spent, limitUsd);
 }

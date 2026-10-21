@@ -27,6 +27,9 @@ const EnvSchema = z.object({
   // TTS/transcription calls — no OPENAI_API_KEY has been available in any
   // session so far. Same pattern as INTAKE_STAGE_STUB.
   MEDIA_STUB: z.string().optional().default(''),
+  // Sprint 5 Task 8 (R2): '1' skips the pre-spend checks (preflight). Set by the test runner and by
+  // stubbed dry runs, which have no real accounts to probe. Never set it on a real deployment.
+  PREFLIGHT_DISABLED: z.string().optional().default(''),
   // Absolute paths to the ffmpeg/ffprobe binaries. Falls back to plain
   // 'ffmpeg'/'ffprobe' (relying on PATH) if unset — set explicitly here
   // because a freshly-installed winget package doesn't update PATH for

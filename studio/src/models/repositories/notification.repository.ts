@@ -56,6 +56,29 @@ export async function listNotificationsForUser(userId: string, limit = 50): Prom
   return rows.map(toDomainNotification);
 }
 
+// Sprint 5 Task 8 (R12, E11): the Inbox is built from this list, and listNotificationsForUser above returns
+// only the newest 50 rows with no way to ask for more. Several rows exist for one run (the gate request, its
+// re-sends, the result), so 50 rows are only 7 or 8 runs: the Inbox looked as if it had lost runs. This pages
+// the same rows with a cursor and a total, newest first (createdAt, id as the tiebreak).
+export const NOTIFICATIONS_PAGE_DEFAULT = 100;
+export const NOTIFICATIONS_PAGE_MAX = 500;
+export async function listNotificationPageForUser(
+  userId: string,
+  params: { limit?: number; cursor?: string } = {},
+): Promise<{ items: Notification[]; nextCursor: string | null; total: number }> {
+  const limit = Math.min(Math.max(params.limit ?? NOTIFICATIONS_PAGE_DEFAULT, 1), NOTIFICATIONS_PAGE_MAX);
+  const [rows, total] = await Promise.all([
+    prisma.notification.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(params.cursor && { cursor: { id: params.cursor } }),
+    }),
+    prisma.notification.count({ where: { userId } }),
+  ]);
+  return { items: rows.slice(0, limit).map(toDomainNotification), nextCursor: rows.length > limit ? rows[limit].id : null, total };
+}
+
 // Sprint 3 Task 3 (K2) — marks every open 'approval_request' row for a
 // given threadKey resolved, regardless of which real user's row it is or
 // which channel actually resolved the gate (in-app or push) — a gate can

@@ -57,6 +57,20 @@ export const VideoGenerationOutputSchema = z.object({
   narrationSeconds: z.number().optional(),
   measuredWordsPerMinute: z.number().optional(),
   bedCredits: z.array(z.string()).optional(),
+  // Sprint 5 Task 8 (R6): pictures that still showed a logo, readable text, an invented figure or a scene
+  // against its narration after their one regeneration. Shown at Video Review and Gate 2.
+  flaggedStills: z.array(z.object({
+    sceneIndex: z.number().int(),
+    sceneId: z.string(),
+    issues: z.array(z.object({ kind: z.string(), detail: z.string() })),
+  })).optional(),
+  stillCheck: z.object({
+    checked: z.number().int(),
+    unchecked: z.number().int(),
+    flaggedFirstPass: z.number().int(),
+    regenerated: z.number().int(),
+    stillFlagged: z.number().int(),
+  }).optional(),
 });
 export type VideoGenerationOutput = z.infer<typeof VideoGenerationOutputSchema>;
 
@@ -100,6 +114,8 @@ export type VideoGenerationUsage = {
     costsBookedSeparately?: boolean;
     narrationCostUsd?: string;
     measuredWordsPerMinute?: number;
+    // Sprint 5 Task 8 (R3): the shot-length check made on the plan before any picture.
+    shotPlan?: { longestBefore: number; longestAfter: number; adjustedChapters: number[]; addedScenes: number };
     // Sprint 2 Task 3 (F1) — always present ('none' is a real, valid value,
     // not an absent field). No real cost: the audio-bed library is local
     // and free, unlike every other per-run media cost here.

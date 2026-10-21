@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../config/env';
 import { NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
 import { probeAudioSeconds } from './probe';
-import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE } from './registry';
+import { resolveTranscriptionPricing, resolveTtsPricing, DEFAULT_TTS_VOICE, providerVoiceFor, voiceDirection, TTS_NEWER_MODEL } from './registry';
 import type { SynthesizeSpeechResult, TranscribeResult, VoiceConfig } from './types';
 import { DATA_DIR } from '../config/paths';
 
@@ -58,12 +58,15 @@ export async function synthesizeSpeechViaProvider(params: {
   model: string;
 }): Promise<SynthesizeSpeechResult> {
   await ensureTmpDir();
+  // A catalog voice may carry a spoken-style direction (gpt-4o-mini-tts only; the catalog refuses it elsewhere).
+  const direction = params.model === TTS_NEWER_MODEL ? params.voiceConfig.direction ?? voiceDirection(params.voiceConfig.voice) : null;
   try {
     const response = await getClient().audio.speech.create({
       model: params.model,
-      voice: params.voiceConfig.voice ?? DEFAULT_TTS_VOICE,
+      voice: (providerVoiceFor(params.voiceConfig.voice) ?? DEFAULT_TTS_VOICE) as never,
       input: params.text,
       response_format: 'mp3',
+      ...(direction && { instructions: direction }),
     });
     const arrayBuffer = await response.arrayBuffer();
     const audioPath = path.join(MEDIA_TMP_DIR, `${randomUUID()}.mp3`);
@@ -116,5 +119,16 @@ export async function transcribeViaProvider(params: {
   } catch (error) {
     if (error instanceof TransientStageError || error instanceof NonTransientStageError) throw error;
     throw mapOpenAiError(error, { provider: 'openai', model: params.model });
+  }
+}
+
+// Sprint 5 Task 8 (R2): one-character speech request on the cheapest model, so preflight learns about an exhausted
+// OpenAI quota or a rejected key before the first paid narration chunk. Costs a few thousandths of a cent; throws the
+// same classified errors as a real call.
+export async function probeSpeechProvider(): Promise<void> {
+  try {
+    await getClient().audio.speech.create({ model: 'tts-1', voice: 'alloy', input: '.', response_format: 'mp3' });
+  } catch (error) {
+    throw mapOpenAiError(error, { provider: 'openai', model: 'tts-1' });
   }
 }

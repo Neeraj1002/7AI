@@ -144,6 +144,30 @@ export function buildCaptionsMetadataPart(params: Pick<CaptionsUploadParams, 'yo
 export const SUBTITLES_RECONNECT_MESSAGE = 'Subtitles were not uploaded. Reconnect this channel, then upload the file by hand.';
 export const SUBTITLES_REJECTED_MESSAGE = 'YouTube did not accept the subtitles. Upload the file by hand.';
 
+// Sprint 5 Task 8 (R11.5): thumbnails.set answers 403 "doesn't have permissions to upload and set custom video
+// thumbnails" when the channel has not been verified (phone verification in YouTube Studio); the scopes this
+// app asks for (youtube.upload, youtube.force-ssl) are enough. It is an account state, not something the code
+// can fix, so the failure is named in plain words for the Run screen and the cover is set by hand. The error
+// is wrapped by mapGoogleError, so the original status is read down the cause chain.
+export const THUMBNAIL_UNVERIFIED_MESSAGE =
+  'YouTube refused the cover image (403). A channel needs phone verification in YouTube Studio before it can use custom thumbnails. Verify the channel, then set the cover by hand.';
+export const THUMBNAIL_RECONNECT_MESSAGE = 'The cover image was not set because the YouTube connection was rejected. Reconnect this channel, then set the cover by hand.';
+export const THUMBNAIL_FAILED_MESSAGE = 'The cover image was not set. Set it by hand in YouTube Studio.';
+
+function httpStatusOf(error: unknown, depth = 0): number | undefined {
+  if (!error || typeof error !== 'object' || depth > 4) return undefined;
+  const e = error as { response?: { status?: number }; code?: number | string; cause?: unknown };
+  const direct = e.response?.status ?? (typeof e.code === 'number' ? e.code : undefined);
+  return direct ?? httpStatusOf(e.cause, depth + 1);
+}
+
+export function thumbnailFailureMessage(error: unknown): string {
+  const status = httpStatusOf(error);
+  if (status === 403) return THUMBNAIL_UNVERIFIED_MESSAGE;
+  if (status === 401) return THUMBNAIL_RECONNECT_MESSAGE;
+  return THUMBNAIL_FAILED_MESSAGE;
+}
+
 export function subtitlesFailureMessage(error: unknown): string {
   const e = error as { response?: { status?: number; data?: { error?: { errors?: { reason?: string }[]; message?: string } } }; code?: number | string };
   const status = e?.response?.status ?? (typeof e?.code === 'number' ? e.code : undefined);

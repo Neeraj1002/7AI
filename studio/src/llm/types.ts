@@ -62,6 +62,8 @@ export type LLMUsage = {
 // caller (client.ts) already received them as params; index.ts attaches them
 // to form the public LLMResponse below.
 export type ProviderCallResult = {
+  responseModel?: string;
+  rawStopReason?: string;
   text: string;
   usage: LLMUsage;
   stopReason: string;

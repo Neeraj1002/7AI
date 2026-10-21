@@ -10,5 +10,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
     exclude: ['dist/**', 'node_modules/**'],
+    // Sprint 5 Task 8: tests never probe real provider accounts.
+    env: { PREFLIGHT_DISABLED: '1' },
   },
 });

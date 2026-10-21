@@ -20,7 +20,8 @@ describe('resolvePurpose', () => {
   });
 
   it('keeps script-generation on the premium tier — the one place quality directly drives views', () => {
-    expect(resolvePurpose('script-generation')).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5' });
+    expect(resolvePurpose('script-generation')).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
+    expect(resolvePurpose('video-production-planning')).toMatchObject({ provider: 'anthropic', model: 'claude-sonnet-5-5' });
   });
 });
 

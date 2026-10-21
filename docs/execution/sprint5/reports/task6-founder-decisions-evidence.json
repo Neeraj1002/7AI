@@ -1,0 +1,1195 @@
+{
+  "version": 1,
+  "hash": "3f0c4a838c4908139a8745d498ab291163bb92660d5ab7ad8c9d69f74c00875c",
+  "priorArtifactHash": "5df161122b62028e0a05571a43c33987025e4f997c90117b66e01276de90459d",
+  "baselineConservativeUsd": 3.44048,
+  "historicalReservationsUsd": 0.219391,
+  "reservationsReleased": false,
+  "stepCeilingUsd": 0.6,
+  "model": "claude-sonnet-5-5",
+  "registry": {
+    "maxOutputTokens": 16000,
+    "reasoning": "off"
+  },
+  "fixtures": [
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script. Founder-approved minimum-length correction, 2026-10-19; original snapshots retained in prior evidence.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "lego-facts-control",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. That is where the story began.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys, going back to basics instead of chasing growth. The change was a return to the toys: the core business, with the brick at its center. This was the change at the center of the story: a return to the toys themselves. Think of the brick as the thread connecting the beginning and the end. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Keep those moments together. The shortfall belongs to 2003, the layoffs and the owner's money to 2004, and the park sale to 2005. The later comparison is with Mattel, in the first half of 2015. Its measure is sales. That is the path through this account, from the shortfall to the core toys and the sales comparison at the end. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "chapterTitles": [
+        "How much money was missing?",
+        "So what did going back to basics mean?",
+        "Where did that leave Lego ten years later?"
+      ],
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script. Founder-approved minimum-length correction, 2026-10-19; original snapshots retained in prior evidence.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "lego-rhetoric-control",
+      "briefText": "Lego recovery, 2003-2015, 2-minute video. Allowed facts only: in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2004 almost a thousand workers laid off and the owner put about 800 million kroner of his own money in; it went back to basics instead of chasing growth; in 2005 it sold its four Legoland theme parks for 375 million euros to focus on its core toys; ten years later, in the first half of 2015, it outsold Mattel, 2.1 billion dollars against 1.9 billion, becoming the biggest toy company by sales. First sentence must be exactly: \"In 2003, Lego was losing money fast.\" Last sentence must be exactly: \"Lego won by going back to the brick.\" Each chapter opens with a question. Preserve about, roughly, almost, by sales. Harmless rhetorical transitions are allowed: \"It was a hard time for everyone involved\" and \"make the brick the center of everything again, and trust it\". No logos or brand lettering in pictures.",
+      "scriptText": "In 2003, Lego was losing money fast.\n\nHow much money was missing? In 2003, the shortfall was about 1.4 billion Danish kroner, roughly 220 million dollars. Those are the figures at the start of this story. Then came 2004. Almost a thousand workers were laid off. The owner put about 800 million kroner of his own money into the company. It was a hard time for everyone involved.\n\nSo what did going back to basics mean? Instead of chasing growth, Lego went back to basics. In 2005, it sold its four Legoland theme parks for 375 million euros. The purpose was to focus on its core toys, going back to basics instead of chasing growth. The change was a return to the toys: the core business, with the brick at its center. This was the change at the center of the story: a return to the toys themselves. Make the brick the center of everything again, and trust it. The parks were sold, and the focus was the core toys.\n\nWhere did that leave Lego ten years later? In the first half of 2015, Lego outsold Mattel: 2.1 billion dollars against 1.9 billion. By sales, it was the world's biggest toy company. By sales matters here: that is the comparison these figures support. From the shortfall in 2003 to that sales comparison in 2015, the story turns back to the core toys. Keep those moments together. The shortfall belongs to 2003, the layoffs and the owner's money to 2004, and the park sale to 2005. The later comparison is with Mattel, in the first half of 2015. Its measure is sales. That is the path through this account, from the shortfall to the core toys and the sales comparison at the end. Lego won by going back to the brick.",
+      "videoKind": "long",
+      "targetSeconds": 120,
+      "chapterTitles": [
+        "How much money was missing?",
+        "So what did going back to basics mean?",
+        "Where did that leave Lego ten years later?"
+      ],
+      "control": true
+    },
+    {
+      "caseId": "appendix-A-clean",
+      "provenance": "Appendix A brief from approved Task 6 specification; synthetic narration, not production data. Founder-approved causal-sentence correction, 2026-10-19.",
+      "briefText": "Topic: four jobs that machines took over before AI, and what happened to the workers, Britain and America, 1900s to today. Constraints: about 1,240 words; four chapters in order (knocker-upper, elevator operator, human computers, bank teller), each told as a story with \"but\" and \"so\", each opening with the question it answers; **use only the facts in the chapters, no other facts, numbers, names, dates or details; no predictions about AI**; first sentence exactly \"Today, many people worry that AI will take their job. People have worried about machines before, and history kept the receipts.\"; last sentence exactly \"The cash machine didn't end the bank teller. The phone in your pocket did.\"; exact hedge words \"around 1900\", \"about 1.5 million\", \"more than 50 years\", \"only a handful\", \"over 400,000\", \"did not fall as ATMs rolled out\"; no dollar conversions; Dorothy Vaughan only through scenes and silhouettes, never as a portrait. Chapter facts (abridged): knocker-uppers woke workers with long sticks; Mary Smith in London's East End used a pea shooter and dried peas, 1900s to 1930s, sixpence a week, retired 1934; cheap alarm clocks ended the job. Automatic elevators invented around 1900 but not trusted; 1945 New York strike, about 1.5 million office workers stranded; owners pushed automatic elevators; calm recorded voice, red stop button, emergency phone; more than 50 years to feel normal; today only a handful of operators. NACA human computers; Dorothy Vaughan joined 1943, acting head of West Area Computers 1949, first Black supervisor at NACA; electronic computers arrived 1961; she taught herself FORTRAN and taught her co-workers; retired 1971. ATMs from the 1970s, over 400,000 in the United States; teller jobs did not fall as ATMs rolled out; branch tellers fell from 20 to 13 between 1988 and 2004, city branches rose 43 percent; teller job became helping customers; numbers fell later in the smartphone era.",
+      "scriptText": "Today, many people worry that AI will take their job. People have worried about machines before, and history kept the receipts.\n\nHow did workers wake up before an alarm clock ended the knocker-upper's job? A knocker-upper woke workers with a long stick. That was the job: waking workers. But Mary Smith used a different tool in London's East End. She used a pea shooter and dried peas. So the story of the knocker-upper includes both the long stick and Mary Smith's pea shooter. The tools differed, but the task was waking workers. Mary Smith did that work from the 1900s to the 1930s, for sixpence a week. Those are the terms of this story: a worker who woke other workers, a pea shooter, dried peas, and sixpence a week. But cheap alarm clocks ended the job. So the job's ending belongs to the alarm clock, rather than to an account of what Mary Smith did next. She retired in 1934. The brief gives us her retirement, and it gives us the machine that ended the job. It does not give us her life after that. What we can follow is the task itself. Workers needed waking, and knocker-uppers did the waking. But cheap alarm clocks took over that task, so the job ended. Mary Smith's story gives that change a name, a place and a tool: Mary Smith in London's East End, with a pea shooter and dried peas.\n\nWhy did automatic elevators take more than 50 years to feel normal? Automatic elevators were invented around 1900. But they were not trusted. So invention was not the same thing as acceptance. An automatic elevator existed, but people did not trust it. In 1945, a New York strike stranded about 1.5 million office workers. That is the size of the disruption in this account. Owners pushed automatic elevators. So the automatic machine became the alternative that owners pushed. A calm recorded voice, a red stop button and an emergency phone are the details of that change. They belong together in this story: the voice, the button, the phone. But the change did not feel normal immediately. It took more than 50 years to feel normal. So a story that begins with an invention around 1900 cannot end at the invention. It has to include the lack of trust, the strike in 1945 and the owners pushing the automatic alternative. Today there are only a handful of operators. The operator's job did not remain as it had been, but the machine did not feel normal just because it had been invented. So the contrast is between having an automatic elevator and accepting an automatic elevator. The machine was automatic, but trust did not arrive with its invention. So the story includes the recorded voice, the stop button and the emergency phone, as well as the strike and the owners pushing automatic elevators. The invention came around 1900; feeling normal took more than 50 years. The strike stranded about 1.5 million office workers, and owners pushed the automatic elevators.\n\nWhat did Dorothy Vaughan do when electronic computers arrived? She had joined NACA as a human computer in 1943. In 1949 she became acting head of West Area Computers, the first Black supervisor at NACA. That was her work before the electronic computers arrived. But electronic computers arrived in 1961. So the story turns from her position among human computers to what she did with the new computing work. She taught herself FORTRAN. She also taught her co-workers. Those are the actions in this account: learning FORTRAN herself and teaching her co-workers. But this is not a reason to invent a different ending for her. She retired in 1971. So the sequence stays with the facts: joining in 1943, acting head in 1949, electronic computers arriving in 1961, learning and teaching FORTRAN, retirement in 1971. Her story includes a machine arriving, but it also includes a worker learning. The human computer and the electronic computer belong to different parts of the account. Dorothy Vaughan belongs in both parts through the actions the brief records. She joined NACA, became acting head of West Area Computers and taught herself FORTRAN. So her co-workers belong in the story too: she taught them. We can tell that through scenes and silhouettes, without a portrait. The change in computing is part of the story, but learning and teaching are part of it too. Her retirement in 1971 closes the account given here.\n\nWhy did the cash machine not immediately end the bank teller? ATMs rolled out from the 1970s, with over 400,000 in the United States. But teller jobs did not fall as ATMs rolled out. So counting machines alone does not tell this story. Branch tellers fell from 20 to 13 between 1988 and 2004, but city branches rose 43 percent. There were fewer tellers per branch, but more city branches. So the change within a branch is not the same measure as the number of teller jobs. The teller's job became helping customers. That is the change in the work recorded here. But the account does not stop at the ATM rollout. Numbers fell later, in the smartphone era. So there are different changes to keep separate: fewer tellers in a branch, more city branches, a job becoming helping customers, and numbers falling later. The dates and figures belong to those changes. The 20 to 13 figure belongs to branch tellers between 1988 and 2004. The 43 percent figure belongs to the rise in city branches. The over 400,000 figure belongs to ATMs in the United States. But teller jobs did not fall as ATMs rolled out. So the later fall belongs to the smartphone era in this account. It is an ending that differs from the alarm clock ending the knocker-upper's job. It also differs from the long acceptance of automatic elevators and from Dorothy Vaughan learning FORTRAN. These accounts follow the workers as well as the machines, without predicting what AI will do. The cash machine didn't end the bank teller. The phone in your pocket did.",
+      "videoKind": "long",
+      "targetSeconds": 513,
+      "chapterTitles": [
+        "Knocker-upper",
+        "Elevator operator",
+        "Human computers",
+        "Bank teller"
+      ],
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script. Founder-approved IMAGINED scene-props policy, 2026-10-19.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "d4-imagined-clean",
+      "briefText": "A short first-person imagined market morning, about 45 seconds. DOCUMENTED: cubical stone weights use the binary series 1, 2, 4, 8, 16 and 32; larger weights use decimal steps; sizes were only roughly alike from place to place and showed significant variability. INFERRED: many small weights were likely used for light goods. COMMENTARY-ONLY: modern terms such as grams and BCE may appear in commentary. IMAGINED: allow the nameless narrator thoughts, feelings, wants, small worries, body sensations, morning weather, light, sounds, smells, small gestures and unnamed neighbours. At most two short everyday lines by unnamed people, each with a speech tag; no facts, numbers or names in dialogue. Do not invent names, numbers, dates, places, trade partners, prices, rules, beliefs or rituals.\nSCENE PROPS: stone, stone weights, balance. Listed scene props are allowed; an unlisted scene prop is a soft SR-9 note capped at 8, not 6. This does not permit additional names, numbers, dates, places, prices, rules, beliefs, rituals or factual dialogue.",
+      "scriptText": "This is an imagined market morning. Cool air touches my hands. I want the balance to settle, but the stones make me hesitate. I move them gently and listen to the market waking around me. The stone fits my palm. The weights were only roughly alike from place to place, with significant variability. Many small weights were likely used for light goods. That is what the finds support; the morning and my small worry are imagined. I think in grams while the small stone rests in my palm. I let my hands rest beside the balance.",
+      "videoKind": "short",
+      "targetSeconds": 45,
+      "control": true
+    },
+    {
+      "provenance": "Synthetic acceptance fixture assembled from architect Task 6 Appendix B / D4; not a recovered full production script. Founder-approved IMAGINED scene-props policy, 2026-10-19.",
+      "factPolicy": "brief-only",
+      "expectedRules": [],
+      "caseId": "d4-sensory-speech-clean",
+      "briefText": "A short first-person imagined market morning, about 45 seconds. DOCUMENTED: cubical stone weights use the binary series 1, 2, 4, 8, 16 and 32; larger weights use decimal steps; sizes were only roughly alike from place to place and showed significant variability. INFERRED: many small weights were likely used for light goods. COMMENTARY-ONLY: modern terms such as grams and BCE may appear in commentary. IMAGINED: allow the nameless narrator thoughts, feelings, wants, small worries, body sensations, morning weather, light, sounds, smells, small gestures and unnamed neighbours. At most two short everyday lines by unnamed people, each with a speech tag; no facts, numbers or names in dialogue. Do not invent names, numbers, dates, places, trade partners, prices, rules, beliefs or rituals.\nSCENE PROPS: stone, stone weights, balance. Listed scene props are allowed; an unlisted scene prop is a soft SR-9 note capped at 8, not 6. This does not permit additional names, numbers, dates, places, prices, rules, beliefs, rituals or factual dialogue.",
+      "scriptText": "This is an imagined market morning. My fingers tighten around a stone. The balance tilts, so I move it gently. An unnamed neighbour says, \"Take your time.\" I loosen my grip. Morning light reaches the edge of the balance, and the market murmurs around me. The stone settles beneath my hand. The weights were only roughly alike from place to place, with significant variability. Many small weights were likely used for light goods. The hands, the light and the neighbour's everyday words are imagined; the weight findings are the factual baseline.",
+      "videoKind": "short",
+      "targetSeconds": 45,
+      "control": true
+    }
+  ],
+  "calls": [
+    {
+      "id": 1,
+      "caseId": "lego-facts-control",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.242048,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "51fa8b4411edb7fa592b68cbe1d4af709acb1f7c27624483025a18ea13a26f36",
+      "startedAt": "2026-10-20T08:02:16.598Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9233,
+        "outputTokens": 673,
+        "text": "{\"score\":7.5,\"notes\":\"Facts, hedges and mandated first/last lines are preserved. Reduction: 'That is where the story began' after the 2004 events is a muddled, misleading transition, and the heavy recap in chapter 3 adds little payoff. Advisory SR-3: repeated 'back to basics' and core-toys lines are filler; SR-4: 'By sales matters here' is awkward when spoken.\",\"hookScore\":5,\"hookNotes\":\"Mandated opener is direct and stakes-laden but brief; follow-up is a question, not an immersive scene.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Chapter 3 recap is abstract and gives few distinct still images; consider concrete visuals like a toy-sales chart or a brick close-up, with no logos or lettering.\"]},\"factualConcerns\":[\"SR-9: 'That is where the story began' placed after the 2004 layoffs contradicts the 2003 opening and implies an unsupported narrative claim; remove or say 'That is how the turnaround began'.\"],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Strong facts and hedges, but the closing 'where the story began' line muddles the timeline.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Core facts are right but the same point is repeated several times, slowing the pace.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"The payoff is clear, but the long recap of dates drags before the final line.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[{\"rule\":\"SR-9\",\"points\":0.5,\"finding\":\"SR-9: 'That is where the story began' placed after the 2004 layoffs contradicts the 2003 opening and implies an unsupported narrative claim; remove or say 'That is how the turnaround began'.\"}]}}",
+        "replyLengthChars": 1740
+      },
+      "costUsd": 0.025196,
+      "endedAt": "2026-10-20T08:02:25.249Z"
+    },
+    {
+      "id": 2,
+      "caseId": "lego-rhetoric-control",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.241492,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "d5effaff8edfb033dd618644da46fea37cf0a1b3cf7a0fc160d6c7e4d5cde41b",
+      "startedAt": "2026-10-20T08:02:25.376Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9139,
+        "outputTokens": 461,
+        "text": "{\"score\":8,\"notes\":\"Facts, hedges, and mandated first and last sentences check out; chapter questions are present. Score reduced for heavy rhetorical padding and a recap that restates the timeline, which weakens narrative tension, and a mild causal framing ('Lego won by going back to the brick'), which is brief-mandated. SR-3 repetition is advisory only.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-laden but plain, and followed by a question.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Abstract financial and comparison beats need stills such as charts or symbolic compositions with no brand lettering or logos.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Stakes and numbers land quickly; the 2004 beat moves well.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Repeats the return-to-toys idea several times; tighten for momentum.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff is clear but the recap section slows the finish.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+        "replyLengthChars": 1188
+      },
+      "costUsd": 0.022888,
+      "endedAt": "2026-10-20T08:02:30.343Z"
+    },
+    {
+      "id": 3,
+      "caseId": "appendix-A-clean",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.266928,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "eceeabc750529faf2349493065881e47f257be9ae8855c01534637b4e592ec54",
+      "startedAt": "2026-10-20T08:02:30.378Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 13325,
+        "outputTokens": 636,
+        "text": "{\"score\":6,\"notes\":\"Brief-compliant on exact first/last lines, hedges and facts, with no invented facts. But chapters 2 and 3 skip the fact-grounded 'but/so' story format in places. Main reductions: the script is heavily padded with meta-commentary ('belongs in this story') and gives thin visual material for stills. SR-3/4 repetition is advisory only. Length is about 1012 words, short of the 1,240 target but within tolerance.\",\"hookScore\":3,\"hookNotes\":\"Mandated generic opener about AI worry; brief-required, so a textbook-style start rather than a vivid moment.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Heavy meta-narration ('belongs in this story') gives few distinct visual beats per chapter\",\"Repeated listing of the same facts will force repeated stills\",\"Dorothy Vaughan must be shown only as scenes and silhouettes, never as a portrait\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"Knocker-upper\",\"note\":\"Opens with the required question and uses but/so, but repeats the stick, pea shooter and sixpence list several times.\"},{\"chapterTitle\":\"Elevator operator\",\"note\":\"Strong contrast of invention versus acceptance, yet the closing lines restate the same facts twice and drag the pace.\"},{\"chapterTitle\":\"Human computers\",\"note\":\"Clear sequence from 1943 to 1971, though it leans on abstract commentary rather than scenes to carry the drama.\"},{\"chapterTitle\":\"Bank teller\",\"note\":\"Correctly separates the figures and builds to the mandated ending, but the middle is a dense recitation of numbers.\"}],\"scoreAudit\":{\"rubricScore\":6,\"deductions\":[]}}",
+        "replyLengthChars": 1654
+      },
+      "costUsd": 0.03301,
+      "endedAt": "2026-10-20T08:02:38.662Z"
+    },
+    {
+      "id": 4,
+      "caseId": "d4-imagined-clean",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.23733,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "89ebc189d82e024dd2c40aa3b985c9139e82e56c50fbf7ec693815621ee335cc",
+      "startedAt": "2026-10-20T08:06:06.055Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 8385,
+        "outputTokens": 342,
+        "text": "{\"score\":8.5,\"notes\":\"Documented/inferred claims are hedged and no new names, numbers, dates or prices appear. Imagined sensations are allowed. SR-4 advisory: 'I think in grams' is a modern anachronism in first person. SR-3 advisory: 'palm' repeats. Narration is slightly short for 45 seconds at 96 words. The binary series is not recited, which is optional, so no deduction.\",\"hookScore\":3,\"hookNotes\":\"Opens with a slow 'This is an imagined market morning' disclaimer, not a surprising claim or question; no cold open.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"96 words reads closer to roughly 35-40 seconds, noticeably under the 45s target and likely outside the 20% window.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"scoreAudit\":{\"rubricScore\":8.5,\"deductions\":[]}}",
+        "replyLengthChars": 833
+      },
+      "costUsd": 0.02019,
+      "endedAt": "2026-10-20T08:06:11.111Z"
+    },
+    {
+      "id": 5,
+      "caseId": "d4-sensory-speech-clean",
+      "repeat": 1,
+      "status": "metered",
+      "reservedUsd": 0.237186,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "cce6ccca9d82b8f2fb31012dd526a209f26b06e9617d7a107bb0816659644965",
+      "startedAt": "2026-10-20T08:06:11.188Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 8383,
+        "outputTokens": 339,
+        "text": "{\"score\":9,\"notes\":\"Stays within brief: props are listed, imagined elements are allowed, one tagged unnamed line, and the factual claims keep their hedges. Length is 91 words, a bit short for 45 seconds but within tolerance. SR-3: the closing disclaimer is slightly redundant given the opening 'imagined' line. Not every DOCUMENTED fact is used, but no coverage was required.\",\"hookScore\":4,\"hookNotes\":\"Opens with a generic framing statement ('This is an imagined market morning'), not a cold open; a sensory line would grip faster.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"91 words may read closer to 35-38 seconds; slow pacing or add a beat to approach 45s\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+        "replyLengthChars": 831
+      },
+      "costUsd": 0.020156,
+      "endedAt": "2026-10-20T08:06:15.609Z"
+    },
+    {
+      "id": 6,
+      "caseId": "lego-facts-control",
+      "repeat": 2,
+      "status": "metered",
+      "reservedUsd": 0.242048,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "51fa8b4411edb7fa592b68cbe1d4af709acb1f7c27624483025a18ea13a26f36",
+      "startedAt": "2026-10-20T08:06:15.642Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9233,
+        "outputTokens": 490,
+        "text": "{\"score\":8,\"notes\":\"Facts, hedges and mandated first/last lines are preserved; chapters open with questions. Minor deduction: 'That is where the story began' placed after 2004 is a loose claim, and 'Think of the brick as the thread' adds brick-center framing slightly beyond brief. SR-3: heavy repetition in chapters 2 and 3 (advisory only).\",\"hookScore\":6,\"hookNotes\":\"Mandated opener is direct and stakes-laden but brief and numerically plain.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Chapter 3 is abstract recap with few concrete visual beats; use still compositions of toy bricks and timeline cards without lettering.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Strong, clear numbers with correct hedges; 'where the story began' is slightly muddled.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Accurate but repeats the core-toys point several times, slowing pacing.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Correct 'by sales' hedge; the recap dilutes momentum before the mandated closing line.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+        "replyLengthChars": 1233
+      },
+      "costUsd": 0.023366,
+      "endedAt": "2026-10-20T08:06:20.627Z"
+    },
+    {
+      "id": 7,
+      "caseId": "lego-rhetoric-control",
+      "repeat": 2,
+      "status": "metered",
+      "reservedUsd": 0.241492,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "d5effaff8edfb033dd618644da46fea37cf0a1b3cf7a0fc160d6c7e4d5cde41b",
+      "startedAt": "2026-10-20T08:06:20.646Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9139,
+        "outputTokens": 525,
+        "text": "{\"score\":9,\"notes\":\"All facts, hedges (about, roughly, almost, by sales) and mandated first/last lines are preserved; chapters open with questions in order. Chapter 2 and 3 narration is circular and repetitive, with filler recaps. No unsupported facts found; rhetorical lines are permitted. Advisory only: 'Keep those moments together' is awkward spoken wording.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-laden, though plain and not scene-based.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"300 words is about 124 seconds at 145 wpm, within tolerance; but repeated recaps in chapter 3 give little new imagery\",\"Brief forbids logos or brand lettering; theme park and brick shots must avoid signage\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Clear escalation from shortfall to layoffs and owner's money, with a strong rhetorical beat.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"The park sale lands well, but the core-toys point is restated several times.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"The Mattel payoff works; the recap of dates slows the ending and could be trimmed.\"}],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+        "replyLengthChars": 1340
+      },
+      "costUsd": 0.023528,
+      "endedAt": "2026-10-20T08:06:25.673Z"
+    },
+    {
+      "id": 8,
+      "caseId": "appendix-A-clean",
+      "repeat": 2,
+      "status": "metered",
+      "reservedUsd": 0.266928,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "eceeabc750529faf2349493065881e47f257be9ae8855c01534637b4e592ec54",
+      "startedAt": "2026-10-20T08:06:25.697Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 13325,
+        "outputTokens": 1279,
+        "text": "{\"score\":6,\"notes\":\"Facts, hedges and mandated first/last lines are well preserved. Main issues: heavy meta-narration and repetition (SR-3 advisory, no deduction), small unsupported assertions ('Owners pushed... the alternative', 'sixpence a week' is fine), and a production risk: ~1,012 words is about 7 minutes versus 9-minute target, and abstract scenes are hard to depict. Scores reflect a few SR-9 and SR-2 flags.\",\"hookScore\":5,\"hookNotes\":\"Brief-mandated generic AI-worry opener; descriptive only, low tension but compliant.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Narration (~1,012 words, about 7 minutes at 145 wpm) is roughly 22% under the 9-minute target\",\"Chapters 2 and 4 are abstract and meta-commentary-heavy, offering few concrete still-image beats\",\"Dorothy Vaughan must be shown via silhouettes/scenes only, never a portrait\"]},\"factualConcerns\":[\"SR-9: 'Mary Smith did that work from the 1900s to the 1930s' is fine, but 'knocker-upper woke workers with a long stick. That was the job: waking workers' and 'the task was waking workers' are supported; however 'But the change did not feel normal immediately' is only inferred from 'more than 50 years' and is acceptable; the unsupported item is 'The operator's job did not remain as it had been', which is not in the brief; delete it or say only 'today only a handful of operators remain'.\",\"SR-9: 'It took more than 50 years to feel normal' is supported, but 'owners pushed... the automatic machine became the alternative that owners pushed' and 'stranded ... That is the size of the disruption' add no new facts; however 'invention was not the same thing as acceptance' is inference presented as fact and should be hedged to match the brief's 'not trusted'.\"],\"styleGuideViolations\":[\"SR-2: Script runs about 1,012 words against the brief's 'about 1,240 words' and the 513-second target (about 22% short); expand with brief-supported story beats rather than meta-commentary.\",\"SR-2: The brief requires each chapter be told as a story with 'but' and 'so'; chapters 2 and 4 become abstract explanations of what 'belongs together' rather than narrative sequences of cause and consequence.\"],\"chapterNotes\":[{\"chapterTitle\":\"Knocker-upper\",\"note\":\"Question opens it and Mary Smith's pea shooter gives a vivid beat, but the middle repeats the same facts.\"},{\"chapterTitle\":\"Elevator operator\",\"note\":\"Facts and hedges are intact, yet the chapter circles the same points and has no concrete scene to anchor the strike.\"},{\"chapterTitle\":\"Human computers\",\"note\":\"Clear chronology and respectful silhouette treatment, though meta-commentary about not inventing an ending stalls momentum.\"},{\"chapterTitle\":\"Bank teller\",\"note\":\"Strong payoff line, but the middle is a list of statistics that needs a human scene to land.\"}],\"scoreAudit\":{\"rubricScore\":7,\"deductions\":[{\"rule\":\"SR-9\",\"points\":1,\"finding\":\"SR-9: 'Mary Smith did that work from the 1900s to the 1930s' is fine, but 'knocker-upper woke workers with a long stick. That was the job: waking workers' and 'the task was waking workers' are supported; however 'But the change did not feel normal immediately' is only inferred from 'more than 50 years' and is acceptable; the unsupported item is 'The operator's job did not remain as it had been', which is not in the brief; delete it or say only 'today only a handful of operators remain'.\"}]}}",
+        "replyLengthChars": 3422
+      },
+      "costUsd": 0.03944,
+      "endedAt": "2026-10-20T08:06:36.808Z"
+    },
+    {
+      "id": 9,
+      "caseId": "d4-imagined-clean",
+      "repeat": 2,
+      "status": "metered",
+      "reservedUsd": 0.23733,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "89ebc189d82e024dd2c40aa3b985c9139e82e56c50fbf7ec693815621ee335cc",
+      "startedAt": "2026-10-20T08:06:36.837Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 8385,
+        "outputTokens": 278,
+        "text": "{\"score\":8,\"notes\":\"Documented/inferred claims keep their hedges and the imagined elements are within the allowance. SR-4 advisory: 'I think in grams' is a modern anachronism in a first-person voice; consider commentary framing. Script omits the 1,2,4,8,16,32 series, but no coverage was required. Unlisted props are minimal.\",\"hookScore\":4,\"hookNotes\":\"Opens with a slow, generic scene-setting disclaimer ('This is an imagined market morning') rather than a surprise or question.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+        "replyLengthChars": 674
+      },
+      "costUsd": 0.01955,
+      "endedAt": "2026-10-20T08:06:40.776Z"
+    },
+    {
+      "id": 10,
+      "caseId": "d4-sensory-speech-clean",
+      "repeat": 2,
+      "status": "metered",
+      "reservedUsd": 0.237186,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "cce6ccca9d82b8f2fb31012dd526a209f26b06e9617d7a107bb0816659644965",
+      "startedAt": "2026-10-20T08:06:40.795Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 8383,
+        "outputTokens": 335,
+        "text": "{\"score\":8.5,\"notes\":\"Stays within the brief: sensory detail and one tagged unnamed line fall under the IMAGINED allowance; the documented variability and inferred small-weight use keep their hedges. It omits the binary series, but no inclusion was required. Concern: imagined and factual layers are separated by a clumsy meta-disclaimer that borders on filler (advisory). Slightly short of the target length.\",\"hookScore\":3,\"hookNotes\":\"Opens with a generic meta-statement ('This is an imagined market morning') rather than a cold open, surprise or question.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Narration is 91 words, roughly 35-40 seconds, a little under the 45-second target but within the 20% tolerance.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"scoreAudit\":{\"rubricScore\":8.5,\"deductions\":[]}}",
+        "replyLengthChars": 868
+      },
+      "costUsd": 0.020116,
+      "endedAt": "2026-10-20T08:06:45.257Z"
+    },
+    {
+      "id": 11,
+      "caseId": "lego-facts-control",
+      "repeat": 3,
+      "status": "metered",
+      "reservedUsd": 0.242048,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "51fa8b4411edb7fa592b68cbe1d4af709acb1f7c27624483025a18ea13a26f36",
+      "startedAt": "2026-10-20T08:06:45.288Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9233,
+        "outputTokens": 524,
+        "text": "{\"score\":9,\"notes\":\"Brief-compliant: exact first and last sentences, chapter-opening questions, hedges preserved, no invented facts. Rhetorical transitions are harmless. SR-3 advisory: chapters 2 and 3 are padded with repeated 'core toys' and 'by sales' lines. SR-4 advisory: 'Those are the figures at the start' is slightly awkward spoken.\",\"hookScore\":6,\"hookNotes\":\"Mandated opener is direct, with stakes, but sparse; compliant with the brief.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Chapter 3 narration is abstract recap; give still images concrete beats such as a toy-sales comparison graphic, without logos or lettering.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Clear escalation from 2003 shortfall to 2004 layoffs and owner's money, though the 'figures at the start' line is clumsy.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Core idea lands, but repeated restatements of core toys and the brick slow momentum.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff via Mattel comparison is clear; the recap of dates drags before the mandated closing line.\"}],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+        "replyLengthChars": 1297
+      },
+      "costUsd": 0.023706,
+      "endedAt": "2026-10-20T08:06:50.327Z"
+    },
+    {
+      "id": 12,
+      "caseId": "lego-rhetoric-control",
+      "repeat": 3,
+      "status": "metered",
+      "reservedUsd": 0.241492,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "d5effaff8edfb033dd618644da46fea37cf0a1b3cf7a0fc160d6c7e4d5cde41b",
+      "startedAt": "2026-10-20T08:06:50.347Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 9139,
+        "outputTokens": 465,
+        "text": "{\"score\":8,\"notes\":\"Facts, required first and last lines, chapter questions and hedges (about, roughly, almost, by sales) all comply. Quality issue: the script loops repeatedly on 'going back to basics' and recaps the timeline, which adds little tension. SR-3 advisory: heavy repetition and filler. SR-4 advisory: 'By sales matters here' is awkward aloud.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-laden, but lacks a vivid scene.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Final recap paragraph is abstract; compose as simple timeline stills (no logos or lettering).\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Clear and tense, with the facts well placed and the hedges preserved.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Repeats the same idea several times; tighten to keep momentum.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff lands, but the timeline recap slows the ending.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+        "replyLengthChars": 1146
+      },
+      "costUsd": 0.022928,
+      "endedAt": "2026-10-20T08:06:54.577Z"
+    },
+    {
+      "id": 13,
+      "caseId": "appendix-A-clean",
+      "repeat": 3,
+      "status": "metered",
+      "reservedUsd": 0.266928,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "eceeabc750529faf2349493065881e47f257be9ae8855c01534637b4e592ec54",
+      "startedAt": "2026-10-20T08:06:54.602Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 13325,
+        "outputTokens": 948,
+        "text": "{\"score\":7,\"notes\":\"Facts and hedges track the brief, and opening/closing lines are exact. Meta-commentary ('the brief gives us...', 'the brief records') leaks production framing into narration, and the 'scenes and silhouettes' instruction for Vaughan is only half-honoured. Chapters pad heavily with abstract restatement; length is about 1,012 words against a roughly 1,240 target (within tolerance). 'Long stick' drops the plural.\",\"hookScore\":3,\"hookNotes\":\"Brief-mandated opener is a generic modern-worry statement, not a high-stakes historical moment.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":false,\"visualsProducible\":true,\"flags\":[\"Chapters repeat abstract commentary with few distinct visual beats, risking static, repetitive stills\",\"Narration says 'the brief gives us' and 'the brief records', which cannot be illustrated and breaks the story frame\",\"Vaughan 'scenes and silhouettes' instruction needs explicit silhouette compositions; script only mentions it in passing\"]},\"factualConcerns\":[],\"styleGuideViolations\":[\"SR-2: Narration says 'The brief gives us her retirement' and 'the actions the brief records', exposing production framing; replace with story-voice wording such as 'She retired in 1934.'\",\"SR-2: Dorothy Vaughan 'only through scenes and silhouettes' is undermined by 'We can tell that through scenes and silhouettes, without a portrait' being spoken as meta-commentary; show it visually instead of narrating the instruction.\",\"SR-2: Each chapter must be told as a story with 'but' and 'so', yet large parts are abstract restatement ('So the contrast is between having an automatic elevator and accepting one') rather than story beats.\"],\"chapterNotes\":[{\"chapterTitle\":\"Knocker-upper\",\"note\":\"Strong concrete image of the pea shooter, but the middle loops through the same terms and the meta line about the brief should go.\"},{\"chapterTitle\":\"Elevator operator\",\"note\":\"Good strike stakes, but repeated 'invention versus acceptance' lines stall momentum.\"},{\"chapterTitle\":\"Human computers\",\"note\":\"Clear sequence of dates, though repeated restating of the timeline and meta lines dilute the arc.\"},{\"chapterTitle\":\"Bank teller\",\"note\":\"Figures are well separated and the closing line lands, but the middle recites measures instead of narrating them.\"}],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[{\"rule\":\"SR-2\",\"points\":2,\"finding\":\"SR-2: Narration says 'The brief gives us her retirement' and 'the actions the brief records', exposing production framing; replace with story-voice wording such as 'She retired in 1934.'\"}]}}",
+        "replyLengthChars": 2571
+      },
+      "costUsd": 0.03613,
+      "endedAt": "2026-10-20T08:07:03.023Z"
+    },
+    {
+      "id": 14,
+      "caseId": "d4-imagined-clean",
+      "repeat": 3,
+      "status": "metered",
+      "reservedUsd": 0.23733,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "89ebc189d82e024dd2c40aa3b985c9139e82e56c50fbf7ec693815621ee335cc",
+      "startedAt": "2026-10-20T08:07:03.048Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 8385,
+        "outputTokens": 350,
+        "text": "{\"score\":9,\"notes\":\"Documented and inferred claims keep their hedges (roughly alike, significant variability, likely). Imagined elements (cool air, hesitation, worry) are allowed and labelled. Balance, stones and palm are listed or incidental. SR-4 advisory: 'I think in grams' is a modern-term slip but permitted commentary. SR-3 advisory: closing line is thin filler. Binary series omitted but not required.\",\"hookScore\":4,\"hookNotes\":\"Opens with a generic framing disclaimer, 'This is an imagined market morning', rather than a cold open or surprise.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"96 words reads about 35-40 seconds, short of the ~45s target and slightly under the 20% tolerance.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+        "replyLengthChars": 866
+      },
+      "costUsd": 0.02027,
+      "endedAt": "2026-10-20T08:07:07.222Z"
+    },
+    {
+      "id": 15,
+      "caseId": "d4-sensory-speech-clean",
+      "repeat": 3,
+      "status": "metered",
+      "reservedUsd": 0.237186,
+      "requestedModel": "claude-sonnet-5-5",
+      "outputLimit": 16000,
+      "reasoningMode": "between_tools",
+      "requestHash": "cce6ccca9d82b8f2fb31012dd526a209f26b06e9617d7a107bb0816659644965",
+      "startedAt": "2026-10-20T08:07:07.239Z",
+      "httpStatus": 200,
+      "evidence": {
+        "model": "claude-sonnet-5-5",
+        "stopReason": "end_turn",
+        "inputTokens": 8383,
+        "outputTokens": 305,
+        "text": "{\"score\":9,\"notes\":\"Factual claims stay within the brief: weights roughly alike with significant variability, and small weights likely for light goods (hedged). Imagined elements use only allowed sensations, light, sounds and one tagged unnamed neighbour line; the stone and balance are listed props. No invented numbers or names. Minor: the closing meta-disclaimer is clunky, but it does not lower the score.\",\"hookScore\":4,\"hookNotes\":\"Opens with a generic label, 'This is an imagined market morning', which is a slow wind-up rather than a cold open or surprising claim.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+        "replyLengthChars": 784
+      },
+      "costUsd": 0.019816,
+      "endedAt": "2026-10-20T08:07:11.165Z"
+    }
+  ],
+  "reviews": [
+    {
+      "caseId": "lego-facts-control",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        1
+      ],
+      "output": {
+        "score": 6,
+        "notes": "Facts, hedges and mandated first/last lines are preserved. Reduction: 'That is where the story began' after the 2004 events is a muddled, misleading transition, and the heavy recap in chapter 3 adds little payoff. Advisory SR-3: repeated 'back to basics' and core-toys lines are filler; SR-4: 'By sales matters here' is awkward when spoken.\nD2 score: rubric 8 minus eligible deductions 0.5; SR-3/4/5 excluded.\ncapped at 6: SR-9: 'That is where the story began' placed after the 2004 layoffs contradicts the 2003 opening and implies an unsupported narrative claim; remove or say 'That is how the turnaround began'.",
+        "hookScore": 5,
+        "hookNotes": "Mandated opener is direct and stakes-laden but brief; follow-up is a question, not an immersive scene.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Chapter 3 recap is abstract and gives few distinct still images; consider concrete visuals like a toy-sales chart or a brick close-up, with no logos or lettering."
+          ]
+        },
+        "factualConcerns": [
+          "SR-9: 'That is where the story began' placed after the 2004 layoffs contradicts the 2003 opening and implies an unsupported narrative claim; remove or say 'That is how the turnaround began'."
+        ],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "How much money was missing?",
+            "note": "Strong facts and hedges, but the closing 'where the story began' line muddles the timeline."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "Core facts are right but the same point is repeated several times, slowing the pace."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "The payoff is clear, but the long recap of dates drags before the final line."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":7.5,\"notes\":\"Facts, hedges and mandated first/last lines are preserved. Reduction: 'That is where the story began' after the 2004 events is a muddled, misleading transition, and the heavy recap in chapter 3 adds little payoff. Advisory SR-3: repeated 'back to basics' and core-toys lines are filler; SR-4: 'By sales matters here' is awkward when spoken.\",\"hookScore\":5,\"hookNotes\":\"Mandated opener is direct and stakes-laden but brief; follow-up is a question, not an immersive scene.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Chapter 3 recap is abstract and gives few distinct still images; consider concrete visuals like a toy-sales chart or a brick close-up, with no logos or lettering.\"]},\"factualConcerns\":[\"SR-9: 'That is where the story began' placed after the 2004 layoffs contradicts the 2003 opening and implies an unsupported narrative claim; remove or say 'That is how the turnaround began'.\"],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Strong facts and hedges, but the closing 'where the story began' line muddles the timeline.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Core facts are right but the same point is repeated several times, slowing the pace.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"The payoff is clear, but the long recap of dates drags before the final line.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[{\"rule\":\"SR-9\",\"points\":0.5,\"finding\":\"SR-9: 'That is where the story began' placed after the 2004 layoffs contradicts the 2003 opening and implies an unsupported narrative claim; remove or say 'That is how the turnaround began'.\"}]}}",
+          "usage": {
+            "inputTokens": 9233,
+            "outputTokens": 673,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.025196",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "lego-rhetoric-control",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        2
+      ],
+      "output": {
+        "score": 8,
+        "notes": "Facts, hedges, and mandated first and last sentences check out; chapter questions are present. Score reduced for heavy rhetorical padding and a recap that restates the timeline, which weakens narrative tension, and a mild causal framing ('Lego won by going back to the brick'), which is brief-mandated. SR-3 repetition is advisory only.\nD2 score: rubric 8 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 6,
+        "hookNotes": "Brief-mandated opener is direct and stakes-laden but plain, and followed by a question.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Abstract financial and comparison beats need stills such as charts or symbolic compositions with no brand lettering or logos."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "How much money was missing?",
+            "note": "Stakes and numbers land quickly; the 2004 beat moves well."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "Repeats the return-to-toys idea several times; tighten for momentum."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "Payoff is clear but the recap section slows the finish."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":8,\"notes\":\"Facts, hedges, and mandated first and last sentences check out; chapter questions are present. Score reduced for heavy rhetorical padding and a recap that restates the timeline, which weakens narrative tension, and a mild causal framing ('Lego won by going back to the brick'), which is brief-mandated. SR-3 repetition is advisory only.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-laden but plain, and followed by a question.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Abstract financial and comparison beats need stills such as charts or symbolic compositions with no brand lettering or logos.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Stakes and numbers land quickly; the 2004 beat moves well.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Repeats the return-to-toys idea several times; tighten for momentum.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff is clear but the recap section slows the finish.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 9139,
+            "outputTokens": 461,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.022888",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "appendix-A-clean",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        3
+      ],
+      "output": {
+        "score": 6,
+        "notes": "Brief-compliant on exact first/last lines, hedges and facts, with no invented facts. But chapters 2 and 3 skip the fact-grounded 'but/so' story format in places. Main reductions: the script is heavily padded with meta-commentary ('belongs in this story') and gives thin visual material for stills. SR-3/4 repetition is advisory only. Length is about 1012 words, short of the 1,240 target but within tolerance.\nD2 score: rubric 6 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 3,
+        "hookNotes": "Mandated generic opener about AI worry; brief-required, so a textbook-style start rather than a vivid moment.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Heavy meta-narration ('belongs in this story') gives few distinct visual beats per chapter",
+            "Repeated listing of the same facts will force repeated stills",
+            "Dorothy Vaughan must be shown only as scenes and silhouettes, never as a portrait"
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "Knocker-upper",
+            "note": "Opens with the required question and uses but/so, but repeats the stick, pea shooter and sixpence list several times."
+          },
+          {
+            "chapterTitle": "Elevator operator",
+            "note": "Strong contrast of invention versus acceptance, yet the closing lines restate the same facts twice and drag the pace."
+          },
+          {
+            "chapterTitle": "Human computers",
+            "note": "Clear sequence from 1943 to 1971, though it leans on abstract commentary rather than scenes to carry the drama."
+          },
+          {
+            "chapterTitle": "Bank teller",
+            "note": "Correctly separates the figures and builds to the mandated ending, but the middle is a dense recitation of numbers."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":6,\"notes\":\"Brief-compliant on exact first/last lines, hedges and facts, with no invented facts. But chapters 2 and 3 skip the fact-grounded 'but/so' story format in places. Main reductions: the script is heavily padded with meta-commentary ('belongs in this story') and gives thin visual material for stills. SR-3/4 repetition is advisory only. Length is about 1012 words, short of the 1,240 target but within tolerance.\",\"hookScore\":3,\"hookNotes\":\"Mandated generic opener about AI worry; brief-required, so a textbook-style start rather than a vivid moment.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Heavy meta-narration ('belongs in this story') gives few distinct visual beats per chapter\",\"Repeated listing of the same facts will force repeated stills\",\"Dorothy Vaughan must be shown only as scenes and silhouettes, never as a portrait\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"Knocker-upper\",\"note\":\"Opens with the required question and uses but/so, but repeats the stick, pea shooter and sixpence list several times.\"},{\"chapterTitle\":\"Elevator operator\",\"note\":\"Strong contrast of invention versus acceptance, yet the closing lines restate the same facts twice and drag the pace.\"},{\"chapterTitle\":\"Human computers\",\"note\":\"Clear sequence from 1943 to 1971, though it leans on abstract commentary rather than scenes to carry the drama.\"},{\"chapterTitle\":\"Bank teller\",\"note\":\"Correctly separates the figures and builds to the mandated ending, but the middle is a dense recitation of numbers.\"}],\"scoreAudit\":{\"rubricScore\":6,\"deductions\":[]}}",
+          "stopReason": "end_turn",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "usage": {
+            "inputTokens": 13325,
+            "outputTokens": 636
+          },
+          "costUsd": "0.033010",
+          "maxOutputTokens": 16000
+        }
+      ]
+    },
+    {
+      "caseId": "d4-imagined-clean",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        4
+      ],
+      "output": {
+        "score": 8.5,
+        "notes": "Documented/inferred claims are hedged and no new names, numbers, dates or prices appear. Imagined sensations are allowed. SR-4 advisory: 'I think in grams' is a modern anachronism in first person. SR-3 advisory: 'palm' repeats. Narration is slightly short for 45 seconds at 96 words. The binary series is not recited, which is optional, so no deduction.\nD2 score: rubric 8.5 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 3,
+        "hookNotes": "Opens with a slow 'This is an imagined market morning' disclaimer, not a surprising claim or question; no cold open.",
+        "videoGenFit": {
+          "fitsLengthLimit": false,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "96 words reads closer to roughly 35-40 seconds, noticeably under the 45s target and likely outside the 20% window."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": []
+      },
+      "responses": [
+        {
+          "text": "{\"score\":8.5,\"notes\":\"Documented/inferred claims are hedged and no new names, numbers, dates or prices appear. Imagined sensations are allowed. SR-4 advisory: 'I think in grams' is a modern anachronism in first person. SR-3 advisory: 'palm' repeats. Narration is slightly short for 45 seconds at 96 words. The binary series is not recited, which is optional, so no deduction.\",\"hookScore\":3,\"hookNotes\":\"Opens with a slow 'This is an imagined market morning' disclaimer, not a surprising claim or question; no cold open.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"96 words reads closer to roughly 35-40 seconds, noticeably under the 45s target and likely outside the 20% window.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"scoreAudit\":{\"rubricScore\":8.5,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 8385,
+            "outputTokens": 342,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.020190",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "d4-sensory-speech-clean",
+      "repeat": 1,
+      "status": "complete",
+      "callIds": [
+        5
+      ],
+      "output": {
+        "score": 9,
+        "notes": "Stays within brief: props are listed, imagined elements are allowed, one tagged unnamed line, and the factual claims keep their hedges. Length is 91 words, a bit short for 45 seconds but within tolerance. SR-3: the closing disclaimer is slightly redundant given the opening 'imagined' line. Not every DOCUMENTED fact is used, but no coverage was required.\nD2 score: rubric 9 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 4,
+        "hookNotes": "Opens with a generic framing statement ('This is an imagined market morning'), not a cold open; a sensory line would grip faster.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "91 words may read closer to 35-38 seconds; slow pacing or add a beat to approach 45s"
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": []
+      },
+      "responses": [
+        {
+          "text": "{\"score\":9,\"notes\":\"Stays within brief: props are listed, imagined elements are allowed, one tagged unnamed line, and the factual claims keep their hedges. Length is 91 words, a bit short for 45 seconds but within tolerance. SR-3: the closing disclaimer is slightly redundant given the opening 'imagined' line. Not every DOCUMENTED fact is used, but no coverage was required.\",\"hookScore\":4,\"hookNotes\":\"Opens with a generic framing statement ('This is an imagined market morning'), not a cold open; a sensory line would grip faster.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"91 words may read closer to 35-38 seconds; slow pacing or add a beat to approach 45s\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 8383,
+            "outputTokens": 339,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.020156",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "lego-facts-control",
+      "repeat": 2,
+      "status": "complete",
+      "callIds": [
+        6
+      ],
+      "output": {
+        "score": 8,
+        "notes": "Facts, hedges and mandated first/last lines are preserved; chapters open with questions. Minor deduction: 'That is where the story began' placed after 2004 is a loose claim, and 'Think of the brick as the thread' adds brick-center framing slightly beyond brief. SR-3: heavy repetition in chapters 2 and 3 (advisory only).\nD2 score: rubric 8 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 6,
+        "hookNotes": "Mandated opener is direct and stakes-laden but brief and numerically plain.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Chapter 3 is abstract recap with few concrete visual beats; use still compositions of toy bricks and timeline cards without lettering."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "How much money was missing?",
+            "note": "Strong, clear numbers with correct hedges; 'where the story began' is slightly muddled."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "Accurate but repeats the core-toys point several times, slowing pacing."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "Correct 'by sales' hedge; the recap dilutes momentum before the mandated closing line."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":8,\"notes\":\"Facts, hedges and mandated first/last lines are preserved; chapters open with questions. Minor deduction: 'That is where the story began' placed after 2004 is a loose claim, and 'Think of the brick as the thread' adds brick-center framing slightly beyond brief. SR-3: heavy repetition in chapters 2 and 3 (advisory only).\",\"hookScore\":6,\"hookNotes\":\"Mandated opener is direct and stakes-laden but brief and numerically plain.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Chapter 3 is abstract recap with few concrete visual beats; use still compositions of toy bricks and timeline cards without lettering.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Strong, clear numbers with correct hedges; 'where the story began' is slightly muddled.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Accurate but repeats the core-toys point several times, slowing pacing.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Correct 'by sales' hedge; the recap dilutes momentum before the mandated closing line.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 9233,
+            "outputTokens": 490,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.023366",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "lego-rhetoric-control",
+      "repeat": 2,
+      "status": "complete",
+      "callIds": [
+        7
+      ],
+      "output": {
+        "score": 9,
+        "notes": "All facts, hedges (about, roughly, almost, by sales) and mandated first/last lines are preserved; chapters open with questions in order. Chapter 2 and 3 narration is circular and repetitive, with filler recaps. No unsupported facts found; rhetorical lines are permitted. Advisory only: 'Keep those moments together' is awkward spoken wording.\nD2 score: rubric 9 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 6,
+        "hookNotes": "Brief-mandated opener is direct and stakes-laden, though plain and not scene-based.",
+        "videoGenFit": {
+          "fitsLengthLimit": false,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "300 words is about 124 seconds at 145 wpm, within tolerance; but repeated recaps in chapter 3 give little new imagery",
+            "Brief forbids logos or brand lettering; theme park and brick shots must avoid signage"
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "How much money was missing?",
+            "note": "Clear escalation from shortfall to layoffs and owner's money, with a strong rhetorical beat."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "The park sale lands well, but the core-toys point is restated several times."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "The Mattel payoff works; the recap of dates slows the ending and could be trimmed."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":9,\"notes\":\"All facts, hedges (about, roughly, almost, by sales) and mandated first/last lines are preserved; chapters open with questions in order. Chapter 2 and 3 narration is circular and repetitive, with filler recaps. No unsupported facts found; rhetorical lines are permitted. Advisory only: 'Keep those moments together' is awkward spoken wording.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-laden, though plain and not scene-based.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"300 words is about 124 seconds at 145 wpm, within tolerance; but repeated recaps in chapter 3 give little new imagery\",\"Brief forbids logos or brand lettering; theme park and brick shots must avoid signage\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Clear escalation from shortfall to layoffs and owner's money, with a strong rhetorical beat.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"The park sale lands well, but the core-toys point is restated several times.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"The Mattel payoff works; the recap of dates slows the ending and could be trimmed.\"}],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 9139,
+            "outputTokens": 525,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.023528",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "appendix-A-clean",
+      "repeat": 2,
+      "status": "complete",
+      "callIds": [
+        8
+      ],
+      "output": {
+        "score": 6,
+        "notes": "Facts, hedges and mandated first/last lines are well preserved. Main issues: heavy meta-narration and repetition (SR-3 advisory, no deduction), small unsupported assertions ('Owners pushed... the alternative', 'sixpence a week' is fine), and a production risk: ~1,012 words is about 7 minutes versus 9-minute target, and abstract scenes are hard to depict. Scores reflect a few SR-9 and SR-2 flags.\nD2 score: rubric 7 minus eligible deductions 1; SR-3/4/5 excluded.",
+        "hookScore": 5,
+        "hookNotes": "Brief-mandated generic AI-worry opener; descriptive only, low tension but compliant.",
+        "videoGenFit": {
+          "fitsLengthLimit": false,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Narration (~1,012 words, about 7 minutes at 145 wpm) is roughly 22% under the 9-minute target",
+            "Chapters 2 and 4 are abstract and meta-commentary-heavy, offering few concrete still-image beats",
+            "Dorothy Vaughan must be shown via silhouettes/scenes only, never a portrait"
+          ]
+        },
+        "factualConcerns": [
+          "SR-9: 'Mary Smith did that work from the 1900s to the 1930s' is fine, but 'knocker-upper woke workers with a long stick. That was the job: waking workers' and 'the task was waking workers' are supported; however 'But the change did not feel normal immediately' is only inferred from 'more than 50 years' and is acceptable; the unsupported item is 'The operator's job did not remain as it had been', which is not in the brief; delete it or say only 'today only a handful of operators remain'.",
+          "SR-9: 'It took more than 50 years to feel normal' is supported, but 'owners pushed... the automatic machine became the alternative that owners pushed' and 'stranded ... That is the size of the disruption' add no new facts; however 'invention was not the same thing as acceptance' is inference presented as fact and should be hedged to match the brief's 'not trusted'."
+        ],
+        "styleGuideViolations": [
+          "SR-2: Script runs about 1,012 words against the brief's 'about 1,240 words' and the 513-second target (about 22% short); expand with brief-supported story beats rather than meta-commentary.",
+          "SR-2: The brief requires each chapter be told as a story with 'but' and 'so'; chapters 2 and 4 become abstract explanations of what 'belongs together' rather than narrative sequences of cause and consequence."
+        ],
+        "chapterNotes": [
+          {
+            "chapterTitle": "Knocker-upper",
+            "note": "Question opens it and Mary Smith's pea shooter gives a vivid beat, but the middle repeats the same facts."
+          },
+          {
+            "chapterTitle": "Elevator operator",
+            "note": "Facts and hedges are intact, yet the chapter circles the same points and has no concrete scene to anchor the strike."
+          },
+          {
+            "chapterTitle": "Human computers",
+            "note": "Clear chronology and respectful silhouette treatment, though meta-commentary about not inventing an ending stalls momentum."
+          },
+          {
+            "chapterTitle": "Bank teller",
+            "note": "Strong payoff line, but the middle is a list of statistics that needs a human scene to land."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":6,\"notes\":\"Facts, hedges and mandated first/last lines are well preserved. Main issues: heavy meta-narration and repetition (SR-3 advisory, no deduction), small unsupported assertions ('Owners pushed... the alternative', 'sixpence a week' is fine), and a production risk: ~1,012 words is about 7 minutes versus 9-minute target, and abstract scenes are hard to depict. Scores reflect a few SR-9 and SR-2 flags.\",\"hookScore\":5,\"hookNotes\":\"Brief-mandated generic AI-worry opener; descriptive only, low tension but compliant.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Narration (~1,012 words, about 7 minutes at 145 wpm) is roughly 22% under the 9-minute target\",\"Chapters 2 and 4 are abstract and meta-commentary-heavy, offering few concrete still-image beats\",\"Dorothy Vaughan must be shown via silhouettes/scenes only, never a portrait\"]},\"factualConcerns\":[\"SR-9: 'Mary Smith did that work from the 1900s to the 1930s' is fine, but 'knocker-upper woke workers with a long stick. That was the job: waking workers' and 'the task was waking workers' are supported; however 'But the change did not feel normal immediately' is only inferred from 'more than 50 years' and is acceptable; the unsupported item is 'The operator's job did not remain as it had been', which is not in the brief; delete it or say only 'today only a handful of operators remain'.\",\"SR-9: 'It took more than 50 years to feel normal' is supported, but 'owners pushed... the automatic machine became the alternative that owners pushed' and 'stranded ... That is the size of the disruption' add no new facts; however 'invention was not the same thing as acceptance' is inference presented as fact and should be hedged to match the brief's 'not trusted'.\"],\"styleGuideViolations\":[\"SR-2: Script runs about 1,012 words against the brief's 'about 1,240 words' and the 513-second target (about 22% short); expand with brief-supported story beats rather than meta-commentary.\",\"SR-2: The brief requires each chapter be told as a story with 'but' and 'so'; chapters 2 and 4 become abstract explanations of what 'belongs together' rather than narrative sequences of cause and consequence.\"],\"chapterNotes\":[{\"chapterTitle\":\"Knocker-upper\",\"note\":\"Question opens it and Mary Smith's pea shooter gives a vivid beat, but the middle repeats the same facts.\"},{\"chapterTitle\":\"Elevator operator\",\"note\":\"Facts and hedges are intact, yet the chapter circles the same points and has no concrete scene to anchor the strike.\"},{\"chapterTitle\":\"Human computers\",\"note\":\"Clear chronology and respectful silhouette treatment, though meta-commentary about not inventing an ending stalls momentum.\"},{\"chapterTitle\":\"Bank teller\",\"note\":\"Strong payoff line, but the middle is a list of statistics that needs a human scene to land.\"}],\"scoreAudit\":{\"rubricScore\":7,\"deductions\":[{\"rule\":\"SR-9\",\"points\":1,\"finding\":\"SR-9: 'Mary Smith did that work from the 1900s to the 1930s' is fine, but 'knocker-upper woke workers with a long stick. That was the job: waking workers' and 'the task was waking workers' are supported; however 'But the change did not feel normal immediately' is only inferred from 'more than 50 years' and is acceptable; the unsupported item is 'The operator's job did not remain as it had been', which is not in the brief; delete it or say only 'today only a handful of operators remain'.\"}]}}",
+          "usage": {
+            "inputTokens": 13325,
+            "outputTokens": 1279,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.039440",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "d4-imagined-clean",
+      "repeat": 2,
+      "status": "complete",
+      "callIds": [
+        9
+      ],
+      "output": {
+        "score": 8,
+        "notes": "Documented/inferred claims keep their hedges and the imagined elements are within the allowance. SR-4 advisory: 'I think in grams' is a modern anachronism in a first-person voice; consider commentary framing. Script omits the 1,2,4,8,16,32 series, but no coverage was required. Unlisted props are minimal.\nD2 score: rubric 8 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 4,
+        "hookNotes": "Opens with a slow, generic scene-setting disclaimer ('This is an imagined market morning') rather than a surprise or question.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": []
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": []
+      },
+      "responses": [
+        {
+          "text": "{\"score\":8,\"notes\":\"Documented/inferred claims keep their hedges and the imagined elements are within the allowance. SR-4 advisory: 'I think in grams' is a modern anachronism in a first-person voice; consider commentary framing. Script omits the 1,2,4,8,16,32 series, but no coverage was required. Unlisted props are minimal.\",\"hookScore\":4,\"hookNotes\":\"Opens with a slow, generic scene-setting disclaimer ('This is an imagined market morning') rather than a surprise or question.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 8385,
+            "outputTokens": 278,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.019550",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "d4-sensory-speech-clean",
+      "repeat": 2,
+      "status": "complete",
+      "callIds": [
+        10
+      ],
+      "output": {
+        "score": 8.5,
+        "notes": "Stays within the brief: sensory detail and one tagged unnamed line fall under the IMAGINED allowance; the documented variability and inferred small-weight use keep their hedges. It omits the binary series, but no inclusion was required. Concern: imagined and factual layers are separated by a clumsy meta-disclaimer that borders on filler (advisory). Slightly short of the target length.\nD2 score: rubric 8.5 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 3,
+        "hookNotes": "Opens with a generic meta-statement ('This is an imagined market morning') rather than a cold open, surprise or question.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Narration is 91 words, roughly 35-40 seconds, a little under the 45-second target but within the 20% tolerance."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": []
+      },
+      "responses": [
+        {
+          "text": "{\"score\":8.5,\"notes\":\"Stays within the brief: sensory detail and one tagged unnamed line fall under the IMAGINED allowance; the documented variability and inferred small-weight use keep their hedges. It omits the binary series, but no inclusion was required. Concern: imagined and factual layers are separated by a clumsy meta-disclaimer that borders on filler (advisory). Slightly short of the target length.\",\"hookScore\":3,\"hookNotes\":\"Opens with a generic meta-statement ('This is an imagined market morning') rather than a cold open, surprise or question.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Narration is 91 words, roughly 35-40 seconds, a little under the 45-second target but within the 20% tolerance.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"scoreAudit\":{\"rubricScore\":8.5,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 8383,
+            "outputTokens": 335,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.020116",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "lego-facts-control",
+      "repeat": 3,
+      "status": "complete",
+      "callIds": [
+        11
+      ],
+      "output": {
+        "score": 9,
+        "notes": "Brief-compliant: exact first and last sentences, chapter-opening questions, hedges preserved, no invented facts. Rhetorical transitions are harmless. SR-3 advisory: chapters 2 and 3 are padded with repeated 'core toys' and 'by sales' lines. SR-4 advisory: 'Those are the figures at the start' is slightly awkward spoken.\nD2 score: rubric 9 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 6,
+        "hookNotes": "Mandated opener is direct, with stakes, but sparse; compliant with the brief.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Chapter 3 narration is abstract recap; give still images concrete beats such as a toy-sales comparison graphic, without logos or lettering."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "How much money was missing?",
+            "note": "Clear escalation from 2003 shortfall to 2004 layoffs and owner's money, though the 'figures at the start' line is clumsy."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "Core idea lands, but repeated restatements of core toys and the brick slow momentum."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "Payoff via Mattel comparison is clear; the recap of dates drags before the mandated closing line."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":9,\"notes\":\"Brief-compliant: exact first and last sentences, chapter-opening questions, hedges preserved, no invented facts. Rhetorical transitions are harmless. SR-3 advisory: chapters 2 and 3 are padded with repeated 'core toys' and 'by sales' lines. SR-4 advisory: 'Those are the figures at the start' is slightly awkward spoken.\",\"hookScore\":6,\"hookNotes\":\"Mandated opener is direct, with stakes, but sparse; compliant with the brief.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Chapter 3 narration is abstract recap; give still images concrete beats such as a toy-sales comparison graphic, without logos or lettering.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Clear escalation from 2003 shortfall to 2004 layoffs and owner's money, though the 'figures at the start' line is clumsy.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Core idea lands, but repeated restatements of core toys and the brick slow momentum.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff via Mattel comparison is clear; the recap of dates drags before the mandated closing line.\"}],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 9233,
+            "outputTokens": 524,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.023706",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "lego-rhetoric-control",
+      "repeat": 3,
+      "status": "complete",
+      "callIds": [
+        12
+      ],
+      "output": {
+        "score": 8,
+        "notes": "Facts, required first and last lines, chapter questions and hedges (about, roughly, almost, by sales) all comply. Quality issue: the script loops repeatedly on 'going back to basics' and recaps the timeline, which adds little tension. SR-3 advisory: heavy repetition and filler. SR-4 advisory: 'By sales matters here' is awkward aloud.\nD2 score: rubric 8 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 6,
+        "hookNotes": "Brief-mandated opener is direct and stakes-laden, but lacks a vivid scene.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "Final recap paragraph is abstract; compose as simple timeline stills (no logos or lettering)."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": [
+          {
+            "chapterTitle": "How much money was missing?",
+            "note": "Clear and tense, with the facts well placed and the hedges preserved."
+          },
+          {
+            "chapterTitle": "So what did going back to basics mean?",
+            "note": "Repeats the same idea several times; tighten to keep momentum."
+          },
+          {
+            "chapterTitle": "Where did that leave Lego ten years later?",
+            "note": "Payoff lands, but the timeline recap slows the ending."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":8,\"notes\":\"Facts, required first and last lines, chapter questions and hedges (about, roughly, almost, by sales) all comply. Quality issue: the script loops repeatedly on 'going back to basics' and recaps the timeline, which adds little tension. SR-3 advisory: heavy repetition and filler. SR-4 advisory: 'By sales matters here' is awkward aloud.\",\"hookScore\":6,\"hookNotes\":\"Brief-mandated opener is direct and stakes-laden, but lacks a vivid scene.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"Final recap paragraph is abstract; compose as simple timeline stills (no logos or lettering).\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[{\"chapterTitle\":\"How much money was missing?\",\"note\":\"Clear and tense, with the facts well placed and the hedges preserved.\"},{\"chapterTitle\":\"So what did going back to basics mean?\",\"note\":\"Repeats the same idea several times; tighten to keep momentum.\"},{\"chapterTitle\":\"Where did that leave Lego ten years later?\",\"note\":\"Payoff lands, but the timeline recap slows the ending.\"}],\"scoreAudit\":{\"rubricScore\":8,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 9139,
+            "outputTokens": 465,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.022928",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "appendix-A-clean",
+      "repeat": 3,
+      "status": "complete",
+      "callIds": [
+        13
+      ],
+      "output": {
+        "score": 7,
+        "notes": "Facts and hedges track the brief, and opening/closing lines are exact. Meta-commentary ('the brief gives us...', 'the brief records') leaks production framing into narration, and the 'scenes and silhouettes' instruction for Vaughan is only half-honoured. Chapters pad heavily with abstract restatement; length is about 1,012 words against a roughly 1,240 target (within tolerance). 'Long stick' drops the plural.\nD2 score: rubric 9 minus eligible deductions 2; SR-3/4/5 excluded.",
+        "hookScore": 3,
+        "hookNotes": "Brief-mandated opener is a generic modern-worry statement, not a high-stakes historical moment.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": false,
+          "visualsProducible": true,
+          "flags": [
+            "Chapters repeat abstract commentary with few distinct visual beats, risking static, repetitive stills",
+            "Narration says 'the brief gives us' and 'the brief records', which cannot be illustrated and breaks the story frame",
+            "Vaughan 'scenes and silhouettes' instruction needs explicit silhouette compositions; script only mentions it in passing"
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [
+          "SR-2: Narration says 'The brief gives us her retirement' and 'the actions the brief records', exposing production framing; replace with story-voice wording such as 'She retired in 1934.'",
+          "SR-2: Dorothy Vaughan 'only through scenes and silhouettes' is undermined by 'We can tell that through scenes and silhouettes, without a portrait' being spoken as meta-commentary; show it visually instead of narrating the instruction.",
+          "SR-2: Each chapter must be told as a story with 'but' and 'so', yet large parts are abstract restatement ('So the contrast is between having an automatic elevator and accepting one') rather than story beats."
+        ],
+        "chapterNotes": [
+          {
+            "chapterTitle": "Knocker-upper",
+            "note": "Strong concrete image of the pea shooter, but the middle loops through the same terms and the meta line about the brief should go."
+          },
+          {
+            "chapterTitle": "Elevator operator",
+            "note": "Good strike stakes, but repeated 'invention versus acceptance' lines stall momentum."
+          },
+          {
+            "chapterTitle": "Human computers",
+            "note": "Clear sequence of dates, though repeated restating of the timeline and meta lines dilute the arc."
+          },
+          {
+            "chapterTitle": "Bank teller",
+            "note": "Figures are well separated and the closing line lands, but the middle recites measures instead of narrating them."
+          }
+        ]
+      },
+      "responses": [
+        {
+          "text": "{\"score\":7,\"notes\":\"Facts and hedges track the brief, and opening/closing lines are exact. Meta-commentary ('the brief gives us...', 'the brief records') leaks production framing into narration, and the 'scenes and silhouettes' instruction for Vaughan is only half-honoured. Chapters pad heavily with abstract restatement; length is about 1,012 words against a roughly 1,240 target (within tolerance). 'Long stick' drops the plural.\",\"hookScore\":3,\"hookNotes\":\"Brief-mandated opener is a generic modern-worry statement, not a high-stakes historical moment.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":false,\"visualsProducible\":true,\"flags\":[\"Chapters repeat abstract commentary with few distinct visual beats, risking static, repetitive stills\",\"Narration says 'the brief gives us' and 'the brief records', which cannot be illustrated and breaks the story frame\",\"Vaughan 'scenes and silhouettes' instruction needs explicit silhouette compositions; script only mentions it in passing\"]},\"factualConcerns\":[],\"styleGuideViolations\":[\"SR-2: Narration says 'The brief gives us her retirement' and 'the actions the brief records', exposing production framing; replace with story-voice wording such as 'She retired in 1934.'\",\"SR-2: Dorothy Vaughan 'only through scenes and silhouettes' is undermined by 'We can tell that through scenes and silhouettes, without a portrait' being spoken as meta-commentary; show it visually instead of narrating the instruction.\",\"SR-2: Each chapter must be told as a story with 'but' and 'so', yet large parts are abstract restatement ('So the contrast is between having an automatic elevator and accepting one') rather than story beats.\"],\"chapterNotes\":[{\"chapterTitle\":\"Knocker-upper\",\"note\":\"Strong concrete image of the pea shooter, but the middle loops through the same terms and the meta line about the brief should go.\"},{\"chapterTitle\":\"Elevator operator\",\"note\":\"Good strike stakes, but repeated 'invention versus acceptance' lines stall momentum.\"},{\"chapterTitle\":\"Human computers\",\"note\":\"Clear sequence of dates, though repeated restating of the timeline and meta lines dilute the arc.\"},{\"chapterTitle\":\"Bank teller\",\"note\":\"Figures are well separated and the closing line lands, but the middle recites measures instead of narrating them.\"}],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[{\"rule\":\"SR-2\",\"points\":2,\"finding\":\"SR-2: Narration says 'The brief gives us her retirement' and 'the actions the brief records', exposing production framing; replace with story-voice wording such as 'She retired in 1934.'\"}]}}",
+          "usage": {
+            "inputTokens": 13325,
+            "outputTokens": 948,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.036130",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "d4-imagined-clean",
+      "repeat": 3,
+      "status": "complete",
+      "callIds": [
+        14
+      ],
+      "output": {
+        "score": 9,
+        "notes": "Documented and inferred claims keep their hedges (roughly alike, significant variability, likely). Imagined elements (cool air, hesitation, worry) are allowed and labelled. Balance, stones and palm are listed or incidental. SR-4 advisory: 'I think in grams' is a modern-term slip but permitted commentary. SR-3 advisory: closing line is thin filler. Binary series omitted but not required.\nD2 score: rubric 9 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 4,
+        "hookNotes": "Opens with a generic framing disclaimer, 'This is an imagined market morning', rather than a cold open or surprise.",
+        "videoGenFit": {
+          "fitsLengthLimit": false,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": [
+            "96 words reads about 35-40 seconds, short of the ~45s target and slightly under the 20% tolerance."
+          ]
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": []
+      },
+      "responses": [
+        {
+          "text": "{\"score\":9,\"notes\":\"Documented and inferred claims keep their hedges (roughly alike, significant variability, likely). Imagined elements (cool air, hesitation, worry) are allowed and labelled. Balance, stones and palm are listed or incidental. SR-4 advisory: 'I think in grams' is a modern-term slip but permitted commentary. SR-3 advisory: closing line is thin filler. Binary series omitted but not required.\",\"hookScore\":4,\"hookNotes\":\"Opens with a generic framing disclaimer, 'This is an imagined market morning', rather than a cold open or surprise.\",\"videoGenFit\":{\"fitsLengthLimit\":false,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[\"96 words reads about 35-40 seconds, short of the ~45s target and slightly under the 20% tolerance.\"]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 8385,
+            "outputTokens": 350,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.020270",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    },
+    {
+      "caseId": "d4-sensory-speech-clean",
+      "repeat": 3,
+      "status": "complete",
+      "callIds": [
+        15
+      ],
+      "output": {
+        "score": 9,
+        "notes": "Factual claims stay within the brief: weights roughly alike with significant variability, and small weights likely for light goods (hedged). Imagined elements use only allowed sensations, light, sounds and one tagged unnamed neighbour line; the stone and balance are listed props. No invented numbers or names. Minor: the closing meta-disclaimer is clunky, but it does not lower the score.\nD2 score: rubric 9 minus eligible deductions 0; SR-3/4/5 excluded.",
+        "hookScore": 4,
+        "hookNotes": "Opens with a generic label, 'This is an imagined market morning', which is a slow wind-up rather than a cold open or surprising claim.",
+        "videoGenFit": {
+          "fitsLengthLimit": true,
+          "pacingRealistic": true,
+          "visualsProducible": true,
+          "flags": []
+        },
+        "factualConcerns": [],
+        "styleGuideViolations": [],
+        "chapterNotes": []
+      },
+      "responses": [
+        {
+          "text": "{\"score\":9,\"notes\":\"Factual claims stay within the brief: weights roughly alike with significant variability, and small weights likely for light goods (hedged). Imagined elements use only allowed sensations, light, sounds and one tagged unnamed neighbour line; the stone and balance are listed props. No invented numbers or names. Minor: the closing meta-disclaimer is clunky, but it does not lower the score.\",\"hookScore\":4,\"hookNotes\":\"Opens with a generic label, 'This is an imagined market morning', which is a slow wind-up rather than a cold open or surprising claim.\",\"videoGenFit\":{\"fitsLengthLimit\":true,\"pacingRealistic\":true,\"visualsProducible\":true,\"flags\":[]},\"factualConcerns\":[],\"styleGuideViolations\":[],\"chapterNotes\":[],\"scoreAudit\":{\"rubricScore\":9,\"deductions\":[]}}",
+          "usage": {
+            "inputTokens": 8383,
+            "outputTokens": 305,
+            "reasoningTokens": 0
+          },
+          "stopReason": "stop",
+          "costUsd": "0.019816",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "maxOutputTokens": 16000,
+          "priorAttempts": []
+        }
+      ]
+    }
+  ],
+  "stepChargedUsd": 0.37029,
+  "conservativeTotalUsd": 3.81077,
+  "complete": true,
+  "recovery": "Third HTTP 200 response and usage recovered from interrupted atomic-save temp; reviewed offline with one captured reply. No additional native request.",
+  "preResumeHash": "4b0ebcc0c0f150e7d35e67b7974c3f57860b00f78fa10f16758e8c69d61030c0"
+}

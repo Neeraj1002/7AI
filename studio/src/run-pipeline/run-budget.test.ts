@@ -20,6 +20,17 @@ describe('per-video spend limit (Sprint 4 Task 9, R7.3)', () => {
   });
 });
 
+describe('the limit is checked before a call that would pass it (Task 8 R8.2)', () => {
+  it('stops when the next call would cross the limit, and not before', async () => {
+    await expect(assertWithinRunLimit('r', 0.5, async () => 0.4947, 0.0053)).resolves.toBeUndefined();
+    await expect(assertWithinRunLimit('r', 0.5, async () => 0.4950, 0.0053)).rejects.toBeInstanceOf(RunSpendLimitError);
+    await expect(assertWithinRunLimit('r', 0.5, async () => 0.1, 0.0053)).resolves.toBeUndefined();
+  });
+  it('without a next-call price it behaves as before', async () => {
+    await expect(assertWithinRunLimit('r', 0.5, async () => 0.4999)).resolves.toBeUndefined();
+  });
+});
+
 describe('resume window for a long video (Sprint 4 Task 9, R5.6)', () => {
   it('a running long-form stage gets at least 3 hours; everything else keeps the default', () => {
     const long = { creationOptions: { videoKind: 'long' as const } };

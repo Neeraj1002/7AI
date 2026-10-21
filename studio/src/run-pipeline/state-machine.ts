@@ -1,3 +1,4 @@
+import { scriptRetryFeedback } from '../agents/script-review/rules';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
@@ -32,9 +33,10 @@ import { emptyVideoSpend, failedRenderUsage } from '../agents/video-generation/s
 import { parseBrief, stubParseBrief } from './parse-brief';
 import { withRetryAndCircuitBreaker, getStageErrorContext, CircuitBreakerTrippedError, NonTransientStageError } from './retry-with-backoff';
 import { resolveMediaPurpose, assertSupportedVoice } from '../media';
+import { preflightGate } from './preflight-gate';
 import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
-import { failureOutputFromError, failureUsageEvents, llmUsageRows, type FailureUsageFields } from './stage-failure';
+import { failedCallMetadata, failureOutputFromError, failureUsageEvents, llmUsageRows, type FailureUsageFields } from './stage-failure';
 import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { evidenceRef, factualBaseline, type EvidenceRef } from '../content-evidence/packet';
 import { generationEvidenceSnapshot, reviewEvidenceSnapshot } from '../content-evidence/stage-snapshot';
@@ -53,15 +55,22 @@ import { findGate1ApproverForRun } from '../models/repositories/review-log.repos
 import { generateLongVideo } from '../agents/video-generation/long-form';
 import { planLongVideoProduction, reusableLongPlanningCheckpoint, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
+import { describeRetryAllowancePause } from './manual-retries';
+import { effectivePrivacy } from './run-settings';
+import { checkMetadataClaims, describeClaimIssues, holdingIssues } from '../agents/publishing/metadata-claims';
+import { resolveVoicePace } from './length-forecast';
+import { sumUsageCostForRun } from '../models/repositories/usage-event.repository';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
 import { createStillsProgressReporter } from './stills-progress';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
+import { TIMING_FAILURE_CODES } from '../agents/video-intelligence/quality-metrics';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
-import { type QualityMetrics } from '../agents/video-generation/quality-spec';
+import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
+import { briefAllowsBrandMarks } from '../agents/video-generation/scene-prompts';
 import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
 import { LONG_FORM_DEFAULT_CATEGORY_ID, languageDisplayName } from '../long-form/youtube-meta';
 import { AUDIO_BED_MANIFEST } from '../audio-bed';
@@ -74,6 +83,7 @@ import {
   uploadVideoWithSession,
   uploadCaptions,
   subtitlesFailureMessage,
+  thumbnailFailureMessage,
   CAPTIONS_INSERT_QUOTA_UNITS,
   extractCoverFrame,
   setThumbnail,
@@ -194,6 +204,9 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     currentStage: 'intake',
     startedAt: run.startedAt ?? new Date(),
   });
+  // Sprint 5 Task 8 (R2): settings and accounts are checked while nothing has been spent.
+  const preflightBlocked = await preflightGate(run, 'intake');
+  if (preflightBlocked) return preflightBlocked;
 
   const previousAttempt = await findLatestAttempt(runId, 'intake');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
@@ -424,7 +437,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         scriptStructure: stageInput.scriptStructure,
         ...(stageInput.evidence && { evidence: stageInput.evidence }),
         ...(stageInput.sources !== undefined && { sources: stageInput.sources }),
-        ...(config.videoKind === 'long' && { videoKind: 'long' as const }),
+        ...(config.videoKind === 'long' && { videoKind: 'long' as const, wordsPerMinute: (await resolveVoicePace(run.tenantId, config.audioDefaultVoice)).wordsPerMinute }),
       });
       await bookCalls(calls.flatMap(llmUsageRows));
       return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
@@ -519,29 +532,29 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
   // call, including retries, writes its own UsageEvent row.
   const attemptOnce = async (): Promise<ScriptReviewOutput & { evidenceRef?: EvidenceRef }> => {
     try {
-      const { output, llm } = await reviewScript(stageInput);
-      for (const call of llmUsageRows(llm)) {
-        await insertUsageEvent({
-          tenantId: run.tenantId,
-          channelId: run.channelId,
-          pipelineRunId: runId,
-          stageId: stage.id,
-          agent: 'script-review',
-          ...call,
-        });
-      }
+      const { output, llm, calls } = await reviewScript(stageInput);
+      for (const reviewedCall of (calls ?? [llm]).flatMap(llmUsageRows)) await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-review',
+        provider: reviewedCall.provider,
+        model: reviewedCall.model,
+        inputTokens: reviewedCall.inputTokens,
+        outputTokens: reviewedCall.outputTokens,
+        costUsd: reviewedCall.costUsd,
+      });
       return stageInput.evidence ? { ...output, evidenceRef: evidenceRef(stageInput.evidence) } : output;
     } catch (error) {
-      for (const spent of failureUsageEvents(error)) {
-        await insertUsageEvent({
-          tenantId: run.tenantId,
-          channelId: run.channelId,
-          pipelineRunId: runId,
-          stageId: stage.id,
-          agent: 'script-review',
-          ...spent,
-        });
-      }
+      for (const usage of failureUsageEvents(error)) await insertUsageEvent({
+        tenantId: run.tenantId,
+        channelId: run.channelId,
+        pipelineRunId: runId,
+        stageId: stage.id,
+        agent: 'script-review',
+        ...usage,
+      });
       throw error;
     }
   };
@@ -641,7 +654,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
             stageId: stage.id,
             agent: 'script-review',
             verdict: 'auto-reject',
-            rationale: output.notes,
+            rationale: scriptRetryFeedback(output),
           },
           tx,
         );
@@ -931,8 +944,6 @@ export async function runVideoGenerationStage(
   // resolveVoice did before.
   const config = await loadResolvedConfig(run, channel);
   const resolvedVoice = config.audioDefaultVoice;
-  // Before the stage row or any paid call: an unsupported voice must fail here, not mid-render.
-  try { assertSupportedVoice(resolvedVoice); } catch (e) { throw new NonTransientStageError((e as Error).message); }
   // Sprint 4 Task 9: a long run narrates, plans and renders chapter by chapter, with its per-video spend
   // limit checked between paid calls. A Short takes none of these branches.
   const isLong = config.videoKind === 'long';
@@ -941,9 +952,9 @@ export async function runVideoGenerationStage(
   // stages, and a long video's stage runs for tens of minutes, so without this a cancelled run would
   // keep paying for stills until the stage ended.
   const runLimitGuard = isLong
-    ? async () => {
+    ? async (nextCallUsd?: number) => {
         if (isCancellationRequested(runId)) throw new NonTransientStageError('Cancelled by user');
-        if (maxCostUsd) await assertWithinRunLimit(runId, maxCostUsd);
+        if (maxCostUsd) await assertWithinRunLimit(runId, maxCostUsd, undefined, nextCallUsd ?? 0);
       }
     : undefined;
   const sanctionedChapters = isLong ? (gate1Stage.output as { chapters?: ScriptChapter[] }).chapters : undefined;
@@ -955,6 +966,13 @@ export async function runVideoGenerationStage(
     status: 'running',
     currentStage: 'video_generation',
   });
+  // Sprint 5 Task 8 (R2): voice, accounts, music and spend are checked before the stage row or any
+  // paid call; a failure parks the run with a plain message and leaves the attempt count alone.
+  const preflightBlocked = await preflightGate(run, 'video_generation');
+  if (preflightBlocked) return preflightBlocked;
+  // PR #104's backstop, kept as it was (moved after preflight, which parks a bad voice cleanly first): before the
+  // stage row or any paid call, an unsupported voice must fail here, not mid-render.
+  try { assertSupportedVoice(resolvedVoice); } catch (e) { throw new NonTransientStageError((e as Error).message); }
 
   const previousAttempt = await findLatestAttempt(runId, 'video_generation');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
@@ -994,7 +1012,7 @@ export async function runVideoGenerationStage(
           currentInput: stageInput, previousOutput: completedBaseline.output as VideoGenerationOutput,
           defect: reviewOutput.visualDefects[0],
           sceneStyle: { stylePrompt: config.visualStylePrompt, negativePrompt: config.visualNegativePrompt,
-            safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1' } });
+            safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1', allowBrandMarks: briefAllowsBrandMarks(run.briefText) } });
         repairBaselineOutput = completedBaseline.output as VideoGenerationOutput;
         if (previousAttempt.status !== 'completed') {
           const oldOutput = previousAttempt.output as { visualRepairReceipt?: unknown } | null;
@@ -1012,7 +1030,26 @@ export async function runVideoGenerationStage(
       }
     }
   }
+  // Sprint 5 Task 8 (R3): a shot-length (timing) failure from Video Review needs no new plan and no new
+  // pictures. The plan that produced the video is kept and only the scene timing is redone, so every
+  // picture comes from the run's cache. Only for the review of the video this attempt follows.
+  let timingRepair: { baselineAttempt: number; reasonCode: string; plan: ProductionPlan } | undefined;
+  if (isLong && previousAttempt && !repairPrepared) {
+    const previousReview = await findLatestAttempt(runId, 'video_review');
+    const reviewOut = previousReview?.status === 'completed' ? previousReview.output as { verdict?: string; reasonCode?: string } | null : null;
+    if (reviewOut?.verdict === 'fail' && reviewOut.reasonCode && (TIMING_FAILURE_CODES as readonly string[]).includes(reviewOut.reasonCode)) {
+      const baseline = previousAttempt.status === 'completed' ? previousAttempt : await findLatestCompletedAttempt(runId, 'video_generation');
+      const baselineOut = baseline?.output as VideoGenerationOutput | null | undefined;
+      if (baseline && baselineOut?.plan?.longScenes?.length &&
+          (previousReview?.input as { videoPath?: string } | null)?.videoPath === baselineOut.videoPath) {
+        // A music mood changed with runs.updateSettings since that plan was made still applies to the re-render.
+        const musicNow = resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined);
+        timingRepair = { baselineAttempt: baseline.attemptNumber, reasonCode: reviewOut.reasonCode, plan: { ...(baselineOut.plan as ProductionPlan), ...(musicNow && { audioLayer: musicNow }) } };
+      }
+    }
+  }
   const effectiveStageInput = { ...stageInput,
+    ...(timingRepair && { timingRepair: { baselineAttempt: timingRepair.baselineAttempt, reasonCode: timingRepair.reasonCode } }),
     ...(repairPrepared && { visualRepairIntent: repairPrepared.receipt }),
     ...(repairUnavailable && { visualRepairUnavailable: repairUnavailable }) };
 
@@ -1066,6 +1103,7 @@ export async function runVideoGenerationStage(
   let planningCheckpoint: unknown = carriedCheckpoint;
   const attemptPlanOnce = async (): Promise<ProductionPlan> => {
     if (repairPrepared) return repairBaselineOutput!.plan as ProductionPlan;
+    if (timingRepair) return timingRepair.plan;
     if (testOverrides?.forcedPlan) {
       return testOverrides.forcedPlan;
     }
@@ -1186,6 +1224,8 @@ export async function runVideoGenerationStage(
         stylePrompt: config.visualStylePrompt,
         negativePrompt: config.visualNegativePrompt,
         safetyNegatives: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
+        // Sprint 5 Task 8 (R6): the no-marks rule is on unless the brief itself asks for logos or text.
+        allowBrandMarks: briefAllowsBrandMarks(run.briefText),
       };
       const bookPaidCall = (fields: {
         model: string;
@@ -1246,6 +1286,26 @@ export async function runVideoGenerationStage(
             sceneStyle,
             spend,
             guard: runLimitGuard,
+            maxShotSeconds: qualityProfileFor('long', config.visualSecondsPerStill).maxShotSeconds,
+            // Sprint 5 Task 8 (R6): every picture is looked at before the render; each vision call is booked.
+            stillCheck: {
+              topic: run.intakeParsed!.topic,
+              onCall: async (llm, info) => {
+                await insertUsageEvent({
+                  tenantId: run.tenantId,
+                  channelId: run.channelId,
+                  pipelineRunId: runId,
+                  stageId: stage.id,
+                  agent: 'still-check',
+                  provider: llm.provider,
+                  model: llm.model,
+                  inputTokens: llm.usage.inputTokens,
+                  outputTokens: llm.usage.outputTokens,
+                  costUsd: llm.costUsd,
+                  metadata: { part: 'still-check', batchSize: info.batchSize },
+                });
+              },
+            },
             weeklyGate: async () => {
               const refusal = await checkBudget(run.tenantId, channel.id, channel.platform);
               if (!refusal.ok) throw new NonTransientStageError(`Video Generation stopped: ${describeBudgetRefusal(refusal)}`);
@@ -1306,10 +1366,14 @@ export async function runVideoGenerationStage(
         pipelineRunId: runId,
         stageId: stage.id,
         agent: 'video-generation',
+        // Sprint 5 Task 8 (R8.3): a failure before any billable call still belongs to the speech and
+        // transcription provider this stage uses, never to 'unknown'. Long-form books each paid call as it
+        // happens, so this summary row legitimately carries no cost; the metadata says why.
         ...(realUsage ?? {
-          provider: (context?.provider as string | undefined) ?? 'unknown',
-          model: (context?.model as string | undefined) ?? 'unknown',
+          provider: (context?.provider as string | undefined) ?? 'openai',
+          model: (context?.model as string | undefined) ?? `${resolveMediaPurpose('tts', resolvedVoice).model}+${resolveMediaPurpose('transcription').model}`,
           costUsd: '0.000000',
+          metadata: failedCallMetadata(error, { stubFlags: spend.stubFlags, costsBookedSeparately: spend.bookedSeparately === true }),
         }),
       });
       throw error;
@@ -1317,7 +1381,7 @@ export async function runVideoGenerationStage(
   };
 
   try {
-    const plan = repairPrepared ? repairBaselineOutput!.plan as ProductionPlan : checkpointedPlan
+    const plan = repairPrepared ? repairBaselineOutput!.plan as ProductionPlan : timingRepair ? timingRepair.plan : checkpointedPlan
       ? checkpointedPlan
       : await withRetryAndCircuitBreaker(attemptPlanOnce);
     if (isLong) {
@@ -1328,7 +1392,7 @@ export async function runVideoGenerationStage(
       ? RepairReceiptSchema.parse(JSON.parse(await fs.readFile(repairPrepared.receiptPath, 'utf8'))) : undefined;
 
     const completedRun = await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, { ...output, plan, ...(finalRepairReceipt && { visualRepairReceipt: finalRepairReceipt }) }, tx);
+      await completeStage(stage.id, { ...output, plan: output.plan ?? plan, ...(finalRepairReceipt && { visualRepairReceipt: finalRepairReceipt }) }, tx);
       return await updatePipelineRun(runId, { currentStage: 'video_review' }, tx);
     });
 
@@ -1493,6 +1557,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       }
     : undefined;
 
+  const flaggedStills = (videoGenStage.output as { flaggedStills?: Array<{ sceneId: string; issues: Array<{ kind: string; detail: string }> }> } | null)?.flaggedStills;
   try {
     const outcome = await reviewVideo({
       videoPath: videoOutput.videoPath,
@@ -1504,6 +1569,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
       ...(isLongForm && longFormReview),
       ...(sceneMap && { sceneMap }),
+      ...(flaggedStills && flaggedStills.length > 0 && { flaggedStills }),
     });
 
     // Sprint 4 Task 10 (R3): the Gate 2 preview copy and the subtitle file are made before the run
@@ -1574,7 +1640,15 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       );
     }
 
-    const runPatch: Parameters<typeof updatePipelineRun>[1] = stockFallback
+    // Sprint 5 Task 8 (D1): a failed review would normally start the next attempt by itself. When the run has
+    // already spent its retry allowance, it waits for a person instead of spending more.
+    const retryAllowance = run.creationOptions?.retryAllowanceUsd;
+    const spentSoFar = retryAllowance !== undefined && outcome.verdict !== 'pass' && !atRegenCap ? await sumUsageCostForRun(runId) : 0;
+    const overAllowance = retryAllowance !== undefined && outcome.verdict !== 'pass' && !atRegenCap && spentSoFar >= retryAllowance;
+
+    const runPatch: Parameters<typeof updatePipelineRun>[1] = overAllowance
+      ? { status: 'needs_attention', lastError: describeRetryAllowancePause(spentSoFar, retryAllowance!, outcome.rationale) }
+      : stockFallback
       ? {
           status: 'running',
           currentStage: 'video_generation',
@@ -1612,6 +1686,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         {
           verdict: outcome.verdict,
           rationale: outcome.rationale,
+          ...(outcome.reasonCode && { reasonCode: outcome.reasonCode }),
           ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
           ...(outcome.visualDefects?.length && { visualDefects: outcome.visualDefects }),
           ...(longFormArtifacts && longFormArtifacts),
@@ -1673,6 +1748,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
         stageId: stage.id,
         agent: 'video-intelligence-own-draft',
         ...spent,
+        metadata: failedCallMetadata(error),
       });
     }
     return await failStageAndEscalate(stage.id, runId, error);
@@ -1827,6 +1903,8 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           {
             status: 'running',
             currentStage: nextStageAfter('gate2'),
+            // Sprint 5 Task 8 (R13): the choice made here is the run's visibility from now on.
+            creationOptionsMerge: { privacyStatus },
           },
           tx,
         );
@@ -1910,6 +1988,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   if (run.status !== 'running' || isCancellationRequested(runId)) {
     return run;
   }
+  // Sprint 5 Task 8 (R2): an expired YouTube connection is found now, not after the upload starts.
+  const preflightBlocked = await preflightGate(run, 'publishing');
+  if (preflightBlocked) return preflightBlocked;
 
   const gate2Stage = await findLatestAttempt(runId, 'gate2');
   if (!gate2Stage || gate2Stage.status !== 'completed' || !gate2Stage.output) {
@@ -1925,7 +2006,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   // Week 5 Task 5 (D2) added this field — an old completed run being
   // re-inspected, not a live resume path (publishing only ever reads the
   // gate2 attempt that led to it).
-  const privacyStatus = gate2Output.privacyStatus ?? DEFAULT_PRIVACY_STATUS;
+  // Sprint 5 Task 8 (R13): the per-run visibility wins (Gate 2 writes its own choice into it, so a later change with
+  // runs.updateSettings, for example after a failed upload, is the one published with).
+  const privacyStatus = effectivePrivacy(run.creationOptions, gate2Output, DEFAULT_PRIVACY_STATUS);
 
   const videoGenStage = await findLatestAttempt(runId, 'video_generation');
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
@@ -2009,26 +2092,43 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
   const attemptMetadataOnce = async (): Promise<PublishingMetadata> => {
     try {
-      const { metadata, llm } = await generatePublishingMetadata({
-        scriptText: sanctionedScriptText,
-        hashtags,
-        titleGuidance: config.titleGuidance,
-        descriptionTemplate: config.descriptionTemplate,
-        hashtagsBase: config.hashtagsBase,
-        editorCredit: config.editorCredit,
-        editorName,
-        sources: run.creationOptions?.sources,
-        ...(isLongForm && { videoKind: 'long' as const }),
-      });
-      for (const call of llmUsageRows(llm)) {
-        await insertUsageEvent({
-          tenantId: run.tenantId,
-          channelId: run.channelId,
-          pipelineRunId: runId,
-          stageId: stage.id,
-          agent: 'metadata-generation',
-          ...call,
+      const generate = async (fixNotes?: string) => {
+        const result = await generatePublishingMetadata({
+          scriptText: sanctionedScriptText,
+          hashtags,
+          titleGuidance: config.titleGuidance,
+          descriptionTemplate: config.descriptionTemplate,
+          hashtagsBase: config.hashtagsBase,
+          editorCredit: config.editorCredit,
+          editorName,
+          sources: run.creationOptions?.sources,
+          ...(isLongForm && { videoKind: 'long' as const }),
+          ...(fixNotes && { fixNotes }),
         });
+        // Every billed call behind the reply (a cut-off one retried) is booked as its own row.
+        for (const call of llmUsageRows(result.llm)) {
+          await insertUsageEvent({
+            tenantId: run.tenantId,
+            channelId: run.channelId,
+            pipelineRunId: runId,
+            stageId: stage.id,
+            agent: 'metadata-generation',
+            ...call,
+          });
+        }
+        return result;
+      };
+      let { metadata } = await generate();
+      // Sprint 5 Task 8 (R11.6): the title, description and tags get the same figure and hedge check the script
+      // got. One regeneration with the problem named; a second failure holds the publish (Retry regenerates).
+      let claimIssues = holdingIssues(checkMetadataClaims({ scriptText: sanctionedScriptText, briefText: run.briefText, metadata }));
+      if (claimIssues.length > 0) {
+        console.warn(`[publishing] run ${runId}: generated metadata failed the figure check, regenerating once - ${describeClaimIssues(claimIssues)}`);
+        metadata = (await generate(describeClaimIssues(claimIssues))).metadata;
+        claimIssues = holdingIssues(checkMetadataClaims({ scriptText: sanctionedScriptText, briefText: run.briefText, metadata }));
+        if (claimIssues.length > 0) {
+          throw new NonTransientStageError(`Publishing held back before upload: ${describeClaimIssues(claimIssues)} Tap Retry to generate the title and description again.`);
+        }
       }
       return metadata;
     } catch (error) {
@@ -2182,6 +2282,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     // `coverFrameSet: false` for a pre-Sprint-2-Task-5 stage row (or if it's
     // ever missing) rather than crashing the whole stage over metadata.
     let coverFrameSet = receipt.followups.thumbnail === 'succeeded';
+    let coverFrameMessage: string | undefined;
     if (typeof durationSeconds === 'number' && !coverFrameSet
         && receipt.followups.thumbnail !== 'started' && receipt.followups.thumbnail !== 'uncertain') {
       try {
@@ -2196,6 +2297,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
         await markFollowup(runId, token, 'thumbnail', 'succeeded');
       } catch (error) {
         await markFollowup(runId, token, 'thumbnail', 'uncertain');
+        coverFrameMessage = thumbnailFailureMessage(error);
         console.error(
           `[publishing] run ${runId}: custom cover-frame set failed (non-blocking, video already uploaded successfully) — ${
             error instanceof Error ? error.message : String(error)
@@ -2250,6 +2352,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       containsSyntheticMedia: uploadResult.containsSyntheticMedia,
       selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids,
       coverFrameSet,
+      ...(coverFrameMessage && { coverFrameMessage }),
       metadata,
       // Sprint 3 Task 12 (R3) — included directly in this same fullOutput
       // object (not a separate post-hoc patchStageOutput call the way R2's

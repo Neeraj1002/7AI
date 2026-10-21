@@ -111,6 +111,8 @@ export type GenerateScriptParams = {
   // The founder's explicit source URLs/citations (long-form only: with the brief, the only facts allowed).
   sources?: string[];
   evidence?: EvidencePacket;
+  // Sprint 5 Task 8 (R7): the narrating voice's measured pace; the word count is planned from it. Long-form only.
+  wordsPerMinute?: number;
 };
 
 export function buildUserMessage(params: GenerateScriptParams): string {
@@ -156,7 +158,7 @@ export function buildUserMessage(params: GenerateScriptParams): string {
     lines.push(`Sources (with the brief, the only material you may take facts from):\n${params.sources.map((s) => `- ${s}`).join('\n')}`);
   }
   if (isLong && targetSeconds) {
-    lines.push(buildLongTargetLine(targetSeconds));
+    lines.push(buildLongTargetLine(targetSeconds, params.wordsPerMinute));
   } else if (targetSeconds) {
     const approxWords = Math.round((targetSeconds / 60) * 150);
     lines.push(
@@ -375,19 +377,20 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   let words = countWords(current.output.scriptText);
   // Up to two length repairs until the script is within +-10% of the target. A repair is kept only
   // when it is valid AND closer to the target than what we have, so a repair never makes things worse.
-  for (let repairs = 0; repairs < LONG_MAX_LENGTH_REPAIRS && !isLengthInRange(words, targetSeconds); repairs += 1) {
+  const pace = params.wordsPerMinute;
+  for (let repairs = 0; repairs < LONG_MAX_LENGTH_REPAIRS && !isLengthInRange(words, targetSeconds, undefined, pace); repairs += 1) {
     console.warn(`[script-generation] long script is ${words} words, outside +-10% of the target for ${targetSeconds}s; length repair ${repairs + 1}/${LONG_MAX_LENGTH_REPAIRS}`);
     const repairMessages: LLMMessage[] = [
       { role: 'user', content: userMessage },
       { role: 'assistant', content: current.llm.text.slice(0, FEEDBACK_REPLY_CHARS * 3) },
-      { role: 'user', content: buildLengthRepairMessage(words, targetSeconds) },
+      { role: 'user', content: buildLengthRepairMessage(words, targetSeconds, pace) },
     ];
     try {
       const repair = await call(repairMessages);
       const repaired = parseLongScriptReply(repair);
       if (repaired.ok) {
         const repairedWords = countWords(repaired.output.scriptText);
-        if (lengthError(repairedWords, targetSeconds) < lengthError(words, targetSeconds)) {
+        if (lengthError(repairedWords, targetSeconds, pace) < lengthError(words, targetSeconds, pace)) {
           current = { llm: repair, output: repaired.output };
           words = repairedWords;
         }
@@ -399,7 +402,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
     }
   }
   // Only a script that is still outside +-20% is flagged for the reviewer; it still continues.
-  const lengthOutOfRange = !isLengthInRange(words, targetSeconds, LONG_LENGTH_HARD_TOLERANCE);
+  const lengthOutOfRange = !isLengthInRange(words, targetSeconds, LONG_LENGTH_HARD_TOLERANCE, pace);
   return { output: { ...current.output, ...(lengthOutOfRange && { lengthOutOfRange: true }) }, llm: current.llm, calls };
 }
 

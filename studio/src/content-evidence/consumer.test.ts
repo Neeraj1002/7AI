@@ -10,7 +10,7 @@ const packet = buildEvidencePacket({ briefText: 'The date may be 1812, according
   factPolicy: 'brief-only', sources: ['https://example.test/unfetched'] });
 const response = (text: string) => ({ text, usage: { inputTokens: 20, outputTokens: 20 },
   stopReason: 'stop', costUsd: '0.000001', provider: 'anthropic', model: 'mock' });
-const review = JSON.stringify({ score: 8, notes: 'ok', hookScore: 8, hookNotes: 'ok',
+const review = JSON.stringify({ scoreAudit: {rubricSubscores:['chapter-order','open-loop','factual-causality','brief-brand','hook-promise'].map(criterion=>({criterion,score:10,finding:null})),findings:[]}, score: 8, notes: 'ok', hookScore: 8, hookNotes: 'ok',
   videoGenFit: { fitsLengthLimit: true, pacingRealistic: true, visualsProducible: true, flags: [] },
   factualConcerns: [], styleGuideViolations: [] });
 beforeEach(() => mocks.callLLM.mockReset());
@@ -46,6 +46,6 @@ it('validates before either paid call and retains the existing reviewer result s
   expect(mocks.callLLM.mock.calls).toHaveLength(2);
   expect(mocks.callLLM.mock.calls[0][0].messages[0].content).toContain(renderEvidenceBlock(packet));
   expect(mocks.callLLM.mock.calls[1][0].messages[0].content).toContain(renderEvidenceBlock(packet));
-  expect(result.output).toMatchObject({ score: 8, factualConcerns: [], styleGuideViolations: [] });
+  expect(result.output).toMatchObject({ score: 10, factualConcerns: [], styleGuideViolations: [] });
   expect(Object.keys(result).sort()).toEqual(['llm', 'output']);
 });

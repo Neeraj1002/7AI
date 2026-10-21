@@ -141,3 +141,28 @@ export async function callLLM(req: {
     retry,
   );
 }
+
+// Sprint 5 Task 8 (R2): the cheapest real call the account can make (one output token on the cheap
+// tier, well under a hundredth of a cent). Preflight uses it to learn that a workspace usage limit
+// or a rejected key is in force before the first paid step, instead of at the review. Throws the
+// same classified errors every other call does (recoveryKind on the error context).
+export async function probeLLMProvider(): Promise<void> {
+  const { provider, model } = resolvePurpose('intake-parsing');
+  await callProviderModel({
+    provider,
+    model,
+    system: 'Reply with OK.',
+    messages: [{ role: 'user', content: 'ping' }],
+    maxOutputTokens: 1,
+    reasoning: 'off',
+  });
+}
+
+/** Explicit comparison seam; the normal purpose registry is unchanged. */
+export async function callScriptReviewForEvaluation(req: Parameters<typeof callLLM>[0], model: 'claude-haiku-4-5' | 'claude-sonnet-5-5'): Promise<LLMResponse> {
+  if (req.purpose !== 'script-review') throw new Error('Evaluation override is limited to script-review');
+  const provider = 'anthropic' as const;
+  const entry = resolvePurpose(req.purpose);
+  const result = await callProviderModel({ ...req, provider, model, maxOutputTokens: entry.maxOutputTokens, reasoning: entry.reasoning, stream: entry.maxOutputTokens > resolveModelFacts(model).streamingAboveTokens });
+  return { ...result, provider, model, maxOutputTokens: entry.maxOutputTokens };
+}
