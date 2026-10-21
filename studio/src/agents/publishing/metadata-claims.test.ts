@@ -55,9 +55,10 @@ describe('metadata check on the merged shared rule (R11.6)', () => {
   });
 });
 
-describe('what the shared rule does not catch (found while merging; Task 6 owns the rule)', () => {
-  it('the original Lego title still slips through, because "Around" in "Turned Around Its $220M Crisis" counts as a hedge word', () => {
-    // If Task 6 narrows its hedge check to the words next to the figure, this expectation should become one issue.
-    expect(check(meta({ title: 'How Lego Turned Around Its $220M Crisis' }))).toEqual([]);
+describe('the original Lego title', () => {
+  it('"How Lego Turned Around Its $220M Crisis" drops the hedge of "roughly 220 million dollars": one issue', () => {
+    const issues = check(meta({ title: 'How Lego Turned Around Its $220M Crisis' }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ code: 'hedge_dropped', where: 'title', holds: true });
   });
 });
