@@ -14,22 +14,21 @@ import type { VideoSource } from 'expo-video';
 // support end to end (a blob: URL wouldn't exercise that).
 // `sendAuth` is false for a signed storage link, which must not get our Authorization header.
 export function useAuthedVideoSource(url: string | null, token: string, sendAuth = true, reloadKey = 0): VideoSource | null {
-  const [blobUri, setBlobUri] = useState<string | null>(null);
+  // The blob belongs to the url (and reload) it was fetched for; another one never shows the old file.
+  const [blob, setBlob] = useState<{ key: string; uri: string } | null>(null);
+  const key = `${url}|${reloadKey}`;
 
   useEffect(() => {
-    if (!url || Platform.OS !== 'web') {
-      setBlobUri(null);
-      return;
-    }
+    if (!url || Platform.OS !== 'web') return;
     let objectUrl: string | null = null;
     let cancelled = false;
     void (async () => {
       try {
         const res = await fetch(url, sendAuth ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
         if (!res.ok) return;
-        const blob = await res.blob();
-        objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) setBlobUri(objectUrl);
+        const file = await res.blob();
+        objectUrl = URL.createObjectURL(file);
+        if (!cancelled) setBlob({ key, uri: objectUrl });
       } catch {
         // Left null — the screen renders its own "video unavailable" state.
       }
@@ -38,11 +37,11 @@ export function useAuthedVideoSource(url: string | null, token: string, sendAuth
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url, token, sendAuth, reloadKey]);
+  }, [url, token, sendAuth, key]);
 
   return useMemo<VideoSource | null>(() => {
     if (!url) return null;
-    if (Platform.OS === 'web') return blobUri ? { uri: blobUri } : null;
+    if (Platform.OS === 'web') return blob && blob.key === key ? { uri: blob.uri } : null;
     return sendAuth ? { uri: url, headers: { Authorization: `Bearer ${token}` } } : { uri: url };
-  }, [url, token, blobUri, sendAuth]);
+  }, [url, token, blob, key, sendAuth]);
 }

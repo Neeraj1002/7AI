@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   listStagesForRun: vi.fn(),
   listReviewLogsForRun: vi.fn(),
   sumUsageCostForRun: vi.fn(),
+  listUsageCostByStage: vi.fn(),
   getRemainingWeeklyUsd: vi.fn(),
 }));
 
@@ -24,7 +25,7 @@ vi.mock('../../models/repositories/pipeline-stage.repository', () => ({
   findLatestCompletedAttempt: vi.fn(),
 }));
 vi.mock('../../models/repositories/review-log.repository', () => ({ listReviewLogsForRun: mocks.listReviewLogsForRun }));
-vi.mock('../../models/repositories/usage-event.repository', () => ({ sumUsageCostForRun: mocks.sumUsageCostForRun }));
+vi.mock('../../models/repositories/usage-event.repository', () => ({ sumUsageCostForRun: mocks.sumUsageCostForRun, listUsageCostByStage: mocks.listUsageCostByStage }));
 vi.mock('../../models/repositories/channel.repository', () => ({ findChannelById: mocks.findChannelById }));
 vi.mock('../../models/repositories/agent-credential.repository', () => ({ findByChannel: mocks.findByChannel }));
 vi.mock('../../models/repositories/channel-profile-version.repository', () => ({
@@ -72,6 +73,7 @@ beforeEach(() => {
   mocks.listStagesForRun.mockResolvedValue([]);
   mocks.listReviewLogsForRun.mockResolvedValue([]);
   mocks.sumUsageCostForRun.mockResolvedValue(0);
+  mocks.listUsageCostByStage.mockResolvedValue(new Map());
 });
 
 describe('runs.get: older run is unchanged', () => {
@@ -94,6 +96,63 @@ describe('runs.get: spend (R3)', () => {
     expect(mocks.sumUsageCostForRun).toHaveBeenCalledWith(RUN_ID);
     expect(detail.spentUsd).toBe(0.1234);
     expect(detail.maxCostUsd).toBe(4);
+  });
+});
+
+describe('runs.get: attempt outcomes and cost per attempt and stage (Task 8 R5, R8.7)', () => {
+  const stage = (id: string, stageName: string, attemptNumber: number, status: string, output: unknown, input: unknown = null, error: string | null = null) => ({
+    id, pipelineRunId: RUN_ID, stageName, status, attemptNumber, input, output, error,
+    startedAt: at('2026-10-18T10:00:00Z'), completedAt: at('2026-10-18T10:05:00Z'), createdAt: at('2026-10-18T10:00:00Z'), updatedAt: at('2026-10-18T10:05:00Z'),
+  });
+
+  it('replays the Lego run: attempt 1 is a failed review with its reason, attempt 2 completed; money adds up', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ videoKind: 'long', maxCostUsd: 1, estimateUsd: 0.24, retryAllowanceUsd: 0.48 }));
+    mocks.listStagesForRun.mockResolvedValue([
+      stage('s-script', 'script_generation', 1, 'completed', { scriptText: 'x' }),
+      stage('s-gen1', 'video_generation', 1, 'completed', { videoPath: '/v/1.mp4' }),
+      stage('s-rev1', 'video_review', 1, 'completed', { verdict: 'fail', reasonCode: 'shot_length', rationale: 'Longest AI still shot is 8.3s (pacing limit: 7.5s)' }, { videoPath: '/v/1.mp4' }),
+      stage('s-gen2', 'video_generation', 2, 'completed', { videoPath: '/v/2.mp4' }),
+      stage('s-rev2', 'video_review', 2, 'completed', { verdict: 'pass', rationale: 'ok' }, { videoPath: '/v/2.mp4' }),
+    ]);
+    const costs = new Map<string | null, number>([['s-script', 0.02], ['s-gen1', 0.2], ['s-rev1', 0], ['s-gen2', 0.0125], ['s-rev2', 0.004], [null, 0.001]]);
+    mocks.listUsageCostByStage.mockResolvedValue(costs);
+    mocks.sumUsageCostForRun.mockResolvedValue(0.2375);
+    const detail = await caller().get({ id: RUN_ID });
+
+    expect(detail.videoAttempts.map((a) => [a.attempt, a.outcome])).toEqual([[1, 'failed_review'], [2, 'completed']]);
+    expect(detail.videoAttempts[0]).toMatchObject({ reasonCode: 'shot_length', errorClass: 'content' });
+    expect(detail.videoAttempts[0].reason).toContain('8.3s');
+    expect(detail.videoAttempts[0].stages.map((s) => s.stageName)).toEqual(['video_generation', 'video_review']);
+    expect(detail.videoAttempts[0].costUsd).toBe(0.2);
+    expect(detail.videoAttempts[1].costUsd).toBe(0.0165);
+    // the review stage row is not "done": it failed review
+    expect(detail.stageSummaries.find((s) => s.stageId === 's-rev1')).toMatchObject({ status: 'completed', outcome: 'failed_review' });
+    expect(detail.stageSummaries.find((s) => s.stageId === 's-script')).toMatchObject({ outcome: 'completed', costUsd: 0.02 });
+    // totals add up: attempts + other stages + usage not tied to a stage = spent
+    const c = detail.cost;
+    expect(c).toMatchObject({ estimateUsd: 0.24, limitUsd: 1, retryAllowanceUsd: 0.48 });
+    expect(Number((c.attemptsUsd + c.otherStagesUsd + c.unattributedUsd).toFixed(6))).toBe(c.spentUsd);
+    expect(c.spentUsd).toBeCloseTo(0.2375, 6);
+    expect(c.unattributedUsd).toBe(0.001);
+  });
+
+  it('a provider limit during review is a blocked attempt with the provider message, not a failure of the video', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(run());
+    mocks.listStagesForRun.mockResolvedValue([
+      stage('g', 'video_generation', 3, 'completed', { videoPath: '/v/3.mp4' }),
+      stage('r', 'video_review', 1, 'failed', { recovery: { kind: 'provider_capacity', message: 'capacity', providerErrorMessage: 'regain access on 2026-11-01' } }, { videoPath: '/v/3.mp4' }, 'LLM provider capacity exhausted'),
+    ]);
+    const detail = await caller().get({ id: RUN_ID });
+    expect(detail.videoAttempts[0]).toMatchObject({ attempt: 3, outcome: 'blocked', errorClass: 'provider_limit', retryStep: 'video_review', reason: 'regain access on 2026-11-01' });
+  });
+
+  it('an older run with no stage costs still returns the new fields, empty', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(run());
+    const detail = await caller().get({ id: RUN_ID });
+    expect(detail.videoAttempts).toEqual([]);
+    expect(detail.stageSummaries).toEqual([]);
+    expect(detail.cost).toMatchObject({ spentUsd: 0, attemptsUsd: 0, otherStagesUsd: 0, unattributedUsd: 0 });
+    expect(detail.preflightBlock).toBeNull();
   });
 });
 

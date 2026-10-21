@@ -27,6 +27,7 @@ import { Card } from '../../../../components/Card';
 import { BottomActionBar } from '../../../../components/BottomActionBar';
 import { ConfirmSheet } from '../../../../components/ConfirmSheet';
 import { OptionSheet } from '../../../../components/OptionSheet';
+import { VoiceSheet } from '../../../../components/VoiceSheet';
 import { PrimaryButton } from '../../../../components/Buttons';
 
 const FACT_POLICIES = [
@@ -345,12 +346,12 @@ export default function ContentProfileScreen() {
         </View>
       )}
 
-      <OptionSheet
+      <VoiceSheet
         visible={sheet === 'voice'}
         onClose={() => setSheet(null)}
         title="Default voice"
-        options={[{ value: '', label: 'Leave blank (channel default)' }, ...voices]}
-        selected={form.defaultVoice}
+        defaultLabel="Leave blank (channel default)"
+        selected={form.defaultVoice || null}
         onSelect={(v) => set('defaultVoice', v ?? '')}
       />
       <OptionSheet

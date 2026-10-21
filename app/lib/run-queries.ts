@@ -5,3 +5,10 @@ export const QUEUE_STATUSES = ['paused_gate1', 'paused_gate2', 'needs_attention'
 // Runs that have ended (completed, failed, cancelled, rejected).
 export const ENDED_STATUSES = ['completed', 'failed'] as const;
 export const QUEUE_POLL_MS = 15_000;
+
+/** True when a run that was in the previous active list is gone from the new one (it finished or was cancelled). */
+export function someRunLeft(before: readonly string[] | null, now: readonly string[]): boolean {
+  if (!before) return false;
+  const nowSet = new Set(now);
+  return before.some((id) => !nowSet.has(id));
+}

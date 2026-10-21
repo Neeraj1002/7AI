@@ -92,6 +92,40 @@ export async function listRuns(params: {
   return rows.map(toDomainRun);
 }
 
+// Sprint 5 Task 8 (R12): the same filters as listRuns, in pages with a cursor and a total. listRuns returns
+// every row (no limit) and stays as it is for the callers that depend on that; a screen that shows "recent
+// runs" should use this. Newest first by createdAt (updatedAt is not maintained on writes, so it is not a
+// usable "recent" order), with id as the tiebreak so a cursor is stable.
+export const RUNS_PAGE_DEFAULT = 50;
+export const RUNS_PAGE_MAX = 200;
+export async function listRunsPage(params: {
+  tenantId: string;
+  statuses?: PipelineRunStatus[];
+  stage?: StageName;
+  channelId?: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<{ items: PipelineRun[]; nextCursor: string | null; total: number }> {
+  const limit = Math.min(Math.max(params.limit ?? RUNS_PAGE_DEFAULT, 1), RUNS_PAGE_MAX);
+  const where = {
+    tenantId: params.tenantId,
+    ...(params.statuses && params.statuses.length > 0 && { status: { in: params.statuses } }),
+    ...(params.stage && { currentStage: params.stage }),
+    ...(params.channelId && { channelId: params.channelId }),
+  };
+  const [rows, total] = await Promise.all([
+    prisma.pipelineRun.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(params.cursor && { cursor: { id: params.cursor }, skip: 0 }),
+    }),
+    prisma.pipelineRun.count({ where }),
+  ]);
+  const page = rows.slice(0, limit);
+  return { items: page.map(toDomainRun), nextCursor: rows.length > limit ? rows[limit].id : null, total };
+}
+
 // Sprint 4 Task 5 (R20): the channel's most recent runs that got as far as an
 // Intake topic, newest first, excluding the current run. Failed and pending runs
 // are skipped (nothing was really made), everything else counts.

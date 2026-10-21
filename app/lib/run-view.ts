@@ -2,6 +2,8 @@
 // invented: every value is read from `runs.get` (or one of its optional Sprint 4 Task 12 fields) and every
 // missing field has the fallback the task doc names.
 import { humanizeRunError } from './run-labels';
+import { outcomeOfStage, type OutcomeKind, type OutcomeStage, type ServerOutcomes } from './attempt-outcome';
+import type { AttemptCost } from './run-cost';
 import { MUSIC_MOODS, VISUAL_SOURCES, VOICES } from './pipeline-options';
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '../../studio/src/api/router';
@@ -107,14 +109,20 @@ export type StageLike = {
   createdAt?: Date | string | null;
 };
 
+export type AttemptTone = 'ok' | 'warn' | 'fail' | 'muted';
+
 export type HistoryAttempt = {
   key: string;
   title: string;
   when: Date | null;
   why: string;
   failed: boolean;
+  /** Colour of the title: green only for an attempt that passed, amber for a failed review, red for an error. */
+  tone: AttemptTone;
   /** The raw error, shown only behind "Technical details ›". */
   raw: string | null;
+  /** Cost of the attempt and of each stage in it (R2); absent until the server sends it. */
+  cost?: AttemptCost;
 };
 
 export type HistoryStep = {
@@ -128,15 +136,19 @@ export type HistoryStep = {
   attempts: HistoryAttempt[];
 };
 
-type StepDef = { key: string; stage: string; name: string };
+type StepDef = { key: string; stage: string; name: string; optional?: boolean };
 const STEP_DEFS: StepDef[] = [
   { key: 'intake', stage: 'intake', name: 'Brief received' },
   { key: 'script', stage: 'script_generation', name: 'Script written' },
   { key: 'review', stage: 'script_review', name: 'Script reviewed' },
   { key: 'gate1', stage: 'gate1', name: 'Gate 1 · script' },
   { key: 'video', stage: 'video_generation', name: 'Video made' },
+  // Sprint 5 Task 7 R11.2: the rows the old Details list alone showed. They appear once they have a row, so nothing
+  // the user could see before is lost and a run that has not got that far shows the same seven steps as before.
+  { key: 'video_review', stage: 'video_review', name: 'Video reviewed', optional: true },
   { key: 'gate2', stage: 'gate2', name: 'Gate 2 · video' },
   { key: 'publish', stage: 'publishing', name: 'Published' },
+  { key: 'analytics', stage: 'analytics', name: 'First stats saved', optional: true },
 ];
 
 function asDate(v: Date | string | null | undefined): Date | null {
@@ -185,33 +197,61 @@ export function gateWords(
   return 'Done';
 }
 
+const TONE_OF: Record<OutcomeKind, AttemptTone> = {
+  completed: 'ok',
+  failed_review: 'warn',
+  failed_error: 'fail',
+  blocked: 'warn',
+  cancelled: 'muted',
+  running: 'muted',
+  pending: 'muted',
+  skipped: 'muted',
+  rejected: 'muted',
+  revised: 'muted',
+};
+const NOT_PASSED: readonly OutcomeKind[] = ['failed_review', 'failed_error', 'blocked'];
+
 export function buildStepHistory(args: {
   stages: StageLike[];
   lastGateDecision?: { gate: number; outcome: string; privacyStatus?: string } | null;
   gateDecisions?: GateDecisionEntry[];
+  /** Cost per attempt from the server (R2), keyed by stage name then attempt number. */
+  costs?: Map<string, AttemptCost>;
+  /** Outcomes the server sent (runs.get.stageSummaries, videoAttempts); the rows are read when absent. */
+  server?: ServerOutcomes | null;
 }): { steps: HistoryStep[]; doneCount: number; summary: string } {
   const { stages } = args;
   const rowsOf = (stage: string) =>
     stages.filter((s) => s.stageName === stage).sort((a, b) => a.attemptNumber - b.attemptNumber);
-  const hasRows = STEP_DEFS.map((d) => rowsOf(d.stage).length > 0);
+  const defs = STEP_DEFS.filter((d) => !d.optional || rowsOf(d.stage).length > 0);
+  const hasRows = defs.map((d) => rowsOf(d.stage).length > 0);
+  const outcomeRows = stages as unknown as OutcomeStage[];
+  const failedCountOf = new Map<string, number>();
 
-  const steps: HistoryStep[] = STEP_DEFS.map((def, i) => {
+  const steps: HistoryStep[] = defs.map((def, i) => {
     const rows = rowsOf(def.stage);
     const latest = rows[rows.length - 1];
     const laterStarted = hasRows.slice(i + 1).some(Boolean);
-    const failedRows = rows.filter((r) => r.status === 'failed');
+    const outcomes = rows.map((r) => outcomeOfStage(r as unknown as OutcomeStage, outcomeRows, args.server));
+    const latestOutcome = outcomes[outcomes.length - 1];
+    const failedRows = rows.filter((_, k) => NOT_PASSED.includes(outcomes[k].kind));
+    failedCountOf.set(def.key, failedRows.length);
     const attempts: HistoryAttempt[] =
-      rows.length > 1
-        ? rows.map((r) => ({
-            key: r.id,
-            title: `Attempt ${r.attemptNumber} · ${
-              r.status === 'completed' ? 'done' : r.status === 'failed' ? 'failed' : r.status === 'running' ? 'in progress' : r.status
-            }`,
-            when: asDate(r.completedAt ?? r.startedAt ?? r.createdAt),
-            why: r.status === 'failed' ? `${capitalise(plainReason(r.error))}.` : '',
-            failed: r.status === 'failed',
-            raw: r.status === 'failed' && r.error ? r.error : null,
-          }))
+      rows.length > 1 || (latestOutcome !== undefined && NOT_PASSED.includes(latestOutcome.kind))
+        ? rows.map((r, k) => {
+            const o = outcomes[k];
+            const bad = NOT_PASSED.includes(o.kind);
+            return {
+              key: r.id,
+              title: `Attempt ${r.attemptNumber} · ${o.label}`,
+              when: asDate(r.completedAt ?? r.startedAt ?? r.createdAt),
+              why: o.reason ? capitalise(o.reason) : r.status === 'failed' ? `${capitalise(plainReason(r.error))}.` : '',
+              failed: bad,
+              tone: TONE_OF[o.kind],
+              raw: r.status === 'failed' && r.error ? r.error : null,
+              ...(args.costs?.get(`${def.stage}:${r.attemptNumber}`) && { cost: args.costs.get(`${def.stage}:${r.attemptNumber}`) }),
+            };
+          })
         : [];
 
     let state: HistoryStep['state'] = 'future';
@@ -221,6 +261,17 @@ export function buildStepHistory(args: {
       if (laterStarted) {
         state = 'done';
       }
+    } else if (latestOutcome.kind === 'failed_review') {
+      state = 'failed';
+      note = latestOutcome.reason ? `failed review · ${lowerFirst(latestOutcome.reason)}` : 'failed review';
+      warnNote = true;
+    } else if (latestOutcome.kind === 'blocked') {
+      state = 'failed';
+      note = latestOutcome.reason ? `waiting for provider, retry this step · ${lowerFirst(latestOutcome.reason)}` : 'waiting for provider, retry this step';
+      warnNote = true;
+    } else if (latestOutcome.kind === 'cancelled') {
+      state = 'failed';
+      note = 'cancelled';
     } else if (latest.status === 'failed') {
       state = 'failed';
       note = `failed ${times(failedRows.length)} · last: ${lowerFirst(plainReason(latest.error))}`;
@@ -247,9 +298,12 @@ export function buildStepHistory(args: {
       } else if (def.key === 'review') {
         const score = latest.output?.score;
         if (typeof score === 'number' && rows.length === 1) note = `Score ${score}/10`;
+      } else if (def.key === 'video_review') {
+        if (rows.length === 1) note = 'Passed';
       } else if (def.key === 'gate1' || def.key === 'gate2') {
         note = gateWords(def.key === 'gate1' ? 1 : 2, args.gateDecisions, args.lastGateDecision);
       } else if (def.key === 'publish') note = 'Uploaded to YouTube';
+      else if (def.key === 'analytics') note = 'Saved';
     }
 
     return {
@@ -266,7 +320,7 @@ export function buildStepHistory(args: {
 
   const doneCount = steps.filter((s) => s.state === 'done').length;
   const failed = steps.find((s) => s.state === 'failed');
-  const failedCount = failed ? rowsOf(STEP_DEFS.find((d) => d.key === failed.key)!.stage).filter((r) => r.status === 'failed').length : 0;
+  const failedCount = failed ? Math.max(1, failedCountOf.get(failed.key) ?? 0) : 0;
   return {
     steps,
     doneCount,

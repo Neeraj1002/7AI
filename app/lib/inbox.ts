@@ -22,8 +22,13 @@ export type InboxRun = {
   briefText: string;
   intakeParsed?: { topic?: string } | null;
   completedAt: Date | string | null;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
   creationOptions?: unknown;
 };
+
+// The Inbox lists every run the user has, newest first, `INBOX_PAGE_SIZE` at a time (Sprint 5 Task 7 R1).
+export const INBOX_PAGE_SIZE = 20;
 
 export type StepTone = 'ok' | 'alert' | 'dark' | 'warn' | 'fail';
 export type TimelineStep = { key: 'script' | 'video' | 'final'; name: string; word: string; tone: StepTone; glyph: string; when: Date | null };
@@ -75,6 +80,16 @@ export function runTimeline(run: InboxRun, group: InboxNotification[]): Timeline
   };
   const steps: TimelineStep[] = [];
 
+  if (run.status === 'running' || run.status === 'pending' || run.status === 'needs_attention') {
+    // Before Gate 1 there is no gate row to read; say what the run is doing so the card is not empty.
+    if (rank <= GATE1) {
+      steps.push(
+        run.status === 'needs_attention'
+          ? { key: 'script', name: 'Script', word: 'Needs attention', tone: 'warn', glyph: '!', when: null }
+          : { key: 'script', name: 'Script', word: 'In progress', tone: 'dark', glyph: '…', when: null },
+      );
+    }
+  }
   if (run.status === 'paused_gate1') {
     steps.push({ key: 'script', name: 'Script', word: 'Waiting for you', tone: 'alert', glyph: '!', when: timeOf(1, 'createdAt') });
   } else if (rank > GATE1) {
@@ -154,8 +169,33 @@ export function buildInboxCards(
       (open.length > 0 && newest.threadKey ? needsYou : earlier).push(card);
     }
   }
+  // Sprint 5 Task 7 R1: notifications only reach back 50 rows (the server cap), which is about 7 runs. Every run the
+  // lists returned still gets a card, built from the run row alone.
+  const seen = new Set<string>([...groups.keys()].flatMap((k) => (runById.has(k) ? [k] : [])));
+  for (const run of runs) {
+    if (seen.has(run.id)) continue;
+    seen.add(run.id);
+    const waitingGate = run.status === 'paused_gate1' ? 1 : run.status === 'paused_gate2' ? 2 : null;
+    const card: InboxCard = {
+      key: `run:${run.id}`,
+      runId: run.id,
+      channelId: run.channelId,
+      title: runTopic(run),
+      video: chipFromRun(run),
+      gate: waitingGate,
+      steps: runTimeline(run, []),
+      latestAt: asDate(run.completedAt) ?? asDate(run.updatedAt) ?? asDate(run.createdAt) ?? new Date(0),
+    };
+    (waitingGate ? needsYou : earlier).push(card);
+  }
   const byNewest = (a: InboxCard, b: InboxCard) => +b.latestAt - +a.latestAt;
   return { needsYou: needsYou.sort(byNewest), earlier: earlier.sort(byNewest) };
+}
+
+/** The Earlier list shown so far: the first `visible` cards and whether more remain. */
+export function pageEarlier(earlier: InboxCard[], visible: number): { shown: InboxCard[]; remaining: number } {
+  const shown = earlier.slice(0, Math.max(0, visible));
+  return { shown, remaining: earlier.length - shown.length };
 }
 
 export function reviewLabel(gate: 1 | 2 | null): string {

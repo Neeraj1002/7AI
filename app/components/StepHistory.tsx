@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { color, font, radius, space } from '../lib/theme';
-import type { HistoryAttempt, HistoryStep } from '../lib/run-view';
+import type { AttemptTone, HistoryAttempt, HistoryStep } from '../lib/run-view';
+import { formatMoney, stageCostText } from '../lib/run-cost';
 
 function clock(d: Date | null): string {
   return d ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
@@ -9,20 +10,43 @@ function clock(d: Date | null): string {
 
 const DOT: Record<HistoryStep['state'], { bg: string; glyph: string }> = {
   done: { bg: color.okText, glyph: '✓' },
-  current: { bg: color.accent, glyph: '!' },
+  current: { bg: color.amber, glyph: '!' },
   failed: { bg: color.danger, glyph: '✕' },
   future: { bg: color.future, glyph: '' },
 };
 
+// Green only for an attempt that passed; a failed review is amber, an error red (Sprint 5 Task 7 R5).
+const TONE: Record<AttemptTone, string> = { ok: color.okText, warn: color.warnText, fail: color.danger, muted: color.muted };
+
 function Attempt({ attempt }: { attempt: HistoryAttempt }) {
   const [raw, setRaw] = useState(false);
+  const [costOpen, setCostOpen] = useState(false);
+  const cost = attempt.cost;
   return (
     <View style={styles.attempt}>
       <View style={styles.line}>
-        <Text style={[styles.attemptTitle, { color: attempt.failed ? color.danger : color.okText }]}>{attempt.title}</Text>
+        <Text style={[styles.attemptTitle, { color: TONE[attempt.tone] }]}>{attempt.title}</Text>
         <Text style={styles.when}>{clock(attempt.when)}</Text>
       </View>
       {attempt.why ? <Text style={styles.note}>{attempt.why}</Text> : null}
+      {cost ? (
+        <>
+          <Pressable onPress={() => setCostOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: costOpen }} style={styles.techLink}>
+            <Text style={styles.link}>
+              Cost {formatMoney(cost.totalUsd)}
+              {cost.stages.length > 0 ? (costOpen ? '  ▴' : '  ▾') : ''}
+            </Text>
+          </Pressable>
+          {costOpen
+            ? cost.stages.map((st) => (
+                <View key={st.name} style={styles.costRow}>
+                  <Text style={styles.note}>{st.name}</Text>
+                  <Text style={[styles.note, st.failed && styles.noteFailed]}>{stageCostText(st)}</Text>
+                </View>
+              ))
+            : null}
+        </>
+      ) : null}
       {attempt.raw ? (
         <>
           <Pressable onPress={() => setRaw((v) => !v)} accessibilityRole="button" style={styles.techLink}>
@@ -62,7 +86,7 @@ function Step({ step, last }: { step: HistoryStep; last: boolean }) {
             >
               <View style={styles.pill}>
                 <Text style={styles.pillText}>
-                  {step.attempts.length} attempts {open ? '▲' : '▼'}
+                  {step.attempts.length} {step.attempts.length === 1 ? 'attempt' : 'attempts'} {open ? '▲' : '▼'}
                 </Text>
               </View>
             </Pressable>
@@ -81,7 +105,16 @@ function Step({ step, last }: { step: HistoryStep; last: boolean }) {
 }
 
 // Step history (NEXT 1 Run board): one row per step, the attempts of a step grouped behind an "{n} attempts" pill.
-export function StepHistory({ steps, summary }: { steps: HistoryStep[]; summary: string }) {
+export function StepHistory({
+  steps,
+  summary,
+  notes,
+}: {
+  steps: HistoryStep[];
+  summary: string;
+  /** Lines that belong to the whole run, e.g. "Switched to AI stills after stock footage failed review". */
+  notes?: string[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <View>
@@ -95,6 +128,11 @@ export function StepHistory({ steps, summary }: { steps: HistoryStep[]; summary:
         <View style={styles.list}>
           {steps.map((s, i) => (
             <Step key={s.key} step={s} last={i === steps.length - 1} />
+          ))}
+          {notes?.map((n) => (
+            <Text key={n} style={styles.note}>
+              {n}
+            </Text>
           ))}
         </View>
       ) : null}
@@ -127,6 +165,8 @@ const styles = StyleSheet.create({
   when: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   note: { fontFamily: font.regular, fontSize: 12, lineHeight: 17, color: color.muted },
   noteWarn: { color: color.warnText },
+  noteFailed: { color: color.danger },
+  costRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm, paddingLeft: space.sm },
   pillHit: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   pill: { height: 28, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: color.warnBg, justifyContent: 'center' },
   pillText: { fontFamily: font.black, fontSize: 12, color: color.warnText },

@@ -45,3 +45,47 @@ Narration, transcript, captions, unaffected image identities and unaffected chap
 The Task 5 implementation accepts at most one reviewer defect with a scene ID and timestamp that match a sampled frame in Task 3's scene map. It requires a completed long AI-stills baseline, Task 4's matching factual fingerprint, unchanged resolved voice/render/frame plan, intact approved local assets and a fresh review of that baseline. Eligible repair persists an intent in the next video-stage input and an atomic local receipt before replacement; a checkpointed replacement is validated and reused after restart. Task 3's image-byte chapter signature rebuilds only the selected chapter, then the final and preview are regenerated. If eligibility fails, the existing bounded full-generation path runs with an explicit unavailability reason in stage input. A repaired output must pass its own video review and matching Gate 2 approval before publishing; old approval paths are refused. The local synthetic trial proves mechanics, not production creative benefit or full release acceptance.
 
 The first experiment changes one recurring-subject scene for visual continuity. Baseline and variant keep narration, script, music, timing, export profile and other visuals fixed. A paired rendered comparison plus asset/call counts determines whether improvement is supported. Technical correctness is a gate; human editorial assessment is separate. An inconclusive or worse result is a valid experiment outcome, not permission to add more modalities/models/settings.
+
+
+## Task 8: acceptance-run fixes (backend)
+
+**Preflight (before spend).** `preflightGate` runs at the start of intake, before video generation and before publishing. A failed check parks the run in Needs attention with a plain message naming the setting, writes **no stage row** (so the attempt count and the two regenerations are untouched), and records `creationOptions.preflightBlock`. A Retry that passes clears it; a Retry after a block is free of the manual retry limit. `PREFLIGHT_DISABLED=1` turns it off (tests, stubbed dry runs).
+
+| Check | Stage(s) | Setting to change | Where it was validated before |
+|---|---|---|---|
+| Voice is known and its speech model accepts it | intake, video generation | Voice | at run create (name only), then the provider's 400 after money was spent (E1) |
+| Anthropic and OpenAI accept a paid call (1-token / 1-character probe, cached 10 min on success) | intake (Anthropic), video generation (OpenAI, Anthropic) | Provider account limit or API key | never; found at review (E4) |
+| The chosen music mood exists and has licensed tracks present on disk (the bed loops, so a short track is not an error) | video generation | Music | at the first ffmpeg step |
+| YouTube is connected and not flagged for reconnect | intake, publishing | YouTube connection | at upload |
+| The next step fits the per-video spend limit | intake, video generation (long-form) | Spend limit | after the call that passed it |
+| Scene plan against the shot-length limit | inside video generation, before pictures (R3) | none: repaired automatically | after the render, at Video Review |
+
+**Error classes.** `provider_capacity` (workspace limit, 400 "credit balance is too low", OpenAI `insufficient_quota`), `rate_limit_exhausted`, `provider_auth` (401/403), `spend_limit` (our own limit), transient network (retried), and content or quality failures. The first four leave a `recovery` record on the failed stage with the provider's own message; the run waits in Needs attention, keeps everything made so far, uses no regeneration, and Retry reruns only the blocked step (for Video Review: the review of the existing file). Only content and quality failures count as a failed review and may regenerate.
+
+**Retry allowance (D1).** Automatic regeneration may spend up to 2 x the estimate (`creationOptions.retryAllowanceUsd`; default spend limit is the allowance rounded up to $0.50). When a failed review would start another attempt and the spend has reached the allowance, the run pauses ("Automatic retry allowance used: ...") instead; Retry lifts the allowance to the spend limit. The spend limit itself is checked before a picture that would pass it.
+
+**Review failure does not rebuild the video.** The scene timeline is built from the plan and the narration timing before any picture; scenes over the shot limit are retimed (free) and a chapter with too few scenes gets exactly the missing scenes. A Video Review failure with reason code `shot_length` or `narration_gap` reuses the previous plan, so every picture and narration chunk comes from the run's cache. Other failures plan again as before.
+
+**Pictures.** Every picture prompt carries the no-marks rule (no text, logos, brand names, invented figures, branded packaging, or unstated decay imagery) unless the brief itself asks for logos or on-screen text. Each picture is checked once before the render on the cheap vision tier (about $0.012 per 2-minute video); a failing picture is made again once, a second failure is flagged (`flaggedStills`) for Video Review and Gate 2, never looped on.
+
+**Attempt outcomes and cost.** `runs.get` returns `stageSummaries` (outcome, reason, cost per stage row), `videoAttempts` (per video attempt: `completed`, `failed_review` with reason code and text, `blocked`, `failed_error`, `cancelled`, `running`) and `cost` (`attemptsUsd + otherStagesUsd + unattributedUsd = spentUsd`).
+
+**Length.** The script word count is planned from the narrating voice's measured pace (latest finished video with that voice; 155 words per minute without one). `forecastLength` judges the approved text against the target (10% tolerance, floor 80%).
+
+**Publishing metadata.** Figures in the generated title, description and tags must appear in the approved script or the brief, and a figure the script hedges keeps a hedge; one regeneration, then the publish is held back.
+
+**Changing settings while a run waits (R13).** `runs.updateSettings` is allowed in Needs attention and at either gate. Voice, music and pictures can change until the video is made; after that the server refuses with the way forward (Revise at Gate 2). YouTube visibility can change until the video is on YouTube (only private when Gate 2 is off); max spend always, through the same rule as Retry. The new options are validated with run creation's messages and the preflight, then written once, together with the Retry when asked. Visibility lives in `creationOptions.privacyStatus` (Gate 2 writes its own choice there); every change is kept in `creationOptions.settingsChanges`.
+
+## Chapter bounds (bug fix: BUGS_CHAPTER_BOUNDS)
+
+One module, `studio/src/long-form/chapter-bounds.ts`, owns the chapter rules for long-form videos. The script prompt, the reply check, the repair message, the Gate 1 edit sheet, Script Review's pace and the YouTube chapter list all read it, so no two of them can disagree.
+
+**What sets the chapter count.** A brief that lists its chapter titles ("seven chapters, titles exactly: ...") sets the count: exactly that many, and the prompt tells the model the count and the titles. With no titles, the default for the length applies (about one chapter per 2.5 minutes, never fewer than 3: 2 minutes 3, 10 minutes 4, 15 minutes 6) and any count from 3 to the ceiling is accepted.
+
+**Limits.** Floor 3 chapters. Ceiling 20, or fewer when the video is too short to give every chapter 10 seconds (2 minutes: 12). Every chapter needs at least 10 seconds of narration, which is 26 words at 155 words per minute (YouTube's own chapter rule is 10 seconds; 25 words would be 9.7 seconds). A Gate 1 edit follows the same limits for the run's length; it is not bound to the brief's exact count.
+
+**Intake check (long-form only, before any spend).** `runs.create` and `runs.rerun` read the brief's titles, word budgets ("word budget by chapter: ..." or "Chapter N: about 120 words") and fact allocations ("chapter allocation: ..." or "Chapter N uses ..."). A list that is absent is fine. When two lists that are present disagree, or the count does not fit the length, or a word budget is under the 10-second minimum, the run is refused with a plain sentence, for example "The brief has 8 titles but 7 word budgets." An average chapter under 40 seconds is only a warning, stored in `creationOptions.intakeWarnings` (existing run JSON, no schema change). Per-chapter word budgets are checked for count only, not enforced against the text.
+
+**A stated word count wins.** When the brief states a length in words ("Constraint: about 1,500 words for a 10 minute video"), that number is the script target and the length check uses it (accepted without repair within 10%, flagged beyond 20%) instead of minutes x words per minute. Without one, the derived target applies (the narrating voice's measured pace, else 155). Intake warns when the stated count differs from the derived target by more than 20%.
+
+**Repair.** A reply with the wrong chapter structure gets one retry that names the count it returned and the allowed range ("has 9 chapters, but this video needs exactly 7").

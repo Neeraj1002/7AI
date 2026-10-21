@@ -25,7 +25,7 @@ const execFileAsync = promisify(execFile);
 
 export type { PublishingMetadata, UploadParams, UploadResult, PrivacyStatus } from './types';
 export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
-export { subtitlesFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
+export { subtitlesFailureMessage, thumbnailFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
 
 const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags, and cover
 frame) from a sanctioned script and its hashtags — platform-specific optimization, not creative
@@ -63,14 +63,14 @@ frame for the cover: a clear visual, not the first or last ~5%.
 Respond with raw JSON only - no markdown code fences, no commentary.`;
 
 export async function generatePublishingMetadata(
-  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long' } & PackagingParams,
+  params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long'; fixNotes?: string } & PackagingParams,
 ): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {
   const llm = await callLLM({
     purpose: 'metadata-generation',
     system: params.videoKind === 'long' ? LONG_FORM_SYSTEM_PROMPT : SYSTEM_PROMPT,
     // Sprint 4 Task 5 (R17): packaging guidance is appended only when the channel
     // set it; with none, this is exactly the old message.
-    messages: [{ role: 'user', content: buildMetadataUserMessage(params) }],
+    messages: [{ role: 'user', content: buildMetadataUserMessage(params) + (params.fixNotes ? `\n\nThe previous title, description or tags were rejected: ${params.fixNotes} Rewrite them so every figure matches the script exactly, including its hedge words.` : '') }],
   });
 
   let parsedJson: unknown;

@@ -7,6 +7,7 @@ import {
   parseFrameRate,
   parseSceneCutTimes,
   summarizeShots,
+  shotsFromPlan,
 } from './quality-metrics';
 import type { QualityMetrics } from '../video-generation/quality-spec';
 import { formatGate2Message } from '../gate2';
@@ -117,5 +118,15 @@ describe('Gate 2 message shows the numbers', () => {
     const msg = formatGate2Message({ channelName: 'Ch', verdict: 'pass', rationale: 'ok' });
     expect(msg).not.toContain('Quality:');
     expect(formatQualityMetrics(good)).toContain('captions detected');
+  });
+});
+
+describe('shotsFromPlan (Sprint 5 Task 8, R3)', () => {
+  it('reads the longest shot and the shot count from the rendered scene lengths', () => {
+    expect(shotsFromPlan([4.62, 5.6, 6.4, 3.26])).toEqual({ longestShotSeconds: 6.4, shotCount: 4 });
+  });
+  it('replays the real 19 Oct run: every scene is inside the 7.5 s limit, so two look-alike stills are not one 10.4 s shot', () => {
+    const planned = [4.62, 5.6, 4.9, 5.7, 4.46, 4.82, 5.5, 6.36, 3.26, 5.56, 4.82, 4.62, 4.42, 6.03, 4.72, 4.64, 4.34, 5.54, 6.16, 5.6, 5.78, 4.08, 4.86, 6.4];
+    expect(shotsFromPlan(planned).longestShotSeconds).toBeLessThanOrEqual(7.5);
   });
 });

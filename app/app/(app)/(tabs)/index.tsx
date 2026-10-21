@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -10,8 +10,10 @@ import { Card } from '../../../components/Card';
 import { StatusChip } from '../../../components/StatusChip';
 import { SecondaryButton } from '../../../components/Buttons';
 import { endedChip, humanizeRunError, queueChip, relativeTime, runTopic, startedLabel, statusLabel, stepperIndexForStage, STEPPER_STEPS } from '../../../lib/run-labels';
-import { ENDED_STATUSES, QUEUE_POLL_MS, QUEUE_STATUSES } from '../../../lib/run-queries';
-import { filterRuns, matchesStatusFilter, STATUS_FILTERS, type StatusFilter } from '../../../lib/queue-filter';
+import { QUEUE_POLL_MS } from '../../../lib/run-queries';
+import { useRunLists } from '../../../lib/use-run-lists';
+import { emptyRecentMessage, filterRuns, matchesStatusFilter, STATUS_FILTERS, type StatusFilter } from '../../../lib/queue-filter';
+import { ChipRow } from '../../../components/ChipRow';
 import { channelDotColor, color, font, radius, space, type } from '../../../lib/theme';
 import { VideoChip } from '../../../components/VideoChip';
 import { imageStageFraction, imageStageLine } from '../../../lib/long-video';
@@ -38,24 +40,21 @@ function stageLabelFor(stage: string | null): string {
 // channels so nothing is missed because a picker points elsewhere. The channel filter and the
 // search only narrow the runs already loaded; neither calls the backend.
 export default function QueueScreen() {
-  const trpc = useTRPC();
   const { channels, channelById, channelIndex } = useChannels();
   const channelDot = (channelId: string) => {
     const idx = channelIndex(channelId);
     return idx >= 0 ? channelDotColor(idx) : color.future;
   };
-  const { data, isLoading, isFetching, refetch } = useQuery(
-    // Bugs Task 7 (R4) — a freshly started run only lands here once it reaches
-    // Gate 1 (seconds to minutes later), and nothing refetched in the meantime.
-    // Same input as the Inbox, so both screens share one cache entry.
-    trpc.runs.list.queryOptions({ statuses: [...QUEUE_STATUSES] }, { refetchInterval: QUEUE_POLL_MS }),
-  );
-  // Ended runs feed "Recent runs" and the full Ended runs list (shared with the Inbox).
-  const ended = useQuery(trpc.runs.list.queryOptions({ statuses: [...ENDED_STATUSES] }));
+  // Bugs Task 7 (R4) — a freshly started run only lands here once it reaches Gate 1 (seconds to minutes later), so the
+  // active list polls. Same inputs as the Inbox, so both screens share one cache entry; ended runs feed "Recent runs"
+  // and the full Ended runs list.
+  const { active, ended } = useRunLists();
+  const { data, isLoading, isFetching, refetch } = active;
 
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string | null>(null);
+  const selectedChannel = channelFilter ? channelById(channelFilter) : undefined;
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [showAll, setShowAll] = useState(false);
   const [endedShown, setEndedShown] = useState(ENDED_PAGE_SIZE);
@@ -138,18 +137,19 @@ export default function QueueScreen() {
         ) : null}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll} keyboardShouldPersistTaps="handled">
-        <FilterChip label="All channels" active={channelFilter === null} onPress={() => setChannelFilter(null)} />
-        {channels.map((c) => (
-          <FilterChip key={c.id} label={c.name} active={channelFilter === c.id} onPress={() => setChannelFilter(c.id)} />
-        ))}
-      </ScrollView>
-
+      {/* R10.1: the banner sits above the filters, and no filter below changes anything above it. */}
       {nothingToDo && !isLoading && !searching ? (
         <View style={styles.allClear}>
           <Text style={styles.allClearText}>✓ Nothing waiting on you · nothing in progress</Text>
         </View>
       ) : null}
+
+      <ChipRow>
+        <FilterChip label="All channels" active={channelFilter === null} onPress={() => setChannelFilter(null)} />
+        {channels.map((c) => (
+          <FilterChip key={c.id} label={c.name} active={channelFilter === c.id} onPress={() => setChannelFilter(c.id)} />
+        ))}
+      </ChipRow>
 
       {noMatches ? (
         <View style={styles.empty}>
@@ -234,15 +234,35 @@ export default function QueueScreen() {
       {!noMatches ? (
         <View style={styles.recent}>
           <Text style={styles.sectionTitle}>Recent runs</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll} keyboardShouldPersistTaps="handled">
+          <ChipRow>
             {STATUS_FILTERS.map((s) => (
               <FilterChip key={s} label={s} active={statusFilter === s} onPress={() => setStatusFilter(s)} />
             ))}
-          </ScrollView>
+          </ChipRow>
+          {/* R10.4: a channel picked above narrows this list too, so say so, with the way back. */}
+          {selectedChannel ? (
+            <View style={styles.scopeLine}>
+              <Text style={styles.meta} numberOfLines={1}>
+                Showing {selectedChannel.name} only
+              </Text>
+              <Pressable onPress={() => setChannelFilter(null)} accessibilityRole="button" hitSlop={8} style={styles.scopeLink}>
+                <Text style={styles.seeAllText}>Show all channels</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {ended.isLoading ? (
             <Text style={styles.meta}>Loading…</Text>
           ) : recentRows.length === 0 ? (
-            <Text style={styles.meta}>{endedRows.length === 0 ? 'No ended runs yet.' : 'No runs to show here.'}</Text>
+            <View style={styles.scopeLine}>
+              <Text style={[styles.meta, styles.emptyLine]}>
+                {emptyRecentMessage({ statusFilter, channelName: selectedChannel?.name ?? null, endedCount: endedRows.length, searching })}
+              </Text>
+              {selectedChannel && endedRows.length > 0 ? (
+                <Pressable onPress={() => setChannelFilter(null)} accessibilityRole="button" hitSlop={8} style={styles.scopeLink}>
+                  <Text style={styles.seeAllText}>Show all channels</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : (
             <View>
               {recentRows.map((run) => {
@@ -332,6 +352,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
       accessibilityState={{ selected: active }}
       style={[styles.chip, active && styles.chipActive]}
     >
+      {active ? <Feather name="check" size={13} color={color.onAccent} style={styles.chipCheck} /> : null}
       <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
         {label}
       </Text>
@@ -341,7 +362,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 
 const styles = StyleSheet.create({
   // U2: the button's height plus its bottom margin plus breathing room, so the last card is never covered.
-  list: { paddingHorizontal: space.lg, paddingBottom: FAB_HEIGHT + space.lg + 48, gap: 10 },
+  list: { paddingHorizontal: space.lg, paddingBottom: FAB_HEIGHT + space.lg + 72, gap: 10 },
   searchBox: {
     minHeight: 44,
     flexDirection: 'row',
@@ -353,8 +374,11 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, minHeight: 44, fontFamily: font.regular, fontSize: 15, color: color.ink, padding: 0 },
   clearX: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
-  chipScroll: { gap: 8, paddingVertical: 6 },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: color.future },
+  scopeLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
+  scopeLink: { minHeight: 32, justifyContent: 'center' },
+  emptyLine: { flexShrink: 1 },
+  chip: { height: 32, paddingHorizontal: 12, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: color.future },
+  chipCheck: { marginRight: 4 },
   chipActive: { backgroundColor: color.ink, borderColor: color.ink },
   chipText: { fontFamily: font.semibold, fontSize: 13, color: color.ink },
   chipTextActive: { fontFamily: font.black, color: color.onAccent },

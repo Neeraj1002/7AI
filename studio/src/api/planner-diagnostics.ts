@@ -19,7 +19,7 @@ export const diagnosticLabel = (v: unknown): string | null =>
   typeof v === 'string' && v.length <= 100 && /^[a-z0-9][a-z0-9._:/-]*$/i.test(v) && !/token|secret|session|sk-|https?:/i.test(v) ? v : null;
 const choice = (v: unknown, choices: readonly string[]): string | null => typeof v === 'string' && choices.includes(v) ? v : null;
 export const STOP_REASONS = ['stop', 'length', 'unknown', 'end_turn', 'max_tokens', 'tool_use', 'content_filter'] as const;
-export const FAILURE_KINDS = ['spend_limit', 'provider_capacity', 'rate_limit_exhausted', 'output_token_exhaustion', 'count_mismatch', 'scene_anchor_mismatch', 'schema_violation', 'malformed_json', 'duplicate_scene_id'] as const;
+export const FAILURE_KINDS = ['spend_limit', 'provider_capacity', 'rate_limit_exhausted', 'provider_auth', 'output_token_exhaustion', 'count_mismatch', 'scene_anchor_mismatch', 'schema_violation', 'malformed_json', 'duplicate_scene_id'] as const;
 
 // Error text may quote rejected content, chapter titles, secrets or provider bodies.
 // Keep only diagnostics reconstructed from known grammar; never forward arbitrary text.

@@ -28,3 +28,12 @@ export function matchesStatusFilter(run: { status: string; lastError?: string | 
   const label = endedChip(run).label;
   return label === filter;
 }
+
+/** Words for the empty "Recent runs" list: it says which filter hides the runs, so an empty list is never a mystery. */
+export function emptyRecentMessage(args: { statusFilter: StatusFilter; channelName: string | null; endedCount: number; searching: boolean }): string {
+  const { statusFilter, channelName, endedCount, searching } = args;
+  if (endedCount === 0) return 'No ended runs yet.';
+  const what = statusFilter === 'All' ? 'ended runs' : `${statusFilter.toLowerCase()} runs`;
+  const where = channelName ? ` in ${channelName}` : '';
+  return `No ${what}${where}${searching ? ' match your search' : ''}.`;
+}
