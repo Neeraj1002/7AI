@@ -90,8 +90,19 @@ function readWordBudgets(brief: string): number[] | null {
   return [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, words]) => words);
 }
 
+// "chapter allocation: chapter 1 uses facts 1 to 3. Chapter 2 uses 4 to 7 ... Chapter 7 restates ..." names
+// every chapter on one labelled line, whatever verb each uses. Without the label, only "Chapter N uses ..."
+// sentences count.
 function readFactAllocationCount(brief: string): number | null {
   const chapters = new Set<number>();
+  for (const line of brief.split(/\r?\n/)) {
+    const label = /\b(?:chapter|fact)s?\s+allocations?\s*:/i.exec(line);
+    if (!label) continue;
+    for (const m of line.slice(label.index + label[0].length).matchAll(/\bchapter\s+(\d+)\s+[a-z]+/gi)) {
+      chapters.add(Number(m[1]));
+    }
+    if (chapters.size > 0) return chapters.size;
+  }
   for (const m of brief.matchAll(/\bchapter\s+(\d+)\s+(?:uses|takes|draws on|gets)\s+(?:facts?\s+)?\d/gi)) {
     chapters.add(Number(m[1]));
   }

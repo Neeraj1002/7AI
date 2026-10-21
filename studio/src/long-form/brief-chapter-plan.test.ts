@@ -48,6 +48,15 @@ describe('parseBriefChapterPlan', () => {
     expect(plan.factAllocationCount).toBeNull();
   });
 
+  it('reads a labelled allocation line where a chapter uses a different verb, and "word budget by chapter"', () => {
+    const plan = parseBriefChapterPlan(
+      'Constraint: about 1,500 words for a 10 minute video; word budget by chapter: about 60, 125, 340, 375, 375, 175 and 50.\n' +
+        'Constraint: chapter allocation: chapter 1 uses facts 1 to 3. Chapter 2 uses 4 to 7 and 9. Chapter 3 uses 10 to 17. Chapter 4 uses 18 to 24. Chapter 5 uses 25 to 32 and may recall facts 12 and 19 in one sentence. Chapter 6 uses 33 to 35, 37, 38 and 39. Chapter 7 restates in one sentence which facts were documented.',
+    );
+    expect(plan.wordBudgets).toEqual([60, 125, 340, 375, 375, 175, 50]);
+    expect(plan.factAllocationCount).toBe(7);
+  });
+
   it('does not read "the first 100 words" as a chapter word budget', () => {
     expect(parseBriefChapterPlan('Chapter 1: the first 100 words build tension.').wordBudgets).toBeNull();
   });
