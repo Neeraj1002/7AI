@@ -4,6 +4,8 @@
 
 **Keep replies and tool output short: no step-by-step narration, read only the files you need, one-line status messages.**
 
+**Revision**: r2, 2026-10-19, addendum after the first PR #106 review (R4 backend now Task 8 R13).
+
 **Written**: 2026-10-18 by the architect chat, at the founder's request, from the founder's first combined acceptance run on his phone. **Status**: not started. **Priority**: P0 for R1 to R5; P1 for R6 to R8; P2 for the rest.
 
 **Objective**: close the app gaps the first real 2-minute Video run showed: an Inbox that stops at 7 or 8 runs, no cost on the Run screen, a Script tab that shows the wrong script, no way to change a setting on a failed run, wrong or unclear attempt labels, raw provider errors on the failure card, a script editor that is hard to use on a phone, and a voice picker with play buttons.
@@ -135,6 +137,17 @@ App type-check, lint, app tests; test the Inbox paging, the cost sums on a fixtu
 
 Merged PR(s); tests pass; A1 to A16 each marked; a new app build on the founder's phone shows the Inbox, cost and Edit settings working against the deployed backend.
 
+## Addendum r2 (2026-10-19, after the first review of PR #106)
+
+- **R4 backend**: the call you specified is now Task 8 R13 (`runs.updateSettings`, with per-stage rules on the server, validate-then-apply, a `retry` flag, the existing raise-spend-limit call reused, `settingsChanges` with `by`). Keep the stub and the "This server cannot change settings on a run yet" message until it is deployed. Align your sheet to R13's wording after Task 8 reports.
+- **R8**: may stay a follow-up (needs a signed share link or native file modules). Give the one-line reason in the report. It is not a merge blocker.
+- **Still required before the PR is marked ready**: the CI result of the latest push; the A1 to A16 status table in the report (fixed, waiting on Task 8 with the field named, or deferred with the reason); the screenshot list (attached or missing); the lines required by `TASK_TEMPLATE.md` Hard rules 5 to 7 at the top of the report; `main` pulled and the app tests re-run.
+- **Definition of Done, split in two**: code-complete (PR ready, tests and CI passing) is reported separately from "a new app build on the founder's phone shows the Inbox, cost and Edit settings against the deployed backend". The second needs the founder to start the app build and needs Task 8's pieces deployed. Report both statements separately.
+
 ## Links
 
 [Task 8, backend fixes](task8.md) · [Task 6, Script Review rules](task6.md) · [WORKFLOW](../WORKFLOW.md) · [Acceptance plan](../SPRINT4_5_ACCEPTANCE_PLAN.md) (once on `main`)
+
+## Revision log
+- r1, 2026-10-18: first issue.
+- r2, 2026-10-19: addendum (R4 backend moved to Task 8 R13, R8 deferral allowed, report requirements, Definition of Done split).
