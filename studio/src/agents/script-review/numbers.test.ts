@@ -37,3 +37,43 @@ it('the recorded case 4 legal maximum does not create a numeric hedge false flag
  const c=fixtures.evaluationCases.find(c=>c.caseId==='SR-case-4')!;
  expect(numericVerdicts(c.briefText,c.scriptText).violations).toEqual([]);
 });
+
+// A hedge covers a figure only when it sits next to it, not anywhere in the sentence (Addendum r5).
+const HEDGED_BRIEF = 'In 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars. Automatic elevators were invented around 1900. About 1.5 million office workers were stranded.';
+const dropped = (script: string) => numericVerdicts(HEDGED_BRIEF, script).violations;
+it.each([
+  ['How Lego Turned Around Its $220M Crisis', 'a verb particle is not a hedge on the figure'],
+  ['How Lego Turned Around Its $220 million Crisis', 'the spelled-out form Task 8 passes in'],
+  ['Around the same time, it lost $220 million.', 'a sentence-initial "Around" is far from the figure'],
+])('flags %s (%s)', script => {
+  expect(dropped(script).join(' ')).toContain('SR-8: dropped numeric hedge');
+});
+it.each([
+  'It lost roughly 220 million dollars.',
+  'It lost roughly $220M.',
+  'Automatic elevators were invented around 1900.',
+  'About 1.5 million office workers were stranded.',
+  'Almost a thousand workers were laid off, and the shortfall was about 1.4 billion Danish kroner.',
+])('still passes the hedged figure: %s', script => {
+  expect(dropped(script).filter(v => !v.includes('thousand'))).toEqual([]);
+});
+it('Task 8 Lego title, against Task 8 brief: unhedged "Turned Around Its $220M" is flagged, the hedged wording is not', () => {
+  const brief = 'in 2003 a shortfall of about 1.4 billion Danish kroner, roughly 220 million dollars; in 2005 it sold its four Legoland theme parks for 375 million euros';
+  expect(numericVerdicts(brief, 'How Lego Turned Around Its $220 million Crisis').violations[0]).toContain('SR-8');
+  expect(numericVerdicts(brief, 'How Lego Beat Its Roughly $220 million Crisis').violations).toEqual([]);
+});
+it('a hedge keeps its reach in the forms the fixtures use', () => {
+  expect(numericVerdicts('Estimates range from forty to sixty percent.', 'Estimates range from forty to sixty percent.').violations).toEqual([]);
+  expect(numericVerdicts('Wages were capped at three pence.', 'Wages were capped at three pence.').violations).toEqual([]);
+  expect(numericVerdicts('There were over a thousand goods.', 'There were over a thousand goods.').violations).toEqual([]);
+  expect(numericVerdicts('The limit was a maximum of eight denarii.', 'The limit was a maximum of eight denarii.').violations).toEqual([]);
+  expect(numericVerdicts('It cost about 1,200 to 1,500 crates.', 'It cost about 1,200 to 1,500 crates.').violations).toEqual([]);
+  // A hedge that names something else in the sentence does not cover the figure.
+  expect(numericVerdicts('It had a maximum of eight denarii.', 'It cost 8 denarii, about a third of a day.').violations[0]).toContain('SR-8');
+  expect(numericVerdicts('The Edict of Maximum Prices in 301 AD set limits.', 'In 301 AD it began.').violations).toEqual([]);
+});
+it('an attached magnitude suffix is one figure with its currency', () => {
+  expect(numberMentions('$220M').map(n => [n.value, n.unit])).toEqual([[220e6, 'USD']]);
+  expect(numberMentions('1.4bn and 90K and 2.5B').map(n => n.value)).toEqual([1.4e9, 9e4, 2.5e9]);
+  expect(numberMentions('a 12m run, 5 mm').map(n => n.value)).toEqual([5]); // lowercase unit letters are not magnitudes
+});
