@@ -2,9 +2,9 @@
 
 **Read `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` and `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** They define the branch, worktree, commit, report and review rules. This file states only what is specific to this task. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md` (either one) or any doc except your own report and the one doc named in R8.
 
-**Revision**: r1, 2026-10-21, written after the work started (the architect forgot to hand out a task doc; the agent's real findings and the founder's decisions are folded in).
+**Revision**: r2, 2026-10-21, R9 added (server sends the chapter bounds to the app); r1 was written after the work started (the architect forgot to hand out a task doc).
 
-**Written**: 2026-10-21 by the architect chat, at the founder's request. **Status**: code-complete on `BUGS_CHAPTER_BOUNDS` (worktree `D:\Study Material\7AI-BUGS_CHAPTER_BOUNDS`), not pushed, no PR yet. **Task doc**: `docs/execution/sprint5/bugs/tasks/chapter-bounds.md`. **Priority**: 1 (blocks every Cold Open long-form run and the combined test).
+**Written**: 2026-10-21 by the architect chat, at the founder's request. **Status**: R1 to R8 merged (PR #112, 21 Oct). R9 is a second small PR: new branch `BUGS_CHAPTER_BOUNDS_R9` off fresh `main` in the same worktree (`D:\Study Material\7AI-BUGS_CHAPTER_BOUNDS`). Do not run the Hard rule 8 closing until the R9 PR is merged. **Task doc**: `docs/execution/sprint5/bugs/tasks/chapter-bounds.md`. **Priority**: 1 (blocks every Cold Open long-form run and the combined test).
 
 **Git rules for this task**: template Hard rules 5 to 9 apply in full (task doc sync, pull `main` and docs-scope check before ready, who owns which doc, close after merge, same-cause sweep). The latest version of this file is in `D:\Study Material\7AI\docs\execution\sprint5\bugs\tasks\chapter-bounds.md`; copy it into your branch as a commit, never edit it. Report path: `docs/execution/sprint5/bugs/reports/chapter-bounds.md` (Sprint 5 bug folder, per the founder's 19 Oct decision; the protocol amendment is Sprint 6 plan item P8).
 
@@ -50,6 +50,13 @@ When the brief states a word count ("about 1,500 words"), the script target and 
 ## Real check (done: $0.1826 of $0.30)
 One live script generation on dev with the Mary Celeste brief: 7 chapters with the exact titles. Re-run only if R8 changes the target; ceiling $0.30 in total for the task.
 
+## R9 (BE) - Send the chapter bounds to the app (r2, founder decision 21 Oct)
+
+**Why**: the app must not copy the server's chapter rules (the same mistake in a new place). The Gate 1 edit sheet enforces 3 to 20 chapters and 26 words per chapter on the server, and the app only knows "at least 3" before Save. The Task 7 follow-up (`sprint5/tasks/task7-followup.md`, R3) reads this field.
+**Change** (read-only, computed from the run, no stored data): `runs.get` returns, for a long-form run, `chapterBounds: { min: number; max: number; minWordsPerChapter: number; exactCount: boolean }`, and `null` for a Short. The numbers come from `long-form/chapter-bounds.ts` for the run's length and brief (the same call the prompt, the reply check and `parseChapterSheet` use), so there is still one owner. `exactCount` is true when the brief lists its titles (then `min` equals `max`). Declare it in the `runs.get` output type. An older run whose brief cannot be read returns the length-based default, never an error.
+**Tests**: a Short returns `null`; a 10-minute run with no titles returns the default range; a run whose brief lists 7 titles returns 7, 7 and `exactCount: true`; a 2-minute run's ceiling is the length-based one; an old run returns a value without throwing; `runs.get` output for the existing fields is unchanged.
+**Rules**: no live LLM call and no spend in this requirement. Do not change schema, `runs.create` or intake. Do not touch `app/`. Hard rules 5 to 9 apply; the report gets an "R9" section and keeps the sweep section (list any other value the app might still mirror, for the Task 7 follow-up agent).
+
 ## NOT in this task
 Enforcing per-chapter word budgets (D5; P12). Choosing the default words-per-minute from the voice's measured pace (Task 8 R7 owns pace; a later item will make the script target follow it). Editing Sprint 4 docs. Any app change (list it for the Task 7 agent). Any schema change (stop and ask).
 
@@ -73,3 +80,4 @@ Draft PR opened, CI green on the final head, `main` pulled, docs scope clean (ta
 
 ## Revision log
 - r1, 2026-10-21: first issue, written after the work started; folds in the agent's R0 findings and founder decisions D1 to D5.
+- r2, 2026-10-21: R9 (the server sends `runs.get.chapterBounds`); #112 is merged, R9 ships as a second small PR; closing (Hard rule 8) waits for it.
