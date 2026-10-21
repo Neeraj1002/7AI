@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { synthesizeSpeech, transcribe, resolveMediaPurpose, type TranscriptSegment } from '../../media';
+import { synthesizeSpeech, transcribe, resolveMediaPurpose, voiceDirection, type TranscriptSegment } from '../../media';
 import { env } from '../../config/env';
 import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import type { ScriptChapter } from '../script-generation/long-form';
@@ -105,8 +105,9 @@ export async function probeAudioDurationSeconds(filePath: string): Promise<numbe
 
 type CachedChunk = { characterCount: number; ttsCostUsd: number; words: TranscriptSegment[]; transcriptionSeconds: number; transcriptionCostUsd: number };
 
+// The catalog direction is part of the key: editing a voice's direction changes how it sounds, so cached chunks must not be reused.
 function chunkKey(voice: string | undefined, ttsModel: string, text: string): string {
-  return crypto.createHash('sha256').update([voice ?? '', ttsModel, text].join('\u0000')).digest('hex').slice(0, 32);
+  return crypto.createHash('sha256').update([voice ?? '', ttsModel, voiceDirection(voice) ?? '', text].join('\u0000')).digest('hex').slice(0, 32);
 }
 
 async function withChunkRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {

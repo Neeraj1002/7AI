@@ -79,10 +79,28 @@ describe('provider-capacity classification and bounded backoff', () => {
       expect(getStageErrorContext(error)).toMatchObject({ providerErrorMessage: 'HTTP 429' });
     } finally { vi.useRealTimers(); }
   });
-  it.each([400, 401, 403, 422])('HTTP %i cannot acquire recovery permission from quota-like text', async (statusCode) => {
+  it.each([400, 422])('HTTP %i cannot acquire recovery permission from quota-like text', async (statusCode) => {
     mocks.generateText.mockRejectedValue(new APICallError({ message: 'workspace API usage limit', url: 'https://api.example.test', requestBodyValues: {}, statusCode }));
     const error = await withRetryAndCircuitBreaker(() => callProviderModel(base), { baseDelayMs: 0 }).catch((e: unknown) => e);
     expect(mocks.generateText).toHaveBeenCalledTimes(1);
     expect(recoverableFailureKind(error)).toBeUndefined();
+  });
+  // Sprint 5 Task 8 (R4): an account out of prepaid credit (400 "credit balance is too low", seen 19 Oct 2026) is a
+  // provider capacity limit, not a 400 defect; other 400s with quota-like wording still are not.
+  it('a 400 "credit balance is too low" is provider capacity and is not retried', async () => {
+    mocks.generateText.mockRejectedValue(new APICallError({ message: 'invalid_request_error', url: 'https://api.example.test', requestBodyValues: {}, statusCode: 400, responseBody: '{"error":{"message":"Your credit balance is too low to access the Anthropic API."}}' }));
+    const error = await withRetryAndCircuitBreaker(() => callProviderModel(base), { baseDelayMs: 0 }).catch((e: unknown) => e);
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(recoverableFailureKind(error)).toBe('provider_capacity');
+    expect(getStageErrorContext(error)).toMatchObject({ statusCode: 400, provider: 'anthropic' });
+  });
+
+  // Sprint 5 Task 8 (R4): a rejected key is its own class. It parks the run for a Retry once the key is fixed, and
+  // quota-like wording never turns it into a capacity limit.
+  it.each([401, 403])('HTTP %i is a rejected key (provider_auth), never a capacity limit, and is not retried', async (statusCode) => {
+    mocks.generateText.mockRejectedValue(new APICallError({ message: 'workspace API usage limit', url: 'https://api.example.test', requestBodyValues: {}, statusCode }));
+    const error = await withRetryAndCircuitBreaker(() => callProviderModel(base), { baseDelayMs: 0 }).catch((e: unknown) => e);
+    expect(mocks.generateText).toHaveBeenCalledTimes(1);
+    expect(recoverableFailureKind(error)).toBe('provider_auth');
   });
 });

@@ -37,15 +37,17 @@ export function countWords(text: string): number {
   return text.split(/\s+/).filter((w) => w.length > 0).length;
 }
 
-export function targetWordCount(targetSeconds: number): number {
-  return Math.round((targetSeconds / 60) * LONG_WORDS_PER_MINUTE);
+// `wordsPerMinute` is the narrating voice's measured pace (Sprint 5 Task 8, R7); the calibrated default when absent.
+export function targetWordCount(targetSeconds: number, wordsPerMinute = LONG_WORDS_PER_MINUTE): number {
+  return Math.round((targetSeconds / 60) * wordsPerMinute);
 }
 
 export function lengthRange(
   targetSeconds: number,
   tolerance = LONG_LENGTH_TOLERANCE,
+  wordsPerMinute = LONG_WORDS_PER_MINUTE,
 ): { min: number; max: number } {
-  const target = targetWordCount(targetSeconds);
+  const target = targetWordCount(targetSeconds, wordsPerMinute);
   return {
     min: Math.floor(target * (1 - tolerance)),
     max: Math.ceil(target * (1 + tolerance)),
@@ -56,16 +58,17 @@ export function isLengthInRange(
   wordCount: number,
   targetSeconds: number,
   tolerance = LONG_LENGTH_TOLERANCE,
+  wordsPerMinute = LONG_WORDS_PER_MINUTE,
 ): boolean {
-  const { min, max } = lengthRange(targetSeconds, tolerance);
+  const { min, max } = lengthRange(targetSeconds, tolerance, wordsPerMinute);
   return wordCount >= min && wordCount <= max;
 }
 
 // Distance from the target word count, as a fraction (0 = exact).
-export function lengthError(wordCount: number, targetSeconds: number): number {
+export function lengthError(wordCount: number, targetSeconds: number, wordsPerMinute = LONG_WORDS_PER_MINUTE): number {
   return (
-    Math.abs(wordCount - targetWordCount(targetSeconds)) /
-    targetWordCount(targetSeconds)
+    Math.abs(wordCount - targetWordCount(targetSeconds, wordsPerMinute)) /
+    targetWordCount(targetSeconds, wordsPerMinute)
   );
 }
 
@@ -138,9 +141,9 @@ Output Execution:
 Respond with raw JSON only. Do not wrap the response in markdown code blocks (\`\`\`json), and provide no pre-text or post-text commentary.`;
 }
 
-export function buildLongTargetLine(targetSeconds: number): string {
-  const { min, max } = lengthRange(targetSeconds);
-  return `Target length: about ${Math.round(targetSeconds / 60)} minutes when narrated aloud (${targetSeconds} seconds). Write around ${targetWordCount(targetSeconds)} words in total across all chapters (natural pace, about ${LONG_WORDS_PER_MINUTE} words per minute); keep it between ${min} and ${max} words (within 10% of the target); anything outside that is sent back for a rewrite.`;
+export function buildLongTargetLine(targetSeconds: number, wordsPerMinute = LONG_WORDS_PER_MINUTE): string {
+  const { min, max } = lengthRange(targetSeconds, LONG_LENGTH_TOLERANCE, wordsPerMinute);
+  return `Target length: about ${Math.round(targetSeconds / 60)} minutes when narrated aloud (${targetSeconds} seconds). Write around ${targetWordCount(targetSeconds, wordsPerMinute)} words in total across all chapters (natural pace, about ${Math.round(wordsPerMinute)} words per minute); keep it between ${min} and ${max} words (within 10% of the target); anything outside that is sent back for a rewrite.`;
 }
 
 // The one retry after an unusable reply, when the problem is the chapter structure: names what came
@@ -155,10 +158,11 @@ export function buildStructureRepairMessage(problem: string, bounds: ChapterBoun
 export function buildLengthRepairMessage(
   wordCount: number,
   targetSeconds: number,
+  wordsPerMinute = LONG_WORDS_PER_MINUTE,
 ): string {
-  const { min, max } = lengthRange(targetSeconds);
+  const { min, max } = lengthRange(targetSeconds, LONG_LENGTH_TOLERANCE, wordsPerMinute);
   const direction = wordCount > max ? "too long" : "too short";
-  return `Your script is ${wordCount} words, which is ${direction}. The target is about ${targetWordCount(targetSeconds)} words (allowed ${min} to ${max}) for ${Math.round(targetSeconds / 60)} minutes. Rewrite it to land inside that range, keeping the same structure and using only the same facts. Reply again with ONLY the corrected JSON object.`;
+  return `Your script is ${wordCount} words, which is ${direction}. The target is about ${targetWordCount(targetSeconds, wordsPerMinute)} words (allowed ${min} to ${max}) for ${Math.round(targetSeconds / 60)} minutes. Rewrite it to land inside that range, keeping the same structure and using only the same facts. Reply again with ONLY the corrected JSON object.`;
 }
 
 // ---- Gate 1 edit sheet -----------------------------------------------------------------------

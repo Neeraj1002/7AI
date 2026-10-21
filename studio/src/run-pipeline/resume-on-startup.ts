@@ -1,5 +1,5 @@
 import { listRunsByStatus, updatePipelineRun } from '../models/repositories/pipeline-run.repository';
-import { findLatestStageForRun } from '../models/repositories/pipeline-stage.repository';
+import { failInterruptedStages, failOrphanedRunningStages, findLatestStageForRun } from '../models/repositories/pipeline-stage.repository';
 import {
   runIntakeStage,
   runScriptGenerationStage,
@@ -84,6 +84,13 @@ function continueAfterResume(run: PipelineRun): void {
 }
 
 export async function resumeOnStartup(): Promise<void> {
+  // Sprint 5 Task 8 (R11.2): attempts left 'running' on runs that are not running any more are closed first.
+  try {
+    const closed = await failOrphanedRunningStages();
+    if (closed > 0) console.log(`[resume] closed ${closed} attempt row(s) left running by a restart on runs that had stopped`);
+  } catch (error) {
+    console.error('[resume] could not reconcile orphaned running attempts (boot continues):', error);
+  }
   await resumeRunningRuns();
   await reopenPausedGates();
 }
@@ -210,6 +217,10 @@ async function resumeOneRun(run: PipelineRun): Promise<void> {
     );
     const resumer = STAGE_RESUMERS[latestStage.stageName];
     if (resumer) {
+      // The re-run creates a new attempt; the interrupted one must not stay 'running' beside it. A gate keeps
+      // its row (the open gate is re-registered, not re-run).
+      await failInterruptedStages(run.id, `Interrupted by a server restart; resumed as a new attempt`, ['gate1', 'gate2']).catch((error) =>
+        console.error(`[resume] run ${run.id}: could not close the interrupted attempt row:`, error));
       resumeInBackground(run.id, resumer);
     } else {
       console.log(

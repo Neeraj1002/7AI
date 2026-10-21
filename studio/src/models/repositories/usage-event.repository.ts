@@ -103,3 +103,14 @@ export async function sumUsageCostForTenantChannelPlatform(
   });
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
 }
+
+// Sprint 5 Task 8 (R8.7): what a run spent, per stage row, from the same ledger sumUsageCostForRun reads.
+// The `null` key holds usage not tied to a stage row. The parts always add up to sumUsageCostForRun.
+export async function listUsageCostByStage(pipelineRunId: string): Promise<Map<string | null, number>> {
+  const rows = await prisma.usageEvent.groupBy({
+    by: ['stageId'],
+    where: { pipelineRunId },
+    _sum: { costUsd: true },
+  });
+  return new Map(rows.map((r) => [r.stageId ?? null, r._sum.costUsd ? Number(r._sum.costUsd) : 0]));
+}

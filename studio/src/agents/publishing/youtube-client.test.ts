@@ -158,3 +158,20 @@ describe('setThumbnailViaProvider (Sprint 2 Task 5, H1 — custom cover frame)',
     ).rejects.toBeInstanceOf(TransientStageError);
   });
 });
+
+describe('thumbnailFailureMessage (Sprint 5 Task 8, R11.5)', () => {
+  const wrapped = (status: number) => Object.assign(new Error('YouTube request failed ambiguously'), { cause: { response: { status } } });
+  it('names the real cause of a 403: the channel needs phone verification', async () => {
+    const { thumbnailFailureMessage, THUMBNAIL_UNVERIFIED_MESSAGE } = await import('./youtube-client');
+    expect(thumbnailFailureMessage(wrapped(403))).toBe(THUMBNAIL_UNVERIFIED_MESSAGE);
+    expect(THUMBNAIL_UNVERIFIED_MESSAGE).toMatch(/phone verification/);
+    expect(thumbnailFailureMessage({ response: { status: 403 } })).toBe(THUMBNAIL_UNVERIFIED_MESSAGE);
+  });
+  it('401 asks for a reconnect, anything else says set it by hand', async () => {
+    const { thumbnailFailureMessage, THUMBNAIL_RECONNECT_MESSAGE, THUMBNAIL_FAILED_MESSAGE } = await import('./youtube-client');
+    expect(thumbnailFailureMessage(wrapped(401))).toBe(THUMBNAIL_RECONNECT_MESSAGE);
+    expect(thumbnailFailureMessage(wrapped(500))).toBe(THUMBNAIL_FAILED_MESSAGE);
+    expect(thumbnailFailureMessage(new Error('socket hang up'))).toBe(THUMBNAIL_FAILED_MESSAGE);
+    expect(thumbnailFailureMessage(undefined)).toBe(THUMBNAIL_FAILED_MESSAGE);
+  });
+});

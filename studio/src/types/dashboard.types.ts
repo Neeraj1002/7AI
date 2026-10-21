@@ -64,6 +64,16 @@ export type QualityDashboard = {
 // comments proxy view, NOT a P&L (no ad-revenue data exists yet).
 export type ComparisonTotals = { views: number; likes: number; comments: number };
 
+// Sprint 5 Task 8 (R11.4): the watch numbers Sprint 4 Task 10 stores for long videos
+// (performance_snapshots.longFormMetrics). Averages are over the videos that have a measurement; null for
+// Shorts and for a group with none. Click-through is not here because the Analytics API offers none.
+export type LongFormWatch = {
+  videosMeasured: number;
+  avgViewDurationSec: number | null;
+  avgViewPercentage: number | null;
+  estimatedMinutesWatched: number;
+};
+
 export type ComparisonFormatRow = {
   formatKey: string | null; // null = every run submitted without a format (Freeform)
   // Sprint 4 Task 10 (R6): Shorts and long-form are never averaged together, so a Freeform group
@@ -72,6 +82,7 @@ export type ComparisonFormatRow = {
   videoCount: number;
   totals: ComparisonTotals;
   avgViewsPerVideo: number | null;
+  longFormWatch: LongFormWatch | null;
 };
 
 export type ChannelComparisonDashboard = {
@@ -82,7 +93,7 @@ export type ChannelComparisonDashboard = {
     totals: ComparisonTotals;
     // null when the channel has both kinds and no videoKind filter was sent (see byVideoKind).
     avgViewsPerVideo: number | null;
-    byVideoKind: { videoKind: 'short' | 'long'; videoCount: number; totals: ComparisonTotals; avgViewsPerVideo: number | null }[];
+    byVideoKind: { videoKind: 'short' | 'long'; videoCount: number; totals: ComparisonTotals; avgViewsPerVideo: number | null; longFormWatch: LongFormWatch | null }[];
     byFormat: ComparisonFormatRow[];
   }[];
 };

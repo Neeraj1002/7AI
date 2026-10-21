@@ -1,4 +1,5 @@
 import type { MediaProvider, MediaPurpose } from './types';
+import { VOICE_CATALOG, type VoiceCatalogEntry } from './voice-catalog.config';
 
 export type RegistryEntry = {
   provider: MediaProvider;
@@ -22,7 +23,7 @@ const NEWER_VOICES: ReadonlySet<string> = new Set(['ballad', 'verse', 'marin', '
 
 // Pass the voice to get the model that can actually speak it.
 export function resolveMediaPurpose(purpose: MediaPurpose, voice?: string | null): RegistryEntry {
-  if (purpose === 'tts' && voice && NEWER_VOICES.has(voice)) {
+  if (purpose === 'tts' && voice && NEWER_VOICES.has(providerVoiceFor(voice))) {
     return { provider: 'openai', model: TTS_NEWER_MODEL };
   }
   return MEDIA_REGISTRY[purpose];
@@ -36,29 +37,58 @@ export function assertSupportedVoice(voice: string | null | undefined): void {
   }
 }
 
-// Sprint 2 Task 1 (D1) — the preset voices OpenAI's TTS endpoint currently
-// offers, per the installed `openai` SDK's own `SpeechCreateParams.voice`
-// doc comment (node_modules/openai/resources/audio/speech.d.ts), not a
-// guessed list. `label` is what the app shows a human; the key is the exact
-// string OpenAI's API expects.
-export const TTS_VOICES = {
-  alloy: { label: 'Alloy' },
-  ash: { label: 'Ash' },
-  ballad: { label: 'Ballad' },
-  coral: { label: 'Coral' },
-  echo: { label: 'Echo' },
-  fable: { label: 'Fable' },
-  onyx: { label: 'Onyx' },
-  nova: { label: 'Nova' },
-  sage: { label: 'Sage' },
-  shimmer: { label: 'Shimmer' },
-  verse: { label: 'Verse' },
-  marin: { label: 'Marin' },
-  cedar: { label: 'Cedar' },
-} as const;
-export type TtsVoice = keyof typeof TTS_VOICES;
-// Zod's z.enum needs a non-empty tuple, not a plain string[] — this is that
-// tuple, derived once here so the API layer never hand-maintains its own copy.
+// Sprint 5 Task 8 (R10 Part B): the choosable voices come from the catalog (voice-catalog.config.ts), built and
+// validated here. Which model speaks a voice is NOT stored in the catalog: it is PR #104's mapping above
+// (resolveMediaPurpose), applied to the entry's provider voice, so there is one source for it. The 13 voices of
+// Sprint 2 Task 1 (D1) are the first catalog entries and keep their ids, so every stored setting still resolves.
+export type TtsVoiceEntry = {
+  label: string;
+  model: string;
+  providerVoiceId: string;
+  defaultDirection: string | null;
+  toneTags: string[];
+  licenceNote: string;
+  previews: { sad: string; hopeful: string } | null;
+};
+
+// The voices OpenAI offers (the nine tts-1-hd accepts plus the four newer ones). A catalog entry must name one.
+const OPENAI_PROVIDER_VOICES: ReadonlySet<string> = new Set([
+  'alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', ...NEWER_VOICES,
+]);
+
+// Pure and exported for tests. Throws on a duplicate id or an ENABLED entry that names a voice the provider does
+// not offer, or that carries a direction its model does not take. Disabled entries are not offered.
+export function buildVoiceTable(catalog: VoiceCatalogEntry[]): Record<string, TtsVoiceEntry> {
+  const table: Record<string, TtsVoiceEntry> = {};
+  const seen = new Set<string>();
+  for (const entry of catalog) {
+    if (seen.has(entry.id)) throw new Error(`Voice catalog: duplicate id '${entry.id}'`);
+    seen.add(entry.id);
+    if (!entry.enabled) continue;
+    if (!OPENAI_PROVIDER_VOICES.has(entry.providerVoiceId)) {
+      throw new Error(`Voice catalog: '${entry.id}' is enabled but OpenAI has no voice '${entry.providerVoiceId}'`);
+    }
+    const model = NEWER_VOICES.has(entry.providerVoiceId) ? TTS_NEWER_MODEL : MEDIA_REGISTRY.tts.model;
+    if (entry.defaultDirection && model !== TTS_NEWER_MODEL) {
+      throw new Error(`Voice catalog: '${entry.id}' has a direction but ${model} does not take one`);
+    }
+    table[entry.id] = {
+      label: entry.displayName,
+      model,
+      providerVoiceId: entry.providerVoiceId,
+      defaultDirection: entry.defaultDirection,
+      toneTags: entry.toneTags,
+      licenceNote: entry.licenceNote,
+      previews: entry.previews,
+    };
+  }
+  return table;
+}
+
+export const TTS_VOICES: Record<string, TtsVoiceEntry> = buildVoiceTable(VOICE_CATALOG);
+export type TtsVoice = string;
+// Zod's z.enum needs a non-empty tuple, not a plain string[]; derived once here so the API layer never
+// hand-maintains its own copy.
 export const TTS_VOICE_KEYS = Object.keys(TTS_VOICES) as [TtsVoice, ...TtsVoice[]];
 
 // Today's previously-hardcoded voice (client.ts used to inline `?? 'alloy'`
@@ -66,6 +96,18 @@ export const TTS_VOICE_KEYS = Object.keys(TTS_VOICES) as [TtsVoice, ...TtsVoice[
 // other DEFAULT_* constant this project already has (e.g. publishing/
 // types.ts's DEFAULT_PRIVACY_STATUS).
 export const DEFAULT_TTS_VOICE: TtsVoice = 'alloy';
+
+// The spoken-style direction a catalog voice is sent with, or null (only the newer model takes one).
+export function voiceDirection(voice: string | null | undefined): string | null {
+  return (voice && TTS_VOICES[voice]?.defaultDirection) || null;
+}
+
+// What the provider is asked to speak for a catalog id (an unknown id passes through unchanged).
+export function providerVoiceFor(voice: string): string;
+export function providerVoiceFor(voice: string | null | undefined): string | undefined;
+export function providerVoiceFor(voice: string | null | undefined): string | undefined {
+  return voice ? TTS_VOICES[voice]?.providerVoiceId ?? voice : undefined;
+}
 
 // The three-step "creation option resolution" rule this sprint establishes
 // (sprint2/BUSINESS_LOGIC.md) — explicit per-run override wins, else the

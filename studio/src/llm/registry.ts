@@ -60,7 +60,7 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   // The Storyteller: Handles narrative weight, dramatic loops, and pacing cues
   "script-generation": {
     provider: "anthropic",
-    model: "claude-sonnet-5",
+    model: "claude-sonnet-5-5",
     label: "Script Generation",
     maxOutputTokens: 16_000,
     reasoning: "off",
@@ -86,7 +86,7 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
   // hyper-realistic, dark, cinematic prompts for the video generation API.
   "video-production-planning": {
     provider: "anthropic",
-    model: "claude-sonnet-5",
+    model: "claude-sonnet-5-5",
     label: "Video Planning",
     maxOutputTokens: 16_000,
     reasoning: "off",

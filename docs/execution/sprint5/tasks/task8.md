@@ -4,6 +4,8 @@
 
 **Keep replies and tool output short: no step-by-step narration, read only the files you need, one-line status messages.**
 
+**Revision**: r2, 2026-10-19, added R13 (update run settings, from Task 7 R4) and a delivery order.
+
 **Written**: 2026-10-18 by the architect chat, at the founder's request, from the founder's first combined acceptance run. **Status**: not started. **Priority**: P0 for the next acceptance run and for the first public long video.
 
 **Objective**: fix everything the first real 2-minute Video run (Lego brief, channel Underdogs, run `7a90cd6e`, 18 Oct) showed on the backend: a setting that only fails after money is spent, a review failure that rebuilds the whole video, wrong attempt status, a brand logo in the pictures, a video 18% shorter than its target, and cost that is higher than the estimate and hard to read. Nothing here adds a new product feature except the voice list (R10), which is stop-and-confirm.
@@ -131,6 +133,21 @@ List every stage that uses `claude-sonnet-5` (script writing, script review, vid
 
 The Inbox in the app shows only 7 or 8 runs; it showed more before. Check the runs list endpoint: default limit, cursor or page handling, filters, sort, and whether a recent change lowered a limit. If the backend is the cause, fix it (paging with a cursor, total count) and tell Task 7 the contract. If the backend is correct, say so in one line and Task 7 R1 fixes the app. Test with more than 30 runs.
 
+## R13. Update run settings (added r2, 2026-10-19; from Task 7 R4)
+
+Task 7 R4 ("Edit settings" on a failed or waiting run) needs a backend call that no task covered. Contract draft: Task 7's report, R4 section and "Questions for the architect" (`docs/execution/sprint5/reports/task7.md`). Build it with these rules:
+
+1. **Call**: `runs.updateSettings({ runId, voice?, audioLayer?, visualSource?, privacyStatus?, maxCostUsd?, retry? })`. Allowed only when the run is `needs_attention`, `paused_gate1` or `paused_gate2`. Same role and tenant rules as `runs.retry` and the approval calls.
+2. **Per-stage rules on the server.** A table of which setting may change at which stage. A change that would invalidate finished work (for example a voice change after the narration is rendered) is rejected with a one-line reason the app shows as is. The app does not decide this.
+3. **Spend limit**: reuse the existing raise-spend-limit call for `maxCostUsd`. Do not add a second way to change it.
+4. **Validate first, then apply, all or nothing.** Re-run the preflight (R2) on the new settings and return the same messages as run creation. If a message blocks, nothing is saved. `retry: true` performs the retry in the same call, so the app does not make two calls that can race.
+5. **`privacyStatus`**: keep it in the existing JSON options (no migration; if you think a migration is needed, stop and ask). The publishing step must read the per-run value; today it resolves privacy from the channel default.
+6. **History**: `runs.get.settingsChanges[{ at, by, changes[{ label, from, to }] }]`, kept in existing storage (stage output or the options JSON). `by` is the user.
+7. **Tests**: each allowed and rejected state, a rejected stage rule, a blocked preflight that saves nothing, `retry: true`, tenant isolation, and the publish step reading the override.
+8. **Verify**: a real run stopped for a voice or limit problem, changed through the call, retried, and finished, with the history shown by `runs.get`.
+
+**Delivery order (r2)**: cost and attempt outcomes first (R8, R5), then the runs list and approved script (R12, R11.1), then R13, then the voice catalog (R10 Part B). Build the R1 and R10 voice work on top of the merged PR #104 mapping (`media/registry.ts`); do not rebuild it.
+
 ## Not in this task
 
 Script Review rules SR-1 to SR-9 (Task 6); making the music follow the story's emotion (product gap, deferred: one track plays under the whole video); a search-based fact check; ElevenLabs integration beyond the sample test; moving video; speech and transcription provider retirement dates (6 Jan and 26 Feb 2027); any app screen (Task 7); public publishing.
@@ -162,3 +179,7 @@ Merged PR(s); tests pass; E1 to E12 each marked; the replay shows the behaviours
 ## Links
 
 [Task 7, app gaps](task7.md) · [Task 6, Script Review rules](task6.md) · [Task 5 report](../reports/task5.md) · [WORKFLOW](../WORKFLOW.md) · [Acceptance plan](../SPRINT4_5_ACCEPTANCE_PLAN.md) (once on `main`)
+
+## Revision log
+- r1, 2026-10-18: first issue.
+- r2, 2026-10-19: added R13 and the delivery order; noted that R1 and R10 build on merged PR #104.
