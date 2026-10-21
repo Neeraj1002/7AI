@@ -3,10 +3,10 @@
 
 export type ChapterTiming = { title: string; startSec: number; endSec: number };
 
-// YouTube's own rules for automatic chapters: first stamp at 00:00, at least 3 chapters, each
-// at least 10 seconds long.
-export const MIN_CHAPTERS = 3;
-export const MIN_CHAPTER_SECONDS = 10;
+// YouTube's own rules for automatic chapters (first stamp at 00:00, at least 3 chapters, each at
+// least 10 seconds long) live in chapter-bounds.ts with the limits the script is written to.
+import { MIN_CHAPTERS, MIN_CHAPTER_SECONDS } from './chapter-bounds';
+export { MIN_CHAPTERS, MIN_CHAPTER_SECONDS };
 
 // m:ss, or h:mm:ss from one hour on.
 export function formatTimestamp(totalSeconds: number): string {

@@ -46,11 +46,19 @@ describe('length rule', () => {
 });
 
 describe('chapter structure rules', () => {
-  it('needs 3 to 6 chapters of at least 25 words', () => {
-    expect(validateChapters([chapter('a', 30), chapter('b', 30)])).toMatch(/expected 3 to 6/);
-    expect(validateChapters(Array.from({ length: 7 }, (_, i) => chapter(`c${i}`, 30)))).toMatch(/expected 3 to 6/);
+  it('needs the allowed number of chapters, each with at least 10 seconds of words', () => {
+    expect(validateChapters([chapter('a', 30), chapter('b', 30)])).toMatch(/has 2 chapters, but this video needs 3 to 20 chapters/);
+    expect(validateChapters(Array.from({ length: 7 }, (_, i) => chapter(`c${i}`, 30)))).toBeNull();
+    expect(validateChapters(Array.from({ length: 21 }, (_, i) => chapter(`c${i}`, 30)))).toMatch(/has 21 chapters/);
     expect(validateChapters([chapter('a', 30), chapter('b', 5), chapter('c', 30)])).toMatch(/chapter 2/);
     expect(validateChapters([chapter('a', 30), chapter('b', 30), chapter('c', 30)])).toBeNull();
+  });
+
+  it('parseChapterSheet applies the same bounds to a Gate 1 edit', () => {
+    const sheet = (n: number) => formatChapterSheet(Array.from({ length: n }, (_, i) => chapter(`c${i}`, 30)));
+    expect(parseChapterSheet(sheet(8), 600)).toMatchObject({ ok: true });
+    expect(parseChapterSheet(sheet(13), 120)).toMatchObject({ ok: false, message: expect.stringMatching(/has 13 chapters, but this video needs 3 to 12 chapters/) });
+    expect(parseChapterSheet(sheet(21), 900)).toMatchObject({ ok: false });
   });
 });
 
@@ -170,8 +178,52 @@ describe('generateScript (long)', () => {
   it('retries once on an unusable reply (too few chapters), then fails with the usual error', async () => {
     const twoChapters = JSON.stringify({ chapters: [chapter('One', 400), chapter('Two', 400)], hashtags: [] });
     mocks.callLLM.mockResolvedValueOnce(reply(twoChapters)).mockResolvedValueOnce(reply(twoChapters));
-    await expect(generateScript(params)).rejects.toThrow(/expected 3 to 6 chapters/);
+    await expect(generateScript(params)).rejects.toThrow(/has 2 chapters, but this video needs 3 to 20 chapters/);
     expect(mocks.callLLM).toHaveBeenCalledTimes(2);
+  });
+
+  describe('a brief that lists its chapter titles', () => {
+    const titles = ['An Imagined Morning', 'The Street and the Hearth', 'The Market and the Stones', 'The Traveller and the Beads', 'The Signs Nobody Can Read', 'What Came After', 'What We Know, and What I Made Up'];
+    const briefText = `Constraint: about 1,500 words for a 10 minute video.
+Constraint: seven chapters, titles exactly: ${titles.map((t) => `"${t}"`).join(', ')}. Each chapter opens with a question it answers.`;
+    const chapters = (n: number) => JSON.stringify({ chapters: Array.from({ length: n }, (_, i) => chapter(titles[i] ?? `Extra ${i}`, Math.round(1500 / n))), hashtags: ['a'] });
+
+    it('tells the model the exact count and titles, with no unfilled placeholders', async () => {
+      mocks.callLLM.mockResolvedValueOnce(reply(chapters(7)));
+      await generateScript({ ...params, briefText });
+      const system: string = mocks.callLLM.mock.calls[0][0].system;
+      expect(system).toContain('Write exactly 7 chapters');
+      expect(system).toContain('7. "What We Know, and What I Made Up"');
+      expect(system).toContain('at least 26 words');
+      expect(system).not.toMatch(/\{LONG_|\$\{/);
+    });
+
+    it('accepts the seven chapters the brief lists', async () => {
+      mocks.callLLM.mockResolvedValueOnce(reply(chapters(7)));
+      const { output, calls } = await generateScript({ ...params, briefText });
+      expect(calls).toHaveLength(1);
+      expect(output.chapters).toHaveLength(7);
+    });
+
+    it('sends back a reply with a different count, naming the count it returned and the allowed range', async () => {
+      mocks.callLLM.mockResolvedValueOnce(reply(chapters(9))).mockResolvedValueOnce(reply(chapters(7)));
+      const { output, calls } = await generateScript({ ...params, briefText });
+      expect(calls).toHaveLength(2);
+      const retry: string = mocks.callLLM.mock.calls[1][0].messages.at(-1).content;
+      expect(retry).toContain('has 9 chapters');
+      expect(retry).toContain('exactly 7');
+      expect(retry).toContain('1. "An Imagined Morning"');
+      expect(output.chapters).toHaveLength(7);
+    });
+  });
+
+  it('with no titles, lengths from 2 to 15 minutes accept the counts the length allows', async () => {
+    const of = (n: number) => JSON.stringify({ chapters: Array.from({ length: n }, (_, i) => chapter(`C${i}`, 40)), hashtags: [] });
+    mocks.callLLM.mockResolvedValue(reply(of(12)));
+    const { output } = await generateScript({ ...params, targetSeconds: 120 });
+    expect(output.chapters).toHaveLength(12);
+    const system: string = mocks.callLLM.mock.calls[0][0].system;
+    expect(system).toContain('between 3 and 12 chapters');
   });
 
   it('a Short never takes the long path or sends a chapters schema', async () => {

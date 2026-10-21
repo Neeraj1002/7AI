@@ -9,6 +9,7 @@ import {
   buildLengthRepairMessage,
   buildLongSystemPrompt,
   buildLongTargetLine,
+  buildStructureRepairMessage,
   countWords,
   isLengthInRange,
   lengthError,
@@ -18,6 +19,8 @@ import {
   validateChapters,
   type ScriptChapter,
 } from './long-form';
+import { chapterBoundsForBrief } from '../../long-form/brief-chapter-plan';
+import type { ChapterBounds } from '../../long-form/chapter-bounds';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
 // agent in the critical path: turns Intake's parsed brief into a script.
@@ -179,7 +182,9 @@ const REPLY_LOG_EDGE_CHARS = 300;
 const FEEDBACK_ERROR_CHARS = 500;
 const FEEDBACK_REPLY_CHARS = 8000;
 
-type ReplyFailure = { what: string; cause: unknown; parseError: string };
+// `retryMessage` is a ready-made retry instruction for a problem the generic wording cannot name
+// (the long-form chapter count: what came back and what is allowed).
+type ReplyFailure = { what: string; cause: unknown; parseError: string; retryMessage?: string };
 
 // Bugs Task 11 (R1) — run 248fae8a failed with only the first 200 characters
 // of the reply kept and the JSON.parse position error (on `cause`) never
@@ -268,6 +273,15 @@ function buildRetryRequest(
   failure: ReplyFailure,
   llm: LLMResponse,
 ): { messages: LLMMessage[] } {
+  if (failure.retryMessage) {
+    return {
+      messages: [
+        { role: 'user', content: userMessage },
+        { role: 'assistant', content: llm.text.slice(0, FEEDBACK_REPLY_CHARS) },
+        { role: 'user', content: failure.retryMessage },
+      ],
+    };
+  }
   const detail = failure.parseError.slice(0, FEEDBACK_ERROR_CHARS);
   const problem =
     failure.what === 'did not return valid JSON'
@@ -324,7 +338,7 @@ function createCaller(system: string, outputSchema: z.ZodType, calls: LLMRespons
 
 type ParsedLongReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
 
-function parseLongScriptReply(llm: LLMResponse): ParsedLongReply {
+function parseLongScriptReply(llm: LLMResponse, bounds: ChapterBounds): ParsedLongReply {
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(extractJsonObjectText(llm.text));
@@ -335,9 +349,18 @@ function parseLongScriptReply(llm: LLMResponse): ParsedLongReply {
   if (!result.success) {
     return { ok: false, failure: { what: 'output failed schema validation', cause: result.error, parseError: result.error.message } };
   }
-  const structureProblem = validateChapters(result.data.chapters);
+  const structureProblem = validateChapters(result.data.chapters, bounds, 'The reply');
   if (structureProblem) {
-    return { ok: false, failure: { what: 'output failed schema validation', cause: new Error(structureProblem), parseError: structureProblem } };
+    const toTheModel = validateChapters(result.data.chapters, bounds, 'Your previous reply') ?? structureProblem;
+    return {
+      ok: false,
+      failure: {
+        what: 'output failed schema validation',
+        cause: new Error(structureProblem),
+        parseError: structureProblem,
+        retryMessage: buildStructureRepairMessage(toTheModel, bounds),
+      },
+    };
   }
   const chapters: ScriptChapter[] = result.data.chapters.map((c) => ({ title: c.title.trim(), text: c.text.trim() }));
   // scriptText is the concatenation of the chapter texts; the SRT is built from the script
@@ -353,18 +376,20 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   const calls: LLMResponse[] = [];
   const targetSeconds = params.targetSeconds ?? params.targetDurationSec ?? 600;
   const userMessage = buildUserMessage(params);
-  const call = createCaller(buildLongSystemPrompt(Boolean(params.evidence)), LongScriptReplySchema, calls);
+  // A brief that lists its chapter titles sets the chapter count; otherwise the format's default applies.
+  const bounds = chapterBoundsForBrief(params.briefText, targetSeconds);
+  const call = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds), LongScriptReplySchema, calls);
 
   const first = await call([{ role: 'user', content: userMessage }]);
   let current: { llm: LLMResponse; output: ScriptGenerationOutput };
-  const firstParsed = parseLongScriptReply(first);
+  const firstParsed = parseLongScriptReply(first, bounds);
   if (firstParsed.ok) {
     current = { llm: first, output: firstParsed.output };
   } else {
     logReplyFailure(firstParsed.failure, first, 'long first call, retrying once');
     const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
     const second = await call(retryRequest.messages);
-    const secondParsed = parseLongScriptReply(second);
+    const secondParsed = parseLongScriptReply(second, bounds);
     if (!secondParsed.ok) {
       logReplyFailure(secondParsed.failure, second, 'long retry call, giving up');
       throw buildReplyError(secondParsed.failure, second, calls, { failure: firstParsed.failure, llm: first });
@@ -384,7 +409,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
     ];
     try {
       const repair = await call(repairMessages);
-      const repaired = parseLongScriptReply(repair);
+      const repaired = parseLongScriptReply(repair, bounds);
       if (repaired.ok) {
         const repairedWords = countWords(repaired.output.scriptText);
         if (lengthError(repairedWords, targetSeconds) < lengthError(words, targetSeconds)) {
