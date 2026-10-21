@@ -89,6 +89,8 @@ export const CONTENT_FORMATS: ContentFormat[] = [
     briefTemplate: 'The top 3 [things] related to [topic]...',
     scriptStructure: 'Exactly 3 items, most-to-least or least-to-most surprising.',
   },
+  // The chapter count is not stated here: the brief's titles set it, else chapter-bounds.ts's default
+  // for the length. A number here would contradict a brief that lists a different count.
   // Sprint 4 Task 9 (R1): the one generic long-form format. Channel-specific long
   // formats come later through the channel profile, not the platform manifest.
   {
@@ -98,7 +100,7 @@ export const CONTENT_FORMATS: ContentFormat[] = [
     targetSeconds: 600,
     briefTemplate: 'A full explainer on [topic], built from these facts and sources...',
     scriptStructure:
-      'About 4 chapters. Cold open in the first 20 to 40 seconds, each chapter opens with the question it answers, one or two open loops answered by a later chapter, and a closing line that points forward.',
+      'Cold open in the first 20 to 40 seconds, each chapter opens with the question it answers, one or two open loops answered by a later chapter, and a closing line that points forward.',
   },
 ];
 

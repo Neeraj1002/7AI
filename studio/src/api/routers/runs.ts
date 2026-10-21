@@ -56,6 +56,7 @@ import { LONG_WORDS_PER_MINUTE } from '../../agents/script-generation/long-form'
 import type { ChannelProfileData } from '../../channel-profile';
 import { readStillsProgress } from '../../run-pipeline/stills-progress';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
+import { checkBriefChapterPlan } from '../../long-form/brief-chapter-plan';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
@@ -667,6 +668,15 @@ export const runsRouter = router({
       if (!isLong && input.maxCostUsd !== undefined) {
         badRequest('A spend limit can only be set for a long video');
       }
+      // Bugs (chapter bounds): the brief's chapter titles, word budgets and fact allocations must agree and
+      // fit the video's length. Free, so it comes before the cost estimate and before anything is spent.
+      let intakeWarnings: string[] = [];
+      if (isLong) {
+        const chapterPlan = checkBriefChapterPlan(input.briefText, request.targetSeconds);
+        if (!chapterPlan.ok) badRequest(chapterPlan.message);
+        intakeWarnings = chapterPlan.warnings;
+        for (const warning of intakeWarnings) console.warn(`[runs.create] ${warning}`);
+      }
       let maxCostUsd: number | undefined;
       let storedEstimate: { estimateUsd: number; retryAllowanceUsd: number } | undefined;
       if (isLong) {
@@ -721,6 +731,7 @@ export const runsRouter = router({
         ...(storedEstimate && storedEstimate),
         ...(input.sources?.length && { sources: input.sources }),
         ...(input.formatKey && { formatKey: input.formatKey }),
+        ...(intakeWarnings.length > 0 && { intakeWarnings }),
         resolvedOptions,
       };
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
@@ -997,11 +1008,11 @@ export const runsRouter = router({
       await assertGateOwnership(input.runId, ctx);
 
       // Sprint 4 Task 9 (R2.5): a long script is edited as "## Title" chapter sections; refuse an edit
-      // that does not parse into at least 3 chapters before it reaches the pipeline.
+      // that does not parse into a valid chapter list (chapter-bounds.ts) before it reaches the pipeline.
       if (input.action === 'edit') {
         const editedRun = await findPipelineRunById(input.runId);
         if (editedRun?.creationOptions?.videoKind === 'long') {
-          const parsed = parseChapterSheet(input.editedScriptText);
+          const parsed = parseChapterSheet(input.editedScriptText, editedRun.creationOptions.targetDurationSec);
           if (!parsed.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: parsed.message });
         }
       }
@@ -1231,7 +1242,7 @@ export const runsRouter = router({
     await assertChannelCanRun(channel);
     // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
     const picks = sourceRun.creationOptions
-      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, preflightBlock: _pb, settingsChanges: _sc, estimateUsd: _e, retryAllowanceUsd: _ra, ...kept }) => kept)(sourceRun.creationOptions)
+      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, resolvedOptions: _r, intakeWarnings: _w, preflightBlock: _pb, settingsChanges: _sc, estimateUsd: _e, retryAllowanceUsd: _ra, ...kept }) => kept)(sourceRun.creationOptions)
       : undefined;
     // Sprint 4 Task 12 (R1): recomputed against the channel's current profile. A long run stores its
     // resolved length, so the length counts as a pick only if the source said it was one.
@@ -1244,11 +1255,18 @@ export const runsRouter = router({
       legacyStyleGuide: channel.styleGuide,
       legacyDefaultVoice: channel.defaultVoice,
     });
+    // Bugs (chapter bounds): the same brief check `create` applies, against the length this run will use.
+    let intakeWarnings: string[] = [];
+    if (picks?.videoKind === 'long') {
+      const chapterPlan = checkBriefChapterPlan(sourceRun.briefText, resolvedOptions.targetSeconds.value);
+      if (!chapterPlan.ok) badRequest(chapterPlan.message);
+      intakeWarnings = chapterPlan.warnings;
+    }
     const run = await createRun({
       tenantId: ctx.tenantId,
       channelId: sourceRun.channelId,
       briefText: sourceRun.briefText,
-      creationOptions: { ...picks, resolvedOptions },
+      creationOptions: { ...picks, ...(intakeWarnings.length > 0 && { intakeWarnings }), resolvedOptions },
     });
     startPipelineInBackground(run.id);
     return run;

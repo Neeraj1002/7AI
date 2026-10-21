@@ -814,12 +814,12 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     // sanctioned input for whatever reads gate1's stage output next. The
     // original stays in script_generation's own stage row, never overwritten.
     // Sprint 4 Task 9 (R2.5): on a long run the edit sheet is "## Title" + text per chapter; it is parsed
-    // back into chapters (runs.gate1 already refused fewer than 3), and the sanctioned text is their
+    // back into chapters (runs.gate1 already refused an invalid chapter list), and the sanctioned text is their
     // concatenation, as for a script that was never edited.
     let sanctionedChapters = scriptOutput.chapters;
     let sanctionedScriptText = outcome.type === 'edit' ? outcome.editedScriptText : scriptOutput.scriptText;
     if (outcome.type === 'edit' && config.videoKind === 'long') {
-      const parsed = parseChapterSheet(outcome.editedScriptText);
+      const parsed = parseChapterSheet(outcome.editedScriptText, config.targetSeconds);
       if (!parsed.ok) throw new NonTransientStageError(parsed.message);
       sanctionedChapters = parsed.chapters;
       sanctionedScriptText = joinChapterTexts(parsed.chapters);

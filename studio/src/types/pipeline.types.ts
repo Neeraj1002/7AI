@@ -61,6 +61,9 @@ export const CreationOptionsSchema = z.object({
   manualRetries: z.record(z.string(), z.number().int().nonnegative()).optional(),
   plannerContractRecoveryUsed: z.boolean().optional(),
   videoFallbackUsed: z.boolean().optional(),
+  // Bugs (chapter bounds): intake notes that do not stop the run (for example chapters averaging under
+  // 40 seconds). Recomputed by runs.rerun; shown with the run.
+  intakeWarnings: z.array(z.string()).optional(),
   // Sprint 5 Task 8 (R2/R8) - run-owned bookkeeping, stripped by runs.rerun: the clean-attempt estimate
   // and the automatic-retry spend allowance (D1) set when the run was created, and the preflight
   // check that last stopped the run before any spend (null once it passes).

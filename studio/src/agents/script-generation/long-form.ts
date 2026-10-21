@@ -1,22 +1,24 @@
 import { z } from "zod";
+import {
+  LONG_WORDS_PER_MINUTE,
+  chapterBounds,
+  chapterCountProblem,
+  describeAllowedChapters,
+  type ChapterBounds,
+} from "../../long-form/chapter-bounds";
 
 // Sprint 4 Task 9 (R2): the pure half of long-form script generation: the prompt, the reply
 // shape, the length rule and the Gate 1 chapter edit sheet. No model calls here.
 
-// Measured on the 2-minute real run of 2026-10-11 (276 words narrated in 106.66 s, voice alloy,
-// tts-1-hd): 155 words per minute. The earlier plan of 145 asked for scripts that narrate about 7%
-// short even when hit exactly. The pace is logged for every run (measuredWordsPerMinute) so this can
-// be re-calibrated from real data.
-export const LONG_WORDS_PER_MINUTE = 155;
 // A script is accepted without repair when its word count is within +-10% of the target; up to
 // LONG_MAX_LENGTH_REPAIRS repairs are tried to get there. Past that the run continues anyway, and
 // is only flagged (lengthOutOfRange) when it is still outside +-20%. Length never fails a run.
 export const LONG_LENGTH_TOLERANCE = 0.1;
 export const LONG_LENGTH_HARD_TOLERANCE = 0.2;
 export const LONG_MAX_LENGTH_REPAIRS = 2;
-export const LONG_MIN_CHAPTERS = 3;
-export const LONG_MAX_CHAPTERS = 6;
-export const LONG_MIN_CHAPTER_WORDS = 25;
+
+// The chapter count, per-chapter minimum and pace are owned by long-form/chapter-bounds.ts.
+export { LONG_WORDS_PER_MINUTE };
 
 export const ScriptChapterSchema = z.object({
   title: z.string().min(1),
@@ -86,31 +88,43 @@ export function joinChapterTexts(chapters: ScriptChapter[]): string {
 }
 
 // A reply that parses but breaks the structure rules is handled like a reply that does not parse.
-export function validateChapters(chapters: ScriptChapter[]): string | null {
-  if (
-    chapters.length < LONG_MIN_CHAPTERS ||
-    chapters.length > LONG_MAX_CHAPTERS
-  ) {
-    return `expected ${LONG_MIN_CHAPTERS} to ${LONG_MAX_CHAPTERS} chapters, got ${chapters.length}`;
-  }
+// The default bounds are the ones for a video with no listed titles at the platform's default length.
+export function validateChapters(
+  chapters: ScriptChapter[],
+  bounds: ChapterBounds = chapterBounds({ targetSeconds: 600 }),
+  subject = "Your reply",
+): string | null {
+  const countProblem = chapterCountProblem(chapters.length, bounds, subject);
+  if (countProblem) return countProblem;
   const short = chapters.findIndex(
-    (c) => countWords(c.text) < LONG_MIN_CHAPTER_WORDS,
+    (c) => countWords(c.text) < bounds.minWords,
   );
   if (short >= 0) {
-    return `chapter ${short + 1} ("${chapters[short].title}") has ${countWords(chapters[short].text)} words; every chapter needs at least ${LONG_MIN_CHAPTER_WORDS}`;
+    return `chapter ${short + 1} ("${chapters[short].title}") has ${countWords(chapters[short].text)} words; every chapter needs at least ${bounds.minWords} (10 seconds of narration)`;
   }
   return null;
 }
 
-export function buildLongSystemPrompt(packetMode = false): string {
+function chapterStructureRule(bounds: ChapterBounds): string {
+  if (bounds.titles) {
+    const list = bounds.titles.map((t, i) => `${i + 1}. "${t}"`).join("; ");
+    return `Write exactly ${bounds.titles.length} chapters, in the order they will be narrated, with these exact titles: ${list}.`;
+  }
+  return `Write between ${bounds.min} and ${bounds.max} chapters, in the order they will be narrated. The format's default for this length is ${bounds.target}; use another number only if the brief says so.`;
+}
+
+export function buildLongSystemPrompt(
+  packetMode = false,
+  bounds: ChapterBounds = chapterBounds({ targetSeconds: 600 }),
+): string {
   return `You are a master historical documentary filmmaker and a high-retention YouTube scriptwriter. Your writing style is immersive, suspenseful, and deeply atmospheric, similar to high-end history productions (e.g., Netflix's historical epics or premium storytelling channels).
 
 Given a topic, a founder's brief, ${packetMode ? 'an evidence packet' : 'source materials'}, and optional style rules, respond with ONLY a raw JSON object matching this exact shape:
 {"chapters": [{"title": string, "text": string}], "hashtags": string[]}
 
 Narrative Architecture & Pacing Rules:
-- Structure: Generate exactly ({LONG_MIN_CHAPTERS} to){LONG_MAX_CHAPTERS} chapters, written exactly in the order they will be narrated. 
-- Word Count: The "text" field of every single chapter must be spoken narration containing at least \${LONG_MIN_CHAPTER_WORDS} words.
+- Structure: ${chapterStructureRule(bounds)}
+- Word Count: The "text" field of every single chapter must be spoken narration containing at least ${bounds.minWords} words (10 seconds when read aloud).
 - The Cold Open (Chapter 1): Drop the viewer directly into a high-stakes, dramatic, or mysterious moment in history. The first 50 to 100 words must build intense narrative tension *before* explaining the broader historical context. NEVER start with a generic question or an introductory greeting.
 - Micro-Pacing & Pacing Cues: Write in short, rhythmic, punchy sentences. Use ellipses (...) to force natural dramatic pauses or breaths in speech synthesis, and en-dashes (—) to mark sudden, dramatic shifts in the historical narrative.
 - Chapter Transitions: NEVER start a chapter with an explicit question. Instead, open chapters with active historical conflict, a turning point, or a shifting perspective. The "title" should be a highly compelling, cinematic label.
@@ -132,6 +146,15 @@ export function buildLongTargetLine(targetSeconds: number, wordsPerMinute = LONG
   return `Target length: about ${Math.round(targetSeconds / 60)} minutes when narrated aloud (${targetSeconds} seconds). Write around ${targetWordCount(targetSeconds, wordsPerMinute)} words in total across all chapters (natural pace, about ${Math.round(wordsPerMinute)} words per minute); keep it between ${min} and ${max} words (within 10% of the target); anything outside that is sent back for a rewrite.`;
 }
 
+// The one retry after an unusable reply, when the problem is the chapter structure: names what came
+// back and what is allowed.
+export function buildStructureRepairMessage(problem: string, bounds: ChapterBounds): string {
+  const titles = bounds.titles
+    ? ` Use these exact titles, in this order: ${bounds.titles.map((t, i) => `${i + 1}. "${t}"`).join("; ")}.`
+    : "";
+  return `${problem}. The chapter count must be ${describeAllowedChapters(bounds)}, and every chapter needs at least ${bounds.minWords} words.${titles} Reply again with ONLY the corrected JSON object.`;
+}
+
 export function buildLengthRepairMessage(
   wordCount: number,
   targetSeconds: number,
@@ -151,13 +174,16 @@ export function formatChapterSheet(chapters: ScriptChapter[]): string {
     .join("\n\n");
 }
 
-export const CHAPTER_EDIT_TOO_FEW_MESSAGE = `The edited script needs at least ${LONG_MIN_CHAPTERS} chapters, each starting with a line like "## Chapter title".`;
+export const CHAPTER_EDIT_TOO_FEW_MESSAGE = `The edited script needs at least ${chapterBounds({ targetSeconds: 600 }).min} chapters, each starting with a line like "## Chapter title".`;
 
 export type ParsedChapterSheet =
   | { ok: true; chapters: ScriptChapter[] }
   | { ok: false; message: string };
 
-export function parseChapterSheet(sheet: string): ParsedChapterSheet {
+export function parseChapterSheet(
+  sheet: string,
+  targetSeconds = 600,
+): ParsedChapterSheet {
   const chapters: ScriptChapter[] = [];
   let current: { title: string; lines: string[] } | null = null;
   const preamble: string[] = [];
@@ -189,7 +215,12 @@ export function parseChapterSheet(sheet: string): ParsedChapterSheet {
     };
   }
   const nonEmpty = chapters.filter((c) => c.text.length > 0);
-  if (nonEmpty.length < LONG_MIN_CHAPTERS)
+  const bounds = chapterBounds({ targetSeconds });
+  if (nonEmpty.length < bounds.min)
     return { ok: false, message: CHAPTER_EDIT_TOO_FEW_MESSAGE };
+  // An edit may reshape the chapters, so the brief's exact count does not bind it; the video's own
+  // limits do (the same ones that bind the model's reply).
+  const problem = validateChapters(nonEmpty, bounds, "The edited script");
+  if (problem) return { ok: false, message: `${problem}.` };
   return { ok: true, chapters: nonEmpty };
 }

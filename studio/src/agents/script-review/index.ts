@@ -6,6 +6,7 @@ import { checkBrief } from './brief-checks';
 import { calibrateReview, reviewRules } from './rules';
 import { confirmHardCaps, type HardCapCheck } from './hard-cap-confirmation';
 import { z } from "zod";
+import { LONG_WORDS_PER_MINUTE } from "../../long-form/chapter-bounds";
 import {
   callLLM,
   describeJsonError,
@@ -137,7 +138,7 @@ does it immediately plunge the viewer into a high-stakes or high-tension histori
 still images animated with supported FFmpeg pan/zoom, and an SRT subtitle artifact. Judge whether
 visual beats can be represented by still compositions and supported transitions. Continuous physical
 action, generated tracking/drone movement, lip sync and motion-model footage are not supplied:
-- "fitsLengthLimit": read aloud at a natural pace (about 145 words per minute), is the narration within 20% of the target length given in the user message, and between 2 and 15 minutes?
+- "fitsLengthLimit": read aloud at a natural pace (about ${LONG_WORDS_PER_MINUTE} words per minute), is the narration within 20% of the target length given in the user message, and between 2 and 15 minutes?
 - "pacingRealistic": can the visual scene change at a pace supported by the narration and still-image sequence without complex spatial staging? Do not require every illustration to contain motion.
 - "visualsProducible": can the implied beats be composed as still images? A reconstruction is an illustration, not documentary evidence or a factual verification.
 - "flags": specific technical composition problems, empty array if none.

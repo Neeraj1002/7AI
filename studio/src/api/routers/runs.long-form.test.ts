@@ -88,6 +88,47 @@ describe('runs.create: Shorts unchanged', () => {
   });
 });
 
+const planBrief = (titles: number, budgets?: number) =>
+  `Topic: x
+Constraint: chapters, titles exactly: ${Array.from({ length: titles }, (_, i) => `"Title ${i + 1}"`).join(', ')}.` +
+  (budgets === undefined ? '' : `
+Constraint: word budgets: ${Array.from({ length: budgets }, () => 150).join(', ')}.`);
+
+describe('runs.create: chapter plan intake check (before any spend)', () => {
+  it('stops a long brief whose titles and word budgets disagree, with a plain sentence and no run', async () => {
+    await expect(caller().create({ channelId: CHANNEL_ID, briefText: planBrief(8, 7), videoKind: 'long' })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: expect.stringContaining('8 titles but 7 word budgets'),
+    });
+    expect(mocks.createRun).not.toHaveBeenCalled();
+    expect(mocks.getRemainingWeeklyUsd).not.toHaveBeenCalled();
+  });
+
+  it('refuses 21 chapters', async () => {
+    await expect(caller().create({ channelId: CHANNEL_ID, briefText: planBrief(21), videoKind: 'long', targetDurationSec: 900 })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: expect.stringContaining('21 chapters'),
+    });
+    expect(mocks.createRun).not.toHaveBeenCalled();
+  });
+
+  it.each([7, 8, 9])('accepts %i listed chapters in 10 minutes without a warning', async (n) => {
+    await caller().create({ channelId: CHANNEL_ID, briefText: planBrief(n, n), videoKind: 'long' });
+    expect(createdAll().intakeWarnings).toBeUndefined();
+  });
+
+  it('records a warning, and still creates the run, when the average chapter is under 40 seconds', async () => {
+    await caller().create({ channelId: CHANNEL_ID, briefText: planBrief(9), videoKind: 'long', targetDurationSec: 300 });
+    expect(createdAll().intakeWarnings).toEqual([expect.stringMatching(/9 chapters in a 5-minute video/)]);
+  });
+
+  it('leaves a Short alone, whatever its brief says', async () => {
+    await caller().create({ channelId: CHANNEL_ID, briefText: planBrief(8, 7) });
+    expect(mocks.createRun).toHaveBeenCalledOnce();
+    expect(createdOptions()).toBeUndefined();
+  });
+});
+
 describe('runs.create: long-form', () => {
   it('stores videoKind, the default 600 s and the suggested spend limit', async () => {
     await caller().create({ ...base, videoKind: 'long' });

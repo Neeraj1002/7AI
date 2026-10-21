@@ -75,3 +75,17 @@ The first experiment changes one recurring-subject scene for visual continuity. 
 **Publishing metadata.** Figures in the generated title, description and tags must appear in the approved script or the brief, and a figure the script hedges keeps a hedge; one regeneration, then the publish is held back.
 
 **Changing settings while a run waits (R13).** `runs.updateSettings` is allowed in Needs attention and at either gate. Voice, music and pictures can change until the video is made; after that the server refuses with the way forward (Revise at Gate 2). YouTube visibility can change until the video is on YouTube (only private when Gate 2 is off); max spend always, through the same rule as Retry. The new options are validated with run creation's messages and the preflight, then written once, together with the Retry when asked. Visibility lives in `creationOptions.privacyStatus` (Gate 2 writes its own choice there); every change is kept in `creationOptions.settingsChanges`.
+
+## Chapter bounds (bug fix: BUGS_CHAPTER_BOUNDS)
+
+One module, `studio/src/long-form/chapter-bounds.ts`, owns the chapter rules for long-form videos. The script prompt, the reply check, the repair message, the Gate 1 edit sheet, Script Review's pace and the YouTube chapter list all read it, so no two of them can disagree.
+
+**What sets the chapter count.** A brief that lists its chapter titles ("seven chapters, titles exactly: ...") sets the count: exactly that many, and the prompt tells the model the count and the titles. With no titles, the default for the length applies (about one chapter per 2.5 minutes, never fewer than 3: 2 minutes 3, 10 minutes 4, 15 minutes 6) and any count from 3 to the ceiling is accepted.
+
+**Limits.** Floor 3 chapters. Ceiling 20, or fewer when the video is too short to give every chapter 10 seconds (2 minutes: 12). Every chapter needs at least 10 seconds of narration, which is 26 words at 155 words per minute (YouTube's own chapter rule is 10 seconds; 25 words would be 9.7 seconds). A Gate 1 edit follows the same limits for the run's length; it is not bound to the brief's exact count.
+
+**Intake check (long-form only, before any spend).** `runs.create` and `runs.rerun` read the brief's titles, word budgets ("word budget by chapter: ..." or "Chapter N: about 120 words") and fact allocations ("chapter allocation: ..." or "Chapter N uses ..."). A list that is absent is fine. When two lists that are present disagree, or the count does not fit the length, or a word budget is under the 10-second minimum, the run is refused with a plain sentence, for example "The brief has 8 titles but 7 word budgets." An average chapter under 40 seconds is only a warning, stored in `creationOptions.intakeWarnings` (existing run JSON, no schema change). Per-chapter word budgets are checked for count only, not enforced against the text.
+
+**A stated word count wins.** When the brief states a length in words ("Constraint: about 1,500 words for a 10 minute video"), that number is the script target and the length check uses it (accepted without repair within 10%, flagged beyond 20%) instead of minutes x words per minute. Without one, the derived target applies (the narrating voice's measured pace, else 155). Intake warns when the stated count differs from the derived target by more than 20%.
+
+**Repair.** A reply with the wrong chapter structure gets one retry that names the count it returned and the allowed range ("has 9 chapters, but this video needs exactly 7").
