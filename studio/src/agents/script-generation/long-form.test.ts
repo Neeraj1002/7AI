@@ -226,6 +226,39 @@ Constraint: seven chapters, titles exactly: ${titles.map((t) => `"${t}"`).join('
     expect(system).toContain('between 3 and 12 chapters');
   });
 
+  describe('a word count stated in the brief wins over minutes x pace', () => {
+    // Mary Celeste: "about 1,500 words for a 10 minute video" against 1,550 derived (155 words a minute).
+    const stated = 'Topic: x\nConstraint: about 1,500 words for a 10 minute video, calm.';
+    const noTitles = (n: number) => body(n);
+
+    it('plans the target at the stated count, in the prompt and the repair message', async () => {
+      mocks.callLLM.mockResolvedValueOnce(reply(noTitles(370)));
+      await generateScript({ ...params, briefText: stated });
+      const message: string = mocks.callLLM.mock.calls[0][0].messages[0].content;
+      expect(message).toContain('Write around 1500 words');
+      expect(buildUserMessage({ ...params, briefText: 'Topic: x' })).toContain('Write around 1550 words');
+    });
+
+    it('accepts 1,370 words with no repair when 1,500 is stated (it needs two repairs against 1,550)', async () => {
+      mocks.callLLM.mockResolvedValueOnce(reply(noTitles(341))); // 4 x 342 = 1368 words
+      const withStated = await generateScript({ ...params, briefText: stated });
+      expect(withStated.calls).toHaveLength(1);
+      expect(withStated.output.lengthOutOfRange).toBeUndefined();
+
+      mocks.callLLM.mockReset();
+      mocks.callLLM.mockResolvedValue(reply(noTitles(341)));
+      const derived = await generateScript({ ...params, briefText: 'Topic: x' });
+      expect(derived.calls).toHaveLength(3);
+    });
+
+    it('sends back a script that is over the stated count even when it is inside the derived range', async () => {
+      mocks.callLLM.mockResolvedValueOnce(reply(noTitles(419))).mockResolvedValueOnce(reply(noTitles(370)));
+      const { calls } = await generateScript({ ...params, briefText: stated }); // 4 x 420 = 1680 words
+      expect(calls).toHaveLength(2);
+      expect(mocks.callLLM.mock.calls[1][0].messages.at(-1).content).toContain('too long');
+    });
+  });
+
   it('a Short never takes the long path or sends a chapters schema', async () => {
     mocks.callLLM.mockResolvedValueOnce(reply(JSON.stringify({ scriptText: 'Hello there.', captions: 'x', hashtags: [] })));
     const { output } = await generateScript({ topic: 'T', constraints: [], targetSeconds: 45 });

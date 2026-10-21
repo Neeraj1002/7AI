@@ -19,7 +19,7 @@ import {
   validateChapters,
   type ScriptChapter,
 } from './long-form';
-import { chapterBoundsForBrief } from '../../long-form/brief-chapter-plan';
+import { chapterBoundsForBrief, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
 import type { ChapterBounds } from '../../long-form/chapter-bounds';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
@@ -89,6 +89,13 @@ const PACKET_BRIEF_ONLY_RULE = `\n\nFor the supplied evidence packet, add no fac
 export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common', packetMode = false): string {
   if (packetMode) return SYSTEM_PROMPT + (factPolicy === 'brief-only' ? PACKET_BRIEF_ONLY_RULE : '\n\nUse the evidence packet policy. Citation-only URLs supply no factual text and do not verify general knowledge.');
   return factPolicy === 'brief-only' ? SYSTEM_PROMPT + BRIEF_ONLY_RULE : SYSTEM_PROMPT;
+}
+
+// The pace the length target is planned at. A word count stated in the brief wins over minutes x pace: it is
+// expressed as the pace that makes the target exactly that many words, so every length rule reads one number.
+export function longPace(params: Pick<GenerateScriptParams, 'briefText' | 'wordsPerMinute'>, targetSeconds: number): number | undefined {
+  const stated = parseBriefChapterPlan(params.briefText).statedWords;
+  return stated !== null ? (stated * 60) / targetSeconds : params.wordsPerMinute;
 }
 
 export type GenerateScriptParams = {
@@ -161,7 +168,7 @@ export function buildUserMessage(params: GenerateScriptParams): string {
     lines.push(`Sources (with the brief, the only material you may take facts from):\n${params.sources.map((s) => `- ${s}`).join('\n')}`);
   }
   if (isLong && targetSeconds) {
-    lines.push(buildLongTargetLine(targetSeconds, params.wordsPerMinute));
+    lines.push(buildLongTargetLine(targetSeconds, longPace(params, targetSeconds)));
   } else if (targetSeconds) {
     const approxWords = Math.round((targetSeconds / 60) * 150);
     lines.push(
@@ -402,7 +409,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   let words = countWords(current.output.scriptText);
   // Up to two length repairs until the script is within +-10% of the target. A repair is kept only
   // when it is valid AND closer to the target than what we have, so a repair never makes things worse.
-  const pace = params.wordsPerMinute;
+  const pace = longPace(params, targetSeconds);
   for (let repairs = 0; repairs < LONG_MAX_LENGTH_REPAIRS && !isLengthInRange(words, targetSeconds, undefined, pace); repairs += 1) {
     console.warn(`[script-generation] long script is ${words} words, outside +-10% of the target for ${targetSeconds}s; length repair ${repairs + 1}/${LONG_MAX_LENGTH_REPAIRS}`);
     const repairMessages: LLMMessage[] = [

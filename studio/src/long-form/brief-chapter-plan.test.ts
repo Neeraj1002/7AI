@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { chapterBoundsForBrief, checkBriefChapterPlan, parseBriefChapterPlan } from './brief-chapter-plan';
 
 const NAMES = ['An Imagined Morning', 'The Street and the Hearth', 'The Market and the Stones', 'The Traveller and the Beads', 'The Signs Nobody Can Read', 'What Came After', 'What We Know, and What I Made Up', 'Eighth', 'Ninth'];
@@ -121,7 +123,10 @@ describe('checkBriefChapterPlan: soft warning', () => {
 
   it('does not warn at 40 seconds or more', () => {
     expect(checkBriefChapterPlan(brief({ titles: 7 }), 600)).toMatchObject({ ok: true, warnings: [] });
-    expect(checkBriefChapterPlan(brief({ titles: 3 }), 120)).toMatchObject({ ok: true, warnings: [] });
+    // (The test brief states 1,500 words, which is far from a 2-minute video's 310, so only the chapter warning is checked.)
+    const short = checkBriefChapterPlan(brief({ titles: 3 }), 120);
+    expect(short).toMatchObject({ ok: true });
+    if (short.ok) expect(short.warnings.filter((w) => /a chapter/.test(w))).toEqual([]);
   });
 });
 
@@ -129,5 +134,53 @@ describe('chapterBoundsForBrief', () => {
   it('is what Script Generation uses: titles set the count, otherwise the default', () => {
     expect(chapterBoundsForBrief(brief({ titles: 8 }), 600)).toMatchObject({ min: 8, max: 8 });
     expect(chapterBoundsForBrief(undefined, 600)).toMatchObject({ min: 3, max: 20, titles: null });
+  });
+});
+
+// R7: every long-form brief the project knows must pass intake. A brief is stopped only when two lists that are
+// present disagree, never because a list is absent.
+const fixture = (name: string) => readFileSync(path.join(__dirname, 'fixtures', 'briefs', name), 'utf8');
+
+describe('known briefs pass intake', () => {
+  it.each([
+    // [file, video seconds, titles, word budgets, fact allocations, stated words]
+    ['mary-celeste.txt', 600, 7, 7, 7, 1500],
+    ['niyt-l1-indus.txt', 600, 7, null, 7, 1500],
+    ['task6-appendix-a-machines.txt', 480, null, null, null, 1240],
+    ['task6-appendix-b-lego.txt', 120, null, null, null, null],
+    ['niyt-s1-short.txt', 120, null, null, null, 110],
+  ] as const)('%s', (file, seconds, titles, budgets, allocations, stated) => {
+    const text = fixture(file);
+    const plan = parseBriefChapterPlan(text);
+    expect(plan.titles?.length ?? null).toBe(titles);
+    expect(plan.wordBudgets?.length ?? null).toBe(budgets);
+    expect(plan.factAllocationCount).toBe(allocations);
+    expect(plan.statedWords).toBe(stated);
+    const result = checkBriefChapterPlan(text, seconds);
+    expect(result.ok).toBe(true);
+    // A stated count close to minutes x pace adds no warning.
+    if (result.ok && file !== 'niyt-s1-short.txt') expect(result.warnings).toEqual([]);
+  });
+
+  it('keeps the Mary Celeste titles exactly and in order', () => {
+    expect(parseBriefChapterPlan(fixture('mary-celeste.txt')).titles).toEqual([
+      'The Ship With Nobody on Deck', 'Bound for Genoa', 'What the Boarding Party Found', 'The Ghost Ship, as Told',
+      'What Gibraltar Found', "What We Still Don't Know", 'Nobody Answered',
+    ]);
+  });
+});
+
+describe('a stated word count', () => {
+  it('is the first "about N words" on a Constraint line', () => {
+    expect(parseBriefChapterPlan('Constraint: about 1,500 words for a 10 minute video.').statedWords).toBe(1500);
+    expect(parseBriefChapterPlan('Constraints: about 1,240 words; four chapters in order.').statedWords).toBe(1240);
+    expect(parseBriefChapterPlan('Topic: x. Facts: the inscription is about 500 words long.').statedWords).toBeNull();
+    expect(parseBriefChapterPlan('Constraint: about 40 words per chapter.').statedWords).toBeNull();
+  });
+
+  it('warns, without stopping, when it is more than 20% away from minutes x pace', () => {
+    const result = checkBriefChapterPlan('Constraint: about 700 words for a 10 minute video.', 600);
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.warnings[0]).toMatch(/asks for about 700 words.*about 1550\. The brief's number is used/);
   });
 });

@@ -2,6 +2,8 @@
 // lists its chapter titles, to see that the model is told the exact count and returns those chapters.
 //   npx tsx scripts/chapter-bounds-real-check.ts --brief <file> [--seconds 600]            (offline: intake check and prompt only)
 //   npx tsx scripts/chapter-bounds-real-check.ts --brief <file> [--seconds 600] --live     (one real call, about 10 cents)
+//   --spent-before <usd>  what the task has already spent, only added to the total this prints. Nothing stops a call part-way:
+//                         Script Generation makes up to three (one reply and two length repairs), about 5 to 7 cents each.
 //
 // The brief file is the founder's brief text as typed into the app. It never touches the database.
 // It spends real money only with --live, and refuses to start when the cost estimate is over the ceiling.
@@ -21,6 +23,7 @@ const briefPath = arg('--brief');
 if (!briefPath) throw new Error('Pass --brief <file> with the brief text.');
 const targetSeconds = Number(arg('--seconds') ?? 600);
 const live = process.argv.includes('--live');
+const spentBefore = Number(arg('--spent-before') ?? 0);
 
 async function main() {
   const briefText = readFileSync(briefPath!, 'utf8').replace(/\r\n/g, '\n').trim();
@@ -66,7 +69,7 @@ async function main() {
     console.log(`  ${i + 1}. ${c.title}  (${words} words) ${match}`);
   }
   console.log(`Total words: ${output.scriptText.split(/\s+/).filter(Boolean).length}  lengthOutOfRange: ${output.lengthOutOfRange ?? false}`);
-  if (spent > CEILING_USD) console.log(`OVER THE CEILING: $${spent.toFixed(4)} > $${CEILING_USD}`);
+  if (spentBefore + spent > CEILING_USD) console.log(`OVER THE CEILING: $${(spentBefore + spent).toFixed(4)} > $${CEILING_USD}`);
 }
 
 main().catch((e) => {

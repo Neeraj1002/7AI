@@ -1,4 +1,5 @@
 import {
+  LONG_WORDS_PER_MINUTE,
   MIN_CHAPTERS,
   MIN_CHAPTER_WORDS,
   SOFT_MIN_AVERAGE_CHAPTER_SECONDS,
@@ -22,7 +23,13 @@ export type BriefChapterPlan = {
   wordBudgets: number[] | null;
   // The chapters that have a fact allocation ("Chapter N uses ..."); null when the brief has none.
   factAllocationCount: number | null;
+  // The length the brief asks for in words ("Constraint: about 1,500 words for a 10 minute video"); it wins over
+  // minutes x words per minute. null when the brief states none.
+  statedWords: number | null;
 };
+
+// Shorter than three minimum-length chapters cannot be a script's length, so it is something else in the brief.
+const MIN_STATED_WORDS = 3 * MIN_CHAPTER_WORDS;
 
 const NUMBER_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -109,6 +116,18 @@ function readFactAllocationCount(brief: string): number | null {
   return chapters.size > 0 ? chapters.size : null;
 }
 
+// The first "about N words" right after a "Constraint:" or "Constraints:" label.
+function readStatedWords(brief: string): number | null {
+  const found = brief.matchAll(
+    /\bconstraints?\s*:[^.;\n]{0,40}?\b(?:about|around|approximately|roughly|exactly)\s+(\d{1,3}(?:,\d{3})+|\d+)\s+words\b/gi,
+  );
+  for (const m of found) {
+    const words = toNumber(m[1]);
+    if (words >= MIN_STATED_WORDS) return words;
+  }
+  return null;
+}
+
 export function parseBriefChapterPlan(briefText: string | null | undefined): BriefChapterPlan {
   const brief = briefText ?? '';
   const titles = readTitles(brief);
@@ -118,6 +137,7 @@ export function parseBriefChapterPlan(briefText: string | null | undefined): Bri
     declaredCount: readDeclaredCount(brief),
     wordBudgets,
     factAllocationCount: readFactAllocationCount(brief),
+    statedWords: readStatedWords(brief),
   };
 }
 
@@ -185,6 +205,12 @@ export function checkBriefChapterPlan(
   if (count !== null && average < SOFT_MIN_AVERAGE_CHAPTER_SECONDS) {
     warnings.push(
       `${plural(count, 'chapter')} in a ${minutes(targetSeconds)} video is about ${Math.round(average)} seconds a chapter, under the ${SOFT_MIN_AVERAGE_CHAPTER_SECONDS} seconds that usually works.`,
+    );
+  }
+  const derivedWords = Math.round((targetSeconds / 60) * LONG_WORDS_PER_MINUTE);
+  if (plan.statedWords !== null && Math.abs(plan.statedWords - derivedWords) / derivedWords > 0.2) {
+    warnings.push(
+      `The brief asks for about ${plan.statedWords} words; a ${minutes(targetSeconds)} video at the usual pace is about ${derivedWords}. The brief's number is used.`,
     );
   }
   return { ok: true, bounds, warnings };
