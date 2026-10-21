@@ -10,6 +10,7 @@ import { assertUnder, prepareVisualRepair, recoverRepairReceipt, resolveDefect,
   saveRepairReceipt, sha256Bytes, type SceneMapping } from './visual-repair';
 import { executeVisualRepair } from './visual-repair-render';
 import { NonTransientStageError } from './retry-with-backoff';
+import { buildStyledScenePrompts } from '../agents/video-generation/scene-prompts';
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => fs.rm(root, { recursive: true, force: true }))); });
@@ -36,7 +37,7 @@ async function fixture() {
   await fs.writeFile(images[0], 'red image'); await fs.writeFile(images[1], 'blue image');
   const mapping: SceneMapping = { version: 1, fps: 30, scenes: images.map((imagePath, i) => ({
     sceneId: `${i}:0`, chapterIndex: i, imagePath, imageSha256: sha256Bytes(i ? 'blue image' : 'red image'),
-    promptSha256: sha256Bytes(i ? 'blue bridge' : 'red bridge'), styledPromptSha256: sha256Bytes(i ? 'blue bridge' : 'red bridge'),
+    promptSha256: sha256Bytes(i ? 'blue bridge' : 'red bridge'), styledPromptSha256: sha256Bytes(buildStyledScenePrompts([i ? 'blue bridge' : 'red bridge'], {})[0]),
     sourceSceneId: `${i}:0`, substituted: false, frameStart: i * 30, frameEndExclusive: (i + 1) * 30,
     startSec: i, endSec: i + 1, anchor: i ? 'blue bridge' : 'red bridge',
   })) };

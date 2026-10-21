@@ -1,0 +1,54 @@
+{
+  "text": "What did Lego do with that time? Instead of chasing growth, it went back to basics. It stopped trying to be everything and asked what it was really for. In 2005 it sold its four Legoland theme parks for 375 million euros, to focus on its core toys. The parks were not a failure, but they were not the brick. The company chose to make the brick the center of everything again, and trust it. Quiet offices, plain plastic bricks, and a smaller, simpler plan took the place of the",
+  "direction": "Calm documentary narrator, human pauses, heavier on loss, lifting at recovery.",
+  "rows": [
+    {
+      "file": "sample-tts-1-hd-coral.mp3",
+      "model": "tts-1-hd",
+      "voice": "coral",
+      "words": 90,
+      "characters": 476,
+      "seconds": 30.6,
+      "wordsPerMinute": 176.2,
+      "sampleUsd": 0.0143,
+      "fullTwoMinuteVideoUsd": 0.0559,
+      "controlScriptForecast": {
+        "words": 257,
+        "expectedSeconds": 87.5,
+        "status": "under_floor"
+      }
+    },
+    {
+      "file": "sample-gpt-4o-mini-tts-ballad.mp3",
+      "model": "gpt-4o-mini-tts",
+      "voice": "ballad",
+      "words": 90,
+      "characters": 476,
+      "seconds": 38.7,
+      "wordsPerMinute": 139.5,
+      "sampleUsd": 0.0077,
+      "fullTwoMinuteVideoUsd": 0.0238,
+      "controlScriptForecast": {
+        "words": 257,
+        "expectedSeconds": 110.5,
+        "status": "ok"
+      }
+    },
+    {
+      "file": "sample-gpt-4o-mini-tts-marin.mp3",
+      "model": "gpt-4o-mini-tts",
+      "voice": "marin",
+      "words": 90,
+      "characters": 476,
+      "seconds": 33.7,
+      "wordsPerMinute": 160.1,
+      "sampleUsd": 0.0077,
+      "fullTwoMinuteVideoUsd": 0.0273,
+      "controlScriptForecast": {
+        "words": 257,
+        "expectedSeconds": 96.3,
+        "status": "short"
+      }
+    }
+  ]
+}

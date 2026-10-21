@@ -162,9 +162,9 @@ describe('runs.create: formats offered by the channel (R1b)', () => {
 });
 
 describe('runs.estimateCost', () => {
-  it('returns the four numbers for a 10-minute video', async () => {
+  it('returns the estimate, its range with retries, and the weekly figures for a 10-minute video', async () => {
     const out = await caller().estimateCost({ channelId: CHANNEL_ID, videoKind: 'long', targetDurationSec: 600 });
-    expect(Object.keys(out).sort()).toEqual(['estimateUsd', 'remainingWeeklyUsd', 'suggestedMaxUsd', 'worstCaseUsd']);
+    expect(Object.keys(out).sort()).toEqual(['estimateUsd', 'rangeUsd', 'remainingWeeklyUsd', 'retryAllowanceUsd', 'suggestedMaxUsd', 'worstCaseUsd']);
     expect(out.remainingWeeklyUsd).toBe(7.5);
     expect(out.suggestedMaxUsd).toBeGreaterThanOrEqual(out.estimateUsd * 1.5);
     expect(out.worstCaseUsd).toBeGreaterThan(out.estimateUsd);

@@ -1,0 +1,34 @@
+{
+  "scenes": 16,
+  "plannerUsd": 0,
+  "before": {
+    "pictures": 16,
+    "skipped": 0,
+    "imageUsd": 0.079,
+    "checker": "not run (Anthropic account unavailable); pictures judged by eye from the contact sheet"
+  },
+  "after": {
+    "pictures": 16,
+    "skipped": 0,
+    "imageUsd": 0.0842,
+    "checker": "not run (Anthropic account unavailable); pictures judged by eye from the contact sheet"
+  },
+  "prompts": [
+    "A wide view of a large toy factory exterior at dawn, rows of windows lit, a long loading dock with colorful plastic crates stacked outside, soft mist.",
+    "Workers in plain jackets leaving a factory gate at the end of a shift, seen from behind in warm evening light, a quiet road ahead.",
+    "A quiet empty open-plan office with rows of desks, chairs pushed in, afternoon light across blank monitors.",
+    "A financial report page and a calculator on a desk beside a coffee cup, shot from above, a pen resting on the paper.",
+    "A group of executives around a boardroom table studying documents, a city skyline through the window behind them.",
+    "An older businessman handing a heavy folder across a desk to a younger manager, a warm lamp, a sense of a decision being made.",
+    "A theme park with a Ferris wheel, roller coaster and colorful buildings on a bright day, families walking along the main path.",
+    "A theme park entrance gate with a large arch and a crowd of visitors streaming in under blue sky.",
+    "A designer at a workbench arranging plain plastic bricks into a simple model, a lamp, tidy tools, close crop space.",
+    "A close view of a pile of plain red, blue and yellow plastic bricks on a wooden table, soft side light.",
+    "Children building with bricks on a living room floor, laughing, a tower half built, afternoon sun.",
+    "Busy toy store shelves stacked with boxed building sets and shoppers browsing the aisle, bright store light.",
+    "A world map with glowing markers across continents beside a stack of toy boxes, cool studio light.",
+    "Two toy company towers facing each other across a city street, one slightly taller in golden light.",
+    "A trophy on a podium next to a pile of building bricks, spotlight from above, dark background.",
+    "A single plain brick on a clean table in front of a window, quiet morning light, plenty of empty space."
+  ]
+}

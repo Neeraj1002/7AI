@@ -18,6 +18,9 @@ const CHARS_PER_WORD = 6; // average English word plus its space
 const TOKENS_PER_WORD = 1.4;
 const SHORT_SECONDS_PER_STILL = 2.5;
 const ATTEMPTS_WORST_CASE = 3;
+// Sprint 5 Task 8 (D1): automatic retries may spend up to this many times the estimate in total; past it the
+// run pauses and asks. Also what a new run's default spend limit is built from.
+export const RETRY_ALLOWANCE_FACTOR = 2;
 
 // One rule for how many stills a long video gets, shared with the planner that actually asks for them.
 export const longFormStillCount = longStillCount;
@@ -26,6 +29,9 @@ export type CostEstimate = {
   estimateUsd: number; // one attempt
   worstCaseUsd: number; // three attempts; the still cache means stills are paid once
   suggestedMaxUsd: number;
+  // Sprint 5 Task 8 (R8.1): what a run may spend including automatic retries, and the range to show.
+  retryAllowanceUsd: number;
+  rangeUsd: { minUsd: number; maxUsd: number };
   breakdown: { stillsUsd: number; narrationUsd: number; transcriptionUsd: number; llmUsd: number; stillCount: number };
 };
 
@@ -36,9 +42,10 @@ function llmUsd(purpose: Parameters<typeof resolvePurpose>[0], inputTokens: numb
 
 const roundUsd = (n: number) => Math.round(n * 10_000) / 10_000;
 
-// 1.5 x the per-attempt estimate, rounded up to the next $0.50.
+// The retry allowance (estimate x RETRY_ALLOWANCE_FACTOR), rounded up to the next $0.50: the default
+// per-video spend limit.
 export function suggestMaxUsd(estimateUsd: number): number {
-  return Math.ceil((estimateUsd * 1.5) / 0.5 - 1e-9) * 0.5;
+  return Math.ceil((estimateUsd * RETRY_ALLOWANCE_FACTOR) / 0.5 - 1e-9) * 0.5;
 }
 
 export function estimateRunCost(params: {
@@ -64,7 +71,9 @@ export function estimateRunCost(params: {
     llmUsd('intake-parsing', 600, 150) +
     llmUsd('script-generation', 3_000 + (long ? 1_500 : 0), scriptTokens + 200) +
     llmUsd('script-review', scriptTokens + 1_500, 700) +
-    llmUsd('video-production-planning', scriptTokens + 2_000, sceneTokens + 500);
+    llmUsd('video-production-planning', scriptTokens + 2_000, sceneTokens + 500) +
+    // The Video Review call: up to 12 key frames (about 1,600 tokens each) and a short verdict.
+    llmUsd('video-intelligence-own-draft', 12 * 1_600 + 800, 300);
 
   const perAttempt = stillsUsd + narrationUsd + transcriptionUsd + llm;
   const rest = narrationUsd + transcriptionUsd + llm;
@@ -73,6 +82,8 @@ export function estimateRunCost(params: {
     estimateUsd,
     worstCaseUsd: roundUsd(stillsUsd + rest * ATTEMPTS_WORST_CASE),
     suggestedMaxUsd: suggestMaxUsd(estimateUsd),
+    retryAllowanceUsd: roundUsd(estimateUsd * RETRY_ALLOWANCE_FACTOR),
+    rangeUsd: { minUsd: estimateUsd, maxUsd: roundUsd(estimateUsd * RETRY_ALLOWANCE_FACTOR) },
     breakdown: {
       stillsUsd: roundUsd(stillsUsd),
       narrationUsd: roundUsd(narrationUsd),

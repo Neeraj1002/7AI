@@ -61,7 +61,7 @@ export async function stubGenerateStills(params: GenerateStillsParams): Promise<
     // review (E3) actually exercise its ai-stills-aware carve-out against
     // content that looks like a legitimate (if crude) attempt at the
     // scene, not against meaningless placeholder noise.
-    const safeText = params.scenePrompts[i].replace(/'/g, '');
+    const safeText = params.scenePrompts[i].replace(/['";:()%]/g, ' ');
     // A simple pictogram (two rectangles — a tower body + a lit cap) above
     // the text, not just a bare text card — enough for a real reviewer to
     // treat this as an attempted illustration rather than a text-only

@@ -20,7 +20,7 @@ export function isManualRetryCapReached(run: Pick<PipelineRun, 'creationOptions'
 export function isEligibleRecovery(stage: Pick<PipelineStage, 'status' | 'output'> | null): boolean {
   if (stage?.status !== 'failed') return false;
   const kind = (stage.output as { recovery?: { kind?: unknown } } | null)?.recovery?.kind;
-  return kind === 'spend_limit' || kind === 'provider_capacity' || kind === 'rate_limit_exhausted';
+  return kind === 'spend_limit' || kind === 'provider_capacity' || kind === 'rate_limit_exhausted' || kind === 'provider_auth';
 }
 
 export const MANUAL_RETRY_CAP_MESSAGE = `Retry limit reached for this step (${MAX_MANUAL_RETRIES_PER_STAGE}). Edit the brief and run again, or cancel.`;
@@ -33,6 +33,17 @@ export async function recordManualRetry(run: PipelineRun, stage: StageName): Pro
   });
 }
 
+// Sprint 5 Task 8 (D1): automatic retries may spend up to 2 x the estimate (creationOptions.retryAllowanceUsd).
+// Past it the run waits for a person; this prefix is what marks that wait, and a Retry lifts the allowance.
+export const RETRY_ALLOWANCE_PREFIX = 'Automatic retry allowance used';
+export const RETRY_ALLOWANCE_UNLIMITED_USD = 1_000_000;
+export function isRetryAllowancePause(lastError: string | null | undefined): boolean {
+  return (lastError ?? '').startsWith(RETRY_ALLOWANCE_PREFIX);
+}
+export function describeRetryAllowancePause(spentUsd: number, allowanceUsd: number, reason: string): string {
+  return `${RETRY_ALLOWANCE_PREFIX}: this video has spent $${spentUsd.toFixed(2)} of its $${allowanceUsd.toFixed(2)} (2 x the estimate), so it was paused instead of making another attempt. The last review said: ${reason} Tap Retry to make one more attempt, or edit the brief.`;
+}
+
 // Which stage a manual Retry restarts. A run parked at a gate (or at the review that fed one) restarts
 // the stage that actually failed, never the gate itself (R5b).
 export function retryTargetStage(run: Pick<PipelineRun, 'currentStage' | 'lastError'>): StageName | null {
@@ -40,11 +51,11 @@ export function retryTargetStage(run: Pick<PipelineRun, 'currentStage' | 'lastEr
   if (!stage) return null;
   if (stage === 'gate2') return 'video_generation';
   if (stage === 'gate1') return 'script_generation';
-  if (stage === 'video_review' && (run.lastError ?? '').includes('regen cap')) return 'video_generation';
+  if (stage === 'video_review' && ((run.lastError ?? '').includes('regen cap') || isRetryAllowancePause(run.lastError))) return 'video_generation';
   return stage;
 }
 
 // Shared by run detail and Retry mutation, so the app cannot hide an allowed recovery.
 export function isRetryBlockedByCap(run: PipelineRun, target: StageName, failed: PipelineStage | null, legacyRecovery = false): boolean {
-  return isManualRetryCapReached(run, target) && !(run.status === 'needs_attention' && isEligibleRecovery(failed)) && !legacyRecovery;
+  return isManualRetryCapReached(run, target) && !(run.status === 'needs_attention' && (isEligibleRecovery(failed) || Boolean(run.creationOptions?.preflightBlock) || isRetryAllowancePause(run.lastError))) && !legacyRecovery;
 }

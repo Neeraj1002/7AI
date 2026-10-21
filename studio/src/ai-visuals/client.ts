@@ -38,6 +38,10 @@ function mapOpenAiError(error: unknown, context: Record<string, unknown>): Error
       context.recoveryKind = 'provider_capacity';
       return new NonTransientStageError(`OpenAI image capacity exhausted: ${error.message}`, error, context);
     }
+    if (error.status === 401 || error.status === 403) {
+      context.recoveryKind = 'provider_auth';
+      return new NonTransientStageError(`OpenAI rejected our credentials: ${error.message}`, error, context);
+    }
     if (error.status !== undefined && (error.status === 429 || error.status >= 500)) {
       if (error.status === 429) context.recoveryKind = 'rate_limit_exhausted';
       return new TransientStageError(`OpenAI image generation failed (retryable): ${error.message}`, error, context);

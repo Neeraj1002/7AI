@@ -21,7 +21,7 @@ describe('buildChannelComparison', () => {
     expect(b.totals).toEqual({ views: 0, likes: 0, comments: 0 });
     expect(b.avgViewsPerVideo).toBeNull();
     expect(b.byFormat).toEqual([
-      { formatKey: null, videoKind: 'short', videoCount: 0, totals: { views: 0, likes: 0, comments: 0 }, avgViewsPerVideo: null },
+      { formatKey: null, videoKind: 'short', videoCount: 0, totals: { views: 0, likes: 0, comments: 0 }, avgViewsPerVideo: null, longFormWatch: null },
     ]);
   });
 
@@ -85,5 +85,37 @@ describe('buildChannelComparison', () => {
   it('does not leak one channel video into another', () => {
     const out = buildChannelComparison(channels, [v('a', null, 10)], []);
     expect(out.channels[1].totals.views).toBe(0);
+  });
+});
+
+describe('long-form watch numbers in the comparison (Sprint 5 Task 8, R11.4)', () => {
+  const longVideo = (channelId: string, formatKey: string | null, views: number, m: { d: number | null; p: number | null; min: number | null } | null) => ({
+    channelId, formatKey, videoKind: 'long' as const, views, likes: 1, comments: 1,
+    longFormMetrics: m && { averageViewDurationSec: m.d, averageViewPercentage: m.p, estimatedMinutesWatched: m.min },
+  });
+
+  it('averages duration and percentage over the measured long videos and sums the minutes watched', () => {
+    const out = buildChannelComparison(channels, [
+      longVideo('a', 'doc', 1000, { d: 100, p: 40, min: 50 }),
+      longVideo('a', 'doc', 500, { d: 60, p: 20, min: 10.5 }),
+      longVideo('a', 'doc', 200, null), // not measured yet
+    ], []);
+    const a = out.channels.find((c) => c.channelId === 'a')!;
+    expect(a.byVideoKind[0]).toMatchObject({ videoKind: 'long', videoCount: 3, longFormWatch: { videosMeasured: 2, avgViewDurationSec: 80, avgViewPercentage: 30, estimatedMinutesWatched: 60.5 } });
+    expect(a.byFormat[0]).toMatchObject({ formatKey: 'doc', videoKind: 'long', longFormWatch: { videosMeasured: 2 } });
+  });
+
+  it('a Short never carries watch numbers, and a long group with none says null', () => {
+    const out = buildChannelComparison(channels, [
+      { channelId: 'a', formatKey: null, views: 10, likes: 1, comments: 1, longFormMetrics: { averageViewDurationSec: 9, averageViewPercentage: 9, estimatedMinutesWatched: 9 } },
+      longVideo('b', null, 5, null),
+    ], []);
+    expect(out.channels.find((c) => c.channelId === 'a')!.byVideoKind[0].longFormWatch).toBeNull();
+    expect(out.channels.find((c) => c.channelId === 'b')!.byVideoKind[0].longFormWatch).toBeNull();
+  });
+
+  it('keeps null for a metric the API did not return, instead of 0', () => {
+    const out = buildChannelComparison(channels, [longVideo('a', null, 5, { d: 90, p: null, min: null })], []);
+    expect(out.channels.find((c) => c.channelId === 'a')!.byVideoKind[0].longFormWatch).toEqual({ videosMeasured: 1, avgViewDurationSec: 90, avgViewPercentage: null, estimatedMinutesWatched: 0 });
   });
 });
