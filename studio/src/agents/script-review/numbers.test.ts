@@ -77,3 +77,34 @@ it('an attached magnitude suffix is one figure with its currency', () => {
   expect(numberMentions('1.4bn and 90K and 2.5B').map(n => n.value)).toEqual([1.4e9, 9e4, 2.5e9]);
   expect(numberMentions('a 12m run, 5 mm').map(n => n.value)).toEqual([5]); // lowercase unit letters are not magnitudes
 });
+
+it.each([
+  'https://source.example/history/abandoned-ship-the-mary-celeste-174488104/',
+  'https://www.source.example/news/mary-celeste/4023228?year=1872#section-9',
+  'http://source.example/12/three/220M',
+  'www.source.example/archive/4023228',
+])('does not treat citation address %s as numeric claims', url => {
+  expect(numberMentions(url)).toEqual([]);
+  expect(numericVerdicts('The ship was found abandoned.', 'Sources: ' + url).violations).toEqual([]);
+});
+
+it('keeps prose and visible link-label numbers checked at their original offsets', () => {
+  const text = '[99 people](https://source.example/174488104) and 77 crates.';
+  expect(numberMentions(text).map(n => [n.value, text.slice(n.index, n.end)])).toEqual([[99, '99'], [77, '77']]);
+  expect(numericVerdicts('The ship was found abandoned.', text).violations).toHaveLength(2);
+});
+
+it('does not use citation address numbers as evidence for a prose claim', () => {
+  const result = numericVerdicts('Sources: https://source.example/174488104?count=99', 'There were 99 people.');
+  expect(result.violations).toHaveLength(1);
+  expect(result.violations[0]).toContain('SR-1: unmatched number "99"');
+});
+
+it('retains hedge checks and rejects unsupported prose beside a citation', () => {
+  const result = numericVerdicts('About 50 workers arrived.',
+    '50 workers arrived. Source: https://source.example/4023228. There were 99 crates.');
+  expect(result.violations).toHaveLength(2);
+  expect(result.violations.join(' ')).toContain('SR-8: dropped numeric hedge');
+  expect(result.violations.join(' ')).toContain('SR-1: unmatched number "99"');
+  expect(result.violations.join(' ')).not.toContain('unmatched number "4023228"');
+});
