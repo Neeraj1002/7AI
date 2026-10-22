@@ -4,7 +4,9 @@
 **Task:** [r1](../tasks/publishing-citation-retry.md), committed first as `a483982`.
 **Branch/worktree:** `codex/fix-publishing-citation-retry`, `D:\Study Material\7AI\.worktrees\publishing-citation-retry`.
 **Source:** current main `592db32a91ef2202d8ba91798f4b0b224ccbd530`.
-**Status:** implementation, 334 targeted tests and final build/lint/typecheck pass. Draft PR pending creation. Not deployed; production recovery not performed.
+**PR:** [#114](https://github.com/Neeraj1002/7AI/pull/114), opened as draft for founder review.
+**Tested implementation:** `f9e8306` (documentation-only task first commit `a483982`).
+**Status:** implementation, 334 targeted tests and final build/lint/typecheck pass. Not deployed; production recovery not performed.
 
 ## Verified cause and scope
 
@@ -40,6 +42,7 @@ The allowed audited diagnostic read exposed video-stage manual counts only. A su
 - After implementation and URL-safe abbreviation coverage: **334 passed across 26 files**, zero skips. Includes all Script Review and publishing suites, manual retry/API caps, old approval/cancel publishing guards and the new real `runPublishingStage` integration path with mocked repositories/providers.
 - Publishing integration covers Shorts and long-form: citations reach the guarded mocked upload boundary after one metadata call; unsupported prose still stops before claim/upload after the existing one correction. The mocked boundary deliberately throws; no actual session, bytes or successful publication is claimed.
 - Final post-edit `npm run build`, `npm run lint` and `npm run typecheck` passed; `git diff --check` passed. No database test suite, shared-data application startup or provider call executed. The test environment uses a dummy isolated localhost test URL; all accessed repositories are mocked.
+- After committing the tested implementation, fetched origin and pulled main into this own branch: already up to date at `592db32`; no integration conflicts or new source differences. Task-doc content hashes match the architect source. The PR's documentation scope is only this task doc, report and expressly requested recovery script. No shared STATUS or other task document changed.
 
 ## Owner recovery after deployment
 
