@@ -24,8 +24,16 @@ export function valueOfNumber(raw: string): number {
   }
   return total+group;
 }
+export function citationUrlSpans(text: string): Array<readonly [number, number]> {
+  return [...text.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"'`)\]}]+/gi)]
+    .map(m => [m.index!, m.index! + m[0].length] as const);
+}
 export function numberMentions(text: string): NumberMention[] {
   const output: NumberMention[]=[];
+  // Citation paths, query strings and fragments are addresses, not factual quantities.
+  // Keep the original text/offsets so visible link labels and surrounding prose still
+  // receive the same numeric, unit and hedge checks. Closing markup is not part of a URL.
+  const urlSpans = citationUrlSpans(text);
   const occupied: [number,number][]=[];
   // A compound historical currency spelling is a single amount, not a novel standalone 2 and 6.
   const shillings = new RegExp('\\b('+quantity+')\\s*(?:shillings?|s)\\s*(?:and\\s+)?(sixpence|'+quantity+'\\s*(?:pence|pennies|d))\\b','gi');
@@ -55,7 +63,8 @@ export function numberMentions(text: string): NumberMention[] {
   }
   for (const m of text.matchAll(/\b(?:a|an|per)\s+(?:pint|day|year|army[- ]measure)\b/gi)) if (!occupied.some(([a,b])=>m.index!>=a&&m.index!<b))
     output.push({value:1,unit:null,text:m[0],index:m.index!,end:m.index!+m[0].length});
-  return output.sort((a,b)=>a.index-b.index);
+  return output.filter(n => !urlSpans.some(([start, end]) => n.index < end && n.end > start))
+    .sort((a,b)=>a.index-b.index);
 }
 export function sentenceSpans(text:string): {text:string; start:number; end:number}[] {
   const spans: {text:string;start:number;end:number}[]=[];let start=0;
