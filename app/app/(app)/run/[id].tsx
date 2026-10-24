@@ -18,8 +18,11 @@ import { EditSettingsSheet, type CurrentSettings } from '../../../components/Edi
 import { canEditSettings, settingsChangeNotes } from '../../../lib/run-settings';
 import { VOICES } from '../../../lib/pipeline-options';
 import { serverOutcomesOf } from '../../../lib/attempt-outcome';
+import { chapterBoundsOf } from '../../../lib/chapter-bounds';
+import { intakeWarningsOf } from '../../../lib/intake-warnings';
+import { IntakeWarnings } from '../../../components/IntakeWarnings';
 import { CostCard } from '../../../components/CostCard';
-import { costBreakdownOf, costMapOf } from '../../../lib/run-cost';
+import { costBreakdownOf } from '../../../lib/run-cost';
 import { ScriptVersionsCard } from '../../../components/ScriptVersionsCard';
 import { scriptVersionsOf } from '../../../lib/script-versions';
 import { NeedsAttentionCard, EndedCard, InProgressCard } from '../../../components/RunStateCards';
@@ -360,7 +363,6 @@ export default function RunDetailScreen() {
     stages: stages as unknown as StageLike[],
     lastGateDecision,
     gateDecisions: data.gateDecisions,
-    costs: costMapOf(costs),
     server: serverOutcomesOf(data),
   });
   // What the old Details list added beyond the steps: the run's own last error and the stock-to-AI-stills switch.
@@ -398,6 +400,7 @@ export default function RunDetailScreen() {
           initialEditText={editText}
           keepEditOpen={isGate1 && isLong}
           isLongScript={isLong}
+          chapterBounds={chapterBoundsOf(data)}
           targetSeconds={data.targetSeconds}
           editError={isGate1 && gate1Mutation.variables?.action === 'edit' ? gate1Mutation.error?.message : null}
           onEditOpen={() => gate1Mutation.reset()}
@@ -524,6 +527,9 @@ export default function RunDetailScreen() {
       <VideoChip videoKind={data.videoKind} targetSeconds={data.targetSeconds} />
 
       <RunSettingsTiles tiles={settings.tiles} formatLine={settings.formatLine} />
+
+      {/* Follow-up R4: advice from intake, in amber, never blocking. */}
+      <IntakeWarnings warnings={intakeWarningsOf(run)} />
 
       <Stepper currentIndex={stepIndex} end={stepperEnd} />
 
@@ -770,6 +776,7 @@ export default function RunDetailScreen() {
           limitUsd={costs?.limitUsd ?? data.maxCostUsd}
           estimateUsd={costs?.estimateUsd}
           retryAllowanceUsd={costs?.retryAllowanceUsd}
+          breakdown={costs}
           ended={run.status === 'completed' || run.status === 'failed'}
           attemptsCount={videoAttempts}
         />

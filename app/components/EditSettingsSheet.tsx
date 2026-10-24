@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useReducer, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { BottomSheet } from './BottomSheet';
 import { PrimaryButton, SecondaryButton } from './Buttons';
-import { VoiceSheet } from './VoiceSheet';
+import { VoicePicker } from './VoicePicker';
+import { editReducer, initialEditState, spendTextOf, type CurrentSettings } from '../lib/edit-settings-state';
 import { useOptionLists } from '../lib/pipeline-options';
 import { useTRPCClient } from '../lib/trpc';
 import { newLimitError, parseLimit, usd } from '../lib/long-video';
@@ -23,13 +24,7 @@ import {
 } from '../lib/run-settings';
 import { color, font, radius, space, type } from '../lib/theme';
 
-export type CurrentSettings = {
-  voice: string | null;
-  audioLayer: string | null;
-  visualSource: string | null;
-  privacyStatus: 'private' | 'unlisted' | 'public';
-  maxCostUsd: number | null;
-};
+export type { CurrentSettings };
 
 const PRIVACY: { value: CurrentSettings['privacyStatus']; label: string }[] = [
   { value: 'private', label: 'Private' },
@@ -37,7 +32,8 @@ const PRIVACY: { value: CurrentSettings['privacyStatus']; label: string }[] = [
   { value: 'public', label: 'Public' },
 ];
 
-// Sprint 5 Task 7 R4 — "Edit settings" on a stopped or waiting run (runs.updateSettings, Task 8 R13). Fields the server
+// Sprint 5 Task 7 R4 — "Edit settings" on a stopped or waiting run (runs.updateSettings, Task 8 R13). It has two pages in
+// one sheet (follow-up R1): the settings, and the voice list, which opens as a page and returns with the choice kept. Fields the server
 // would refuse are shown unavailable with its reason; the approved script, the money spent and every finished step are
 // kept. "Save and retry this step" validates, saves and retries in one call; nothing is saved if the server refuses.
 export function EditSettingsSheet({
@@ -86,13 +82,12 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
   const rules = settingRules({ status, currentStage });
   const ruleOf = (key: SettingKey) => rules.find((r) => r.key === key)!;
 
-  const [draft, setDraft] = useState<CurrentSettings>(current);
-  const [spendText, setSpendText] = useState(current.maxCostUsd !== null ? String(current.maxCostUsd) : '');
-  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [state, dispatch] = useReducer(editReducer, current, initialEditState);
+  const { draft, spendText } = state;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const spendChanged = spendText.trim() !== (current.maxCostUsd !== null ? String(current.maxCostUsd) : '');
+  const spendChanged = spendText.trim() !== spendTextOf(current.maxCostUsd);
   const spendError = spendChanged ? newLimitError(spendText, spentUsd) : null;
   const next: SettingsChange = {
     voice: draft.voice,
@@ -115,10 +110,10 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
     visualSource: (v: string | null) => labelOf(visualSources, v, 'Channel default'),
   };
 
-  const save = async () => {
+  const save = async (retry: boolean) => {
     const refused = refusedChanges(change, rules);
     if (refused.length > 0) {
-      setError(refused.join(' '));
+      setError(`Nothing was saved. ${refused.join(' ')}`);
       return;
     }
     setPending(true);
@@ -143,22 +138,22 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
       return changeLines(from, to, change);
     };
     try {
-      await call(retries);
-      onDone({ retried: retries, lines: lines() });
+      await call(retry);
+      onDone({ retried: retry, lines: lines() });
       onClose();
     } catch (e) {
-      if (retries && needsRetryOnItsOwn(e)) {
+      if (retry && needsRetryOnItsOwn(e)) {
         // A run in legacy planner recovery has to be retried on its own: save the settings now, Retry stays on the screen.
         try {
           await call(false);
           onDone({ retried: false, lines: lines(), notice: 'Settings saved. This run needs its planner recovery started with Retry on its own: tap "Retry this step".' });
           onClose();
         } catch (e2) {
-          setError(e2 instanceof Error ? e2.message : 'Could not save the settings.');
+          setError(`Nothing was saved. ${e2 instanceof Error ? e2.message : 'Could not save the settings.'}`);
         }
       } else {
         // The server's own words (a failed check says which setting to change); an old server without the call says so.
-        setError(missingProcedure(e) ? 'This server cannot change settings on a run yet.' : e instanceof Error ? e.message : 'Could not save the settings.');
+        setError(missingProcedure(e) ? 'This server cannot change settings on a run yet.' : `Nothing was saved. ${e instanceof Error ? e.message : 'Could not save the settings.'}`);
       }
     } finally {
       setPending(false);
@@ -167,13 +162,26 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
 
   const modeNote = (r: SettingRule) => r.note;
 
+  if (state.page === 'voice') {
+    return (
+      <VoicePicker
+        title="Voice"
+        backLabel="Edit settings"
+        onBack={() => dispatch({ type: 'back' })}
+        defaultLabel={current.voice === null ? `Channel default (${channelDefaultVoice})` : undefined}
+        selected={draft.voice}
+        onUse={(voice) => dispatch({ type: 'useVoice', voice })}
+      />
+    );
+  }
+
   return (
     <>
       <Text style={styles.title}>Edit settings</Text>
       <Text style={styles.intro}>The approved script, the money already spent and every finished step are kept. This does not start the run over.</Text>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
         <Field label={SETTING_LABEL.voice} note={modeNote(ruleOf('voice'))} locked={ruleOf('voice').mode === 'locked'}>
-          <Pressable onPress={() => setVoiceOpen(true)} style={styles.select} accessibilityRole="button" accessibilityLabel={`Voice: ${label.voice(draft.voice)}`}>
+          <Pressable onPress={() => dispatch({ type: 'openVoice' })} style={styles.select} accessibilityRole="button" accessibilityLabel={`Voice: ${label.voice(draft.voice)}`}>
             <Text style={styles.selectText} numberOfLines={1}>
               {label.voice(draft.voice)}
             </Text>
@@ -182,18 +190,18 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
         </Field>
 
         <Field label={SETTING_LABEL.audioLayer} note={modeNote(ruleOf('audioLayer'))} locked={ruleOf('audioLayer').mode === 'locked'}>
-          <Chips options={moodTags} value={draft.audioLayer} onChange={(v) => setDraft((d) => ({ ...d, audioLayer: v }))} />
+          <Chips options={moodTags} value={draft.audioLayer} onChange={(v) => dispatch({ type: 'setAudio', value: v })} />
         </Field>
 
         <Field label={SETTING_LABEL.visualSource} note={modeNote(ruleOf('visualSource'))} locked={ruleOf('visualSource').mode === 'locked'}>
-          <Chips options={visualSources} value={draft.visualSource} onChange={(v) => setDraft((d) => ({ ...d, visualSource: v }))} />
+          <Chips options={visualSources} value={draft.visualSource} onChange={(v) => dispatch({ type: 'setVisual', value: v })} />
         </Field>
 
         <Field label={SETTING_LABEL.privacyStatus} note={modeNote(ruleOf('privacyStatus'))}>
           <Chips
             options={PRIVACY}
             value={draft.privacyStatus}
-            onChange={(v) => setDraft((d) => ({ ...d, privacyStatus: v as CurrentSettings['privacyStatus'] }))}
+            onChange={(v) => dispatch({ type: 'setPrivacy', value: v as CurrentSettings['privacyStatus'] })}
           />
         </Field>
 
@@ -203,7 +211,7 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
             <TextInput
               style={styles.input}
               value={spendText}
-              onChangeText={setSpendText}
+              onChangeText={(text) => dispatch({ type: 'setSpend', text })}
               keyboardType="decimal-pad"
               selectionColor={color.accent}
               cursorColor={color.accent}
@@ -224,22 +232,17 @@ function Body({ onClose, runId, status, currentStage, current, spentUsd, channel
         ))}
       </ScrollView>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View style={styles.banner} accessibilityRole="alert">
+          <Text style={styles.bannerText}>{error}</Text>
+        </View>
+      ) : null}
+      {retries ? <SecondaryButton label="Save only" loading={pending} disabled={!hasChange || spendError !== null} onPress={() => void save(false)} /> : null}
       <PrimaryButton
         label={retries ? 'Save and retry this step' : 'Save settings'}
         loading={pending}
         disabled={!hasChange || spendError !== null}
-        onPress={() => void save()}
-      />
-      <SecondaryButton label="Cancel" onPress={onClose} disabled={pending} />
-
-      <VoiceSheet
-        visible={voiceOpen}
-        onClose={() => setVoiceOpen(false)}
-        title="Voice"
-        defaultLabel={current.voice === null ? `Channel default (${channelDefaultVoice})` : undefined}
-        selected={draft.voice}
-        onSelect={(v) => setDraft((d) => ({ ...d, voice: v }))}
+        onPress={() => void save(retries)}
       />
     </>
   );
@@ -306,4 +309,6 @@ const styles = StyleSheet.create({
   lockedLabel: { fontFamily: font.bold, color: color.muted },
   warn: { ...type.body, fontSize: 13, color: color.warnText },
   error: { ...type.body, fontSize: 13, color: color.danger },
+  banner: { padding: space.md, borderRadius: radius.md, backgroundColor: color.accentSoft, borderWidth: 1.5, borderColor: color.danger },
+  bannerText: { ...type.body, fontSize: 13, color: color.danger },
 });

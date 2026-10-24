@@ -186,10 +186,10 @@ describe('step history after the first acceptance run (Sprint 5 Task 7 R5, R11)'
     expect(buildStepHistory({ stages: [row('s', 'script_generation', 'completed')] }).steps).toHaveLength(7);
   });
 
-  it('puts the cost of an attempt on its row when the server sends it', () => {
-    const costs = new Map([['video_generation:1', { totalUsd: 0.27, failed: false, stages: [{ name: 'Images', usd: 0.13, failed: false }] }]]);
-    const video = buildStepHistory({ stages, costs }).steps.find((s) => s.key === 'video')!;
-    expect(video.attempts[0].cost?.totalUsd).toBe(0.27);
-    expect(video.attempts[1].cost).toBeUndefined();
+  it("shows each attempt's outcome and reason only; the cost lives on the cost card", () => {
+    const video = buildStepHistory({ stages }).steps.find((s) => s.key === 'video')!;
+    expect(video.attempts[0].title).toBe('Attempt 1 · failed review');
+    expect(video.attempts[0].why).toBe('Longest shot 8.3 s, limit 7.5 s.');
+    expect(video.attempts[0]).not.toHaveProperty('cost');
   });
 });
