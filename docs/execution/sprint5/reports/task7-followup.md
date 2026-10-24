@@ -6,12 +6,12 @@
 **Task doc**: `docs/execution/sprint5/tasks/task7-followup.md`, r1, copied from the founder's folder and committed on its own (`SPRINT5_TASK7_FE_FOLLOWUP_DOC: add task doc r1`).
 **Written**: 2026-10-24
 
-**Blocker for the architect (R3):** `runs.get.chapterBounds` is **not on `main`**. PR #112 only added `creationOptions.intakeWarnings` (and the shared `long-form/chapter-bounds.ts`); no router returns the bounds. As the task says, I added no constant. R3 is built so that it works the moment the field is sent and degrades quietly until then (live chapter count with no limit; the server's own message after Save). It cannot be proved against a real server, and `lib/task8-contract.ts` cannot name the field yet without breaking `tsc`. I left the PR **draft** for that reason. I need: the field added to `runs.get` (`{ min, max, minWordsPerChapter, exactCount }`, null for a Short), or a different name.
+**Blocker for the architect (R3):** `runs.get.chapterBounds` is **not on `main`**. PR #112 only added `creationOptions.intakeWarnings` (and the shared `long-form/chapter-bounds.ts`); no router returns the bounds. As the task says, I added no constant. R3 is built so that it works the moment the field is sent and degrades quietly until then (live chapter count with no limit; the server's own message after Save). It cannot be proved against a real server, and `lib/task8-contract.ts` cannot name the field yet without breaking `tsc`. The founder decided to mark the PR ready without it: the editor picks the field up with no app change once the server sends it. I need: the field added to `runs.get` (`{ min, max, minWordsPerChapter, exactCount }`, null for a Short), or a different name.
 
 **Hard rules that applied**
 1. Rules 1, 2, 4: nothing pushed to `main`; one branch created for this task; one worktree (`task7b`); no git command in another session's folder.
 2. Rule 5: the task doc was copied from the source and committed alone, first. It is identical to the source.
-3. Rule 6: `origin/main` (with #106 and #112) was the starting point; it will be pulled again, tests re-run and the docs scope checked before `gh pr ready`.
+3. Rule 6: `origin/main` was merged into the branch before `gh pr ready` (no conflicts); 184 tests, `tsc` and `eslint` re-run clean; docs in the PR diff are this report only (the task doc is already identical on main).
 4. Rule 7: I wrote only this report. I did not touch `STATUS.md` or any other doc.
 5. Rule 8 (names): branch and commits carry `_FE`; the report is `task7-followup.md` in `reports/`.
 
