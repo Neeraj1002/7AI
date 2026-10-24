@@ -251,12 +251,22 @@ export async function callProviderModel(params: {
       // R5: the headers the retry policy reads (retry-after) and R6's evidence keeps.
       if (error.responseHeaders) context.responseHeaders = error.responseHeaders;
       const detail = `${error.message} ${error.responseBody ?? ""}`.toLowerCase();
+      // Sprint 5 Task 8 (R4): an account out of prepaid credit answers 400 invalid_request_error "Your credit
+      // balance is too low" (seen 19 Oct 2026). It is the same condition as a workspace limit: nothing wrong with
+      // the work, and it clears when credit is added, so it parks the run for a Retry and is never a 400 defect.
+      const outOfCredit = params.provider === 'anthropic' && error.statusCode === 400 && detail.includes('credit balance is too low');
       if (
-        params.provider === 'anthropic' && error.statusCode === 429 &&
-        detail.includes('workspace api usage limit')
+        outOfCredit ||
+        (params.provider === 'anthropic' && error.statusCode === 429 && detail.includes('workspace api usage limit'))
       ) {
         context.recoveryKind = 'provider_capacity';
         throw new NonTransientStageError(`LLM provider capacity exhausted: ${error.message}`, error, context);
+      }
+      // Sprint 5 Task 8 (R4): a rejected key is a setting problem, not a defect in the work, and not
+      // worth three retries. The run parks for a Retry once the key is fixed.
+      if (error.statusCode === 401 || error.statusCode === 403) {
+        context.recoveryKind = 'provider_auth';
+        throw new NonTransientStageError(`LLM provider rejected our credentials: ${error.message}`, error, context);
       }
       if (error.isRetryable) {
         if (error.statusCode === 429) context.recoveryKind = 'rate_limit_exhausted';

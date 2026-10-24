@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
-import { listNotificationsForUser } from '../../models/repositories/notification.repository';
+import { listNotificationPageForUser, listNotificationsForUser } from '../../models/repositories/notification.repository';
 import { updateUserExpoPushToken } from '../../models/repositories/user.repository';
 
 // Sprint 3 Task 3 (K2) — the real in-app notification inbox
@@ -20,6 +20,16 @@ export const notificationsRouter = router({
     }
     return listNotificationsForUser(ctx.userId);
   }),
+
+  // Sprint 5 Task 8 (R12): list returns only the newest 50 rows, which is about 7 or 8 runs once each run has
+  // its gate request, re-sends and result. listPage returns the same rows in pages: pass nextCursor back for
+  // the next page; total counts all of this user's rows. list is unchanged for existing callers.
+  listPage: publicProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(500).optional(), cursor: z.string().uuid().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      if (!ctx.userId) return { items: [], nextCursor: null, total: 0 };
+      return listNotificationPageForUser(ctx.userId, input ?? {});
+    }),
 
   // POST /notifications/register-push-token — Sprint 3 Task 7 (O1). The app
   // calls this once it has a real Expo push token from

@@ -150,6 +150,8 @@ describe('small rules', () => {
           'Your previous reply could not be parsed as JSON (Unexpected token at 5). Reply again with ONLY the corrected JSON object. Escape every double quote inside a string value as \\" and write line breaks inside a string as \\n. No code fences, no commentary.',
       },
     ]);
+    const custom = buildJsonRepairMessages('b', { what: 'output failed schema validation', parseError: 'expected 7 chapters', retryMessage: 'Write exactly 7 chapters.' }, 'r');
+    expect(custom[2]).toEqual({ role: 'user', content: 'Write exactly 7 chapters.' });
     const shape = buildJsonRepairMessages('b', { what: 'output failed schema validation', parseError: 'missing x' }, 'r');
     expect(shape[2].content).toContain('did not match the required shape (missing x)');
   });

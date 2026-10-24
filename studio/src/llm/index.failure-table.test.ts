@@ -130,8 +130,28 @@ describe('R5: overloaded, rate-limited, timeout and network errors wait and retr
     const stage = vi.fn(() => callLLM({ ...req, ledger: ledger() }));
     const error = await withRetryAndCircuitBreaker(stage, { baseDelayMs: 1 }).catch((e: unknown) => e);
     expect(stage).toHaveBeenCalledTimes(1);
+    // One call plus the two extra ones the ceiling allows: 3 provider calls, not 3 stage runs x 3 = 9.
+    expect(mocks.callProviderModel).toHaveBeenCalledTimes(3);
     expect(error).toBeInstanceOf(CircuitBreakerTrippedError);
     expect(getStageErrorContext(error)).toMatchObject({ statusCode: 529 });
+  });
+
+  it('under the wrapper a non-transient error still follows the failure table: 401 stops at once, a schema 400 falls back once', async () => {
+    mocks.callProviderModel.mockRejectedValueOnce(status(401));
+    const unauthorized = vi.fn(() => callLLM({ ...req, ledger: ledger() }));
+    const error = await withRetryAndCircuitBreaker(unauthorized, { baseDelayMs: 1 }).catch((e: unknown) => e);
+    expect(unauthorized).toHaveBeenCalledTimes(1);
+    expect(mocks.callProviderModel).toHaveBeenCalledTimes(1);
+    expect(error).toBeInstanceOf(NonTransientStageError); // not wrapped in a tripped breaker, not retried
+    expect(getStageErrorContext(error)).toMatchObject({ statusCode: 401 });
+
+    mocks.callProviderModel.mockReset();
+    mocks.callProviderModel.mockRejectedValueOnce(status(400)).mockResolvedValueOnce(reply('{"a":"b"}'));
+    const structured = vi.fn(() => callLLM({ ...req, outputSchema: z.object({ a: z.string() }), ledger: ledger() }));
+    const llm = await withRetryAndCircuitBreaker(structured, { baseDelayMs: 1 });
+    expect(structured).toHaveBeenCalledTimes(1);
+    expect(mocks.callProviderModel).toHaveBeenCalledTimes(2);
+    expect(llm.structuredOutputFallback).toBe(true);
   });
 
   it('the wrapper still retries a transient error that did not come from callLLM', async () => {
@@ -239,7 +259,7 @@ describe('R6: evidence on every call', () => {
     const llm = await callLLM({ ...req, ledger: ledger() });
     expect(llm.evidence).toEqual({
       purpose: 'script-generation',
-      model: 'claude-sonnet-5',
+      model: LLM_REGISTRY['script-generation'].model,
       attempt: 1,
       kind: 'first',
       limit: LIMIT,

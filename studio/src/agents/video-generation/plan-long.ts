@@ -135,7 +135,7 @@ function sceneAnchors(text: string, count: number): string[] {
   return chapterSceneSlots(text, count).map((slot) => slot.anchor);
 }
 
-function buildSystemPrompt(params: {
+export function buildSystemPrompt(params: {
   visualStyle?: string | null;
   scriptGuide?: string | null;
   audioLayerOverride?: AudioLayer;
@@ -158,6 +158,8 @@ Rules for still prompts:
 2. Describe framing, viewpoint, lighting and depth as image composition. Do not request continuous physical action, generated camera tracking or drone traversal, lip sync, or a video model/provider.
 3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing historical facts. A reconstruction is an illustration, never documentary evidence of an event.
 4. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The image provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus on the tense atmosphere just before a harmful action or the somber aftermath.
+5. Sprint 5 Task 8: even when the topic is a brand or company, never ask for its logo, name, signs or lettering; show products and places as plain shapes with no markings, and show signs, screens and documents blank or out of focus. Never ask for readable numbers, charts with figures, slogans or posters.
+6. A picture must not imply a fact the narration does not state. For a sentence about a fact (a site sold, a profit, a closure) show that fact or a neutral scene; no ruins, decay, abandonment, disaster or mourning imagery (an overgrown site, a flag at half-mast) unless the narration says so.
 
 ${params.visualStyle ? `Visual style for every image: ${params.visualStyle}\n` : ""}${params.scriptGuide ? `Channel script guide (tone/context only; do not rewrite narration or override the scene-slot JSON contract): ${params.scriptGuide}\n` : ""}Respond with raw JSON only, no markdown code fences, no commentary.`;
 }

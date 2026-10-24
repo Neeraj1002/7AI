@@ -203,9 +203,18 @@ export const FEEDBACK_REPLY_CHARS = 8000;
 // Bugs Task 11 (R5) - the repair call says what was wrong, instead of re-rolling blind.
 export function buildJsonRepairMessages(
   userMessage: string,
-  failure: { what: string; parseError: string },
+  // `retryMessage` is a ready-made instruction for a problem the generic wording cannot name (a chapter-count
+  // miss); when present it replaces the generic sentence.
+  failure: { what: string; parseError: string; retryMessage?: string },
   replyText: string,
 ): LLMMessage[] {
+  if (failure.retryMessage) {
+    return [
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: replyText.slice(0, FEEDBACK_REPLY_CHARS) },
+      { role: 'user', content: failure.retryMessage },
+    ];
+  }
   const detail = failure.parseError.slice(0, FEEDBACK_ERROR_CHARS);
   const problem =
     failure.what === 'did not return valid JSON'

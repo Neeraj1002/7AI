@@ -5,6 +5,7 @@ import { tallyEndedRuns } from '../../run-pipeline/end-reason';
 import type {
   ChannelComparisonDashboard,
   ComparisonTotals,
+  LongFormWatch,
   ContentPerformanceDashboard,
   CostDashboard,
   GateAnalyticsDashboard,
@@ -383,7 +384,24 @@ export type ComparisonVideoRow = {
   views: number;
   likes: number;
   comments: number;
+  // Sprint 5 Task 8 (R11.4): the stored long-form watch numbers of this video's latest snapshot, if any.
+  longFormMetrics?: { averageViewDurationSec: number | null; averageViewPercentage: number | null; estimatedMinutesWatched: number | null } | null;
 };
+
+type WatchAccumulator = { n: number; dur: number[]; pct: number[]; minutes: number };
+const newWatch = (): WatchAccumulator => ({ n: 0, dur: [], pct: [], minutes: 0 });
+function addWatch(acc: WatchAccumulator, m: ComparisonVideoRow['longFormMetrics']): void {
+  if (!m) return;
+  acc.n += 1;
+  if (typeof m.averageViewDurationSec === 'number') acc.dur.push(m.averageViewDurationSec);
+  if (typeof m.averageViewPercentage === 'number') acc.pct.push(m.averageViewPercentage);
+  if (typeof m.estimatedMinutesWatched === 'number') acc.minutes += m.estimatedMinutesWatched;
+}
+const mean = (xs: number[]): number | null => (xs.length > 0 ? Number((xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(2)) : null);
+function finishWatch(acc: WatchAccumulator, kind: 'short' | 'long'): LongFormWatch | null {
+  if (kind !== 'long' || acc.n === 0) return null;
+  return { videosMeasured: acc.n, avgViewDurationSec: mean(acc.dur), avgViewPercentage: mean(acc.pct), estimatedMinutesWatched: Number(acc.minutes.toFixed(2)) };
+}
 
 export function buildChannelComparison(
   channels: { id: string; name: string }[],
@@ -401,13 +419,13 @@ export function buildChannelComparison(
       type Kind = 'short' | 'long';
       const kindOf = (k: Kind | undefined): Kind => k ?? 'short';
       const wanted = (k: Kind | undefined) => !videoKindFilter || kindOf(k) === videoKindFilter;
-      const formats = new Map<string, { formatKey: string | null; videoKind: Kind; count: number; totals: ComparisonTotals }>();
-      const kinds = new Map<Kind, { count: number; totals: ComparisonTotals }>();
+      const formats = new Map<string, { formatKey: string | null; videoKind: Kind; count: number; totals: ComparisonTotals; watch: WatchAccumulator }>();
+      const kinds = new Map<Kind, { count: number; totals: ComparisonTotals; watch: WatchAccumulator }>();
       const bucket = (key: string | null, kind: Kind) => {
         const id = `${key ?? ''} ${key === null ? 'n' : 'f'} ${kind}`;
         let b = formats.get(id);
         if (!b) {
-          b = { formatKey: key, videoKind: kind, count: 0, totals: zero() };
+          b = { formatKey: key, videoKind: kind, count: 0, totals: zero(), watch: newWatch() };
           formats.set(id, b);
         }
         return b;
@@ -422,7 +440,7 @@ export function buildChannelComparison(
         const b = bucket(video.formatKey, kind);
         let kb = kinds.get(kind);
         if (!kb) {
-          kb = { count: 0, totals: zero() };
+          kb = { count: 0, totals: zero(), watch: newWatch() };
           kinds.set(kind, kb);
         }
         for (const t of [b.totals, total, kb.totals]) {
@@ -432,6 +450,8 @@ export function buildChannelComparison(
         }
         b.count += 1;
         kb.count += 1;
+        addWatch(b.watch, video.longFormMetrics);
+        addWatch(kb.watch, video.longFormMetrics);
         count += 1;
       }
       if (formats.size === 0) bucket(null, videoKindFilter ?? 'short');
@@ -445,7 +465,7 @@ export function buildChannelComparison(
         // byVideoKind carries the per-kind averages.
         avgViewsPerVideo: kinds.size > 1 ? null : avg(total.views, count),
         byVideoKind: [...kinds.entries()]
-          .map(([videoKind, k]) => ({ videoKind, videoCount: k.count, totals: k.totals, avgViewsPerVideo: avg(k.totals.views, k.count) }))
+          .map(([videoKind, k]) => ({ videoKind, videoCount: k.count, totals: k.totals, avgViewsPerVideo: avg(k.totals.views, k.count), longFormWatch: finishWatch(k.watch, videoKind) }))
           .sort((a, b) => (a.videoKind === b.videoKind ? 0 : a.videoKind === 'short' ? -1 : 1)),
         byFormat: [...formats.values()]
           .map((b) => ({
@@ -454,6 +474,7 @@ export function buildChannelComparison(
             videoCount: b.count,
             totals: b.totals,
             avgViewsPerVideo: avg(b.totals.views, b.count),
+            longFormWatch: finishWatch(b.watch, b.videoKind),
           }))
           // Named formats by views desc, Freeform (null) last.
           .sort((a, b) =>
@@ -488,14 +509,14 @@ export async function getChannelComparisonDashboard(
     // Same "most recent snapshot per video wins" selection as
     // getContentPerformanceDashboard, plus the run's channel and formatKey.
     const rows = await prisma.$queryRaw<
-      { channelId: string; formatKey: string | null; videoKind: 'short' | 'long'; views: bigint; likes: bigint; comments: bigint }[]
+      { channelId: string; formatKey: string | null; videoKind: 'short' | 'long'; views: bigint; likes: bigint; comments: bigint; longFormMetrics: ComparisonVideoRow['longFormMetrics'] }[]
     >(
       Prisma.sql`
         SELECT DISTINCT ON (ps."youtubeVideoId")
           pr."channelId" AS "channelId",
           pr."creationOptions"->>'formatKey' AS "formatKey",
           CASE WHEN pr."creationOptions"->>'videoKind' = 'long' THEN 'long' ELSE 'short' END AS "videoKind",
-          ps.views, ps.likes, ps.comments
+          ps.views, ps.likes, ps.comments, ps."longFormMetrics" AS "longFormMetrics"
         FROM performance_snapshots ps
         JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
         WHERE pr."tenantId" = ${tenantId}::uuid
@@ -509,6 +530,7 @@ export async function getChannelComparisonDashboard(
       views: Number(r.views),
       likes: Number(r.likes),
       comments: Number(r.comments),
+      longFormMetrics: r.longFormMetrics ?? null,
     }));
   } catch (error) {
     // Missing performance_snapshots table means "no data yet", as in

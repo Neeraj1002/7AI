@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "date": "2026-10-19",
+  "status": "SUPERSEDED_BY_AUTHORIZED_RUN_STOPPED_AT_BUDGET",
+  "newPaidCalls": 29,
+  "conservativeBaselineUsd": "1.999582",
+  "remainingCeilingUsd": "0.089338",
+  "unresolvedReservations": [
+    {
+      "origin": "original historical failed call",
+      "model": "claude-haiku-4-5",
+      "usd": "0.031893",
+      "statusCode": null,
+      "stopReason": null,
+      "usage": null
+    },
+    {
+      "origin": "Round 2 Appendix A invented-details repeat 3",
+      "model": "claude-haiku-4-5",
+      "maxOutputTokens": 8192,
+      "usd": "0.088256",
+      "statusCode": null,
+      "stopReason": null,
+      "usage": null
+    },
+    {
+      "origin": "Round 2 clean-short repeat 1",
+      "model": "claude-sonnet-5-5",
+      "maxOutputTokens": 4096,
+      "usd": "0.099242",
+      "statusCode": null,
+      "stopReason": null,
+      "usage": null
+    }
+  ],
+  "unattemptedSonnetReviews": [],
+  "additionalControls": [
+    "lego-facts-control",
+    "lego-rhetoric-control",
+    "d4-imagined-clean",
+    "d4-sensory-speech-clean"
+  ],
+  "negativeFixtures": [
+    "lego-draft-1-excerpts",
+    "lego-draft-2-excerpts",
+    "d4-imagined-invented-number",
+    "d4-sensory-speech-invented-quote"
+  ],
+  "constraints": [
+    "Existing failures stay charged at full reservation until actual returned usage or billing evidence reconciles them.",
+    "No failure was established as cutoff, workspace limit or overload. No conditional cutoff configuration is asserted.",
+    "The legacy round-2 paid runner is disabled after archive; do not reset its ledger.",
+    "Owner waived unavailable historical errors and authorized one Sonnet diagnostic under $0.15, followed by controls-first continuation under the cumulative $3 ceiling.",
+    "Lego controls and draft excerpts are labelled synthetic; no original full production scripts were available."
+  ],
+  "controlPriority": [
+    "clean-short",
+    "lego-facts-control",
+    "lego-rhetoric-control",
+    "appendix-A-clean",
+    "d4-imagined-clean",
+    "d4-sensory-speech-clean"
+  ],
+  "failedSonnetControl": {
+    "caseId": "clean-short",
+    "repeat": 1,
+    "historicalStatus": "failed with lost detail",
+    "historicalReservationRetained": true,
+    "newAttemptStatus": "completed HTTP 200; score 7"
+  },
+  "offlineChecks": {
+    "build": true,
+    "typecheck": true,
+    "lint": true,
+    "testsPassed": 1135,
+    "testsSkipped": 9,
+    "focusedReviewerAndLLM": 164,
+    "capturedOutcomeAndStrictConstraints": 34,
+    "providerCallsDuringTests": 0
+  },
+  "currentEvidence": "docs/execution/sprint5/reports/task6-sonnet-evidence.json",
+  "originallyUnattemptedSonnetReviews": [
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "clean-short",
+      "repeat": 2
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "clean-short",
+      "repeat": 3
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-clean",
+      "repeat": 1
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-clean",
+      "repeat": 2
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-clean",
+      "repeat": 3
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-dropped-hedge",
+      "repeat": 1
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-dropped-hedge",
+      "repeat": 2
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-dropped-hedge",
+      "repeat": 3
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-invented-details",
+      "repeat": 1
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-invented-details",
+      "repeat": 2
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "caseId": "appendix-A-invented-details",
+      "repeat": 3
+    }
+  ],
+  "original11Completed": true,
+  "currentConservativeCampaignUsd": "2.910662",
+  "diagnosticOutcome": {
+    "failureReproduced": false,
+    "httpStatus": 200,
+    "stopReason": "stop",
+    "rawStopReason": "end_turn",
+    "inputTokens": 5685,
+    "outputTokens": 244,
+    "reasoningTokens": 0,
+    "replyLengthChars": 609,
+    "costUsd": "0.013810"
+  }
+}

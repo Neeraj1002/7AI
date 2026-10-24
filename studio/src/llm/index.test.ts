@@ -33,7 +33,7 @@ describe('callLLM: the registry owns the limit and the reasoning setting', () =>
     mocks.callProviderModel.mockResolvedValueOnce(result('{"a":"b"}'));
     const llm = await callLLM(req);
     expect(mocks.callProviderModel).toHaveBeenCalledTimes(1);
-    expect(mocks.callProviderModel.mock.calls[0][0]).toMatchObject({ model: 'claude-sonnet-5', maxOutputTokens: LIMIT, reasoning: 'off', stream: false });
+    expect(mocks.callProviderModel.mock.calls[0][0]).toMatchObject({ model: 'claude-sonnet-5-5', maxOutputTokens: LIMIT, reasoning: 'off', stream: false });
     expect(llm.maxOutputTokens).toBe(LIMIT);
     expect(llm.priorAttempts).toEqual([]);
     expect(llm.text).toBe('{"a":"b"}');

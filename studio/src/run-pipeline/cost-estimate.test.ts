@@ -3,11 +3,12 @@ import { estimateRunCost, suggestMaxUsd, longFormStillCount } from './cost-estim
 import { resolveAiVisualsPurpose, resolveImagePricing } from '../ai-visuals/registry';
 
 describe('suggestMaxUsd', () => {
-  it('is 1.5x the estimate rounded up to the next fifty cents', () => {
-    expect(suggestMaxUsd(2.0)).toBe(3);
-    expect(suggestMaxUsd(2.1)).toBe(3.5);
+  it('is the retry allowance (2 x the estimate, decision D1) rounded up to the next fifty cents', () => {
+    expect(suggestMaxUsd(2.0)).toBe(4);
+    expect(suggestMaxUsd(2.1)).toBe(4.5);
     expect(suggestMaxUsd(0.5)).toBe(1);
-    expect(suggestMaxUsd(1.0)).toBe(1.5);
+    expect(suggestMaxUsd(0.24)).toBe(0.5);
+    expect(suggestMaxUsd(1.0)).toBe(2);
   });
 });
 
@@ -27,7 +28,13 @@ describe('estimateRunCost (long)', () => {
     expect(e.breakdown.stillsUsd).toBeCloseTo(120 * resolveImagePricing(resolveAiVisualsPurpose('still-generation').model).perImageUsd, 4);
     expect(e.estimateUsd).toBeGreaterThan(0.8);
     expect(e.estimateUsd).toBeLessThan(2.5);
-    expect(e.suggestedMaxUsd).toBeGreaterThanOrEqual(e.estimateUsd * 1.5);
+    expect(e.suggestedMaxUsd).toBeGreaterThanOrEqual(e.estimateUsd * 2);
+  });
+  it('states a range that includes retries: one clean attempt up to twice that (R8.1)', () => {
+    const e = estimateRunCost({ videoKind: 'long', targetSeconds: 120, secondsPerStill: 5 });
+    expect(e.rangeUsd).toEqual({ minUsd: e.estimateUsd, maxUsd: e.retryAllowanceUsd });
+    expect(e.retryAllowanceUsd).toBeCloseTo(e.estimateUsd * 2, 3);
+    expect(e.suggestedMaxUsd).toBeGreaterThanOrEqual(e.retryAllowanceUsd);
   });
   it('worst case pays for stills once and everything else three times', () => {
     const e = estimateRunCost({ videoKind: 'long', targetSeconds: 600 });

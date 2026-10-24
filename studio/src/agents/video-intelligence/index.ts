@@ -21,7 +21,7 @@ import {
   qualityProfileFor,
   type QualityMetrics,
 } from "../video-generation/quality-spec";
-import { hardFailureReason, measureQualityMetrics } from "./quality-metrics";
+import { classifyHardFailure, hardFailureReason, measureQualityMetrics, type HardFailureCode } from "./quality-metrics";
 import { VisualDefectSchema, type VisualDefect } from '../../run-pipeline/visual-repair';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
@@ -116,6 +116,8 @@ export async function runDeterministicChecks(
     // warning-only behavior shown at Gate 2.
     enforceLongShotPacing?: boolean;
     narrationSeconds?: number;
+    // The rendered length of each scene (long AI-stills), used for the shot figures instead of cut detection.
+    plannedShotSeconds?: number[];
   } = {},
 ): Promise<DeterministicCheckResult> {
   const meta = await probeVideoMeta(videoPath);
@@ -152,6 +154,7 @@ export async function runDeterministicChecks(
     captionsEnabled: options.captionsEnabled ?? false,
     visualSource: options.visualSource,
     profile,
+    plannedShotSeconds: options.plannedShotSeconds,
   });
   const hardFailure = hardFailureReason(metrics, profile, {
     videoSeconds: meta.durationSeconds,
@@ -297,6 +300,9 @@ export type VideoIntelligenceOutcome = {
   // deterministic fail); undefined only when the failure came before it.
   qualityMetrics?: QualityMetrics;
   visualDefects?: VisualDefect[];
+  // Sprint 5 Task 8 (R3/R5): why a deterministic check failed, as a stable code. Absent when the
+  // verdict came from the multimodal pass.
+  reasonCode?: HardFailureCode;
 };
 
 export async function reviewVideo(params: {
@@ -326,6 +332,9 @@ export async function reviewVideo(params: {
   chapterTimings?: ChapterTiming[];
   narrationSeconds?: number;
   sceneMap?: Array<{ sceneId: string; startSec: number; endSec: number }>;
+  // Sprint 5 Task 8 (R6): pictures the pre-render check still flagged after their one regeneration. The
+  // sampled frames cannot see them all, so the reviewer is told.
+  flaggedStills?: Array<{ sceneId: string; issues: Array<{ kind: string; detail: string }> }>;
 }): Promise<VideoIntelligenceOutcome> {
   const deterministic = await runDeterministicChecks(params.videoPath, {
     captionsEnabled: params.captionsEnabled ?? true,
@@ -334,11 +343,15 @@ export async function reviewVideo(params: {
     secondsPerStill: params.secondsPerStill,
     enforceLongShotPacing: params.enforceLongShotPacing,
     narrationSeconds: params.narrationSeconds,
+    ...(params.videoKind === 'long' && params.visualSource === 'ai-stills' && params.sceneMap && params.sceneMap.length > 0 && {
+      plannedShotSeconds: params.sceneMap.map((scene) => scene.endSec - scene.startSec),
+    }),
   });
   if (!deterministic.passed) {
     return {
       verdict: "fail",
       rationale: deterministic.reason,
+      reasonCode: classifyHardFailure(deterministic.reason),
       multimodalRan: false,
       qualityMetrics: deterministic.metrics,
     };
@@ -384,7 +397,7 @@ export async function reviewVideo(params: {
       messages: [
         {
           role: "user",
-          content: `Topic: ${params.topic}\nScript: ${params.scriptText}${sampledSceneMap ? `\nScene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}\nSampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
+          content: `Topic: ${params.topic}\nScript: ${params.scriptText}${params.flaggedStills?.length ? `\nPictures flagged before the render and not fixed (mention them in your notes if a sampled frame shows one): ${JSON.stringify(params.flaggedStills)}` : ''}${sampledSceneMap ? `\nScene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}\nSampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
           attachments: framesBase64.map((dataBase64) => ({
             mediaType: "image/jpeg",
             dataBase64,

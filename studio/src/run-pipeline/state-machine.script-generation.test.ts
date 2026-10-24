@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   checkBudget: vi.fn(),
   generateScript: vi.fn(),
   listReviewLogsForRun: vi.fn(),
+  insertReviewLog: vi.fn(),
+  reviewScript: vi.fn(),
 }));
 
 vi.mock('../models/prisma-client', () => ({
@@ -39,12 +41,14 @@ vi.mock('../models/repositories/usage-event.repository', async (orig) => ({
 }));
 vi.mock('./budget-gate', async (orig) => ({ ...(await orig<object>()), checkBudget: mocks.checkBudget }));
 vi.mock('../agents/script-generation', async (orig) => ({ ...(await orig<object>()), generateScript: mocks.generateScript }));
+vi.mock('../agents/script-review', async orig => ({ ...await orig<object>(), reviewScript: mocks.reviewScript }));
 vi.mock('../models/repositories/review-log.repository', async (orig) => ({
   ...(await orig<object>()),
   listReviewLogsForRun: mocks.listReviewLogsForRun,
+  insertReviewLog: mocks.insertReviewLog,
 }));
 
-import { runScriptGenerationStage } from './state-machine';
+import { runScriptGenerationStage, runScriptReviewStage } from './state-machine';
 import { NonTransientStageError } from './retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from './stage-failure';
 import { buildEvidencePacket, evidenceRef } from '../content-evidence/packet';
@@ -195,4 +199,54 @@ describe('runScriptGenerationStage failure path (Bugs Task 11)', () => {
     expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].costUsd)).toEqual(['0.008100', '0.009900']);
     expect(mocks.failStage.mock.calls[0][3]).toMatchObject({ rawReply: 'bad two', firstRawReply: 'bad one', attempts: 2 });
   });
+});
+
+// R4 exercises the real stage transition and next writer call, with only I/O mocked.
+describe('SR retry concern handoff and existing Gate 1 transitions', () => {
+  const concerns = ['SR-9: "copper nails torn loose" not in brief. Remove it.', 'SR-8: restore the estimate.'];
+  const violations = ['SR-2: restore "full day" exactly.'];
+  const reviewOutput = (score: number) => ({ score, notes: 'Review notes.', hookScore: 8, hookNotes: 'Hook.', videoGenFit: { fitsLengthLimit: true, pacingRealistic: true, visualsProducible: true, flags: [] }, factualConcerns: concerns, styleGuideViolations: violations });
+  function setup(attempt: number, score: number, gate1Enabled = true) {
+    mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', styleGuide: null, isActive: true, approvalGateConfig: { gate1Enabled } });
+    mocks.findLatestAttempt.mockImplementation(async (_id, name) => name === 'script_generation'
+      ? { status: 'completed', attemptNumber: attempt, input: { briefText: 'Stored founder brief' }, output: OUTPUT }
+      : attempt > 1 ? { attemptNumber: attempt - 1 } : null);
+    mocks.reviewScript.mockResolvedValue({ output: reviewOutput(score), llm: llm() });
+  }
+  it('logs SR lists verbatim on auto-reject and forwards them to the next writer', async () => {
+    setup(1, 6);
+    await runScriptReviewStage(RUN_ID);
+    const retry = mocks.insertReviewLog.mock.calls.find(c => c[0].verdict === 'auto-reject')?.[0];
+    expect(retry).toBeDefined();
+    for (const text of [...concerns, ...violations]) expect(retry.rationale).toContain(text);
+    mocks.listReviewLogsForRun.mockResolvedValue([retry]);
+    mocks.generateScript.mockResolvedValue({ output: OUTPUT, llm: llm() });
+    await runScriptGenerationStage(RUN_ID);
+    expect(mocks.generateScript.mock.calls[0][0].fixNotes).toBe(retry.rationale);
+    expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'script_generation' }, expect.anything());
+  });
+  it('still retries the third low review, including when Gate 1 is disabled', async () => {
+    setup(3, 6, false); await runScriptReviewStage(RUN_ID);
+    expect(mocks.insertReviewLog.mock.calls.some(c => c[0].verdict === 'auto-reject')).toBe(true);
+  });
+  it('after three retries goes to Gate 1 with concern arrays intact even with Gate 1 disabled', async () => {
+    setup(4, 6, false); await runScriptReviewStage(RUN_ID);
+    expect(mocks.insertReviewLog.mock.calls.some(c => c[0].verdict === 'auto-reject')).toBe(false);
+    expect(mocks.completeStage).toHaveBeenCalledWith('stage-1', expect.objectContaining({ factualConcerns: concerns, styleGuideViolations: violations }), expect.anything());
+    expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'paused_gate1', currentStage: 'gate1' }, expect.anything());
+  });
+  it('a passing score of 7 with Gate 1 off retains automatic approval', async () => {
+    setup(1, 7, false); await runScriptReviewStage(RUN_ID);
+    expect(mocks.insertReviewLog.mock.calls.some(c => c[0].verdict === 'auto-reject')).toBe(false);
+    expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'video_generation' }, expect.anything());
+  });
+  it('meters both format calls on a successful review and on a failed parse retry', async()=>{
+    setup(1,7);const first=llm({text:'invalid',costUsd:'0.001000'}),second=llm({costUsd:'0.002000'});
+    mocks.reviewScript.mockResolvedValue({output:reviewOutput(7),llm:second,calls:[first,second]});
+    await runScriptReviewStage(RUN_ID);expect(mocks.insertUsageEvent.mock.calls.map(c=>c[0].costUsd)).toEqual(['0.001000','0.002000']);
+    mocks.insertUsageEvent.mockClear();mocks.completeStage.mockClear();mocks.insertReviewLog.mockClear();
+    mocks.reviewScript.mockRejectedValue(new NonTransientStageError('invalid review after retry',undefined,{...llmCallsContext([first,second]),rawReply:'invalid',stopReason:'length'}));
+    await runScriptReviewStage(RUN_ID);expect(mocks.insertUsageEvent.mock.calls.map(c=>c[0].costUsd)).toEqual(['0.001000','0.002000']);expect(mocks.completeStage).not.toHaveBeenCalled();expect(mocks.insertReviewLog).not.toHaveBeenCalled();
+  });
+
 });

@@ -1,7 +1,7 @@
 # Sprint 5 Bug Task: LLM Registry (Parts A and B reported here; Part C stopped at R9.0)
 
 **Date**: 2026-10-19
-**Status**: Part A merged ([PR #108](https://github.com/Neeraj1002/7AI/pull/108)). Part B complete, ready for review. Part C stopped at R9.0 (see its section).
+**Status**: Part A merged ([PR #108](https://github.com/Neeraj1002/7AI/pull/108)). Part B complete, ready for review. Part C stopped at R9.0, still open: Part A's report says "R9.0 says to stop if Sprint 5 Task 8 R11.5 is already done or in progress. It is: [PR #107](https://github.com/Neeraj1002/7AI/pull/107) (draft, `SPRINT5_TASK8_BE`) lists 'thumbnail 403 cannot be reproduced here, cause written down, plain message added'" (PR #107 has since merged). The re-test of the thumbnail upload is a founder-side step on the deployed build; see the Part C section.
 **Branch / worktree / PR (for the architect to record)**: `BUGS_LLM_REGISTRY_A` / `D:\Study Material\7AI-BUGS_LLM_REGISTRY_A` / [PR #108](https://github.com/Neeraj1002/7AI/pull/108). **Part B**: `BUGS_LLM_REGISTRY_B` / `D:\Study Material\7AI-BUGS_LLM_REGISTRY_B` / [PR #109](https://github.com/Neeraj1002/7AI/pull/109). Part C would use `BUGS_LLM_REGISTRY_C`.
 **Task doc**: `docs/execution/sprint5/bugs/tasks/llm-registry.md`, r2; already on `main` (2c2e19c) and identical to the architect's source (only line endings differ), so no doc commit was needed. Revisions picked up: none after r2.
 **Docs scope**: this report is the only doc this branch adds or changes. `STATUS.md` untouched.
@@ -9,7 +9,7 @@
 
 ## One line for the founder
 
-**Part B ready: PR #109, branch `BUGS_LLM_REGISTRY_B`. One finding first: the L-1 brief asks for seven chapters and Script Generation accepts three to six, so T18 will fail there (section "Finding for the founder and architect" under Part B).**
+**Part B ready: PR #109, branch `BUGS_LLM_REGISTRY_B`. The chapter-count finding I raised on 19 Oct no longer stands: PR #112 is merged and `studio/src/long-form/chapter-bounds.ts` now owns chapter bounds (section "Correction" under Part B).**
 
 Part A:
 
@@ -96,9 +96,9 @@ Scale: S-1 uses about 3 to 5% of the new limits. The long form (L-1, T18) is not
 
 ## Part B - make it hard to break again
 
-### Finding for the founder and architect (not an LLM Registry bug)
+### Correction: the chapter-count finding is superseded by PR #112
 
-The L-1 brief in `NIYT_CHANNEL_CONFIG.md` Appendix A says "seven chapters, titles exactly: ...". The long-form rule in `studio/src/agents/script-generation/long-form.ts` is `LONG_MIN_CHAPTERS = 3`, `LONG_MAX_CHAPTERS = 6` (Sprint 4 Task 9 R2). In the canary's real calls (`claude-sonnet-5`, reasoning off, about 3.3k of 16,000 tokens, `stopReason=stop`) the model followed the brief and wrote seven chapters both times; the stage rejected the reply and its one repair with "expected 3 to 6 chapters, got 7". So the founder's T18 will fail at Script Generation until either the brief is cut to six chapters or the maximum is raised to 7. I changed neither. The canary keeps going by reading that rejected reply as the model wrote it, and labels the rows.
+My first version of this report said the NIYT L-1 brief (seven chapters) could not pass Script Generation because `long-form.ts` then held `LONG_MIN_CHAPTERS = 3` and `LONG_MAX_CHAPTERS = 6`. That was true of the code I branched from (`0f01ba9`) and is what the canary's real calls hit: both Script Generation calls for L-1 wrote seven chapters and were rejected with "expected 3 to 6 chapters, got 7". It is no longer true. [PR #112](https://github.com/Neeraj1002/7AI/pull/112) (`BUGS_CHAPTER_BOUNDS`) is merged: `studio/src/long-form/chapter-bounds.ts` is the one owner of chapter counts (a brief that lists its titles sets the count; the ceiling is `MAX_CHAPTERS = 20`), and Script Generation reads it. So a seven-chapter L-1 brief is accepted on current `main`, and nothing here changes chapter bounds. I did not run the canary again, so the canary table below still shows the pre-#112 behaviour: its "(failed step)" and "(rejected 7-chapter script)" labels describe what happened on the code I measured, not what `main` does now. The sizes in it (about 3.3k to 3.4k output tokens for the L-1 script, 21.5% of the limit) are still the best measurement of an L-1 script's size.
 
 ### What the code does now (R0 items that Part B changed)
 
@@ -120,6 +120,7 @@ The L-1 brief in `NIYT_CHANNEL_CONFIG.md` Appendix A says "seven chapters, title
 
 - **Ceiling**: two extra provider calls per stage call, across all causes (`CallLedger`, `MAX_EXTRA_PROVIDER_CALLS = 2`, not configurable above 2). A stage call is one `callLLM` plus, for Script Generation, its repair call (one ledger for the generation); the long planner shares one ledger per batch call. Script Generation's long-form *length* repairs are a quality loop, not failure handling, and get their own ledger each.
 - **Budget**: every extra call asks the stage's guard first (`run-pipeline/llm-retry-guard.ts`): the weekly account and channel budget through `checkBudget` (Sprint 5 Task 8 R8.2's rule), and the per-video limit the user set. Both count what the stage call has spent but not yet booked (`checkBudget` gained an optional `pendingSpendUsd`). A refusal fails with "Spend limit reached before the retry: <Stage> was not tried again. <the budget gate's own words> ...", keeps the calls already paid for booked, and carries `recoveryKind: spend_limit` so Retry works after the limit is raised. The plumbing is an optional `retryGuard` parameter on `callLLM` and on each of the seven agent entry points; the state machine passes `makeLlmRetryGuard(run)` at each. No schema, no new required parameter.
+- **Wrapper tests** (`llm/index.failure-table.test.ts`): "the stage wrapper does not run the stage again on top of the retries already spent here" (a stage that calls `callLLM` through `withRetryAndCircuitBreaker` with a 529 on every call runs once and makes 3 provider calls, not 9; the breaker trips at once), "the wrapper still retries a transient error that did not come from callLLM" (3 runs, unchanged), and "under the wrapper a non-transient error still follows the failure table" (a 401 runs the stage once with one provider call and surfaces as the original non-transient error; a schema 400 falls back to plain text once, in one stage run).
 - **Tests** (`llm/failure-policy.test.ts`, `llm/index.failure-table.test.ts`, `run-pipeline/llm-retry-guard.test.ts`, plus the Script Generation regression file): every row, including a retry refused by the budget (cut-off, transient, fallback and repair), a second failure of a different kind (cut off, then a 401: the first call is still booked), the ceiling across causes, `retry-after` handling, the wrapper not stacking, and the structured-output status table (400 and 422 fall back; 401, 403, 429, 500, 529 and a status-less error do not).
 
 ### R6 - Evidence on every call
@@ -167,6 +168,8 @@ The table below is the command's own output (run 2026-10-19 14:50 UTC on this br
 
 near-miss (60% of the limit or more): none.
 
+The run was made on the branch as cut from `0f01ba9`, before the merge of `main` below: script generation and video planning were then on `claude-sonnet-5`, and `main` has since moved purposes to `claude-sonnet-5-5` (Sprint 5 Task 8 R9). It was not repeated, as agreed; `npm run llm:canary -- --yes` on the merged branch is the one command to re-measure.
+
 Reading it: the largest reply is the L-1 script at 3,436 of 16,000 tokens (21.5%), and the highest share of any limit is intake on L-1 at 22.9% of 4,000. Nothing is near its limit, reasoning tokens are 0 wherever the model reports them (Haiku 4.5 reports none), and every stop is `stop`. An earlier run the same hour gave the same shape (largest 3,110 of 16,000). Per the "After merge" plan the architect tightens limits after a week of real near-miss data; no limit was changed here. The "L-1 batch 1" row is one planner call of 12 scenes, the largest request the long planner makes, not the whole plan. The two "failed step" rows are the two Script Generation calls whose seven-chapter replies were rejected (finding above); the L-1 review and planning rows use that rejected reply, as labelled.
 
 ## Behaviour changes in Part B (each place)
@@ -176,30 +179,36 @@ Reading it: the largest reply is the L-1 script at 3,436 of 16,000 tokens (21.5%
 3. **Provider refusal** (`content-filter`) now fails at once with its own message (before: "did not return valid JSON" or a schema error from an empty reply).
 4. **Every extra call is checked against the budget**, including Part A's cut-off retry, which was not. `checkBudget` gained an optional last parameter (`pendingSpendUsd`, default 0).
 5. **The Script Generation repair call and the long planner's correction attempt** now take a place in the two-extra-calls ceiling (before: each was one call by its own code, with no shared rule).
-6. The cut-off message's technical line is longer; usage events of LLM calls have `metadata.llm`; a failed stage's output may have an `llm` key; the long planner's usage metadata is the merge of its own and `llm`.
+6. **Since the merge of `main`**: Script Review (rewritten on `main`: a format-retry call and hard-cap confirmation calls) shares one ledger and the stage guard for its first call and format retry, and each confirmation call is guarded; the picture check (`still-check.ts`, new on `main`) is guarded the same way and now books every billed call behind a reply (a cut-off retried one was previously booked as one row, the last), with the evidence in `metadata`.
+7. The cut-off message's technical line is longer; usage events of LLM calls have `metadata.llm`; a failed stage's output may have an `llm` key; the long planner's usage metadata is the merge of its own and `llm`.
 
 ## Deviations (Part B)
 
 - R5 and R6 share `llm/index.ts`, `client.ts` and `types.ts` and are one commit (`BUGS_LLM_REGISTRY_B_R5_R6`); R7's columns landed in that commit because `callLLM` reads them, and the R7 commit holds its tests.
 - The near-miss flag is on the usage event and in the log, not in a successful stage's own output (see R6, two honest limits). The raw finish reason is `n/a` for a structured-output cut-off (SDK limitation).
-- The canary's long-planning row is the first batch only, its Video Intelligence row uses one generated plain frame, and its L-1 downstream rows use the rejected seven-chapter reply (all labelled in the table).
+- The canary's long-planning row is the first batch only, its Video Intelligence row uses one generated plain frame, and its L-1 downstream rows use the seven-chapter reply the code I measured rejected (all labelled in the table; see the Correction).
 - The registry keeps the Haiku alias rather than the dated pinned id (R7 says not to switch models).
 - `scripts/llm-registry-real-check.ts` stays as Part A's evidence; the canary supersedes its table, and the script now also prints the usage-event evidence. The throwaway database `sevenai_llm_registry_check` was used for the stage-level evidence and is dropped at the end of Part B.
 
 ## Part B results
 
-- Gates on this branch at the final code commit: `npm run build`, `npm run lint` and `npx tsc --noEmit` clean; `npx vitest run` 1,033 passed, 65 skipped (the DB-backed files), 0 failed (Part A: 953 passed).
+- Gates on this branch after merging `main` (final head): `npm run build`, `npm run lint` and `npx tsc --noEmit` clean; `npx vitest run --maxWorkers=6` 1,504 passed, 65 skipped (the DB-backed files), 0 failed. With the default worker count three timing-sensitive tests (a stock-footage stub test, `still-check.test.ts`, the output-cap scan test) timed out under load on this machine and pass alone and with fewer workers; they are not affected by this work. (Part A: 953 passed, before `main` grew.)
 - Real spend for Part B: three canary runs ($0.04, $0.18, $0.19, the first without the L-1 downstream rows), the stage-level check ($0.04) and one tiny structured cut-off probe (about $0.001); each check stayed far under the $1 ceiling.
 
 ## Before marking ready (template Hard rules 5 to 7, Part B)
 
-- **Task doc**: `docs/execution/sprint5/bugs/tasks/llm-registry.md` is on `main`, r2, identical in content to the architect's source (only line endings differ), so no doc commit.
-- **Pulled `main`**: `git fetch origin` shows nothing new since the branch was cut (`0f01ba9`), so the merge was a no-op and there were no conflicts to resolve. Build, lint, type-check and the full test run are the results above.
+- **Task doc**: `docs/execution/sprint5/bugs/tasks/llm-registry.md` is on `main`; compared again after the merge below with the architect's source in `D:\Study Material\7AI\docs\...`. Identical in content to the source (only line endings differ), r2, so no doc commit.
+- **Pulled `main`** (21 and 24 Oct, `git merge origin/main` in this worktree, not a push to `main`). Conflicts resolved, each by keeping both sides' intent:
+  - `studio/src/agents/publishing/index.ts`: `main`'s `fixNotes` (rewrite after a rejected title) plus my `retryGuard`.
+  - `studio/src/agents/script-generation/index.ts`: `main`'s chapter bounds (`chapterBoundsForBrief`, `wordsPerMinute`, a per-failure `retryMessage`) plus my ledger and failure-table calls; `buildJsonRepairMessages` gained the `retryMessage` branch so the repair text `main` added is unchanged, with a test.
+  - `studio/src/agents/script-review/index.ts`: `main`'s rewrite taken whole, then the ledger, the guard on the format-retry call and on the hard-cap confirmation calls added.
+  - `studio/src/run-pipeline/state-machine.ts`: `main`'s script-review booking (all calls) now also carries `metadata`; `main`'s publishing `generate(fixNotes)` closure plus the guard.
+  - Beyond the conflicts, `video-generation/still-check.ts` and its caller (new on `main`) were wired to the guard and to `llmUsageRows`; one test of mine that hard-coded `claude-sonnet-5` now reads the registry.
 - **Docs scope**: `git diff --name-only origin/main...HEAD -- docs/` lists only this report. `STATUS.md` and every other doc untouched.
 
 ## Sign-off (Part B)
 
-- Task objective: met for R5 to R8; success criterion 3 (T09 and T18) is the founder's test after deploy, with the T18 finding above.
+- Task objective: met for R5 to R8; success criterion 3 (T09 and T18) is the founder's test after deploy (the chapter-count finding is superseded by PR #112, see the Correction).
 - Schema impact: none (`usage_events.metadata` already existed). Business logic: no new states; a retry is two usage events inside one stage attempt, as before.
 - Tests: passing. Ready for review: yes.
 

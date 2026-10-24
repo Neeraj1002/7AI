@@ -47,12 +47,15 @@ export function ChannelProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (selectedChannelId || channels.length === 0 || restoredLastUsed === undefined) return;
     const restored = restoredLastUsed && channels.some((c) => c.id === restoredLastUsed) ? restoredLastUsed : null;
+    // Sets the stored or first channel once both async inputs (channel list, stored id) have arrived.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (restored) {
       setSelectedChannelIdState(restored);
       setIsLastUsed(true);
     } else {
       setSelectedChannelIdState(channels[0].id);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [channels, selectedChannelId, restoredLastUsed]);
 
   const setSelectedChannelId = useCallback((id: string) => {

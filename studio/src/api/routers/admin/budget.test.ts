@@ -38,6 +38,10 @@ describe.skipIf(!SANDBOX)('admin.budget.get (sandbox database)', () => {
         { id: chLone, tenantId: tenantNoQuota, name: 'Lone', nicheDescription: 'x' },
       ],
     });
+    // Runnable-channel budgets require connected credentials; these inert records are never used by a provider.
+    await prisma.agentCredential.createMany({ data: [chX, chY].map(channelId => ({
+      channelId, platform: 'youtube', refreshTokenEncrypted: 'fixture-only-never-decrypted',
+    })) });
     const lastWeek = new Date(Date.now() - 8 * 24 * 3600 * 1000);
     await prisma.usageEvent.createMany({
       data: [
@@ -50,6 +54,7 @@ describe.skipIf(!SANDBOX)('admin.budget.get (sandbox database)', () => {
   afterAll(async () => {
     const tenantIds = [tenantF9, tenantNoQuota];
     await prisma.usageEvent.deleteMany({ where: { tenantId: { in: tenantIds } } });
+    await prisma.agentCredential.deleteMany({ where: { channelId: { in: [chX, chY] } } });
     await prisma.channel.deleteMany({ where: { tenantId: { in: tenantIds } } });
     await prisma.agentQuota.deleteMany({ where: { tenantId: { in: tenantIds } } });
     await prisma.user.deleteMany({ where: { tenantId: { in: tenantIds } } });
@@ -103,8 +108,8 @@ describe.skipIf(!SANDBOX)('admin.budget.get (sandbox database)', () => {
     const bulk = all.get(tenantF9)!;
     expect(bulk.gateSpentUsd).toBeCloseTo(single.gateSpentUsd, 6);
     expect(bulk.warnings.map((w) => w.code)).toEqual(single.warnings.map((w) => w.code));
-    expect(bulk.channels.map((c) => [c.channelId, c.effectiveCeilingUsd, c.status])).toEqual(
-      single.channels.map((c) => [c.channelId, c.effectiveCeilingUsd, c.status]),
+    expect([...bulk.channels].sort((a, b) => a.channelId.localeCompare(b.channelId)).map((c) => [c.channelId, c.effectiveCeilingUsd, c.status])).toEqual(
+      [...single.channels].sort((a, b) => a.channelId.localeCompare(b.channelId)).map((c) => [c.channelId, c.effectiveCeilingUsd, c.status]),
     );
     expect(all.get(tenantNoQuota)!.warnings.map((w) => w.code)).toEqual(['no_quota']);
   });

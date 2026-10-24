@@ -81,6 +81,8 @@ export function llmUsageContext(llm: LLMResponse): StageErrorContext {
     outputTokens: llm.usage.outputTokens,
     costUsd: llm.costUsd,
     stopReason: llm.stopReason,
+    ...(llm.rawStopReason ? { rawStopReason: llm.rawStopReason } : {}),
+    ...(llm.usage.reasoningTokens !== undefined ? { reasoningTokens: llm.usage.reasoningTokens } : {}),
     // A reply that came back after an automatic cut-off retry cost two calls: the failure path books each.
     ...((llm.priorAttempts?.length ?? 0) > 0 ? { calls: llmUsageRows(llm) } : {}),
     ...(llm.evidence ? { callEvidence: [...(llm.priorAttempts ?? []).flatMap((a) => (a.evidence ? [a.evidence] : [])), llm.evidence], responseMeta: llm.responseMeta ?? null } : {}),
@@ -156,4 +158,19 @@ export function failureUsageEvents(error: unknown): FailureUsageFields[] {
     return calls.map((call) => failureUsageFields(new NonTransientStageError('', undefined, call as StageErrorContext)));
   }
   return [failureUsageFields(error)];
+}
+
+// Sprint 5 Task 8 (R8.5): a call that failed may legitimately cost $0 (a provider limit, a rejected key).
+// Its usage row says so, so the ledger and the Admin list read it as a failed call and not as a call
+// whose cost went missing.
+export function failedCallMetadata(error: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const context = getStageErrorContext(error);
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    callFailed: true,
+    failureKind: recoverableFailureKind(error) ?? 'error',
+    ...(typeof context?.statusCode === 'number' && { statusCode: context.statusCode }),
+    failure: message.slice(0, 300),
+    ...extra,
+  };
 }

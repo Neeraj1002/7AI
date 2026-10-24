@@ -1,6 +1,6 @@
 // Sprint 4 Frontend Task 2 (R4). Run with the server's vitest: cd studio && npx vitest run --root ../app
 import { describe, it, expect } from 'vitest';
-import { filterRuns, matchesSearch, matchesStatusFilter } from './queue-filter';
+import { filterRuns, matchesSearch, matchesStatusFilter, emptyRecentMessage } from './queue-filter';
 
 const run = (channelId: string, topic: string, brief = topic) => ({ channelId, briefText: brief, intakeParsed: { topic } });
 
@@ -36,5 +36,26 @@ describe('recent runs status filter', () => {
   it('keeps rejected runs under All only', () => {
     expect(matchesStatusFilter(rejected, 'All')).toBe(true);
     expect(matchesStatusFilter(rejected, 'Failed')).toBe(false);
+  });
+});
+
+describe('emptyRecentMessage', () => {
+  it('names the status and the channel that hide the runs', () => {
+    expect(emptyRecentMessage({ statusFilter: 'Failed', channelName: 'Not In Your Textbook', endedCount: 12, searching: false })).toBe('No failed runs in Not In Your Textbook.');
+    expect(emptyRecentMessage({ statusFilter: 'All', channelName: null, endedCount: 12, searching: true })).toBe('No ended runs match your search.');
+    expect(emptyRecentMessage({ statusFilter: 'Failed', channelName: null, endedCount: 12, searching: false })).toBe('No failed runs.');
+  });
+  it('says there are none yet when nothing has ended', () => {
+    expect(emptyRecentMessage({ statusFilter: 'Failed', channelName: 'X', endedCount: 0, searching: false })).toBe('No ended runs yet.');
+  });
+});
+
+describe('Failed filter rule (Sprint 5 Task 7 R10.6)', () => {
+  it('a run whose final state is failed is under Failed; a published run with failed attempts is not', () => {
+    expect(matchesStatusFilter({ status: 'failed', lastError: 'OpenAI API call failed: 400' }, 'Failed')).toBe(true);
+    expect(matchesStatusFilter({ status: 'completed', lastError: null }, 'Failed')).toBe(false);
+    expect(matchesStatusFilter({ status: 'completed', lastError: 'Gate 2 regen cap' }, 'Published')).toBe(true);
+    expect(matchesStatusFilter({ status: 'failed', lastError: 'Cancelled by user' }, 'Failed')).toBe(false);
+    expect(matchesStatusFilter({ status: 'failed', lastError: 'Cancelled by user' }, 'Cancelled')).toBe(true);
   });
 });

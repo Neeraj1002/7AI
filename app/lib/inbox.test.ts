@@ -1,6 +1,6 @@
 // Sprint 4 Frontend Task 2 (R3). Run with the server's vitest: cd studio && npx vitest run --root ../app
 import { describe, it, expect } from 'vitest';
-import { buildInboxCards, gateOf, reviewLabel, type InboxNotification, type InboxRun } from './inbox';
+import { buildInboxCards, gateOf, INBOX_PAGE_SIZE, pageEarlier, reviewLabel, type InboxNotification, type InboxRun } from './inbox';
 
 const run = (id: string, status: string, extra: Partial<InboxRun> = {}): InboxRun => ({
   id,
@@ -84,5 +84,46 @@ describe('inbox cards', () => {
       [run('r1', 'completed'), run('r2', 'completed')],
     );
     expect(earlier.map((c) => c.runId)).toEqual(['r2', 'r1']);
+  });
+});
+
+describe('every run gets a card (Sprint 5 Task 7 R1)', () => {
+  const many = Array.from({ length: 45 }, (_, i) =>
+    run(`r${i}`, 'completed', { completedAt: new Date(Date.UTC(2026, 9, 1, 0, i)).toISOString() }),
+  );
+
+  it('45 runs and only 3 notifications: all 45 runs get a card', () => {
+    const notifications = [0, 1, 2].map((i) => note(`n${i}`, `r${i}`, 'Gate 1 — x', '2026-10-12T10:00:00Z', '2026-10-12T10:01:00Z'));
+    const { needsYou, earlier } = buildInboxCards(notifications, many);
+    expect(needsYou.length + earlier.length).toBe(45);
+    expect(new Set(earlier.map((c) => c.runId)).size).toBe(45);
+  });
+
+  it('a run with several notifications is still one card', () => {
+    const notifications = [note('a', 'r0', 'Gate 1 — x', '2026-10-12T10:00:00Z'), note('b', 'r0', 'Gate 2 — x', '2026-10-12T11:00:00Z')];
+    const { earlier } = buildInboxCards(notifications, [run('r0', 'completed')]);
+    expect(earlier).toHaveLength(1);
+  });
+
+  it('a run without notifications sorts by its finish time and a waiting one lands in Needs you', () => {
+    const { needsYou, earlier } = buildInboxCards([], [...many.slice(0, 3), run('w', 'paused_gate2', { currentStage: 'gate2' })]);
+    expect(needsYou.map((c) => c.runId)).toEqual(['w']);
+    expect(reviewLabel(needsYou[0].gate)).toBe('Review video');
+    expect(earlier.map((c) => c.runId)).toEqual(['r2', 'r1', 'r0']);
+  });
+
+  it('a run still being made says so instead of having an empty card', () => {
+    const { earlier } = buildInboxCards([], [run('s', 'running', { currentStage: 'script_generation' })]);
+    expect(earlier[0].steps?.map((s) => `${s.name}:${s.word}`)).toEqual(['Script:In progress']);
+  });
+
+  it('pages the Earlier list and reports how many remain', () => {
+    const { earlier } = buildInboxCards([], many);
+    const first = pageEarlier(earlier, INBOX_PAGE_SIZE);
+    expect(first.shown).toHaveLength(20);
+    expect(first.remaining).toBe(25);
+    const all = pageEarlier(earlier, 60);
+    expect(all.shown).toHaveLength(45);
+    expect(all.remaining).toBe(0);
   });
 });

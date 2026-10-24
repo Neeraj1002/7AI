@@ -1,0 +1,81 @@
+{
+  "database": "sevenai_dev",
+  "at": "2026-10-19T15:02:23.694Z",
+  "runsListPage": {
+    "tenantRunsInDatabase": 110,
+    "default": {
+      "items": 50,
+      "total": 110,
+      "nextCursor": "2f19e8ac-8fb0-4ecc-b6d0-5d243a69cd92"
+    },
+    "limit30": {
+      "items": 30,
+      "total": 110,
+      "nextCursor": "310e235d-d92a-4f13-9fc9-57e25a1b0fa8"
+    },
+    "failedLimit10": {
+      "items": 10,
+      "total": 17,
+      "nextCursor": "6a727e98-b8c1-4abe-8910-689b7fade19b",
+      "endReasons": [
+        "cancelled",
+        "failed",
+        "channel_deleted"
+      ]
+    },
+    "walkedWithLimit25": {
+      "pages": 5,
+      "runsSeen": 110
+    }
+  },
+  "notificationsListPage": {
+    "userWithMostRows": "one user (id withheld)",
+    "rowsForUser": 271,
+    "oldListReturned": 50,
+    "default": {
+      "items": 100,
+      "total": 271,
+      "nextCursor": "52a805bc-849b-48cc-abe0-8dce6733cf53"
+    },
+    "limit20": {
+      "items": 20,
+      "total": 271,
+      "nextCursor": "13896adb-f650-4bea-8a89-ff85e5079d8b"
+    },
+    "walkedWithLimit40": {
+      "pages": 7,
+      "rowsSeen": 271
+    }
+  },
+  "updateSettings": {
+    "stoppedStatus": "needs_attention",
+    "stoppedStage": "publishing",
+    "settingsChangesBefore": 0,
+    "returnedChanges": [
+      {
+        "label": "YouTube visibility",
+        "from": "Private",
+        "to": "Unlisted"
+      }
+    ],
+    "statusAfter": "needs_attention",
+    "settingsChangesAfter": [
+      {
+        "at": "2026-10-19T15:02:24.400Z",
+        "by": {
+          "name": null,
+          "userId": null
+        },
+        "changes": [
+          {
+            "to": "Unlisted",
+            "from": "Private",
+            "label": "YouTube visibility"
+          }
+        ]
+      }
+    ],
+    "storedPrivacyStatus": "unlisted",
+    "spentUsd": 0
+  }
+}

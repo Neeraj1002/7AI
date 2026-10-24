@@ -1,7 +1,7 @@
 // App tests have no runner of their own; run with the server's vitest:
 //   cd studio && npx vitest run --root ../app
 import { test, assert } from 'vitest';
-import { EMPTY_FORM, buildProfileData, profileToForm, parseServerProfileError, profileEntrySummary, formsEqual } from './profile-form';
+import { EMPTY_FORM, buildProfileData, profileToForm, parseServerProfileError, profileEntrySummary, formsEqual, firstErrorField, formatsNote, sectionOfField, sectionSummary } from './profile-form';
 
 test('blank form builds an empty profile (everything falls back to defaults)', () => {
   assert.deepEqual(buildProfileData(EMPTY_FORM), { data: {}, localErrors: {} });
@@ -60,8 +60,6 @@ test('summary lists only sections that hold something', () => {
   assert.strictEqual(profileEntrySummary(2, { offeredFormatKeys: ['a'] }, '2026-10-06T10:00:00Z'), 'v2 · 1 format · saved 6 Oct');
   assert.strictEqual(profileEntrySummary(1, { script: { guide: 'x' } }, '2026-09-28T10:00:00Z'), 'v1 · 0 formats · saved 28 Sep');
 });
-
-import { firstErrorField, formatsNote, sectionOfField, sectionSummary } from './profile-form';
 
 test('offeredFormatKeys round-trips and is written only when something is picked', () => {
   const form = profileToForm({ offeredFormatKeys: ['origin-story', 'myth-vs-fact'], script: { guide: 'x' } });

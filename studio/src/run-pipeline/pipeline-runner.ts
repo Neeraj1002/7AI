@@ -127,6 +127,12 @@ async function driveLoop(initial: PipelineRun): Promise<PipelineRun> {
     const archivedRun = await failRunIfChannelArchived(run);
     if (archivedRun) return archivedRun;
     switch (run.currentStage) {
+      // Sprint 5 Task 8 (R13): a run stopped AT intake (preflight now stops one there, for example on a spend limit
+      // below the estimate, or a voice that is no longer valid) and then retried used to stop dead here, because the
+      // loop only ever started after intake. A retry re-enters intake; it moves the run on to script_generation.
+      case 'intake':
+        run = await runIntakeStage(runId);
+        continue;
       case 'script_generation':
         run = await runScriptGenerationStage(runId);
         continue;
@@ -161,7 +167,7 @@ async function driveLoop(initial: PipelineRun): Promise<PipelineRun> {
         run = await runAnalyticsStage(runId);
         continue;
       default:
-        // 'intake' (shouldn't recur) or null (nothing left to drive) — stop
+        // null (nothing left to drive) — stop
         // advancing and leave the run exactly where it is.
         return run;
     }

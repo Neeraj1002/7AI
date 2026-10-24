@@ -9,6 +9,7 @@ import {
   buildLengthRepairMessage,
   buildLongSystemPrompt,
   buildLongTargetLine,
+  buildStructureRepairMessage,
   countWords,
   isLengthInRange,
   lengthError,
@@ -18,6 +19,8 @@ import {
   validateChapters,
   type ScriptChapter,
 } from './long-form';
+import { chapterBoundsForBrief, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
+import type { ChapterBounds } from '../../long-form/chapter-bounds';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
 // agent in the critical path: turns Intake's parsed brief into a script.
@@ -88,6 +91,13 @@ export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common', 
   return factPolicy === 'brief-only' ? SYSTEM_PROMPT + BRIEF_ONLY_RULE : SYSTEM_PROMPT;
 }
 
+// The pace the length target is planned at. A word count stated in the brief wins over minutes x pace: it is
+// expressed as the pace that makes the target exactly that many words, so every length rule reads one number.
+export function longPace(params: Pick<GenerateScriptParams, 'briefText' | 'wordsPerMinute'>, targetSeconds: number): number | undefined {
+  const stated = parseBriefChapterPlan(params.briefText).statedWords;
+  return stated !== null ? (stated * 60) / targetSeconds : params.wordsPerMinute;
+}
+
 export type GenerateScriptParams = {
   topic: string;
   constraints: string[];
@@ -114,6 +124,8 @@ export type GenerateScriptParams = {
   // LLM Registry task (R5): the stage's budget check, asked before every extra provider call this generation
   // makes (a cut-off retry, a transient retry, the structured-output fallback, the JSON repair call).
   retryGuard?: RetryGuard;
+  // Sprint 5 Task 8 (R7): the narrating voice's measured pace; the word count is planned from it. Long-form only.
+  wordsPerMinute?: number;
 };
 
 export function buildUserMessage(params: GenerateScriptParams): string {
@@ -159,7 +171,7 @@ export function buildUserMessage(params: GenerateScriptParams): string {
     lines.push(`Sources (with the brief, the only material you may take facts from):\n${params.sources.map((s) => `- ${s}`).join('\n')}`);
   }
   if (isLong && targetSeconds) {
-    lines.push(buildLongTargetLine(targetSeconds));
+    lines.push(buildLongTargetLine(targetSeconds, longPace(params, targetSeconds)));
   } else if (targetSeconds) {
     const approxWords = Math.round((targetSeconds / 60) * 150);
     lines.push(
@@ -181,7 +193,9 @@ export function buildUserMessage(params: GenerateScriptParams): string {
 const REPLY_LOG_EDGE_CHARS = 300;
 const FEEDBACK_REPLY_CHARS = 8000;
 
-type ReplyFailure = { what: string; cause: unknown; parseError: string };
+// `retryMessage` is a ready-made retry instruction for a problem the generic wording cannot name
+// (the long-form chapter count: what came back and what is allowed).
+type ReplyFailure = { what: string; cause: unknown; parseError: string; retryMessage?: string };
 
 // Bugs Task 11 (R1) — run 248fae8a failed with only the first 200 characters
 // of the reply kept and the JSON.parse position error (on `cause`) never
@@ -302,7 +316,7 @@ function createCaller(system: string, outputSchema: z.ZodType, calls: LLMRespons
 
 type ParsedLongReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
 
-function parseLongScriptReply(llm: LLMResponse): ParsedLongReply {
+function parseLongScriptReply(llm: LLMResponse, bounds: ChapterBounds): ParsedLongReply {
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(extractJsonObjectText(llm.text));
@@ -313,9 +327,18 @@ function parseLongScriptReply(llm: LLMResponse): ParsedLongReply {
   if (!result.success) {
     return { ok: false, failure: { what: 'output failed schema validation', cause: result.error, parseError: result.error.message } };
   }
-  const structureProblem = validateChapters(result.data.chapters);
+  const structureProblem = validateChapters(result.data.chapters, bounds, 'The reply');
   if (structureProblem) {
-    return { ok: false, failure: { what: 'output failed schema validation', cause: new Error(structureProblem), parseError: structureProblem } };
+    const toTheModel = validateChapters(result.data.chapters, bounds, 'Your previous reply') ?? structureProblem;
+    return {
+      ok: false,
+      failure: {
+        what: 'output failed schema validation',
+        cause: new Error(structureProblem),
+        parseError: structureProblem,
+        retryMessage: buildStructureRepairMessage(toTheModel, bounds),
+      },
+    };
   }
   const chapters: ScriptChapter[] = result.data.chapters.map((c) => ({ title: c.title.trim(), text: c.text.trim() }));
   // scriptText is the concatenation of the chapter texts; the SRT is built from the script
@@ -331,19 +354,21 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   const calls: LLMResponse[] = [];
   const targetSeconds = params.targetSeconds ?? params.targetDurationSec ?? 600;
   const userMessage = buildUserMessage(params);
+  // A brief that lists its chapter titles sets the chapter count; otherwise the format's default applies.
+  const bounds = chapterBoundsForBrief(params.briefText, targetSeconds);
   const newLedger = () => new CallLedger({ guard: params.retryGuard });
-  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence)), LongScriptReplySchema, calls, newLedger);
+  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds), LongScriptReplySchema, calls, newLedger);
 
   const first = await call([{ role: 'user', content: userMessage }]);
   let current: { llm: LLMResponse; output: ScriptGenerationOutput };
-  const firstParsed = parseLongScriptReply(first);
+  const firstParsed = parseLongScriptReply(first, bounds);
   if (firstParsed.ok) {
     current = { llm: first, output: firstParsed.output };
   } else {
     logReplyFailure(firstParsed.failure, first, 'long first call, retrying once');
     await takeRepair(firstParsed.failure, first);
     const second = await call(buildJsonRepairMessages(userMessage, firstParsed.failure, first.text));
-    const secondParsed = parseLongScriptReply(second);
+    const secondParsed = parseLongScriptReply(second, bounds);
     if (!secondParsed.ok) {
       logReplyFailure(secondParsed.failure, second, 'long retry call, giving up');
       throw buildReplyError(secondParsed.failure, second, calls, { failure: firstParsed.failure, llm: first });
@@ -354,20 +379,21 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   let words = countWords(current.output.scriptText);
   // Up to two length repairs until the script is within +-10% of the target. A repair is kept only
   // when it is valid AND closer to the target than what we have, so a repair never makes things worse.
-  for (let repairs = 0; repairs < LONG_MAX_LENGTH_REPAIRS && !isLengthInRange(words, targetSeconds); repairs += 1) {
+  const pace = longPace(params, targetSeconds);
+  for (let repairs = 0; repairs < LONG_MAX_LENGTH_REPAIRS && !isLengthInRange(words, targetSeconds, undefined, pace); repairs += 1) {
     console.warn(`[script-generation] long script is ${words} words, outside +-10% of the target for ${targetSeconds}s; length repair ${repairs + 1}/${LONG_MAX_LENGTH_REPAIRS}`);
     const repairMessages: LLMMessage[] = [
       { role: 'user', content: userMessage },
       { role: 'assistant', content: current.llm.text.slice(0, FEEDBACK_REPLY_CHARS * 3) },
-      { role: 'user', content: buildLengthRepairMessage(words, targetSeconds) },
+      { role: 'user', content: buildLengthRepairMessage(words, targetSeconds, pace) },
     ];
     try {
       // A length repair is a quality loop, not failure handling: it gets its own allowance of extra calls.
       const repair = await call(repairMessages, newLedger());
-      const repaired = parseLongScriptReply(repair);
+      const repaired = parseLongScriptReply(repair, bounds);
       if (repaired.ok) {
         const repairedWords = countWords(repaired.output.scriptText);
-        if (lengthError(repairedWords, targetSeconds) < lengthError(words, targetSeconds)) {
+        if (lengthError(repairedWords, targetSeconds, pace) < lengthError(words, targetSeconds, pace)) {
           current = { llm: repair, output: repaired.output };
           words = repairedWords;
         }
@@ -379,7 +405,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
     }
   }
   // Only a script that is still outside +-20% is flagged for the reviewer; it still continues.
-  const lengthOutOfRange = !isLengthInRange(words, targetSeconds, LONG_LENGTH_HARD_TOLERANCE);
+  const lengthOutOfRange = !isLengthInRange(words, targetSeconds, LONG_LENGTH_HARD_TOLERANCE, pace);
   return { output: { ...current.output, ...(lengthOutOfRange && { lengthOutOfRange: true }) }, llm: current.llm, calls };
 }
 

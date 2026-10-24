@@ -195,7 +195,8 @@ plus that item's own real-verification bar — **against preview by default now*
 note above), commit immediately (`BUGS_TASK<N>_R<X>: ...`), push. Once every item in the release is
 done: write the report at `docs/execution/bugs/Sprint3/reports/task[N].md`, upsert the `STATUS.md` row, commit
 that (`BUGS_TASK<N>_REPORT: ...`), push, and mark the PR ready for review — never merge, never push to
-`main`.
+`main`. The report carries a same-cause sweep section (see below), and after the founder merges, the task is
+closed per `TASK_TEMPLATE.md` Hard rule 8.
 
 ## Definition of done / verification bar
 Matches this repo's existing standard, not a lower one because it's "just a bug fix": every task doc in
@@ -205,6 +206,27 @@ preview deployment (`https://7aistudio.tech`) by default** — see the Environme
 file — not a locally-run dev server, unless a task doc explicitly says otherwise. A hot-fixer chat does
 not mark a task's `STATUS.md` row `Done` until it has actually reproduced the fix working there, the same
 bar `hardening-tenant-check.md` and every sprint task doc already hold themselves to.
+
+## Same-cause sweep *(added 2026-10-20, after the chapter-limit bug)*
+
+**Why this exists**: Script Generation rejected a seven-chapter Cold Open script because "3 to 6 chapters" was
+hard-coded in one place, written when long videos were 2 to 10 minutes. The same assumption could sit in the
+prompt, the parser, the planner, the chapter list and the app. A fix scoped to the reported symptom leaves its
+siblings behind, and each one fails later in a real run.
+
+When a bug's cause is a constant, a limit, an assumption or a copied rule, the fix is not finished at the
+reported symptom.
+
+1. **Name the cause in one sentence** (for example "chapter count is hard-coded at 3 to 6").
+2. **Search the whole codebase (`studio/` and `app/`) and the docs** for the same cause: the same number or
+   string, a mirror of the same rule, a test that pins it.
+3. **List every hit in the report** with its file and one of three states: *fixed here*, *left alone, with a
+   reason*, or *needs a new task* (one line).
+4. **Fix every hit that shares the cause and fits the same release.** If a hit needs a schema change, stop and
+   ask the founder, as the Guardrails already say.
+5. **Where several places hold the same value, move it to one owner** (a function or constant) and make the
+   others use it. Do not add another copy.
+6. **A fix whose report has no sweep section is not ready** to be marked ready for review.
 
 ## Guardrails — when to stop and ask the founder
 - The fix, once started, turns out to need a schema change, a new dependency with licensing/cost
