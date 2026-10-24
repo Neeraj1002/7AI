@@ -100,6 +100,7 @@ describe('structured-output usage reaches usage_events', () => {
     text: Promise.resolve(text),
     usage: Promise.resolve({ inputTokens: 1500, outputTokens }),
     finishReason: Promise.resolve(finishReason),
+    finalStep: Promise.resolve({ rawFinishReason: finishReason === 'length' ? 'max_tokens' : 'end_turn', content: [{ type: 'text', text }], response: { id: 'msg_x', modelId: 'claude-sonnet-5', headers: {} }, providerMetadata: undefined }),
   });
 
   it('a reply cut off, then complete on the automatic retry, books both calls and completes the stage', async () => {
@@ -111,6 +112,10 @@ describe('structured-output usage reaches usage_events', () => {
     expect(mocks.insertUsageEvent.mock.calls.map((c) => c[0].outputTokens)).toEqual([16000, 700]);
     expect(mocks.completeStage).toHaveBeenCalled();
     expect(mocks.failStage).not.toHaveBeenCalled();
+    // R6: each usage event carries the evidence for its call in metadata.llm.
+    const metas = mocks.insertUsageEvent.mock.calls.map((c) => c[0].metadata?.llm);
+    expect(metas[0]).toMatchObject({ purpose: 'script-generation', attempt: 1, kind: 'first', limit: 16000, outputTokens: 16000, percentUsed: 100, nearMiss: true, stopReason: 'length' });
+    expect(metas[1]).toMatchObject({ attempt: 2, kind: 'cut-off-retry', limit: 32000, outputTokens: 700, nearMiss: false, finishReason: 'end_turn', blocks: 'thinking:0,text:1' });
   });
 
   it('a reply cut off twice books both calls and fails with the honest cut-off message', async () => {

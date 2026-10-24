@@ -182,6 +182,9 @@ export async function checkBudget(
   channelId: string,
   platform: ChannelPlatform,
   now: Date = new Date(),
+  // LLM Registry task (R5): spend a stage call has made but not booked yet, so a retry inside it is checked
+  // against what is really spent. Added to both the account's and the channel's total.
+  pendingSpendUsd = 0,
 ): Promise<BudgetCheck> {
   const view = await loadChannelBudgetView(tenantId, platform);
   const since = currentBudgetWindowStart(now);
@@ -195,7 +198,7 @@ export async function checkBudget(
     );
   }
 
-  const spentSoFar = await sumUsageCostForTenantPlatform(tenantId, platform, since);
+  const spentSoFar = (await sumUsageCostForTenantPlatform(tenantId, platform, since)) + pendingSpendUsd;
   if (spentSoFar >= view.poolCeilingUsd) {
     return {
       ok: false,
@@ -212,7 +215,7 @@ export async function checkBudget(
   // A channel with no YouTube connection has no share; it can't start a run, so for one already in
   // flight only the pool ceiling (checked above) applies.
   const channelCeiling = connectedChannel ? (view.ceilings.get(channelId) as number) : view.poolCeilingUsd;
-  const channelSpent = await sumUsageCostForTenantChannelPlatform(tenantId, channelId, platform, since);
+  const channelSpent = (await sumUsageCostForTenantChannelPlatform(tenantId, channelId, platform, since)) + pendingSpendUsd;
   if (channelSpent >= channelCeiling) {
     return {
       ok: false,

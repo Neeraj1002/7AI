@@ -29,7 +29,7 @@ import { bindSceneAssets, createSceneMapping, validateScenePlan } from './scene-
 import type { VideoSpend } from './spend';
 import { addScenesToChapters, rebalanceShotLengths } from './shot-balance';
 import { checkStills, strongerPrompt, type StillIssue } from './still-check';
-import type { LLMResponse } from '../../llm';
+import type { LLMResponse, RetryGuard } from '../../llm';
 import type { VideoGenerationResult } from './index';
 
 // Sprint 4 Task 9 (R3-R6): the long-form (16:9, chaptered) counterpart of generateVideo. Order of
@@ -67,6 +67,7 @@ export type LongVideoParams = {
     topic: string;
     beforeCall?: () => Promise<void>;
     onCall?: (llm: LLMResponse, info: { batchSize: number }) => Promise<void>;
+    retryGuard?: RetryGuard;
   };
 };
 
@@ -217,6 +218,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
         topic: params.stillCheck!.topic,
         stills: items.map((it) => ({ ...it, narration: narrationFor(it.sceneIndex) })),
         cacheDir,
+        retryGuard: params.stillCheck!.retryGuard,
         beforeCall: async () => { await guard(); await params.stillCheck!.beforeCall?.(); },
         onCall: async (llm, info) => { await params.stillCheck!.onCall?.(llm, info); await guard(); },
       });

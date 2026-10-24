@@ -6,7 +6,7 @@ vi.mock('./client', () => ({ callProviderModel: mocks.callProviderModel }));
 
 import { callLLM, LLMCutOffError, RETRY_OUTPUT_TOKEN_CEILING } from './index';
 import { failureUsageEvents, llmUsageRows } from '../run-pipeline/stage-failure';
-import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../run-pipeline/retry-with-backoff';
+import { getStageErrorContext, NonTransientStageError } from '../run-pipeline/retry-with-backoff';
 import { LLM_REGISTRY } from './registry';
 
 const result = (text: string, extra: { stopReason?: string; outputTokens?: number; reasoningTokens?: number } = {}) => ({
@@ -141,20 +141,22 @@ describe('callLLM: one automatic retry on a cut-off', () => {
     expect((error as Error).message.startsWith('Video Planning: ')).toBe(true);
   });
 
-  it('a provider error on the retry keeps the first call booked', async () => {
+  it('a provider error on the retry keeps the first call booked (a non-retryable one, so nothing else is tried)', async () => {
     mocks.callProviderModel
       .mockResolvedValueOnce(result('x', { stopReason: 'length', outputTokens: LIMIT }))
-      .mockRejectedValueOnce(new TransientStageError('overloaded', undefined, { provider: 'anthropic', model: 'claude-sonnet-5', statusCode: 529 }));
+      .mockRejectedValueOnce(new NonTransientStageError('unauthorized', undefined, { provider: 'anthropic', model: 'claude-sonnet-5', statusCode: 401 }));
     const error = await callLLM(req).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(TransientStageError);
-    expect(getStageErrorContext(error)).toMatchObject({ statusCode: 529 });
+    expect(error).toBeInstanceOf(NonTransientStageError);
+    expect(getStageErrorContext(error)).toMatchObject({ statusCode: 401 });
     expect(failureUsageEvents(error)).toEqual([expect.objectContaining({ outputTokens: LIMIT, costUsd: '0.002000' })]);
   });
 
   it('a provider error on the first call makes no retry', async () => {
-    const failure = new NonTransientStageError('bad request', undefined, { statusCode: 400 });
+    const failure = new NonTransientStageError('bad request', undefined, { statusCode: 403 });
     mocks.callProviderModel.mockRejectedValueOnce(failure);
-    await expect(callLLM(req)).rejects.toBe(failure);
+    const error = await callLLM(req).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NonTransientStageError);
+    expect((error as Error).message).toBe('bad request');
     expect(mocks.callProviderModel).toHaveBeenCalledTimes(1);
   });
 });

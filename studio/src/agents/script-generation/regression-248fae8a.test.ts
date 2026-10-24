@@ -5,7 +5,6 @@ vi.mock('../../llm', async (orig) => ({ ...(await orig<object>()), callLLM: mock
 
 import { generateScript } from './index';
 import { failureUsageEvents } from '../../run-pipeline/stage-failure';
-import { NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 // Bugs Task 11 — fixture modelled on run 248fae8a (the founder's own test
 // brief; creationOptions { audioLayer: 'none', visualSource: 'ai-stills',
@@ -105,50 +104,44 @@ describe('primary path: schema-constrained output (Bugs Task 11)', () => {
     expect(output.scriptText).not.toContain('"salt money"');
   });
 
-  // The fallback decides on the HTTP status the client attached, never on message text.
-  const providerError = (status: number | undefined, message = 'LLM provider call failed') => {
-    const context = { provider: 'anthropic', model: 'm', ...(status === undefined ? {} : { statusCode: status }) };
-    return status !== undefined && status >= 500
-      ? new TransientStageError(`${message} (retryable)`, undefined, context)
-      : new NonTransientStageError(message, undefined, context);
-  };
-
-  it.each([400, 422])(
-    'a %i from the structured-output call falls back to plain text once, and the retry/repair path still recovers straight quotes',
-    async (status) => {
-      mocks.callLLM
-        .mockRejectedValueOnce(providerError(status))
-        .mockResolvedValueOnce(reply(BAD_REPLY))
-        .mockResolvedValueOnce(reply(GOOD_REPLY));
-      const { output, calls } = await generateScript(params);
-      expect(calls).toHaveLength(2);
-      expect(mocks.callLLM).toHaveBeenCalledTimes(3);
-      expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
-      expect(mocks.callLLM.mock.calls[1][0].outputSchema).toBeUndefined();
-      expect(mocks.callLLM.mock.calls[2][0].outputSchema).toBeUndefined();
-      expect(output.scriptText).toContain('"salt money"');
-      const logged = (console.error as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0])).join('\n');
-      expect(logged).toContain(`provider returned ${status} for the structured-output request`);
-    },
-  );
-
-  it('falls back only once: a second 400 (now on the plain-text call) is raised, not retried again', async () => {
-    mocks.callLLM.mockRejectedValueOnce(providerError(400)).mockRejectedValueOnce(providerError(400));
-    await expect(generateScript(params)).rejects.toBeInstanceOf(NonTransientStageError);
-    expect(mocks.callLLM).toHaveBeenCalledTimes(2);
+  // LLM Registry task, Part B (R5): the structured-output fallback (a 400 or 422 on the schema request, one
+  // fallback to plain text) now lives in callLLM and its failure table; its status tests are in
+  // llm/index.test.ts. What stays true here: once callLLM says it fell back, the repair call sends no schema.
+  it('after callLLM fell back to plain text, the repair call sends no schema either', async () => {
+    mocks.callLLM
+      .mockResolvedValueOnce(reply(BAD_REPLY, { structuredOutputFallback: true }))
+      .mockResolvedValueOnce(reply(GOOD_REPLY, { structuredOutputFallback: true }));
+    const { output, calls } = await generateScript(params);
+    expect(calls).toHaveLength(2);
+    expect(mocks.callLLM.mock.calls[0][0].outputSchema).toBeDefined();
+    expect(mocks.callLLM.mock.calls[1][0].outputSchema).toBeUndefined();
+    expect(output.scriptText).toContain('"salt money"');
   });
 
-  it.each([500, 529, 401, 429])('a %i does NOT fall back: the error is raised after one call', async (status) => {
-    const original = providerError(status);
-    mocks.callLLM.mockRejectedValueOnce(original);
-    await expect(generateScript(params)).rejects.toBe(original);
+  it('the first call and the repair call share one ledger (the two-extra-calls ceiling)', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(BAD_REPLY)).mockResolvedValueOnce(reply(GOOD_REPLY));
+    await generateScript(params);
+    const first = mocks.callLLM.mock.calls[0][0].ledger;
+    expect(first).toBeDefined();
+    expect(mocks.callLLM.mock.calls[1][0].ledger).toBe(first);
+    expect(first.extraCallsUsed).toBe(1); // the repair call took its place
+  });
+
+  it('when the ceiling is already used up there is no repair call: the first unusable reply fails the stage', async () => {
+    mocks.callLLM.mockImplementationOnce(async (req: { ledger: { take: (p: string, r: string) => Promise<unknown> } }) => {
+      await req.ledger.take('script-generation', 'cut-off');
+      await req.ledger.take('script-generation', 'transient');
+      return reply(BAD_REPLY);
+    });
+    await expect(generateScript(params)).rejects.toThrow(/did not return valid JSON/);
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);
   });
 
-  it('an error with no status (and a message that mentions the schema) does NOT fall back', async () => {
-    const original = providerError(undefined, 'LLM provider call failed: invalid output_format schema');
-    mocks.callLLM.mockRejectedValueOnce(original);
-    await expect(generateScript(params)).rejects.toBe(original);
+  it('a budget refusal before the repair call fails with the spend-limit message and books the first call', async () => {
+    mocks.callLLM.mockResolvedValueOnce(reply(BAD_REPLY));
+    const error = await generateScript({ ...params, retryGuard: async () => 'Account spend limit reached: $10.00 used of $10.00 this week.' }).catch((e: unknown) => e);
+    expect((error as Error).message).toContain('Spend limit reached before the retry');
     expect(mocks.callLLM).toHaveBeenCalledTimes(1);
+    expect(failureUsageEvents(error)).toHaveLength(1);
   });
 });

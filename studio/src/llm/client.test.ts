@@ -116,11 +116,48 @@ describe('callProviderModel: reasoning setting, reasoning tokens, streaming', ()
       text: Promise.resolve('streamed'),
       usage: Promise.resolve({ inputTokens: 5, outputTokens: 7 }),
       finishReason: Promise.resolve('stop'),
+      finalStep: Promise.resolve({
+        rawFinishReason: 'end_turn',
+        content: [{ type: 'text', text: 'streamed' }],
+        response: { id: 'msg_1', modelId: 'claude-sonnet-5', timestamp: new Date('2026-10-19T00:00:00Z'), headers: { 'request-id': 'req_9', cookie: 'secret' } },
+        providerMetadata: { anthropic: { cacheCreationInputTokens: 0 } },
+      }),
     });
     const result = await callProviderModel({ ...base, maxOutputTokens: 32000, stream: true });
     expect(mocks.generateText).not.toHaveBeenCalled();
     expect(mocks.streamText.mock.calls[0][0]).toMatchObject({ maxOutputTokens: 32000, providerOptions: { anthropic: { thinking: { type: 'disabled' } } } });
-    expect(result).toMatchObject({ text: 'streamed', usage: { inputTokens: 5, outputTokens: 7 }, stopReason: 'stop' });
+    expect(result).toMatchObject({ text: 'streamed', usage: { inputTokens: 5, outputTokens: 7 }, stopReason: 'stop', rawFinishReason: 'end_turn', blocks: 'thinking:0,text:1' });
+    // Response metadata for a failed call: ids and a few headers, never the whole header set.
+    expect(result.responseMeta).toMatchObject({ id: 'msg_1', modelId: 'claude-sonnet-5', headers: { 'request-id': 'req_9' }, providerMetadata: { anthropic: { cacheCreationInputTokens: 0 } } });
+    expect(JSON.stringify(result.responseMeta)).not.toContain('secret');
+  });
+
+  it('R6: reports the raw finish reason and the reply part kinds (an empty reply that was all reasoning)', async () => {
+    mocks.generateText.mockResolvedValue({
+      text: '',
+      finishReason: 'length',
+      rawFinishReason: 'max_tokens',
+      content: [{ type: 'reasoning', text: 'hmm' }],
+      response: { id: 'msg_2', modelId: 'claude-sonnet-5', timestamp: new Date('2026-10-19T00:00:00Z'), headers: {} },
+      usage: { inputTokens: 10, outputTokens: 100, outputTokenDetails: { reasoningTokens: 100 } },
+    });
+    const result = await callProviderModel(base);
+    expect(result).toMatchObject({ rawFinishReason: 'max_tokens', blocks: 'thinking:1,text:0' });
+  });
+
+  it('R6: a structured reply the SDK could not parse still reports what can be known', async () => {
+    mocks.generateText.mockRejectedValue(
+      new NoObjectGeneratedError({
+        message: 'No object generated',
+        text: '',
+        response: { id: 'r', timestamp: new Date(), modelId: 'm' },
+        usage: { inputTokens: 10, outputTokens: 100, outputTokenDetails: { reasoningTokens: 100 } } as never,
+        finishReason: 'length',
+      }),
+    );
+    const result = await callProviderModel({ ...base, outputSchema: schema });
+    expect(result.blocks).toBe('thinking:1,text:0');
+    expect(result.rawFinishReason).toBeNull();
   });
 
   it('a stream that errors surfaces the provider error, not a generic one', async () => {

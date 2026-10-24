@@ -8,6 +8,7 @@ import {
   describeJsonError,
   extractJsonText,
   type LLMResponse,
+  type RetryGuard,
 } from "../../llm";
 import type { ChapterTiming } from "../../long-form/chapters";
 import {
@@ -305,6 +306,8 @@ export type VideoIntelligenceOutcome = {
 };
 
 export async function reviewVideo(params: {
+  // LLM Registry task (R5): the stage's budget check, asked before every extra provider call.
+  retryGuard?: RetryGuard;
   videoPath: string;
   topic: string;
   scriptText: string;
@@ -383,6 +386,7 @@ export async function reviewVideo(params: {
   const llm = await withRetryAndCircuitBreaker(() =>
     callLLM({
       purpose: "video-intelligence-own-draft",
+      retryGuard: params.retryGuard,
       system: buildSystemPrompt(
         params.visualSource,
         params.safetyChecks,

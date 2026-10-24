@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { callLLM, describeJsonError, extractJsonObjectText, LLMCutOffError, type LLMMessage, type LLMResponse } from '../../llm';
+import { buildJsonRepairMessages, callLLM, CallLedger, describeJsonError, extractJsonObjectText, LLMCutOffError, spendLimitBeforeRetryError, type LLMMessage, type LLMResponse, type RetryGuard } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmCallsContext, llmUsageContext } from '../../run-pipeline/stage-failure';
 import { EvidenceRefSchema, renderEvidenceBlock, validateEvidenceArguments, type EvidencePacket } from '../../content-evidence/packet';
@@ -121,6 +121,9 @@ export type GenerateScriptParams = {
   // The founder's explicit source URLs/citations (long-form only: with the brief, the only facts allowed).
   sources?: string[];
   evidence?: EvidencePacket;
+  // LLM Registry task (R5): the stage's budget check, asked before every extra provider call this generation
+  // makes (a cut-off retry, a transient retry, the structured-output fallback, the JSON repair call).
+  retryGuard?: RetryGuard;
   // Sprint 5 Task 8 (R7): the narrating voice's measured pace; the word count is planned from it. Long-form only.
   wordsPerMinute?: number;
 };
@@ -188,7 +191,6 @@ export function buildUserMessage(params: GenerateScriptParams): string {
 }
 
 const REPLY_LOG_EDGE_CHARS = 300;
-const FEEDBACK_ERROR_CHARS = 500;
 const FEEDBACK_REPLY_CHARS = 8000;
 
 // `retryMessage` is a ready-made retry instruction for a problem the generic wording cannot name
@@ -253,11 +255,6 @@ function withCompletedCalls(error: unknown, calls: LLMResponse[]): unknown {
   return error;
 }
 
-// A 400 or 422 from a call that sent an outputSchema is the provider refusing the
-// structured-output request (invalid request / unprocessable schema). Any other
-// status (401, 429, 5xx, ...) is a different problem and must not fall back.
-export const STRUCTURED_OUTPUT_FALLBACK_STATUSES: readonly number[] = [400, 422];
-
 type ParsedReply ={ ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
 
 function parseScriptReply(llm: LLMResponse): ParsedReply {
@@ -275,74 +272,46 @@ function parseScriptReply(llm: LLMResponse): ParsedReply {
   return { ok: true, output: result.data };
 }
 
-// Bugs Task 11 (R5) — the fallback retry says what was wrong, instead of
-// re-rolling blind (same reasoning as fixNotes above).
-function buildRetryRequest(
-  userMessage: string,
-  failure: ReplyFailure,
-  llm: LLMResponse,
-): { messages: LLMMessage[] } {
-  if (failure.retryMessage) {
-    return {
-      messages: [
-        { role: 'user', content: userMessage },
-        { role: 'assistant', content: llm.text.slice(0, FEEDBACK_REPLY_CHARS) },
-        { role: 'user', content: failure.retryMessage },
-      ],
-    };
-  }
-  const detail = failure.parseError.slice(0, FEEDBACK_ERROR_CHARS);
-  const problem =
-    failure.what === 'did not return valid JSON'
-      ? `could not be parsed as JSON (${detail})`
-      : `did not match the required shape (${detail})`;
-  return {
-    messages: [
-      { role: 'user', content: userMessage },
-      { role: 'assistant', content: llm.text.slice(0, FEEDBACK_REPLY_CHARS) },
-      {
-        role: 'user',
-        content: `Your previous reply ${problem}. Reply again with ONLY the corrected JSON object. Escape every double quote inside a string value as \\" and write line breaks inside a string as \\n. No code fences, no commentary.`,
-      },
-    ],
-  };
-}
-
-// Bugs Task 11 (R3) — schema-constrained output is the primary path: the
-// provider's decoder then escapes quotes and newlines, which is what broke
-// run 248fae8a (straight quotes copied from the brief into scriptText). If
-// the provider rejects the structured-output request itself (a 4xx on the
-// request, which bills nothing and which no offline test can rule out), fall
-// back once to the plain-text path (R5: repair, then one retry) and say so
-// in the log. Shared by the Short and the long-form generators.
-function createCaller(system: string, outputSchema: z.ZodType, calls: LLMResponse[]) {
+// Bugs Task 11 (R3) - schema-constrained output is the primary path: the provider's decoder escapes quotes and
+// newlines, which is what broke run 248fae8a (straight quotes copied from the brief into scriptText). If the
+// provider rejects the structured-output request itself (a 400 or 422, which bills nothing), callLLM falls back
+// once to plain text (llm/failure-policy.ts, the failure table) and says so on the reply; the calls after that
+// send no schema. Shared by the Short and the long-form generators.
+function createCaller(system: string, outputSchema: z.ZodType, calls: LLMResponse[], newLedger: () => CallLedger) {
   let structured = true;
-  const call = async (messages: LLMMessage[]): Promise<LLMResponse> => {
+  // One ledger for the whole generation: its cut-off retry, transient retries, fallback and repair call share the
+  // two-extra-calls ceiling (llm/failure-policy.ts).
+  const ledger = newLedger();
+  const call = async (messages: LLMMessage[], callLedger: CallLedger = ledger): Promise<LLMResponse> => {
     try {
       const llm = await callLLM({
         purpose: 'script-generation',
         system,
         messages,
+        ledger: callLedger,
         ...(structured ? { outputSchema } : {}),
       });
+      if (llm.structuredOutputFallback) structured = false;
       calls.push(llm);
       return llm;
     } catch (error) {
-      const status = getStageErrorContext(error)?.statusCode;
-      if (structured && calls.length === 0 && typeof status === 'number' && STRUCTURED_OUTPUT_FALLBACK_STATUSES.includes(status)) {
-        console.error(
-          `[script-generation] provider returned ${status} for the structured-output request, falling back to plain text: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        structured = false;
-        return call(messages);
-      }
       // A reply cut off twice is still two billed calls, and a swallowed length repair must not lose them.
       const failed = withCompletedCalls(error, calls);
       if (error instanceof LLMCutOffError) calls.push(error.response);
       throw failed;
     }
   };
-  return call;
+  // The repair call after an unusable reply (Bugs Task 11 R5) takes its place in the ceiling first.
+  const takeRepair = async (failure: ReplyFailure, first: LLMResponse): Promise<void> => {
+    const taken = await ledger.take('script-generation', 'bad-json');
+    if (taken.ok) return;
+    if (taken.why === 'budget') {
+      throw spendLimitBeforeRetryError('Script Generation', taken.detail, { ...llmCallsContext(calls), rawReply: first.text, replyLength: first.text.length, parseError: failure.parseError, stopReason: first.stopReason });
+    }
+    // The ceiling is used up (for example by a cut-off retry and a transient retry): fail on the first reply.
+    throw buildReplyError(failure, first, calls);
+  };
+  return { call, takeRepair };
 }
 
 type ParsedLongReply = { ok: true; output: ScriptGenerationOutput } | { ok: false; failure: ReplyFailure };
@@ -387,7 +356,8 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   const userMessage = buildUserMessage(params);
   // A brief that lists its chapter titles sets the chapter count; otherwise the format's default applies.
   const bounds = chapterBoundsForBrief(params.briefText, targetSeconds);
-  const call = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds), LongScriptReplySchema, calls);
+  const newLedger = () => new CallLedger({ guard: params.retryGuard });
+  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds), LongScriptReplySchema, calls, newLedger);
 
   const first = await call([{ role: 'user', content: userMessage }]);
   let current: { llm: LLMResponse; output: ScriptGenerationOutput };
@@ -396,8 +366,8 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
     current = { llm: first, output: firstParsed.output };
   } else {
     logReplyFailure(firstParsed.failure, first, 'long first call, retrying once');
-    const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
-    const second = await call(retryRequest.messages);
+    await takeRepair(firstParsed.failure, first);
+    const second = await call(buildJsonRepairMessages(userMessage, firstParsed.failure, first.text));
     const secondParsed = parseLongScriptReply(second, bounds);
     if (!secondParsed.ok) {
       logReplyFailure(secondParsed.failure, second, 'long retry call, giving up');
@@ -418,7 +388,8 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
       { role: 'user', content: buildLengthRepairMessage(words, targetSeconds, pace) },
     ];
     try {
-      const repair = await call(repairMessages);
+      // A length repair is a quality loop, not failure handling: it gets its own allowance of extra calls.
+      const repair = await call(repairMessages, newLedger());
       const repaired = parseLongScriptReply(repair, bounds);
       if (repaired.ok) {
         const repairedWords = countWords(repaired.output.scriptText);
@@ -443,7 +414,12 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
   if (params.videoKind === 'long') return generateLongScript(params);
   const calls: LLMResponse[] = [];
   const userMessage = buildUserMessage(params);
-  const call = createCaller(buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence)), ScriptGenerationOutputSchema, calls);
+  const { call, takeRepair } = createCaller(
+    buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence)),
+    ScriptGenerationOutputSchema,
+    calls,
+    () => new CallLedger({ guard: params.retryGuard }),
+  );
 
   const first = await call([{ role: 'user', content: userMessage }]);
   const firstParsed = parseScriptReply(first);
@@ -452,8 +428,8 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
   // Bugs Task 11 (R5) — one more call inside the same attempt. A second failure
   // is the existing non-transient error, so it never loops.
   logReplyFailure(firstParsed.failure, first, 'first call, retrying once');
-  const retryRequest = buildRetryRequest(userMessage, firstParsed.failure, first);
-  const second = await call(retryRequest.messages);
+  await takeRepair(firstParsed.failure, first);
+  const second = await call(buildJsonRepairMessages(userMessage, firstParsed.failure, first.text));
   const secondParsed = parseScriptReply(second);
   if (secondParsed.ok) return { output: secondParsed.output, llm: second, calls };
 

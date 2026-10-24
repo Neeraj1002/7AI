@@ -1,4 +1,4 @@
-import { callLLM, describeJsonError, extractJsonText, resolvePurpose, type LLMResponse } from '../llm';
+import { callLLM, describeJsonError, extractJsonText, resolvePurpose, type LLMResponse, type RetryGuard } from '../llm';
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
 import { llmUsageContext } from './stage-failure';
@@ -26,11 +26,12 @@ If the brief is too vague or short to identify a topic at all, respond with ONLY
 
 Respond with raw JSON only — no markdown code fences, no commentary.`;
 
-export async function parseBrief(briefText: string): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
+export async function parseBrief(briefText: string, retryGuard?: RetryGuard): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
   const llm = await callLLM({
     purpose: 'intake-parsing',
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: briefText }],
+    retryGuard,
   });
   const raw = llm.text;
 
@@ -77,7 +78,7 @@ export async function parseBrief(briefText: string): Promise<{ output: IntakePar
 // but llm.model is 'stub' and cost/tokens are genuinely 0, not a fabricated
 // nonzero estimate, since no real call happened and this stub's whole point
 // is a zero-cost dry run.
-export async function stubParseBrief(briefText: string): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
+export async function stubParseBrief(briefText: string, _retryGuard?: RetryGuard): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
   await new Promise((resolve) => setTimeout(resolve, 8000));
 
   if (briefText.toLowerCase().includes('unparseable')) {
