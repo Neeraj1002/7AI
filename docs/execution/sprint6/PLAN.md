@@ -16,6 +16,7 @@
 |---|---|---|---|---|---|
 | P7 | 1 | LLM Registry (one output-limit and failure policy) | Recurring cut-off failures; blocks the combined test | Urgent. One task with P2 as Part C: `sprint5/bugs/tasks/llm-registry.md` | Task written (Sprint 5) |
 | P2 | 1 | Fix the custom-thumbnail 403 | Blocks any thumbnail upload. NIYT is phone verified since about 5 Oct, so Part C re-tests first and fixes only if still failing | Sprint 5 Task 8 R11.5; Sprint 4 hardening doc | Task written (Part C of the P7 task, Sprint 5) |
+| P12 | 2 | Story team: topic lens, angle pitcher, creative script writer, story editor (reviewer) | Task 6 checks facts and rules, not whether a stranger cares (S-1 on weights was correct but not worth watching). Runs first among the priority 2 items by founder decision | Brainstorm log 2026-10-19 "Story team" below | Brainstorm |
 | P1 | 2 | Packaging: promise, title options, thumbnail options, first-seconds hook for Shorts | Clicks come from packaging; only titles are covered today | Gap G11, section 3 below | Brainstorm |
 | P10 | 2 | One intake box: brief and sources pasted together | Separate brief and sources fields feel like an old form | Section 3 below; Sprint 4 Task 2 R5 | Brainstorm |
 | P4 | 2 | Reviewer imagined allowance | Story-feel scripts must pass review; the Imagined tag depends on it | Gap G3 | Idea |
@@ -24,6 +25,7 @@
 | P11 | 3 | Publish extras as gate choices, resolved at Gate 2 (pinned comment, first reply, playlist, end screen, long-video link) | More watch time and engagement after the click, without old-style forms | Section 3 below | Brainstorm |
 | P3 | 3 | Series as formats (first: "A Day in a Life") | Compare and repeatable channel identity | Gap G2, draft in NIYT spec | Idea |
 | P6 | 3 | Look per series and still quality | Look test result decides | Gap G16 | Waiting for look test |
+| P13 | 3 | Share and download the finished video from the app | Founder cannot take a Short off the phone to look at it or post it by hand; deferred from Sprint 5 Task 7 (R8, A9) | Sprint 5 Task 7 report; needs a signed share link for a Short (backend) plus file and sharing modules in a native build; sampled frames the reviewer saw are not in `runs.get` | Idea |
 | P9 | 4 | Rest of the gap register | See `channel_bibles/NIYT_CHANNEL_CONFIG.md` section 13 (G1 to G16) | Spec | Idea |
 
 Sprint 7 overflow: anything not `Ready` by the time Sprint 6 is full, lowest priority first.
@@ -57,6 +59,14 @@ Sprint 7 overflow: anything not `Ready` by the time Sprint 6 is full, lowest pri
 - Limit 2: the YouTube API can probably post a comment but not pin it (to verify in the task). If so, the pin is a one-tap handover to the founder.
 - Needs a check of which API scopes the channel connection already has.
 
+### 2026-10-19 Story team (P12)
+- Trigger: the S-1 Short (weights) passed every rule but the founder asked why anyone would care. Fair. Nothing in the pipeline asks "would a stranger care?"
+- Topic lens: start from a 2026 feeling (money anxiety, being cheated, unfair work and burnout, loneliness and love, grief, who controls me), then find the ancient record that shows people felt it too. The record decides: thin evidence means no topic. Do not force "just like today" parallels; let the viewer draw them. Candidate topics (from memory, each needs fact-checking): debt cancellations, the bad-copper complaint tablet, the Egyptian workers' strike, work absence logs, marriage and divorce contracts, letters to the dead, Roman rent complaints, price controls.
+- Writer: plan before prose. One person, one want, one obstacle, one turn, one reframing ending. Specific detail only true of this evidence. Facts arrive as the payoff of the imagined scene, not as an appendix. Show feeling through action. Read-aloud rhythm; cut any sentence that changes nothing.
+- Reviewer (story editor): a cold-reader test (a model sees only the script and answers: what is this about, why care, where would I swipe away, what do I remember; a mismatch with the promise fails); must quote the weakest sentence and say why; compare three variants instead of scoring one; a small taste library (about five loved, five hated, annotated); a story-spine gate before prose. Needs Sonnet 5.5 or stronger (Task 6 showed Haiku fails rule checks).
+- Team size: a professional channel needs about seven roles (showrunner, researcher and fact-checker, writer, story editor, packaging, producer and editor, analyst and community). Four exist in some form. P12 builds only the writers' room: angle pitcher, writer, story editor, plus the existing fact check. A role is added only where it disagrees usefully with another. Packaging belongs to P1.
+- Open: which feelings the NIYT audience carries most; where the taste library comes from (founder picks).
+
 ## 4. Decisions made
 - 2026-10-19: P7 and P2 are one task in Sprint 5's bug folder: `docs/execution/sprint5/bugs/tasks/llm-registry.md` (Parts A and B for P7, Part C for P2). The old copy in `bugs/Sprint3/tasks/` is retired. Part C defers to Sprint 5 Task 8 R11.5 if that is already done or in progress.
 - 2026-10-19: The visible "Imagined" tag from frame 0 is accepted for Shorts. (Spoken hook-versus-disclaimer order is still open.)
@@ -64,6 +74,7 @@ Sprint 7 overflow: anything not `Ready` by the time Sprint 6 is full, lowest pri
 - 2026-10-19: Brief and sources are entered in one box (P10), not separate fields.
 - 2026-10-19: No separate table for briefs; use existing columns (P10).
 - 2026-10-19: Publish extras are offered as choices at specific gates and resolved together at Gate 2 (P11).
+- 2026-10-19: P12 (story team) is added at priority 2 and runs first among the priority 2 items, right after P7 and P2. Scope is the writers' room (angle pitcher, writer, story editor, existing fact check), not ten agents.
 
 ## 5. Task-writer prompt (paste into a NEW chat attached to the 7AI Project)
 

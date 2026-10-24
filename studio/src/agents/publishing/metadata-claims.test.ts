@@ -62,3 +62,39 @@ describe('the original Lego title', () => {
     expect(issues[0]).toMatchObject({ code: 'hedge_dropped', where: 'title', holds: true });
   });
 });
+
+describe('citation addresses in publishing metadata', () => {
+  // Partial incident-derived fixture: recorded article IDs/paths, synthetic hosts and prose.
+  const sources = 'Sources: https://source.example/history/abandoned-ship-the-mary-celeste-174488104/, '
+    + 'https://www.source.example/news/chemists-think-they-know-what-happened-on-board-the-mary-celeste/4023228.';
+
+  it('preserves citation addresses while expanding abbreviations in surrounding prose', () => {
+    const url = 'https://source.example/220M?amount=1.4B#90K';
+    expect(spellOutAbbreviations('Roughly $220M. Sources: ' + url))
+      .toBe('Roughly $220 million. Sources: ' + url);
+    expect(check(meta({ description: 'Sources: ' + url }))).toEqual([]);
+    expect(check(meta({ description: 'Roughly $220M. Sources: ' + url }))).toEqual([]);
+  });
+
+  it('does not hold a description solely for the two recorded article IDs', () => {
+    expect(checkMetadataClaims({
+      briefText: 'The ship was found abandoned.', scriptText: 'The ship was found abandoned.',
+      metadata: meta({ description: 'The ship was found abandoned.\n' + sources }),
+    })).toEqual([]);
+  });
+
+  it('still holds an unsupported prose figure beside those source URLs', () => {
+    const issues = check(meta({ description: 'The company cut 18,000 jobs.\n' + sources }));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ code: 'unsupported_number', where: 'description', figure: '18,000', holds: true });
+  });
+
+  it('cannot use a number present only in a source URL to support a title', () => {
+    const issues = checkMetadataClaims({
+      briefText: 'Sources: https://source.example/174488104', scriptText: 'The ship was found abandoned.',
+      metadata: meta({ title: '174488104 missing people' }),
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ code: 'unsupported_number', where: 'title', figure: '174488104', holds: true });
+  });
+});

@@ -1,4 +1,4 @@
-import { numericVerdicts } from '../script-review/numbers';
+import { citationUrlSpans, numericVerdicts } from '../script-review/numbers';
 
 // Sprint 5 Task 8 (R11.6): the generated title, description and tags get the number rules Script Review applies to
 // the script (Sprint 5 Task 6, merged): a figure must match the approved script or the brief after normalisation
@@ -26,7 +26,15 @@ const ABBREVIATIONS: Array<[RegExp, string]> = [
 ];
 
 export function spellOutAbbreviations(text: string): string {
-  return ABBREVIATIONS.reduce((out, [pattern, replacement]) => out.replace(pattern, replacement), text);
+  const expand = (part: string) => ABBREVIATIONS.reduce((out, [pattern, replacement]) => out.replace(pattern, replacement), part);
+  // Expanding a URL's "220M" into "220 million" would split its address and
+  // manufacture a prose quantity before the shared numeric check excludes URLs.
+  let out = '', cursor = 0;
+  for (const [start, end] of citationUrlSpans(text)) {
+    out += expand(text.slice(cursor, start)) + text.slice(start, end);
+    cursor = end;
+  }
+  return out + expand(text.slice(cursor));
 }
 
 function quotedFigure(verdict: string): string {
