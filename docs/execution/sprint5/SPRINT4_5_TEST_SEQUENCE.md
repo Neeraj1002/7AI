@@ -1,6 +1,6 @@
 # Sprint 4 and 5 test sequence (founder run)
 
-**Version 2.1, 2026-10-18.** Changes since v2: the profile now holds the story guide, look A and the new title guidance (T04), S-1 carries an arc line (T09, T11) and T14 has a look test. Derived from `SPRINT4_5_ACCEPTANCE_PLAN.md` (journeys L1, S1, duration, phone checks) plus the first test run on 18 Oct. The 57-case CSV tracker is not on `main`, so steps carry their own IDs (T01 to T28). Reply in order: `T07 pass`, `T07 fail` plus a screenshot, or `T07 skip`. Add `G: <what>` whenever the video misses the channel concept (pictures not in the planned stance, no ambience, music not matching the emotion, flat voice, a story that makes you feel nothing); each G goes into the gap register (`channel_bibles/NIYT_CHANNEL_CONFIG.md` §13).
+**Version 2.2, 2026-10-24.** Added Part 4 (T29 to T37): the app and chapter-limit checks for Sprint 5 Tasks 7 and 8 and PRs #112, #113 and #115, to run on the build that contains #113. Changes in v2.1: the profile now holds the story guide, look A and the new title guidance (T04), S-1 carries an arc line (T09, T11) and T14 has a look test. Derived from `SPRINT4_5_ACCEPTANCE_PLAN.md` (journeys L1, S1, duration, phone checks) plus the first test run on 18 Oct. The 57-case CSV tracker is not on `main`, so steps carry their own IDs (T01 to T28). Reply in order: `T07 pass`, `T07 fail` plus a screenshot, or `T07 skip`. Add `G: <what>` whenever the video misses the channel concept (pictures not in the planned stance, no ambience, music not matching the emotion, flat voice, a story that makes you feel nothing); each G goes into the gap register (`channel_bibles/NIYT_CHANNEL_CONFIG.md` §13).
 
 Channel settings, the two treatments (S-1 Short, L-1 Long) and the checklists are in `channel_bibles/NIYT_CHANNEL_CONFIG.md`. The channel keeps its current name for the tests.
 
@@ -48,15 +48,31 @@ Real 2-minute Video created from the phone with estimate and max spend · long-f
 | T22 | Gate 2 quality card | Length at least 8:00; longest shot at most 7.5 s; 1920x1080, 30 fps; chapters listed |
 | T23 | Watch the whole 720p preview with sound | First-person chapters show hands and eye-level views; no writing, marks or violence; the spoken disclaimer is clear; voice says the hard names acceptably; music does not fight the voice; commentary chapters show the place as it looks today; the look holds across chapters (same light and grade, no uncanny faces). Report G notes |
 | T24 | Download the `.srt`, spot-check 3 places | Spelling right; in sync within about a second |
-| T25 | Approve; publish Private | "Uploaded" subtitles chip; chapters in the YouTube description; disclaimer, sources and your name present |
+| T25 | Approve; publish Private; open the run's publishing output and then the video in YouTube Studio | "Uploaded" subtitles chip; chapters in the YouTube description; disclaimer, sources and your name present. **Thumbnail 403 re-test (NIYT, after Task 8 is deployed):** `coverFrameSet` is true and the thumbnail shows on the video in Studio, or `coverFrameMessage` says why not (403: verify the channel; 401: reconnect; other: set it by hand). If it is still a 403 on the verified channel, tell me: a small task follows |
 | T26 | Play it on the phone, scrub once | Plays; chapters work |
 | T27 | Compare tab after 24 to 48 hours | Shorts and Videos tabs show numbers or an honest "not available yet" |
-| T28 | Public decision (you, with me) | Short: Public after T16 and T17 pass. Long: stays Private until Task 6 merges |
+| T28 | Public decision (you, with me) | Short: Public after T16 and T17 pass. Long: stays Private until the combined test passes |
+
+## Part 4: app screens, chapter limits and the Mary Celeste rerun (new build, 24 Oct)
+
+Run after the build that contains PR #113 is on your phone (the build agent or you note whether it needed a new native build). No spend except T35 (about $0.20). Send the four screenshots named in T37 with your results.
+
+| ID | Do | Pass if |
+|---|---|---|
+| T29 | Note the app version again (as T02) and Admin, System info commit (as T01) | The commit equals GitHub `main` after #113 and #115 are merged; version noted |
+| T30 | Inbox: scroll down past the first 8 runs | Older runs load as you scroll and a total is shown; no run is missing |
+| T31 | Queue: choose the Failed filter, then a channel filter, then clear one | The layout does not jump; an active channel filter says it is on |
+| T32 | Run screen of a finished run with attempts: open the cost card | Total, estimate and limit show; one expansion lists cost per attempt and, inside it, per stage; a call that failed without charge reads "failed, not charged"; an amount under one cent shows four decimals; Step history shows each attempt's outcome and reason and no cost |
+| T33 | A run waiting at a gate: Edit settings, open Voice | The voice list opens as a page inside the same sheet (no second window); the back arrow keeps your unsaved choices; one sample plays at a time; saving a changed voice before the video exists works (no spend to start); a stopped run offers "Save only" and "Save and retry this step", and a refused save shows a red "Nothing was saved" line with the server's message; once the video is made, voice, music and pictures are refused with one line that points to Revise at Gate 2; a refused save changes nothing |
+| T34 | Gate 1 of a long run: Edit script, change the chapters | The live chapter count shows the limits for this run (3 up to the length's ceiling); a chapter under 26 words is flagged; the length shows against the target word count; too many chapters on Save shows the server's own sentence, not a phone-made one |
+| T35 | New brief: Cold Open channel, Video, 10 min, the Mary Celeste brief (7 titles, 7 word budgets); Create; wait for Gate 1 (about $0.20) | Accepted at intake; Gate 1 shows exactly 7 chapters with the 7 exact titles and about 1,500 words; an amber line says the brief lists 7 chapters; you can edit to 6 chapters and Save (allowed); no "expected 3 to 6" error |
+| T36 | Two intake checks, no spend: (a) a 2-minute Video with 7 chapters listed; (b) a brief with 8 titles but 7 word budgets | (a) is accepted with an amber line about short chapters, never red; (b) is refused at Create with a plain sentence, no run is created |
+| T37 | Take four screenshots: the Voice page (T33), the cost card expansion (T32), the Gate 1 edit sheet with a limit warning (T34), a run with an intake warning (T36a) | Sent with your results, so the Task 7 follow-up can be closed |
 
 ## Waiting on a build (do not test yet)
 
-Task 6 Script Review rules (and its imagined-allowance addendum) · Task 8 fixes (voice list, preflight, no rebuild, honest attempt status, logo check, cost view) · Task 7 app fixes (Inbox, Queue, Script tab, edit settings) · Task 5 one-scene repair on a real video · Task 2 durable publishing recovery · stale duplicate-attempt rows · weekly YouTube reconnect and Analytics API check · music tracks and licence check · Sprint 6 and 7 items in the spec's gap register.
+Sprint 6 Task 1 (curiosity packaging: titles and thumbnails; three PRs) and Task 2 (per-video disclaimer On/Off; hook first): steps are added at the next version when each ships. Until then, this sequence judges today's build (S-1 and L-1 still open with the spoken disclaimer). Also waiting: Task 5 one-scene repair on a real video; Task 2 (Sprint 5) durable publishing recovery in a real upload; stale duplicate-attempt rows; weekly YouTube reconnect and Analytics API check; music tracks and licence check; the other items in the spec's gap register. **Now merged and covered by the steps above:** Task 6 Script Review rules (T11, T19), Task 8 backend fixes (voice list and preflight at T33; honest attempt status and cost at T32; logo check and no full rebuild by T14 and T22), Task 7 app screens (T30 to T34), the chapter-limit fix (T35, T36).
 
 ## Rules for the run
 
-If a paid step fails, stop and send the screenshot; do not rerun. Do not approve a Gate 2 video that shows writing, logos or violence. Keep the Long Private until Task 6 merges. Record the commit (T01) and the app version (T02) with the results. If the look test at T14 says `look A no`, stop and tell me before any further paid run.
+If a paid step fails, stop and send the screenshot; do not rerun. Do not approve a Gate 2 video that shows writing, logos or violence. Keep the Long Private until the combined test passes. Record the commit (T01) and the app version (T02) with the results. If the look test at T14 says `look A no`, stop and tell me before any further paid run.

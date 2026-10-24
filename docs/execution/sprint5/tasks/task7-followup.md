@@ -4,13 +4,13 @@
 
 **Keep replies and tool output short: no step-by-step narration, read only the files you need, one-line status messages.**
 
-**Revision**: r1, 2026-10-21, first issue.
+**Revision**: r2, 2026-10-24, the server field gained `editMin`, `editMax` and `targetWords`; `exactCount` is advice; two more mirrored values listed. r1, 2026-10-21, first issue.
 
-**Written**: 2026-10-21 by the architect chat, at the founder's request. **Status**: not started. **Priority**: P1 (after PR #106 merges and is built on a phone).
+**Written**: 2026-10-21 by the architect chat, at the founder's request. **Status**: PR #113 is open and ready (24 Oct), built against the four-field version of `chapterBounds`; the r2 changes below go in as one more commit in #113 (or a small PR if #113 is already merged). **Priority**: P1 (after PR #106 merges and is built on a phone).
 
 **Objective**: two things in one app-only PR. (1) Build the "row 11" designs the founder approved: the Voice picker becomes a page inside the Edit settings sheet (no second modal), and the per-attempt cost breakdown moves onto the Run screen's cost card. (2) Stop the app from mirroring the server's chapter rules: read the chapter bounds and the intake warnings from the server and use them in the Gate 1 edit sheet and on the run screens.
 **Duration**: 1.5 to 2 days.
-**Depends On**: PR #106 merged (the Task 7 screens exist); PR #112 merged, which must include the new read-only field `runs.get.chapterBounds` (see R3 and the chapter-bounds task doc r2). Until that field is deployed, R3 and R4 degrade quietly (no bounds means no live counter limit; the server's message after Save still shows).
+**Depends On**: PR #106 merged (the Task 7 screens exist); PR #112 merged, and PR #115 merged (it adds the read-only field `runs.get.chapterBounds`; see R3 and the chapter-bounds task doc r3). Until that field is deployed, R3 and R4 degrade quietly (no bounds means no live counter limit; the server's message after Save still shows).
 **Owning Component**: `app/` only (Edit settings sheet, Voice picker, cost card, step history, Gate 1 edit sheet, New brief result, Run screen). **Not** in scope: any backend change.
 **Success Criteria**: (1) in Edit settings the user opens the voice list as a page inside the same sheet and returns with the choice kept; no stacked modal; (2) the cost card expands to cost per attempt and per stage, and step history shows each attempt's outcome and reason without repeating the cost; (3) the Gate 1 edit sheet shows live chapter count and words-per-chapter limits taken from `runs.get.chapterBounds`, with no chapter-count constant in the app; (4) intake warnings appear on the run as a plain sentence and never block; (5) app type-check, lint, tests and web export pass; each changed screen checked at phone size, with screenshots from a phone or emulator in the report.
 
@@ -18,7 +18,7 @@
 
 1. Open the row 11 designs the founder gave you and list, per screen, what they show (Voice picker page, cost card). If a screen is not in them, say so and build from the decisions below, marking the gap.
 2. Confirm in `app/` where the chapter rule is mirrored today: `lib/script-editor.ts` (the mirror of `parseChapterSheet`), the Gate 1 edit sheet, `GateActionBar.tsx` (a comment about "fewer than 3 chapters"), `run/[id].tsx` (`chapters.length > 2` decides when "Show full script" appears). Say which are limits and which are only layout.
-3. Confirm the backend field exists on `main`: `runs.get.chapterBounds` and `runs.get.run.creationOptions.intakeWarnings`. If `chapterBounds` is missing, stop on R3 and tell the architect; do not add a constant.
+3. Confirm the backend field exists on `main`: `runs.get.chapterBounds { min, max, minWordsPerChapter, exactCount, editMin, editMax, targetWords }` and `runs.get.run.creationOptions.intakeWarnings`. If `chapterBounds` is missing, stop on R3 and tell the architect; do not add a constant.
 
 ## R1. Voice picker as a page inside Edit settings (decided by the founder, 21 Oct)
 
@@ -28,9 +28,14 @@ The Edit settings sheet gets a second "page" for voices (slide in, back arrow re
 
 The cost card on the Run screen holds the breakdown: total spent, estimate and limit as today, then one expansion with cost per attempt and, inside each attempt, per stage (from `videoAttempts[]` and `stageSummaries[]`, read through the existing `costBreakdownOf`). A failed call that was not charged reads "failed, not charged". Step history keeps each attempt's outcome and reason only; no cost repeated there. Four decimals only under one cent.
 
-## R3. Chapter bounds from the server (no constants in the app)
+## R3. Chapter bounds and target from the server (no constants in the app)
 
-Read `runs.get.chapterBounds { min, max, minWordsPerChapter, exactCount }` (null for Shorts). Use it in the Gate 1 edit sheet: live chapter count against `min` and `max` (or "exactly N" when `exactCount`), a per-chapter warning under `minWordsPerChapter`, the server's own message after Save shown as sent. Remove any chapter-count or minimum-words constant from `lib/script-editor.ts`; keep only the parsing of `## Chapter title`. The word-count and length-against-target display from Task 7 stays. Add the field to `lib/task8-contract.ts` so a rename breaks `tsc`.
+Read `runs.get.chapterBounds { min, max, minWordsPerChapter, exactCount, editMin, editMax, targetWords }` (null for Shorts). Their meaning: `min`/`max`/`exactCount` are what **generation** needs; `editMin`/`editMax` are what a **Gate 1 edit** accepts; `targetWords` is the script target the server uses. Use them in the Gate 1 edit sheet:
+- Live chapter count against `editMin` and `editMax` (these are the limits). When `exactCount` is true, add one plain amber line "The brief lists N chapters" as advice only; never block on it (a Gate 1 edit may change the count; founder decision 24 Oct).
+- A per-chapter warning under `minWordsPerChapter`; the server's own message after Save shown as sent.
+- The word-count and length-against-target display uses `targetWords`, not words-per-minute x minutes. If the field is absent (older server), show the count with no target.
+- Remove from `lib/script-editor.ts` and `lib/script-versions.ts` the 3-chapter minimum and its message and the 155 pace; keep only the parsing of `## Chapter title`.
+- Add all seven fields to `lib/task8-contract.ts` so a rename breaks `tsc`.
 
 ## R4. Intake warnings
 
@@ -38,7 +43,7 @@ Show `run.creationOptions.intakeWarnings` (optional list of sentences) on the Ru
 
 ## R5. Same-cause sweep (Hard rule 9)
 
-Search `app/` for any other copy of a server rule (chapter counts, minimum words, words per minute, 3-chapter messages) and list each hit in the report as fixed here, left alone with a reason, or needs a new task. Where the server owns the value, the app reads it.
+Search `app/` for any other copy of a server rule (chapter counts, minimum words, words per minute, 3-chapter messages) and list each hit in the report as fixed here, left alone with a reason, or needs a new task. Where the server owns the value, the app reads it. Known hits from the chapter-bounds report: the 3-chapter minimum and the 155 pace (fixed by R3); the 2 and 15 minute limits in `lib/long-brief.ts` and the source limits in `lib/brief-extras.ts` (left alone here: the server must expose them first; they need a new task).
 
 ## NOT in this task
 
@@ -54,7 +59,7 @@ None. The Gate 1 edit still goes through `runs.gate1`; the server's validation s
 
 ## Testing
 
-Unit tests for: the voice page keeps unsaved choices across back and forth; the cost card expansion with a failed-not-charged row and a sub-cent amount; chapter bounds absent, exact count, and a range; a chapter under the minimum words; intake warnings absent, one, several. `npx tsc --noEmit`, `npx eslint .`, `npx vitest run --root ../app`, `npx expo export --platform web`. Phone or emulator screenshots of the Voice page, the cost card expansion, the Gate 1 edit sheet with a limit warning, and a run with an intake warning. If no phone or emulator is available, say so; the founder will take them from the build.
+Unit tests for: the voice page keeps unsaved choices across back and forth; the cost card expansion with a failed-not-charged row and a sub-cent amount; chapter bounds absent, exact count (advice line, no block), and a range; the target from `targetWords`; a chapter under the minimum words; intake warnings absent, one, several. `npx tsc --noEmit`, `npx eslint .`, `npx vitest run --root ../app`, `npx expo export --platform web`. Phone or emulator screenshots of the Voice page, the cost card expansion, the Gate 1 edit sheet with a limit warning, and a run with an intake warning. If no phone or emulator is available, say so; the founder will take them from the build.
 
 ## Report
 
@@ -70,3 +75,4 @@ Draft PR opened with the first push, CI green on the final head, `main` pulled (
 
 ## Revision log
 - r1, 2026-10-21: first issue.
+- r2, 2026-10-24: `chapterBounds` gained `editMin`, `editMax`, `targetWords` (PR #115); `exactCount` shown as advice only; the app's 155 pace replaced by `targetWords`; the 2 to 15 minute and source limits listed as a new task.
