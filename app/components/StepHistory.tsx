@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { color, font, radius, space } from '../lib/theme';
 import type { AttemptTone, HistoryAttempt, HistoryStep } from '../lib/run-view';
-import { formatMoney, stageCostText } from '../lib/run-cost';
 
 function clock(d: Date | null): string {
   return d ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
@@ -20,8 +19,6 @@ const TONE: Record<AttemptTone, string> = { ok: color.okText, warn: color.warnTe
 
 function Attempt({ attempt }: { attempt: HistoryAttempt }) {
   const [raw, setRaw] = useState(false);
-  const [costOpen, setCostOpen] = useState(false);
-  const cost = attempt.cost;
   return (
     <View style={styles.attempt}>
       <View style={styles.line}>
@@ -29,24 +26,6 @@ function Attempt({ attempt }: { attempt: HistoryAttempt }) {
         <Text style={styles.when}>{clock(attempt.when)}</Text>
       </View>
       {attempt.why ? <Text style={styles.note}>{attempt.why}</Text> : null}
-      {cost ? (
-        <>
-          <Pressable onPress={() => setCostOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: costOpen }} style={styles.techLink}>
-            <Text style={styles.link}>
-              Cost {formatMoney(cost.totalUsd)}
-              {cost.stages.length > 0 ? (costOpen ? '  ▴' : '  ▾') : ''}
-            </Text>
-          </Pressable>
-          {costOpen
-            ? cost.stages.map((st) => (
-                <View key={st.name} style={styles.costRow}>
-                  <Text style={styles.note}>{st.name}</Text>
-                  <Text style={[styles.note, st.failed && styles.noteFailed]}>{stageCostText(st)}</Text>
-                </View>
-              ))
-            : null}
-        </>
-      ) : null}
       {attempt.raw ? (
         <>
           <Pressable onPress={() => setRaw((v) => !v)} accessibilityRole="button" style={styles.techLink}>
@@ -165,8 +144,6 @@ const styles = StyleSheet.create({
   when: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   note: { fontFamily: font.regular, fontSize: 12, lineHeight: 17, color: color.muted },
   noteWarn: { color: color.warnText },
-  noteFailed: { color: color.danger },
-  costRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm, paddingLeft: space.sm },
   pillHit: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   pill: { height: 28, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: color.warnBg, justifyContent: 'center' },
   pillText: { fontFamily: font.black, fontSize: 12, color: color.warnText },

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { callLLM, describeJsonError, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, describeJsonError, extractJsonText, type LLMResponse, type RetryGuard } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../../run-pipeline/stage-failure';
 import { MOOD_TAGS } from '../../audio-bed';
@@ -262,6 +262,8 @@ export async function planVideoProduction(params: {
   audioLayerOverride?: AudioLayer;
   // Sprint 4 Task 3 (R10): replaces estimateStillCount when set.
   desiredStillCount?: number;
+  // LLM Registry task (R5): the stage's budget check, asked before every extra provider call.
+  retryGuard?: RetryGuard;
 }): Promise<{ plan: ProductionPlan; llm: LLMResponse }> {
   const attemptContext = params.fixNotes
     ? `This is a REGENERATION attempt. The previous attempt failed review for this reason:\n${params.fixNotes}\nYour plan must concretely change whatever caused that failure.`
@@ -275,6 +277,7 @@ export async function planVideoProduction(params: {
       params.desiredStillCount ?? estimateStillCount(params.scriptText),
     ),
     messages: [{ role: 'user', content: `Topic: ${params.topic}\nScript: ${params.scriptText}\n\n${attemptContext}` }],
+    retryGuard: params.retryGuard,
   });
 
   let parsedJson: unknown;

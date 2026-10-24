@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 
 import { BottomSheet } from './BottomSheet';
 import { ConfirmSheet } from './ConfirmSheet';
 import { ScriptEditorModal } from './ScriptEditorModal';
+import type { ChapterBounds } from '../lib/chapter-bounds';
 import { PrimaryButton, SecondaryButton } from './Buttons';
 import { flags } from '../lib/feature-flags';
 import { color, font, radius, space, type } from '../lib/theme';
@@ -34,15 +35,16 @@ export function GateActionBar(props: {
   onEditOrRevise: (text: string) => void;
   // Bugs Task 12 (R2): at the manual Revise cap the button stays visible but disabled, with this sentence under it.
   reviseDisabledReason?: string;
-  // Long script edit: the sheet stays open while the edit is sent, and a server rejection (fewer than 3 chapters) shows
+  // Long script edit: the sheet stays open while the edit is sent, and a server rejection of the chapters (its own message) shows
   // inside it. The parent clears the error with onEditOpen when the sheet is opened again.
   keepEditOpen?: boolean;
   editError?: string | null;
   onEditOpen?: () => void;
   // Sprint 5 Task 7 R7: the Gate 1 edit opens as a full-screen editor; a long script is also checked for its chapters
   // while typing, and its length is shown against the target.
-  targetSeconds?: number;
   isLongScript?: boolean;
+  /** Chapter limits from the server (`runs.get.chapterBounds`), or null. */
+  chapterBounds?: ChapterBounds | null;
 }) {
   const [mode, setMode] = useState<Mode>(null);
   const [privacy, setPrivacy] = useState<Privacy>(props.defaultPrivacy ?? 'private');
@@ -115,7 +117,7 @@ export function GateActionBar(props: {
           visible={mode === 'edit'}
           initialText={props.initialEditText ?? ''}
           isLong={Boolean(props.isLongScript)}
-          targetSeconds={props.targetSeconds}
+          bounds={props.chapterBounds ?? null}
           pending={Boolean(props.keepEditOpen && props.isSubmitting)}
           error={props.keepEditOpen ? (props.editError ?? null) : null}
           onClose={() => setMode(null)}

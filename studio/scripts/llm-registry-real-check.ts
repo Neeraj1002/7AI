@@ -162,6 +162,8 @@ async function stageDemo(label: string, limit: number) {
   console.log('usage events:');
   for (const e of events) {
     console.log(`  ${e.agent.padEnd(18)} ${e.model}  in=${e.inputTokens} out=${e.outputTokens}  cost=$${e.costUsd}`);
+    // Part B (R6): the evidence the usage event carries in metadata.llm.
+    console.log(`    metadata.llm = ${JSON.stringify((e.metadata as { llm?: unknown } | null)?.llm ?? null)}`);
     spent += Number(e.costUsd);
   }
   const caller = appRouter.createCaller({ tenantId: MVP_TENANT_ID, userId: null, role: 'owner', identityKind: 'ops-token' });
@@ -170,6 +172,7 @@ async function stageDemo(label: string, limit: number) {
   console.log(`runs.get: run.status=${detail.run.status} run.currentStage=${detail.run.currentStage}`);
   console.log(`runs.get run.lastError: ${detail.run.lastError ?? '(none)'}`);
   console.log(`runs.get script_generation stage: status=${stage?.status} error=${stage?.error ?? '(none)'}`);
+  console.log(`runs.get script_generation stage output.llm = ${JSON.stringify((stage?.output as { llm?: unknown } | null)?.llm ?? null)}`);
   return run.id;
 }
 

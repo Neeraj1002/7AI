@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractJsonText, type callLLM, type LLMResponse } from '../../llm';
+import { extractJsonText, type callLLM, type LLMResponse, type RetryGuard } from '../../llm';
 import { sentenceSpans } from './numbers';
 
 // A reviewer finding is a claim, not a verdict. Before an SR-1 or brief-only SR-9 finding is
@@ -64,7 +64,7 @@ export function buildConfirmMessage(brief: string, sentence: string): string {
  * MAX_CONFIRM_CALLS native calls per review; a finding left unchecked stays unconfirmed. Completed calls are
  * pushed to `calls` as they return, so a later failure can still book them.
  */
-export async function confirmHardCaps(params: { findings: string[]; brief: string; script: string; complete: typeof callLLM; calls: LLMResponse[] }): Promise<HardCapCheck[]> {
+export async function confirmHardCaps(params: { findings: string[]; brief: string; script: string; complete: typeof callLLM; calls: LLMResponse[]; retryGuard?: RetryGuard }): Promise<HardCapCheck[]> {
   const checks: HardCapCheck[] = [];
   let used = 0;
   for (const finding of params.findings) {
@@ -74,7 +74,7 @@ export async function confirmHardCaps(params: { findings: string[]; brief: strin
       if (used >= MAX_CONFIRM_CALLS) break;
       used++;
       const llm = await params.complete({ purpose: 'script-review', system: CONFIRM_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildConfirmMessage(params.brief, sentence) }], outputSchema: HardCapVerdictSchema });
+        messages: [{ role: 'user', content: buildConfirmMessage(params.brief, sentence) }], outputSchema: HardCapVerdictSchema, retryGuard: params.retryGuard });
       params.calls.push(llm);
       let verdict: 'supported' | 'unsupported' | 'unreadable' = 'unreadable', reason: string | null = null;
       try {

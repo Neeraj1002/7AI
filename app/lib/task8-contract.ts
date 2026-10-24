@@ -37,7 +37,15 @@ type Fields =
   | Has<Voice, 'key'>
   | Has<Voice, 'label'>
   | Has<Voice, 'toneTags'>
-  | Has<Voice, 'previews'>;
+  | Has<Voice, 'previews'>
+  | Has<NonNullable<Get['chapterBounds']>, 'min'>
+  | Has<NonNullable<Get['chapterBounds']>, 'max'>
+  | Has<NonNullable<Get['chapterBounds']>, 'editMin'>
+  | Has<NonNullable<Get['chapterBounds']>, 'editMax'>
+  | Has<NonNullable<Get['chapterBounds']>, 'targetWords'>
+  | Has<NonNullable<Get['chapterBounds']>, 'minWordsPerChapter'>
+  | Has<NonNullable<Get['chapterBounds']>, 'exactCount'>
+  | Has<Get, 'chapterBounds'>;
 
 type UpdateIn = inferRouterInputs<AppRouter>['runs']['updateSettings'];
 // The call takes the retry flag.

@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { env } from '../../config/env';
-import { callLLM, extractJsonText, type LLMResponse } from '../../llm';
+import { callLLM, extractJsonText, type LLMResponse, type RetryGuard } from '../../llm';
 
 const execFileAsync = promisify(execFile);
 
@@ -68,14 +68,15 @@ type Cached = { issues: StillIssue[] };
 
 export type StillCheckDeps = {
   // The vision call. Injected so tests never reach a provider.
-  ask: (system: string, content: string, imagesBase64: string[]) => Promise<LLMResponse>;
+  ask: (system: string, content: string, imagesBase64: string[], retryGuard?: RetryGuard) => Promise<LLMResponse>;
   thumbnail: (imagePath: string) => Promise<string>;
 };
 
 export const defaultStillCheckDeps: StillCheckDeps = {
-  ask: (system, content, imagesBase64) =>
+  ask: (system, content, imagesBase64, retryGuard) =>
     callLLM({
       purpose: 'video-intelligence-own-draft',
+      retryGuard,
       system,
       messages: [{ role: 'user', content, attachments: imagesBase64.map((dataBase64) => ({ mediaType: 'image/jpeg', dataBase64 })) }],
     }),
@@ -92,6 +93,8 @@ export async function checkStills(params: {
   deps?: StillCheckDeps;
   beforeCall?: () => Promise<void>;
   onCall?: (llm: LLMResponse, info: { batchSize: number }) => Promise<void>;
+  // LLM Registry task (R5): the stage's budget check, asked before every extra provider call of a vision call.
+  retryGuard?: RetryGuard;
 }): Promise<StillCheckResult[]> {
   const deps = params.deps ?? defaultStillCheckDeps;
   const results = new Map<number, StillCheckResult>();
@@ -112,7 +115,7 @@ export async function checkStills(params: {
     await params.beforeCall?.();
     const images = await Promise.all(batch.map((s) => deps.thumbnail(s.imagePath)));
     const content = `Topic: ${params.topic}\n\n${batch.map((s, k) => `Image ${k + 1} narration: ${s.narration}`).join('\n')}`;
-    const llm = await deps.ask(STILL_CHECK_SYSTEM_PROMPT, content, images);
+    const llm = await deps.ask(STILL_CHECK_SYSTEM_PROMPT, content, images, params.retryGuard);
     await params.onCall?.(llm, { batchSize: batch.length });
     let parsed: z.infer<typeof ReplySchema> | null = null;
     try {

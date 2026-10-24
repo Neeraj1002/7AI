@@ -1,7 +1,7 @@
 // Sprint 5 Task 7 R2 — cost sums on a fixture shaped like the Task 8 report's "App contract for Task 7".
 // Run with the server's vitest: cd studio && npx vitest run --root ../app
 import { describe, it, expect } from 'vitest';
-import { attemptsAddUp, costBreakdownOf, costMapOf, formatMoney, stageCostText, stageDisplayName } from './run-cost';
+import { attemptsAddUp, costBreakdownOf, formatMoney, stageCostText, stageDisplayName } from './run-cost';
 
 const stage = (stageId: string, stageName: string, attemptNumber: number, outcome: string, costUsd: number, videoAttempt?: number) => ({
   stageId,
@@ -50,7 +50,7 @@ describe('cost breakdown (runs.get.cost, videoAttempts, stageSummaries)', () => 
     expect(b.attempts[0].cost.failed).toBe(true); // failed review
     expect(b.attempts[1].cost.failed).toBe(false);
   });
-  it('stages outside the video loop become their own entries, keyed for the step history', () => {
+  it('stages outside the video loop become their own entries; the stages inside an attempt are not repeated there', () => {
     const withScript = {
       ...server,
       cost: { ...server.cost, spentUsd: 0.6, otherStagesUsd: 0.0508 },
@@ -58,11 +58,14 @@ describe('cost breakdown (runs.get.cost, videoAttempts, stageSummaries)', () => 
     };
     const b = costBreakdownOf(withScript)!;
     expect(b.others.map((o) => o.stageName)).toEqual(['script_generation']);
-    const map = costMapOf(b);
-    expect(map.get('script_generation:1')?.totalUsd).toBe(0.0508);
-    expect(map.get('video_generation:2')?.totalUsd).toBe(0.21);
-    expect(map.has('video_review:1')).toBe(false); // inside its attempt
+    expect(b.others[0].cost.totalUsd).toBe(0.0508);
+    expect(b.attempts.map((a) => a.outcome)).toEqual(['failed_review', 'completed', 'blocked']);
     expect(attemptsAddUp(b)).toBe(true);
+  });
+  it('a sub-cent amount keeps four decimals, anything else two', () => {
+    const tiny = costBreakdownOf({ cost: { spentUsd: 0.0053, attemptsUsd: 0.0053, otherStagesUsd: 0, unattributedUsd: 0 }, videoAttempts: [{ attempt: 1, outcome: 'completed', costUsd: 0.0053, stages: [] }], stageSummaries: [] })!;
+    expect(formatMoney(tiny.attempts[0].cost.totalUsd)).toBe('$0.0053');
+    expect(formatMoney(0.21)).toBe('$0.21');
   });
   it('is null on an older server and on malformed data', () => {
     expect(costBreakdownOf({})).toBeNull();

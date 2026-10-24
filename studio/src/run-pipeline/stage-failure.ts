@@ -1,5 +1,5 @@
 import { getStageErrorContext, NonTransientStageError, recoverableFailureKind, type StageErrorContext } from './retry-with-backoff';
-import type { LLMResponse } from '../llm';
+import { usageMetadata, type LLMResponse } from '../llm';
 
 // Bugs Task 11 (R1) — what a failed stage row keeps beyond its one-line
 // `error`: the raw model reply, for the failures where a reply existed but
@@ -10,10 +10,23 @@ export const FAILED_STAGE_RAW_REPLY_CAP = 8000;
 export function failureOutputFromError(error: unknown): Record<string, unknown> | undefined {
   const context = getStageErrorContext(error);
   const recoveryKind = recoverableFailureKind(error);
-  if (!context || (typeof context.rawReply !== 'string' && !recoveryKind)) return undefined;
+  const hasCallEvidence = Array.isArray(context?.callEvidence) && context.callEvidence.length > 0;
+  if (!context || (typeof context.rawReply !== 'string' && !recoveryKind && !hasCallEvidence)) return undefined;
   const replyCap = context.contractVersion === 3 ? 32000 : FAILED_STAGE_RAW_REPLY_CAP;
   return {
     ...(context.contractVersion === 3 ? { plannerContractVersion: 3, failureKind: context.failureKind, chapterIndex: context.chapterIndex, sceneOffset: context.sceneOffset, sceneCount: context.sceneCount, requestHash: context.requestHash, requestKind: context.requestKind, recoveryStrategy: context.recoveryStrategy, maxTokens: context.maxTokens, reusedSceneCount: context.reusedSceneCount } : {}),
+    // LLM Registry task (R6): what each provider call used against its limit, and the provider's response
+    // metadata for the failed call (never the prompt).
+    ...(hasCallEvidence
+      ? {
+          llm: {
+            calls: context.callEvidence,
+            providerCalls: context.providerCalls ?? null,
+            ...(context.responseMeta ? { responseMeta: context.responseMeta } : {}),
+            ...(context.statusCode !== undefined ? { statusCode: context.statusCode } : {}),
+          },
+        }
+      : {}),
     ...(recoveryKind
       ? {
           recovery: {
@@ -72,6 +85,7 @@ export function llmUsageContext(llm: LLMResponse): StageErrorContext {
     ...(llm.usage.reasoningTokens !== undefined ? { reasoningTokens: llm.usage.reasoningTokens } : {}),
     // A reply that came back after an automatic cut-off retry cost two calls: the failure path books each.
     ...((llm.priorAttempts?.length ?? 0) > 0 ? { calls: llmUsageRows(llm) } : {}),
+    ...(llm.evidence ? { callEvidence: [...(llm.priorAttempts ?? []).flatMap((a) => (a.evidence ? [a.evidence] : [])), llm.evidence], responseMeta: llm.responseMeta ?? null } : {}),
   };
 }
 
@@ -81,6 +95,8 @@ export type FailureUsageFields = {
   inputTokens: number;
   outputTokens: number;
   costUsd: string;
+  // R6: usage_events.metadata.llm, the evidence for this call. Absent for a call that has none.
+  metadata?: Record<string, unknown>;
 };
 
 // What a failed attempt's UsageEvent should record. An error with no attached
@@ -95,6 +111,7 @@ export function failureUsageFields(error: unknown): FailureUsageFields {
     inputTokens: typeof context?.inputTokens === 'number' ? context.inputTokens : 0,
     outputTokens: typeof context?.outputTokens === 'number' ? context.outputTokens : 0,
     costUsd: typeof context?.costUsd === 'string' ? context.costUsd : '0.000000',
+    ...(context?.metadata && typeof context.metadata === 'object' ? { metadata: context.metadata as Record<string, unknown> } : {}),
   };
 }
 
@@ -108,6 +125,7 @@ export function llmUsageRows(llm: LLMResponse): FailureUsageFields[] {
       inputTokens: attempt.usage.inputTokens,
       outputTokens: attempt.usage.outputTokens,
       costUsd: attempt.costUsd,
+      ...metaOf(attempt.evidence),
     })),
     {
       provider: llm.provider,
@@ -115,8 +133,14 @@ export function llmUsageRows(llm: LLMResponse): FailureUsageFields[] {
       inputTokens: llm.usage.inputTokens,
       outputTokens: llm.usage.outputTokens,
       costUsd: llm.costUsd,
+      ...metaOf(llm.evidence),
     },
   ];
+}
+
+function metaOf(evidence: LLMResponse['evidence']): { metadata?: Record<string, unknown> } {
+  const metadata = usageMetadata(evidence);
+  return metadata ? { metadata } : {};
 }
 
 // Bugs Task 11 (R3) — a stage that made several model calls in one attempt
