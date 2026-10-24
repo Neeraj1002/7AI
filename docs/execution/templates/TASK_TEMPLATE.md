@@ -367,6 +367,27 @@ The frontend track follows this exact same pattern at `docs/execution/frontend/S
    docs. So you do not edit `STATUS.md` or any other doc, and for `STATUS.md` this rule replaces Hard
    rule 3 and step 1 of "After every task". Instead, put the branch name, worktree path and PR number
    in your first reply to the founder and at the top of your report; the architect records them.
+8. **Close the task after the founder merges.** _(Added 2026-10-20.)_ Do this only when the founder
+   says the PR is merged, never before, and never merge it yourself (Hard rule 1).
+   1. Confirm: `git fetch origin`, then `gh pr view <number> --json state` shows `MERGED`.
+   2. `git status` in your worktree must be clean. If anything is uncommitted, say what it is and
+      whether it should be committed or discarded; do not discard anything without saying so. A
+      one-off script that spends money or touches a database is committed (with its cost cap as a
+      visible constant and an explicit `--live` flag) or deliberately dropped with a reason; never
+      left behind silently.
+   3. `git worktree remove <path>`, then `git worktree prune`. No `--force`, no deleting files by hand.
+   4. Delete the local branch with `git branch -d`. Leave the remote branch alone unless the founder
+      says to delete it.
+   5. Remove your own leftovers outside the repo: scratch databases, throwaway accounts or
+      credentials, temp files. Never touch `sevenai_preview` or the shared dev database. List each
+      thing removed.
+   6. Reply with one line: "Closed: worktree removed, branch deleted, leftovers: <list or none>."
+      If a step failed or was skipped, say which and why.
+9. **On any bug, sweep for the same cause.** _(Added 2026-10-20.)_ When the cause is a constant, a limit, an
+   assumption or a copied rule, search `studio/`, `app/` and the docs for the same cause before you call the
+   fix done. List every hit in your report as *fixed here*, *left alone (reason)* or *needs a new task*; fix
+   the ones that share the cause and fit the release; where several places hold one value, give it one
+   owner. The full rule is "Same-cause sweep" in `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`.
 
 **Where task docs and work happen (checkout locations)** — added 2026-09-25, after a task doc written
 only into the main checkout wasn't visible to a session working from a different track's own checkout.
@@ -435,7 +456,7 @@ Two independent tracks now build against this repo at the same time: the **backe
 
 3. `git push` (`-u origin [TRACK]_[SUFFIX]` on the track-iteration's first push, plain `git push` after) — every task's work reaches GitHub immediately, not just at the end.
 
-**Finishing a track-iteration** (last task only): after the final task's commit and push, and after Hard rule 6's pull of `main`, `gh pr ready` to mark the PR ready for review. **Do not merge, and do not push to `main` yourself, under any circumstance** — that's a deliberate founder action (via the GitHub PR review, or telling me to merge once reviewed), per Hard rule 1 above. This is the one point where a founder actually looks at a diff before it becomes `main`, worth keeping even solo — and worth it more, not less, now that two-plus tracks can land on `main` independently: nothing about the `_BE`/`_FE`/track-role naming changes that all of them still need a real look before merging.
+**Finishing a track-iteration** (last task only): after the final task's commit and push, and after Hard rule 6's pull of `main`, `gh pr ready` to mark the PR ready for review. When the founder later says it is merged, close the task as Hard rule 8 says (worktree, branch and leftovers). **Do not merge, and do not push to `main` yourself, under any circumstance** — that's a deliberate founder action (via the GitHub PR review, or telling me to merge once reviewed), per Hard rule 1 above. This is the one point where a founder actually looks at a diff before it becomes `main`, worth keeping even solo — and worth it more, not less, now that two-plus tracks can land on `main` independently: nothing about the `_BE`/`_FE`/track-role naming changes that all of them still need a real look before merging.
 
 A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of the above — `STATUS.md` already tracks those separately from whether the branch merges.
 
