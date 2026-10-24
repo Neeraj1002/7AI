@@ -102,20 +102,42 @@ export function averageChapterSeconds(
   return targetSeconds / chapterCount;
 }
 
-// What the app is told (runs.get.chapterBounds), so it never copies the numbers. exactCount is true when the brief
-// lists its titles (then min equals max).
+// The script's word target: a count stated in the brief wins, else minutes x pace.
+export function scriptTargetWords(
+  targetSeconds: number,
+  wordsPerMinute: number,
+  statedWords: number | null,
+): number {
+  return statedWords ?? Math.round((targetSeconds / 60) * wordsPerMinute);
+}
+
+// What the app is told (runs.get.chapterBounds), so it never copies the numbers.
+// min/max/exactCount are what generation needs (exactCount: the brief lists its titles, then min equals max);
+// editMin/editMax are what the Gate 1 edit check (parseChapterSheet) accepts for this run's length;
+// targetWords is the script target the server plans and checks against.
 export type ChapterBoundsView = {
   min: number;
   max: number;
   minWordsPerChapter: number;
   exactCount: boolean;
+  editMin: number;
+  editMax: number;
+  targetWords: number;
 };
 
-export function chapterBoundsView(bounds: ChapterBounds): ChapterBoundsView {
+export function chapterBoundsView(
+  bounds: ChapterBounds,
+  targetSeconds: number,
+  targetWords: number,
+): ChapterBoundsView {
+  const edit = chapterBounds({ targetSeconds });
   return {
     min: bounds.min,
     max: bounds.max,
     minWordsPerChapter: bounds.minWords,
     exactCount: bounds.titles !== null,
+    editMin: edit.min,
+    editMax: edit.max,
+    targetWords,
   };
 }

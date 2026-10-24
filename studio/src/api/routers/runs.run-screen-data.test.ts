@@ -107,12 +107,12 @@ describe('runs.get: chapterBounds (R9)', () => {
 
   it('gives a 10-minute run with no titles the default range', async () => {
     mocks.findPipelineRunById.mockResolvedValue(longRun(600, 'a brief with no chapter list'));
-    expect(await boundsOf()).toEqual({ min: 3, max: 20, minWordsPerChapter: 26, exactCount: false });
+    expect(await boundsOf()).toEqual({ min: 3, max: 20, minWordsPerChapter: 26, exactCount: false, editMin: 3, editMax: 20, targetWords: 1550 });
   });
 
   it.each([7, 8, 9])('gives a run whose brief lists %i titles exactly that count', async (n) => {
     mocks.findPipelineRunById.mockResolvedValue(longRun(600, titled(n)));
-    expect(await boundsOf()).toEqual({ min: n, max: n, minWordsPerChapter: 26, exactCount: true });
+    expect(await boundsOf()).toEqual({ min: n, max: n, minWordsPerChapter: 26, exactCount: true, editMin: 3, editMax: 20, targetWords: 1550 });
   });
 
   it.each([
@@ -121,12 +121,24 @@ describe('runs.get: chapterBounds (R9)', () => {
     [900, 20],
   ])('a %i s run has the length-based ceiling %i', async (seconds, max) => {
     mocks.findPipelineRunById.mockResolvedValue(longRun(seconds, 'no list'));
-    expect(await boundsOf()).toMatchObject({ min: 3, max, exactCount: false });
+    expect(await boundsOf()).toMatchObject({ min: 3, max, exactCount: false, editMin: 3, editMax: max });
   });
 
   it('gives an old long run (no stored length, no readable brief) the default, without throwing', async () => {
     mocks.findPipelineRunById.mockResolvedValue(longRun(undefined, null));
-    expect(await boundsOf()).toEqual({ min: 3, max: 20, minWordsPerChapter: 26, exactCount: false });
+    expect(await boundsOf()).toEqual({ min: 3, max: 20, minWordsPerChapter: 26, exactCount: false, editMin: 3, editMax: 20, targetWords: 1550 });
+  });
+
+  it('a 7-title brief keeps the edit range wider than the generation range, up to the length ceiling', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(120, titled(7)));
+    expect(await boundsOf()).toMatchObject({ min: 7, max: 7, exactCount: true, editMin: 3, editMax: 12, targetWords: 310 });
+  });
+
+  it('targetWords is the word count the brief states, else minutes x pace', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(600, 'Topic: x\nConstraint: about 1,500 words for a 10 minute video.'));
+    expect(await boundsOf()).toMatchObject({ targetWords: 1500 });
+    mocks.findPipelineRunById.mockResolvedValue(longRun(300, 'no stated count'));
+    expect(await boundsOf()).toMatchObject({ targetWords: 775 });
   });
 
   it('spends nothing and calls no model', async () => {
