@@ -1,12 +1,11 @@
-// Sprint 5 Task 7 R6 — the voice picker's data.
+// Sprint 5 Task 7 R6 / follow-up R1 — the voice picker's data.
 //
 // Contract (Task 8 report, "App contract for Task 7"): `options.list.voices[]` rows are `{ key, label, provider, model,
 // toneTags, defaultDirection, licenceNote, previews { sad, hopeful } | null }`. `key` is the catalog id a channel or run
 // stores; `previews` are signed links to two fixed sentences (one sad, one hopeful), valid one hour, null until generated.
-// Provider and model are never shown. On an older server the list is just keys and labels, with no samples.
+// Provider and model are never shown.
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from './trpc';
-import { VOICES } from './pipeline-options';
 
 export type VoicePreviews = { sad: string; hopeful: string };
 
@@ -39,13 +38,24 @@ export function parseVoiceList(raw: unknown): VoiceEntry[] {
   return Array.isArray(raw) ? raw.flatMap((r) => parseVoiceEntry(r) ?? []) : [];
 }
 
-export function useVoiceCatalog(): { voices: VoiceEntry[]; hasSamples: boolean } {
+export type CatalogStatus = 'loading' | 'ready' | 'error';
+
+/** The picker has nothing to show but a message when the catalog could not be read. */
+export function catalogStatus(args: { isError: boolean; isLoading: boolean; count: number }): CatalogStatus {
+  if (args.count > 0) return 'ready';
+  return args.isError ? 'error' : args.isLoading ? 'loading' : 'ready';
+}
+
+export function useVoiceCatalog(): { voices: VoiceEntry[]; hasSamples: boolean; status: CatalogStatus; retry: () => void } {
   const trpc = useTRPC();
-  const { data } = useQuery(trpc.options.list.queryOptions());
-  const parsed = parseVoiceList((data as { voices?: unknown } | undefined)?.voices);
-  // The static list is only the offline fallback while the query loads or fails, so a picker is never empty.
-  const voices: VoiceEntry[] = parsed.length > 0 ? parsed : VOICES.map((v) => ({ id: v.value, displayName: v.label, toneTags: [], description: null, previews: null }));
-  return { voices, hasSamples: voices.some((v) => v.previews !== null) };
+  const q = useQuery(trpc.options.list.queryOptions());
+  const voices = parseVoiceList((q.data as { voices?: unknown } | undefined)?.voices);
+  return {
+    voices,
+    hasSamples: voices.some((v) => v.previews !== null),
+    status: catalogStatus({ isError: q.isError, isLoading: q.isLoading, count: voices.length }),
+    retry: () => void q.refetch(),
+  };
 }
 
 export type PlaybackAction = 'play' | 'pause' | 'switch';
@@ -57,3 +67,15 @@ export function nextPlayback(playingId: string | null, tappedId: string): Playba
 }
 
 export const sampleId = (voiceId: string, which: 'sad' | 'hopeful') => `${voiceId}:${which}`;
+
+export function formatElapsed(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** The text on a sample button: "▶ Sad", "■ Sad 0:04" while it plays, "Sample unavailable" when it failed or is missing. */
+export function sampleButtonText(args: { which: 'sad' | 'hopeful'; playing: boolean; elapsed: number; failed: boolean; available: boolean }): string {
+  if (args.failed || !args.available) return 'Sample unavailable';
+  const name = args.which === 'sad' ? 'Sad' : 'Hopeful';
+  return args.playing ? `■ ${name} ${formatElapsed(args.elapsed)}` : `▶ ${name}`;
+}

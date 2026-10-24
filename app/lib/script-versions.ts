@@ -6,11 +6,11 @@
 // 'approved' | 'draft' | null (null before any video attempt). `chapters` and `scriptEditText` on runs.get are the approved
 // script after Gate 1. Without `scripts` (an older server) the same is read from the Gate 1 stage output, which holds
 // `sanctionedScriptText` and `chapters`.
-import { narrationWords, WORDS_PER_MINUTE } from './script-editor';
+import { narrationWords } from './script-editor';
 import { scriptStats } from './run-view';
 
 export type Chapter = { title: string; text: string };
-export type ScriptVersion = { text: string; chapters?: Chapter[]; words: number; seconds: number };
+export type ScriptVersion = { text: string; chapters?: Chapter[]; words: number; /** A Short only: the server owns a long script's length, so none is estimated here. */ seconds?: number };
 export type UsedByVideo = 'approved' | 'draft' | null;
 export type ScriptVersions = {
   draft: ScriptVersion | null;
@@ -30,8 +30,7 @@ function chaptersOf(v: unknown): Chapter[] | undefined {
 
 function version(text: string, chapters: Chapter[] | undefined, isLong: boolean): ScriptVersion {
   const words = chapters ? chapters.reduce((n, c) => n + narrationWords(c.text), 0) : (scriptStats(text)?.words ?? 0);
-  const seconds = isLong ? Math.round((words / WORDS_PER_MINUTE) * 60) : (scriptStats(text)?.seconds ?? 0);
-  return { text, chapters, words, seconds };
+  return { text, chapters, words, ...(isLong ? {} : { seconds: scriptStats(text)?.seconds ?? 0 }) };
 }
 
 function latest(stages: StageIn[], name: string): StageIn | undefined {
@@ -66,8 +65,6 @@ export function scriptVersionsOf(stages: StageIn[], isLong: boolean, server?: un
   return { draft, approved: { ...approved, edited: draft !== null && draft.text.trim() !== approved.text.trim() }, usedByVideo: null };
 }
 
-export function lengthWords(v: { words: number; seconds: number }, isLong: boolean): string {
-  const mins = Math.floor(v.seconds / 60);
-  const secs = String(v.seconds % 60).padStart(2, '0');
-  return `${v.words} words · ~${isLong ? `${mins}:${secs}` : `${v.seconds} s`}`;
+export function lengthWords(v: { words: number; seconds?: number }, isLong: boolean): string {
+  return !isLong && v.seconds !== undefined ? `${v.words} words · ~${v.seconds} s` : `${v.words} words`;
 }

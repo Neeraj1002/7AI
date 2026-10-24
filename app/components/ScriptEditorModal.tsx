@@ -4,17 +4,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { PrimaryButton } from './Buttons';
 import { color, font, radius, space, type } from '../lib/theme';
-import { CHAPTER_HINT, checkChapterSheet, lengthStatus } from '../lib/script-editor';
+import { CHAPTER_HINT, checkChapters, lengthStatus } from '../lib/script-editor';
+import type { ChapterBounds } from '../lib/chapter-bounds';
 import { copyText } from '../lib/copy-text';
 
 // Sprint 5 Task 7 R7 — the Gate 1 script editor as a full screen, not a bottom sheet under the keyboard. The text box
 // takes all the room between the header and the keyboard; the chapter count, word count and length against the target
-// update as you type, so "needs at least 3 chapters" shows before Save, not after it.
+// update as you type, so a problem with the chapters shows before Save, not after it. The limits (how many chapters, how
+// many words in one) are the server's `chapterBounds`; without them the count shows and nothing is limited here.
 export function ScriptEditorModal({
   visible,
   initialText,
   isLong,
-  targetSeconds,
+  bounds,
   pending,
   error,
   onClose,
@@ -24,7 +26,8 @@ export function ScriptEditorModal({
   initialText: string;
   /** A long script is edited as "## Chapter" blocks and checked for them. */
   isLong: boolean;
-  targetSeconds?: number;
+  /** The chapter limits from `runs.get.chapterBounds`; null for a Short or while the server does not send them. */
+  bounds?: ChapterBounds | null;
   pending?: boolean;
   /** The server's own rejection, shown as sent. */
   error?: string | null;
@@ -35,19 +38,19 @@ export function ScriptEditorModal({
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       {/* remounted per open so the initial text is re-applied */}
       {visible ? (
-        <EditorBody initialText={initialText} isLong={isLong} targetSeconds={targetSeconds} pending={pending} error={error} onClose={onClose} onSave={onSave} />
+        <EditorBody initialText={initialText} isLong={isLong} bounds={bounds ?? null} pending={pending} error={error} onClose={onClose} onSave={onSave} />
       ) : null}
     </Modal>
   );
 }
 
-function EditorBody({ initialText, isLong, targetSeconds, pending, error, onClose, onSave }: Omit<Parameters<typeof ScriptEditorModal>[0], 'visible'>) {
+function EditorBody({ initialText, isLong, bounds, pending, error, onClose, onSave }: Omit<Parameters<typeof ScriptEditorModal>[0], 'visible'>) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState(initialText);
   const [copied, setCopied] = useState<'copied' | 'shared' | null>(null);
 
-  const chapters = isLong ? checkChapterSheet(text) : null;
-  const length = lengthStatus(text, targetSeconds);
+  const chapters = isLong ? checkChapters(text, bounds ?? null) : null;
+  const length = lengthStatus(text, bounds?.targetWords);
   const blocked = !text.trim() || (chapters !== null && !chapters.ok);
 
   const copy = async () => {
@@ -77,11 +80,12 @@ function EditorBody({ initialText, isLong, targetSeconds, pending, error, onClos
         {chapters ? (
           <Text style={[styles.status, chapters.ok ? styles.ok : styles.warn]}>
             {chapters.ok ? '✓ ' : '! '}
-            {chapters.chapters} {chapters.chapters === 1 ? 'chapter' : 'chapters'}
-            {chapters.ok ? '' : ' · needs at least 3'}
+            {chapters.count} {chapters.count === 1 ? 'chapter' : 'chapters'}
+            {chapters.limit ? ` · needs ${chapters.limit}` : ''}
           </Text>
         ) : null}
-        <Text style={[styles.status, length.warn ? styles.warn : styles.muted]}>{length.text}</Text>
+        <Text style={[styles.status, styles.muted]}>{length.text}</Text>
+        {chapters?.advice ? <Text style={[styles.status, styles.warn]}>{chapters.advice}</Text> : null}
         {isLong ? <Text style={styles.hint}>{CHAPTER_HINT}</Text> : null}
       </View>
 
@@ -100,6 +104,11 @@ function EditorBody({ initialText, isLong, targetSeconds, pending, error, onClos
       />
 
       {chapters && !chapters.ok && chapters.message ? <Text style={styles.warnLine}>{chapters.message}</Text> : null}
+      {chapters && chapters.short.length > 0 && bounds ? (
+        <Text style={styles.warnLine}>
+          {chapters.short.length === 1 ? `"${chapters.short[0].title}" has` : `${chapters.short.length} chapters have`} fewer than {bounds.minWordsPerChapter} words, which the server will refuse.
+        </Text>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={[styles.footer, { paddingBottom: space.md + insets.bottom }]}>

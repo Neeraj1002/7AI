@@ -3,7 +3,6 @@
 // missing field has the fallback the task doc names.
 import { humanizeRunError } from './run-labels';
 import { outcomeOfStage, type OutcomeKind, type OutcomeStage, type ServerOutcomes } from './attempt-outcome';
-import type { AttemptCost } from './run-cost';
 import { MUSIC_MOODS, VISUAL_SOURCES, VOICES } from './pipeline-options';
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '../../studio/src/api/router';
@@ -121,8 +120,6 @@ export type HistoryAttempt = {
   tone: AttemptTone;
   /** The raw error, shown only behind "Technical details ›". */
   raw: string | null;
-  /** Cost of the attempt and of each stage in it (R2); absent until the server sends it. */
-  cost?: AttemptCost;
 };
 
 export type HistoryStep = {
@@ -215,8 +212,6 @@ export function buildStepHistory(args: {
   stages: StageLike[];
   lastGateDecision?: { gate: number; outcome: string; privacyStatus?: string } | null;
   gateDecisions?: GateDecisionEntry[];
-  /** Cost per attempt from the server (R2), keyed by stage name then attempt number. */
-  costs?: Map<string, AttemptCost>;
   /** Outcomes the server sent (runs.get.stageSummaries, videoAttempts); the rows are read when absent. */
   server?: ServerOutcomes | null;
 }): { steps: HistoryStep[]; doneCount: number; summary: string } {
@@ -249,7 +244,6 @@ export function buildStepHistory(args: {
               failed: bad,
               tone: TONE_OF[o.kind],
               raw: r.status === 'failed' && r.error ? r.error : null,
-              ...(args.costs?.get(`${def.stage}:${r.attemptNumber}`) && { cost: args.costs.get(`${def.stage}:${r.attemptNumber}`) }),
             };
           })
         : [];

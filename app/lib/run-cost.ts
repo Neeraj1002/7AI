@@ -1,5 +1,7 @@
 // Sprint 5 Task 7 R2 — cost on the Run screen.
 //
+// The cost card on the Run screen holds the whole breakdown (follow-up R2); Step history shows outcome and reason only.
+//
 // Contract (Task 8 report, "App contract for Task 7"; field names are stable). `runs.get` returns:
 //   cost { spentUsd, estimateUsd?, limitUsd?, retryAllowanceUsd?, attemptsUsd, otherStagesUsd, unattributedUsd }
 //   videoAttempts[] { attempt, outcome, reasonCode?, reason?, errorClass?, retryStep?, costUsd, stages[] }
@@ -9,7 +11,7 @@
 
 export type StageCost = { name: string; usd: number; failed: boolean };
 export type AttemptCost = { totalUsd: number; failed: boolean; stages: StageCost[] };
-export type CostEntry = { stageName: string; attemptNumber: number; cost: AttemptCost };
+export type CostEntry = { stageName: string; attemptNumber: number; cost: AttemptCost; /** The server's outcome word for the attempt or stage ("failed_review", "completed", …). */ outcome?: string };
 export type CostBreakdown = {
   totalUsd: number;
   estimateUsd: number | null;
@@ -69,7 +71,7 @@ export function costBreakdownOf(data: unknown): CostBreakdown | null {
       const sc = stageCost(s, a.attempt as number);
       return sc ? [sc] : [];
     });
-    attempts.push({ stageName: 'video_generation', attemptNumber: a.attempt, cost: { totalUsd: usd, failed: typeof a.outcome === 'string' && a.outcome.startsWith('failed'), stages } });
+    attempts.push({ stageName: 'video_generation', attemptNumber: a.attempt, outcome: typeof a.outcome === 'string' ? a.outcome : undefined, cost: { totalUsd: usd, failed: typeof a.outcome === 'string' && a.outcome.startsWith('failed'), stages } });
   }
 
   const others: CostEntry[] = [];
@@ -77,7 +79,7 @@ export function costBreakdownOf(data: unknown): CostBreakdown | null {
     const usd = num(s?.costUsd);
     if (typeof s?.stageName !== 'string' || typeof s.attemptNumber !== 'number' || usd === null) continue;
     if (typeof s.stageId === 'string' && inAttempt.has(s.stageId)) continue;
-    others.push({ stageName: s.stageName, attemptNumber: s.attemptNumber, cost: { totalUsd: usd, failed: typeof s.outcome === 'string' && NOT_CHARGED.includes(s.outcome), stages: [] } });
+    others.push({ stageName: s.stageName, attemptNumber: s.attemptNumber, outcome: typeof s.outcome === 'string' ? s.outcome : undefined, cost: { totalUsd: usd, failed: typeof s.outcome === 'string' && NOT_CHARGED.includes(s.outcome), stages: [] } });
   }
 
   return {
@@ -91,11 +93,6 @@ export function costBreakdownOf(data: unknown): CostBreakdown | null {
     attempts,
     others,
   };
-}
-
-/** Map key used by the step history: "<stage>:<attempt>"; a video attempt is "video_generation:<attempt>". */
-export function costMapOf(breakdown: CostBreakdown | null): Map<string, AttemptCost> {
-  return new Map([...(breakdown?.others ?? []), ...(breakdown?.attempts ?? [])].map((a) => [`${a.stageName}:${a.attemptNumber}`, a.cost]));
 }
 
 /** 4 decimals only where the amount is under one cent, otherwise cents (R2). */
