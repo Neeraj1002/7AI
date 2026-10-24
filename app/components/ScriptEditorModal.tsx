@@ -17,7 +17,6 @@ export function ScriptEditorModal({
   initialText,
   isLong,
   bounds,
-  targetSeconds,
   pending,
   error,
   onClose,
@@ -29,7 +28,6 @@ export function ScriptEditorModal({
   isLong: boolean;
   /** The chapter limits from `runs.get.chapterBounds`; null for a Short or while the server does not send them. */
   bounds?: ChapterBounds | null;
-  targetSeconds?: number;
   pending?: boolean;
   /** The server's own rejection, shown as sent. */
   error?: string | null;
@@ -40,19 +38,19 @@ export function ScriptEditorModal({
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       {/* remounted per open so the initial text is re-applied */}
       {visible ? (
-        <EditorBody initialText={initialText} isLong={isLong} bounds={bounds ?? null} targetSeconds={targetSeconds} pending={pending} error={error} onClose={onClose} onSave={onSave} />
+        <EditorBody initialText={initialText} isLong={isLong} bounds={bounds ?? null} pending={pending} error={error} onClose={onClose} onSave={onSave} />
       ) : null}
     </Modal>
   );
 }
 
-function EditorBody({ initialText, isLong, bounds, targetSeconds, pending, error, onClose, onSave }: Omit<Parameters<typeof ScriptEditorModal>[0], 'visible'>) {
+function EditorBody({ initialText, isLong, bounds, pending, error, onClose, onSave }: Omit<Parameters<typeof ScriptEditorModal>[0], 'visible'>) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState(initialText);
   const [copied, setCopied] = useState<'copied' | 'shared' | null>(null);
 
   const chapters = isLong ? checkChapters(text, bounds ?? null) : null;
-  const length = lengthStatus(text, targetSeconds);
+  const length = lengthStatus(text, bounds?.targetWords);
   const blocked = !text.trim() || (chapters !== null && !chapters.ok);
 
   const copy = async () => {
@@ -86,7 +84,8 @@ function EditorBody({ initialText, isLong, bounds, targetSeconds, pending, error
             {chapters.limit ? ` · needs ${chapters.limit}` : ''}
           </Text>
         ) : null}
-        <Text style={[styles.status, length.warn ? styles.warn : styles.muted]}>{length.text}</Text>
+        <Text style={[styles.status, styles.muted]}>{length.text}</Text>
+        {chapters?.advice ? <Text style={[styles.status, styles.warn]}>{chapters.advice}</Text> : null}
         {isLong ? <Text style={styles.hint}>{CHAPTER_HINT}</Text> : null}
       </View>
 

@@ -401,7 +401,6 @@ export default function RunDetailScreen() {
           keepEditOpen={isGate1 && isLong}
           isLongScript={isLong}
           chapterBounds={chapterBoundsOf(data)}
-          targetSeconds={data.targetSeconds}
           editError={isGate1 && gate1Mutation.variables?.action === 'edit' ? gate1Mutation.error?.message : null}
           onEditOpen={() => gate1Mutation.reset()}
           defaultPrivacy={defaultPrivacy}

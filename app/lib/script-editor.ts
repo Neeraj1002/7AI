@@ -3,10 +3,6 @@
 // the server's `chapterBounds` (lib/chapter-bounds.ts) and the server still decides on Save: its message is shown as sent.
 import { rangeText, type ChapterBounds } from './chapter-bounds';
 
-export const WORDS_PER_MINUTE = 155; // LONG_WORDS_PER_MINUTE on the server (see the follow-up report's sweep)
-/** A script under this share of the target length fails the quality floor. */
-export const LENGTH_FLOOR = 0.8;
-
 export const CHAPTER_HINT = 'Start each chapter with a line like "## Chapter title".';
 
 /** Narration words: chapter heading lines are not spoken. */
@@ -46,6 +42,8 @@ export type ChapterCheck = {
   limit: string | null;
   /** Chapters with text but fewer words than the server's minimum: a warning, never a block. */
   short: ParsedChapter[];
+  /** Advice only, never a block: "The brief lists N chapters" when the brief named its chapters. */
+  advice: string | null;
 };
 
 export function checkChapters(text: string, bounds: ChapterBounds | null): ChapterCheck {
@@ -54,28 +52,20 @@ export function checkChapters(text: string, bounds: ChapterBounds | null): Chapt
   const count = filled.length;
   const limit = bounds ? rangeText(bounds) : null;
   if (parsed.textBeforeFirstHeading) {
-    return { count, ok: false, message: 'There is text before the first "## Chapter title" line. Put every part of the script under a chapter heading.', limit, short: [] };
+    return { count, ok: false, message: 'There is text before the first "## Chapter title" line. Put every part of the script under a chapter heading.', limit, short: [], advice: null };
   }
-  if (!bounds) return { count, ok: true, message: null, limit, short: [] };
+  if (!bounds) return { count, ok: true, message: null, limit, short: [], advice: null };
+  const advice = bounds.exactCount ? `The brief lists ${bounds.min} ${bounds.min === 1 ? 'chapter' : 'chapters'}` : null;
   const short = filled.filter((c) => c.words < bounds.minWordsPerChapter);
-  if (count < bounds.min) return { count, ok: false, message: `Needs ${rangeText(bounds)}, each starting with "## Chapter title" (${count} so far).`, limit, short };
-  if (count > bounds.max) return { count, ok: false, message: `Has ${count} chapters; this video needs ${rangeText(bounds)}.`, limit, short };
-  return { count, ok: true, message: null, limit, short };
+  if (count < bounds.editMin) return { count, ok: false, message: `Needs ${rangeText(bounds)}, each starting with "## Chapter title" (${count} so far).`, limit, short, advice };
+  if (count > bounds.editMax) return { count, ok: false, message: `Has ${count} chapters; this video needs ${rangeText(bounds)}.`, limit, short, advice };
+  return { count, ok: true, message: null, limit, short, advice };
 }
 
-export function clock(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
+export type LengthStatus = { words: number; text: string };
 
-export type LengthStatus = { words: number; seconds: number; text: string; warn: boolean };
-
-export function lengthStatus(text: string, targetSeconds: number | undefined): LengthStatus {
+/** The word count against the server's target (`chapterBounds.targetWords`). With no target the count stands alone. */
+export function lengthStatus(text: string, targetWords: number | null | undefined): LengthStatus {
   const words = narrationWords(text);
-  const seconds = (words / WORDS_PER_MINUTE) * 60;
-  if (!targetSeconds) return { words, seconds, text: `${words} words · about ${clock(seconds)}`, warn: false };
-  const floor = targetSeconds * LENGTH_FLOOR;
-  const warn = words > 0 && seconds < floor;
-  const base = `${words} words · about ${clock(seconds)} of ${clock(targetSeconds)}`;
-  return { words, seconds, text: warn ? `${base} · under the ${clock(floor)} minimum` : base, warn };
+  return { words, text: targetWords ? `${words} words · target about ${targetWords}` : `${words} words` };
 }

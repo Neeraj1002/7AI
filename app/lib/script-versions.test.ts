@@ -26,7 +26,7 @@ describe('runs.get.scripts { draft, approved, usedByVideo }', () => {
     const v = scriptVersionsOf([], true, { scripts });
     expect(v.approved?.words).toBe(273);
     expect(v.approved?.edited).toBe(true);
-    expect(lengthWords(v.approved!, true)).toBe('273 words · ~1:46');
+    expect(lengthWords(v.approved!, true)).toBe('273 words');
     expect(v.draft?.words).toBe(311);
     expect(v.usedByVideo).toBe('approved');
   });

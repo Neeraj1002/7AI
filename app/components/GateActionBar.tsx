@@ -42,7 +42,6 @@ export function GateActionBar(props: {
   onEditOpen?: () => void;
   // Sprint 5 Task 7 R7: the Gate 1 edit opens as a full-screen editor; a long script is also checked for its chapters
   // while typing, and its length is shown against the target.
-  targetSeconds?: number;
   isLongScript?: boolean;
   /** Chapter limits from the server (`runs.get.chapterBounds`), or null. */
   chapterBounds?: ChapterBounds | null;
@@ -119,7 +118,6 @@ export function GateActionBar(props: {
           initialText={props.initialEditText ?? ''}
           isLong={Boolean(props.isLongScript)}
           bounds={props.chapterBounds ?? null}
-          targetSeconds={props.targetSeconds}
           pending={Boolean(props.keepEditOpen && props.isSubmitting)}
           error={props.keepEditOpen ? (props.editError ?? null) : null}
           onClose={() => setMode(null)}

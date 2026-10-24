@@ -1,11 +1,17 @@
 // Sprint 5 Task 7 follow-up R3 — how many chapters a long script may have and how short a chapter may be is the server's to
 // decide (studio/src/long-form/chapter-bounds.ts, per video length and per brief). The app does not keep a copy of those
-// numbers; it reads them from `runs.get.chapterBounds { min, max, minWordsPerChapter, exactCount }` (null for a Short).
-// Until the server sends that field (it is not on `main` yet), the Gate 1 editor shows the live count without a limit and the
-// server's own message after Save is shown as sent.
+// numbers; it reads them from `runs.get.chapterBounds { min, max, editMin, editMax, targetWords, minWordsPerChapter,
+// exactCount }` (null for a Short; BUGS_CHAPTER_BOUNDS_R9). The Gate 1 edit is judged against editMin/editMax, which is what
+// the server's edit check accepts. With no bounds the editor shows the live count without a limit and the server's own
+// message after Save is shown as sent.
 export type ChapterBounds = {
+  /** What the writer plans (the brief's titles, or the length's default). */
   min: number;
   max: number;
+  /** What the Gate 1 edit check accepts for this run's length; the editor judges against these. */
+  editMin: number;
+  editMax: number;
+  targetWords: number;
   minWordsPerChapter: number;
   /** The brief listed its chapter titles, so the count must be exactly `min` (= `max`). */
   exactCount: boolean;
@@ -20,12 +26,15 @@ export function chapterBoundsOf(data: unknown): ChapterBounds | null {
   const min = int(b.min);
   const max = int(b.max);
   const words = int(b.minWordsPerChapter);
-  if (min === null || max === null || words === null || max < min) return null;
+  // editMin/editMax/targetWords came with R9; an earlier shape falls back to the planned range.
+  const editMin = int(b.editMin) ?? min;
+  const editMax = int(b.editMax) ?? max;
+  if (min === null || max === null || words === null || max < min || editMin === null || editMax === null || editMax < editMin) return null;
   const exact = b.exactCount === true || (typeof b.exactCount === 'number' && b.exactCount === min && min === max);
-  return { min, max, minWordsPerChapter: words, exactCount: exact || min === max };
+  return { min, max, editMin, editMax, targetWords: int(b.targetWords) ?? 0, minWordsPerChapter: words, exactCount: exact || min === max };
 }
 
-/** "exactly 4 chapters" or "3 to 20 chapters". */
+/** The range a Gate 1 edit may have: "exactly 4 chapters" or "3 to 20 chapters". */
 export function rangeText(b: ChapterBounds): string {
-  return b.exactCount ? `exactly ${b.min} ${b.min === 1 ? 'chapter' : 'chapters'}` : `${b.min} to ${b.max} chapters`;
+  return b.editMin === b.editMax ? `exactly ${b.editMin} ${b.editMin === 1 ? 'chapter' : 'chapters'}` : `${b.editMin} to ${b.editMax} chapters`;
 }

@@ -6,19 +6,19 @@
 **Task doc**: `docs/execution/sprint5/tasks/task7-followup.md`, r1, copied from the founder's folder and committed on its own (`SPRINT5_TASK7_FE_FOLLOWUP_DOC: add task doc r1`).
 **Written**: 2026-10-24
 
-**Blocker for the architect (R3):** `runs.get.chapterBounds` is **not on `main`**. PR #112 only added `creationOptions.intakeWarnings` (and the shared `long-form/chapter-bounds.ts`); no router returns the bounds. As the task says, I added no constant. R3 is built so that it works the moment the field is sent and degrades quietly until then (live chapter count with no limit; the server's own message after Save). It cannot be proved against a real server, and `lib/task8-contract.ts` cannot name the field yet without breaking `tsc`. The founder decided to mark the PR ready without it: the editor picks the field up with no app change once the server sends it. I need: the field added to `runs.get` (`{ min, max, minWordsPerChapter, exactCount }`, null for a Short), or a different name.
+**R3 field:** `runs.get.chapterBounds { min, max, editMin, editMax, targetWords, minWordsPerChapter, exactCount }` landed on `main` with PR #115 and was merged into this branch. The task doc is r2 (copied from the source and committed with the code; `Task doc updated to r2`).
 
 **Hard rules that applied**
 1. Rules 1, 2, 4: nothing pushed to `main`; one branch created for this task; one worktree (`task7b`); no git command in another session's folder.
-2. Rule 5: the task doc was copied from the source and committed alone, first. It is identical to the source.
-3. Rule 6: `origin/main` was merged into the branch before `gh pr ready` (no conflicts); 184 tests, `tsc` and `eslint` re-run clean; docs in the PR diff are this report only (the task doc is already identical on main).
+2. Rule 5: the task doc was copied from the source and committed alone first (r1); r2 was copied again and committed with the code, identical to the source.
+3. Rule 6: `origin/main` was merged into the branch before `gh pr ready` (no conflicts); 185 tests, `tsc` and `eslint` re-run clean; docs in the PR diff are this report only (the task doc is already identical on main).
 4. Rule 7: I wrote only this report. I did not touch `STATUS.md` or any other doc.
 5. Rule 8 (names): branch and commits carry `_FE`; the report is `task7-followup.md` in `reports/`.
 
 **Status in three separate statements**
-- Code-complete: R1, R2, R4, R5 and the reading side of R3 (no limits are applied until the server sends `chapterBounds`). Not complete: R3 against a real server.
+- Code-complete: R1, R2, R3, R4, R5.
 - Merged: no. Deployed: no. No app build exists with this.
-- Verified: 184 app tests, `tsc`, `eslint` and `expo export --platform web` pass locally. **Nothing was run on a phone or emulator**, so no screenshots exist.
+- Verified: 185 app tests, `tsc`, `eslint` and `expo export --platform web` pass locally. **Nothing was run on a phone or emulator**, so no screenshots exist.
 
 ## R0. Read first
 
@@ -37,7 +37,7 @@ Not seen on a device.
 Not seen on a device.
 
 ## R3. Chapter bounds from the server
-`lib/chapter-bounds.ts` reads `runs.get.chapterBounds { min, max, minWordsPerChapter, exactCount }` (null for a Short). `lib/script-editor.ts` now only parses the `## Chapter title` format and compares with the bounds it is given; there is no chapter-count or minimum-words number left in it (a test reads the source to keep it so). The Gate 1 editor shows the live count with the server's range ("3 to 20 chapters" or "exactly 4 chapters"), blocks Save below the minimum or above the maximum, warns about a chapter under `minWordsPerChapter` words, and still shows the server's message after Save as sent. Without bounds: the count is shown with no limit, nothing is blocked, and the server's message after Save is the only check. The word-count and length display from Task 7 is unchanged. See the sweep for the pace constant that remains.
+`lib/chapter-bounds.ts` reads `runs.get.chapterBounds` (null for a Short). The Gate 1 editor judges the edit against `editMin` and `editMax` (what the server's edit check accepts) and shows the server's range ("3 to 20 chapters"); it blocks Save outside it, warns about a chapter under `minWordsPerChapter` words, and still shows the server's message after Save as sent. When `exactCount` is true it adds one amber line, "The brief lists N chapters", as advice only and never blocks (a Gate 1 edit may change the count). The word count is shown against `targetWords` ("273 words · target about 300"); with no field the count stands alone. `lib/script-editor.ts` and `lib/script-versions.ts` now keep no chapter count, minimum words, words-per-minute pace or length floor (a test reads both sources to keep it so); a long script's length on the Script tab is the word count only, because the server owns the pace. All seven `chapterBounds` fields are in `lib/task8-contract.ts`, so a rename stops `tsc`. Without the field (an older server) the count shows with no limit and no target.
 
 ## R4. Intake warnings
 `IntakeWarnings` shows `run.creationOptions.intakeWarnings` as plain amber lines under the settings tiles on the run screen (blank and repeated lines dropped, never red, never blocking). Absent means nothing. The run screen is where a new run lands, so a warning is also seen right after creation; there is no separate screen for it in New brief.
@@ -50,19 +50,19 @@ Searched `app/` for chapter counts, minimum words, words per minute, 3-chapter m
 | `script-editor.ts` `MIN_CHAPTERS`, "at least 3 chapters" message | **Fixed here** (read from `chapterBounds`) |
 | `ScriptEditorModal.tsx` "needs at least 3" | **Fixed here** |
 | `GateActionBar.tsx` comment "fewer than 3 chapters" | **Fixed here** (comment) |
-| `script-editor.ts` `WORDS_PER_MINUTE = 155` and `script-versions.ts` (length of the approved script) | **Needs a new task.** The server owns the pace (`LONG_WORDS_PER_MINUTE` and, per voice, the measured pace in `runs.get.expectedLength` and `runs.expectedLength({ runId, scriptText })`). The editor's live estimate and the Script tab length should read those. Left because it needs a debounced call while typing and changes two screens. |
-| `script-editor.ts` `LENGTH_FLOOR = 0.8` | **Needs the same task**: the server's `expectedLength.floorSeconds` is the authority. |
+| `script-editor.ts` `WORDS_PER_MINUTE = 155`, `LENGTH_FLOOR = 0.8`, and the estimate in `script-versions.ts` | **Fixed here**: removed; the editor uses `targetWords`, the Script tab shows the word count only. |
+| `script-editor.ts` `MIN_CHAPTERS = 3` and the "at least 3 chapters" message | **Fixed here** (the limits come from `editMin`/`editMax`) |
 | `run-view.ts` `scriptStats` (words / 2.5, a Short's pace) | **Left alone**: Shorts, display only; fold into the same task if wanted. |
-| `long-brief.ts` `MIN_MINUTES = 2`, `MAX_MINUTES = 15` | **Needs a new task**: video length bounds are the server's (`formats/video-kind.ts`, 120 to 900 s); New brief should read them. |
-| `brief-extras.ts` `MAX_SOURCES = 20`, `MAX_SOURCE_LENGTH = 500` | **Left alone**: input limits mirrored from `runs.create` (the file says so); the server refuses too. Candidate for the same task. |
+| `long-brief.ts` `MIN_MINUTES = 2`, `MAX_MINUTES = 15` | **Left alone; needs a new task**: the 2 to 15 minute video length is the server's (`formats/video-kind.ts`, 120 to 900 s); New brief should read it. |
+| `brief-extras.ts` `MAX_SOURCES = 20`, `MAX_SOURCE_LENGTH = 500` | **Left alone; needs a new task** (with the video length above): input limits mirrored from `runs.create`; the server refuses too. |
 | `channels.tsx` `MAX_CHANNELS = 7` | **Left alone, unverified**: I did not check whether the server enforces a channel cap; if it does, the app should read it. |
 | `run-labels.ts` `TOPIC_MAX_CHARS`, dashboard `BAR_MAX_HEIGHT` | **Not server rules** (display). |
 
 ## Tests
-`cd studio && npx vitest run --root ../app`: 28 files, 184 passed (voice page state across back and forth; sample button text including "Sample unavailable"; cost breakdown with a failed-not-charged row and a sub-cent amount; chapter bounds absent, exact count and a range; a chapter under the minimum words; intake warnings absent, one and several; a check that `script-editor.ts` holds no chapter constant). `npx tsc --noEmit`, `npx eslint .` and `npx expo export --platform web`: clean. Not run: any phone or emulator. There is no render test of the cost card or the voice page (the app has no React test renderer); their logic is in the tested helpers.
+`cd studio && npx vitest run --root ../app`: 28 files, 185 passed (voice page state across back and forth; sample button text including "Sample unavailable"; cost breakdown with a failed-not-charged row and a sub-cent amount; chapter bounds absent, exact count and a range; a chapter under the minimum words; intake warnings absent, one and several; a check that `script-editor.ts` holds no chapter constant). `npx tsc --noEmit`, `npx eslint .` and `npx expo export --platform web`: clean. Not run: any phone or emulator. There is no render test of the cost card or the voice page (the app has no React test renderer); their logic is in the tested helpers.
 
 ## Screenshots
-All **missing** (no phone or emulator): Voice page, cost card expansion, Gate 1 edit sheet with a chapter-limit warning (needs `chapterBounds`), a run with an intake warning.
+All **missing** (no phone or emulator): Voice page, cost card expansion, Gate 1 edit sheet with a chapter-limit warning and the "The brief lists N chapters" line, a run with an intake warning.
 
 ## One line for the founder
-The voice page, cost card breakdown and intake warnings are in the code; the Gate 1 chapter limits will work as soon as the server sends `runs.get.chapterBounds`, which is not on `main` yet.
+The voice page, cost breakdown, intake warnings and the server-owned chapter limits are all in the code; none of it has been seen on a phone yet.
