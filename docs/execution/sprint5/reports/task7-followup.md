@@ -2,7 +2,7 @@
 
 **Branch**: `SPRINT5_TASK7_FE_FOLLOWUP`
 **Worktree**: `D:\Study Material\7AI-SPRINT5\task7b`
-**PR**: [#113](https://github.com/Neeraj1002/7AI/pull/113) (draft)
+**PR**: [#113](https://github.com/Neeraj1002/7AI/pull/113)
 **Task doc**: `docs/execution/sprint5/tasks/task7-followup.md`, r1, copied from the founder's folder and committed on its own (`SPRINT5_TASK7_FE_FOLLOWUP_DOC: add task doc r1`).
 **Written**: 2026-10-24
 
