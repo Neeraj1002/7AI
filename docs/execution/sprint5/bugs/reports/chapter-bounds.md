@@ -3,7 +3,9 @@
 **Branch**: `BUGS_CHAPTER_BOUNDS` (first cut from `origin/main` 9d1d72f; `main` merged in at 7f9655f). **Worktree**: `D:\Study Material\7AI-BUGS_CHAPTER_BOUNDS`. **PR**: [#112](https://github.com/Neeraj1002/7AI/pull/112) (draft until the last step below).
 **Task doc**: `docs/execution/sprint5/bugs/tasks/chapter-bounds.md` r1, copied in unchanged (commit `BUGS_CHAPTER_BOUNDS_DOC`). It was handed out after the first code commits, so it is not the branch's first commit (Hard rule 5 asks for first); it is identical to the source.
 
-Status, as three separate statements: **code-complete**: yes. **Merged**: no. **Deployed**: no.
+**R9** (second PR): branch `BUGS_CHAPTER_BOUNDS_R9`, worktree `D:\Study MaterialAI-BUGS_CHAPTER_BOUNDS` (recreated at the same path: the R1 to R8 worktree had been removed by the Hard rule 8 closing before R9 was handed out), PR [#115](https://github.com/Neeraj1002/7AI/pull/115). Task doc r2 copied in unchanged as the branch's first commit (`BUGS_CHAPTER_BOUNDS_R9_DOC`).
+
+Status, as three separate statements. R1 to R8 (#112): **code-complete** yes, **merged** yes (21 Oct), **deployed** not stated here. R9 (#115): **code-complete** yes, **merged** no, **deployed** no.
 
 ## R0: where a chapter count, chapter minimum, pace or chapter timing is defined or assumed
 
@@ -83,3 +85,33 @@ Typecheck, lint and build clean. Full suite with `--maxWorkers=4`: 161 files pas
 ## Pull `main`, docs scope, CI (Hard rule 6)
 
 Merged `origin/main` (7f9655f, Task 8) into the branch before the work in R6 to R8. Conflicts: `studio/src/api/routers/runs.ts` (the `runs.rerun` strip list: kept my `intakeWarnings` plus Task 8's `preflightBlock`, `settingsChanges`, `estimateUsd`, `retryAllowanceUsd`) and `studio/src/types/pipeline.types.ts` (kept both sets of new `creationOptions` fields). To be filled in at the last step: second pull, docs-scope check, CI result.
+
+## R9: `runs.get.chapterBounds` (second PR)
+
+`runs.get` returns `chapterBounds: { min, max, minWordsPerChapter, exactCount }` for a long-form run and `null` for a Short. It is computed on every read from the run's resolved length and its `briefText`, by `chapterBoundsForBrief()` (the call Script Generation uses) turned into the view by `chapterBoundsView()`; both live in `long-form/chapter-bounds.ts` / `brief-chapter-plan.ts`, so there is still one owner. `exactCount` is true when the brief lists its titles (then `min` equals `max`). If the brief cannot be read the length-based default comes back, never an error (`deriveChapterBounds` in `runs.ts`). The field is part of the inferred `runs.get` output type. No stored data, no schema change, no model call, no spend; `runs.create`, intake and `app/` are untouched.
+
+Tests (`runs.run-screen-data.test.ts`): a Short returns `null` and keeps its existing fields; 10 minutes with no titles returns 3, 20, 26, false; 7, 8 and 9 listed titles return exactly that count with `exactCount: true`; 2, 5 and 15 minutes give ceilings 12, 20 and 20; an old long run with no stored length and no brief returns the default without throwing; the read starts no run. Typecheck, lint and build clean; full suite with `--maxWorkers=4`: 161 files passed, 12 skipped; 1,418 tests passed, 65 skipped.
+
+**One thing for the architect to decide (not changed).** The field says `min = max = 7, exactCount: true` for a brief that lists 7 titles, as the task asks. The server's Gate 1 edit check (`parseChapterSheet`) does not bind an edit to the brief's count: it accepts any count from 3 to the length's ceiling, with 26 words per chapter. If the app enforces `exactCount` it will be stricter than the server and refuse an 8-chapter edit the server would accept. Either the app treats `exactCount` as advice (show "the brief lists 7 chapters"), or the edit check should also bind to the brief's titles (a separate change to `parseChapterSheet`, which this task does not ask for).
+
+### Values the app still mirrors (for the Task 7 follow-up agent), checked on `main` at e16cbde plus the Task 7 merge
+
+| App file | Value | Server owner | Note |
+|---|---|---|---|
+| `lib/script-editor.ts:4` and its message at :36 (also the comments in `GateActionBar.tsx:37` and `ScriptEditorModal.tsx:12`) | `MIN_CHAPTERS = 3`, "Needs at least 3 chapters" | `chapter-bounds.ts` `min`/`max` | replace with `chapterBounds` (R3 of the follow-up) |
+| `lib/script-editor.ts` (no check) | no maximum, no per-chapter word minimum | max 20 (or the length's ceiling), 26 words | the server refuses these only after Save; use `max` and `minWordsPerChapter` |
+| `lib/script-editor.ts:5` `WORDS_PER_MINUTE = 155` (used by `script-versions.ts:9,33` for the length shown) | 155 | `LONG_WORDS_PER_MINUTE`; the server plans from the voice's measured pace (Task 8) and, since R8, from a stated word count | not sent by the server yet; a displayed length can differ from the planner's. `runs.get.expectedLength` (Task 8) is the server's own estimate; prefer it |
+| `lib/long-brief.ts:16-17` `MIN_MINUTES = 2`, `MAX_MINUTES = 15` | 2 and 15 | `formats/video-kind.ts` `LONG_MIN_SEC`/`LONG_MAX_SEC` (120 to 900) | video length, not chapters; not sent by the server |
+| `lib/brief-extras.ts:4,27` `MAX_SOURCE_LENGTH = 500`, `MAX_SOURCES` | 500 characters, source count | `runs.create` `sources` schema | commented as matching; not sent by the server |
+| `app/(app)/run/[id].tsx:711` `chapters.length > 2` | 2 | none | only decides when "Show full script" shows; not a rule |
+| (new, no app copy yet) `intakeWarnings` | sentences | `creationOptions.intakeWarnings` | read-only list; show with the run |
+
+Intake refusals (the brief's lists disagree, a count outside the range) arrive as `runs.create` `BAD_REQUEST` messages; the app shows the server's sentence and must not rephrase or re-derive them.
+
+### Hard rules 5 to 9 for R9
+
+- **5** Task doc r2 copied in unchanged as the first commit; identical to the source (checked again after the `main` merge).
+- **6** `main` pulled into the branch (one clean merge; it brought Task 7 FE #106, the publishing-citation retry and the template change). Docs scope is checked before `gh pr ready`, below.
+- **7** I wrote only this report; `STATUS.md` and every other doc untouched.
+- **8** Not run: the closing waits until the founder says the R9 PR is merged.
+- **9** The sweep section above stands; the app list above is the extra mirror check R9 asked for.
