@@ -1,6 +1,6 @@
 # Sprint 6 Task 1: Curiosity Packaging
 
-**Branch / worktree / PR (PR A)**: `SPRINT6_TASK1A_BE` · `D:\Study Material\7AI-SPRINT6\task1a` · PR_NUMBER_PLACEHOLDER (draft)
+**Branch / worktree / PR (PR A)**: `SPRINT6_TASK1A_BE` · `D:\Study Material\7AI-SPRINT6\task1a` · [PR #116](https://github.com/Neeraj1002/7AI/pull/116) (draft)
 **Task doc**: r6, identical to the architect's source and already on `main` (checked with `diff` against `D:\Study Material\7AI\docs\execution\sprint6\tasks\task1.md` and `origin/main` at `1533d40`), so no `_DOC` commit was needed (Hard rule 5). Revisions picked up: none.
 **Status of this report**: PR A, section 1 (R0) only. R1, R2, R3, R5, R6 are not started; they wait for the three founder answers at the end of this section.
 **Date**: 2026-10-25
