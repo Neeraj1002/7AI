@@ -56,7 +56,8 @@ import { LONG_WORDS_PER_MINUTE } from '../../agents/script-generation/long-form'
 import type { ChannelProfileData } from '../../channel-profile';
 import { readStillsProgress } from '../../run-pipeline/stills-progress';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
-import { checkBriefChapterPlan } from '../../long-form/brief-chapter-plan';
+import { chapterBoundsForBrief, checkBriefChapterPlan } from '../../long-form/brief-chapter-plan';
+import { chapterBounds, chapterBoundsView, type ChapterBoundsView } from '../../long-form/chapter-bounds';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
 import { env } from '../../config/env';
 import { PIPELINE_RUN_STATUSES, STAGE_NAMES } from '../../types';
@@ -312,6 +313,20 @@ async function resolveVideoRequest(
   };
 }
 
+// R9: the chapter rules for a long run, from the same call the prompt, the reply check and the edit sheet use.
+// Read-only and computed on every read; a brief that cannot be read gives the length-based default, never an error.
+export function deriveChapterBounds(
+  run: { briefText?: string | null },
+  resolved: { videoKind: 'short' | 'long'; targetSeconds: number },
+): ChapterBoundsView | null {
+  if (resolved.videoKind !== 'long') return null;
+  try {
+    return chapterBoundsView(chapterBoundsForBrief(run.briefText, resolved.targetSeconds));
+  } catch {
+    return chapterBoundsView(chapterBounds({ targetSeconds: resolved.targetSeconds }));
+  }
+}
+
 async function getRunDetail(id: string, ctx: Context) {
   const run = await findPipelineRunById(id);
   if (!run) {
@@ -377,6 +392,8 @@ async function getRunDetail(id: string, ctx: Context) {
     stages,
     reviewLogs,
     videoKind: resolved.videoKind,
+    // Long-form only; null for a Short. Declared here, so it is part of the runs.get output type.
+    chapterBounds: deriveChapterBounds(run, resolved),
     targetSeconds: resolved.targetSeconds,
     ...longForm,
     lastGateDecision: deriveLastGateDecision(stages),

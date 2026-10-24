@@ -101,3 +101,21 @@ export function averageChapterSeconds(
 ): number {
   return targetSeconds / chapterCount;
 }
+
+// What the app is told (runs.get.chapterBounds), so it never copies the numbers. exactCount is true when the brief
+// lists its titles (then min equals max).
+export type ChapterBoundsView = {
+  min: number;
+  max: number;
+  minWordsPerChapter: number;
+  exactCount: boolean;
+};
+
+export function chapterBoundsView(bounds: ChapterBounds): ChapterBoundsView {
+  return {
+    min: bounds.min,
+    max: bounds.max,
+    minWordsPerChapter: bounds.minWords,
+    exactCount: bounds.titles !== null,
+  };
+}

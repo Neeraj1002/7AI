@@ -88,6 +88,54 @@ describe('runs.get: older run is unchanged', () => {
   });
 });
 
+describe('runs.get: chapterBounds (R9)', () => {
+  const titled = (n: number) =>
+    `Topic: x\nConstraint: chapters, titles exactly: ${Array.from({ length: n }, (_, i) => `"Title ${i + 1}"`).join(', ')}.`;
+  const longRun = (targetDurationSec: number | undefined, briefText: string | null) => ({
+    ...run({ videoKind: 'long', ...(targetDurationSec !== undefined && { targetDurationSec }) }),
+    briefText: briefText as string,
+  });
+  const boundsOf = async () => (await caller().get({ id: RUN_ID })).chapterBounds;
+
+  it('is null for a Short, and the existing fields are as before', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(run({ targetDurationSec: 45 }));
+    const detail = await caller().get({ id: RUN_ID });
+    expect(detail.chapterBounds).toBeNull();
+    expect(detail).toMatchObject({ videoKind: 'short', targetSeconds: 45, spentUsd: 0, lastGateDecision: null });
+    expect(detail).not.toHaveProperty('resolvedOptions');
+  });
+
+  it('gives a 10-minute run with no titles the default range', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(600, 'a brief with no chapter list'));
+    expect(await boundsOf()).toEqual({ min: 3, max: 20, minWordsPerChapter: 26, exactCount: false });
+  });
+
+  it.each([7, 8, 9])('gives a run whose brief lists %i titles exactly that count', async (n) => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(600, titled(n)));
+    expect(await boundsOf()).toEqual({ min: n, max: n, minWordsPerChapter: 26, exactCount: true });
+  });
+
+  it.each([
+    [120, 12],
+    [300, 20],
+    [900, 20],
+  ])('a %i s run has the length-based ceiling %i', async (seconds, max) => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(seconds, 'no list'));
+    expect(await boundsOf()).toMatchObject({ min: 3, max, exactCount: false });
+  });
+
+  it('gives an old long run (no stored length, no readable brief) the default, without throwing', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(undefined, null));
+    expect(await boundsOf()).toEqual({ min: 3, max: 20, minWordsPerChapter: 26, exactCount: false });
+  });
+
+  it('spends nothing and calls no model', async () => {
+    mocks.findPipelineRunById.mockResolvedValue(longRun(600, titled(7)));
+    await boundsOf();
+    expect(mocks.createRun).not.toHaveBeenCalled();
+  });
+});
+
 describe('runs.get: spend (R3)', () => {
   it('returns the summed cost rounded to 4 decimals and the run spend limit', async () => {
     mocks.findPipelineRunById.mockResolvedValue(run({ videoKind: 'long', targetDurationSec: 600, maxCostUsd: 4 }));
