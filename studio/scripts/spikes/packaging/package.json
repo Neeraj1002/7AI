@@ -1,0 +1,13 @@
+{
+  "name": "packaging-spike",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sprint 6 Task 1 spike. Throwaway dependencies for lettering; not part of the product build.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@fontsource/anton": "5.3.0",
+    "@fontsource/cinzel": "5.3.0",
+    "@fontsource/playfair-display": "5.3.0",
+    "@napi-rs/canvas": "1.0.13"
+  }
+}
