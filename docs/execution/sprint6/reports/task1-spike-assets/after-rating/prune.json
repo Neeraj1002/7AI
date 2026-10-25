@@ -1,0 +1,167 @@
+[
+  {
+    "scriptId": "mary-celeste",
+    "reads": [
+      {
+        "id": "p1",
+        "aboutGuess": "A ghost ship mystery where a crew mysteriously disappeared in 1872.",
+        "curiosity": 4,
+        "wouldClick": "yes"
+      },
+      {
+        "id": "p2",
+        "aboutGuess": "Some sailors attempting a dangerous Atlantic crossing in the 1800s.",
+        "curiosity": 2,
+        "wouldClick": "no"
+      },
+      {
+        "id": "p3",
+        "aboutGuess": "Historical debunking of the famous Mary Celeste ghost ship legend.",
+        "curiosity": 4,
+        "wouldClick": "yes"
+      },
+      {
+        "id": "p4",
+        "aboutGuess": "A period piece about a ship's captain and family sailing to Italy.",
+        "curiosity": 1,
+        "wouldClick": "no"
+      },
+      {
+        "id": "p5",
+        "aboutGuess": "A mysterious courtroom investigation in Gibraltar involving a sword as evidence.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "p6",
+        "aboutGuess": "An explanation for why a crew abandoned their still-seaworthy ship in 1872.",
+        "curiosity": 4,
+        "wouldClick": "yes"
+      }
+    ],
+    "ranking": [
+      "p1",
+      "p3",
+      "p6",
+      "p5",
+      "p2",
+      "p4"
+    ],
+    "keep": [
+      "p1",
+      "p3",
+      "p6"
+    ],
+    "best": "p1"
+  },
+  {
+    "scriptId": "lego",
+    "reads": [
+      {
+        "id": "lego-1",
+        "aboutGuess": "Lego's financial crisis in the early 2000s and why selling their theme parks was necessary.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "lego-2",
+        "aboutGuess": "The story behind Lego's decision to divest from their theme park business.",
+        "curiosity": 2,
+        "wouldClick": "no"
+      },
+      {
+        "id": "lego-3",
+        "aboutGuess": "A layoff situation at Lego that was addressed by a major investment from ownership.",
+        "curiosity": 2,
+        "wouldClick": "no"
+      },
+      {
+        "id": "lego-4",
+        "aboutGuess": "Lego surpassed Mattel to become the world's largest toy company by revenue.",
+        "curiosity": 4,
+        "wouldClick": "yes"
+      },
+      {
+        "id": "lego-5",
+        "aboutGuess": "How Lego recovered from a massive financial deficit through strategic changes.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "lego-6",
+        "aboutGuess": "Lego's comeback strategy focused on returning to their core brick-building products.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      }
+    ],
+    "ranking": [
+      "lego-4",
+      "lego-1",
+      "lego-5",
+      "lego-6",
+      "lego-3",
+      "lego-2"
+    ],
+    "keep": [
+      "lego-4",
+      "lego-1",
+      "lego-5"
+    ],
+    "best": "lego-4"
+  },
+  {
+    "scriptId": "eiffel",
+    "reads": [
+      {
+        "id": "p1",
+        "aboutGuess": "About a Paris tower that had a demolition deadline but was saved or sold instead.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "p2",
+        "aboutGuess": "How the Eiffel Tower became useful for science so it wouldn't be torn down.",
+        "curiosity": 4,
+        "wouldClick": "yes"
+      },
+      {
+        "id": "p3",
+        "aboutGuess": "Technical breakdown of how the Eiffel Tower was constructed piece by piece.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "p4",
+        "aboutGuess": "The Eiffel Tower's design wasn't originally Eiffel's own work.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "p5",
+        "aboutGuess": "Paris built the tower as a temporary structure for the 1889 World's Fair.",
+        "curiosity": 3,
+        "wouldClick": "maybe"
+      },
+      {
+        "id": "p6",
+        "aboutGuess": "The Eiffel Tower had a limited permit that was about to expire.",
+        "curiosity": 2,
+        "wouldClick": "no"
+      }
+    ],
+    "ranking": [
+      "p2",
+      "p1",
+      "p3",
+      "p4",
+      "p5",
+      "p6"
+    ],
+    "keep": [
+      "p2",
+      "p1",
+      "p3"
+    ],
+    "best": "p2"
+  }
+]

@@ -1,0 +1,122 @@
+[
+  {
+    "cardId": "mary-celeste-p1-ceiling-medium",
+    "quality": "medium",
+    "costUsd": 0.012015,
+    "lettered": {
+      "cardId": "mary-celeste-p1-ceiling-medium",
+      "font": "serif",
+      "fontFamily": "PlayfairDisplay",
+      "words": "NOBODY ANSWERED",
+      "subline": "4 December 1872",
+      "zone": "top",
+      "mainFontPxFull": 108,
+      "mainFontPxSide": 14,
+      "lines": 1,
+      "full": "probe-cards\\mary-celeste-p1-ceiling-medium-full.jpg",
+      "feed": "probe-cards\\mary-celeste-p1-ceiling-medium-feed.jpg",
+      "side": "probe-cards\\mary-celeste-p1-ceiling-medium-side.jpg",
+      "plain": "probe-cards\\mary-celeste-p1-ceiling-medium-plain.jpg"
+    }
+  },
+  {
+    "cardId": "lego-lego-4-ceiling-medium",
+    "quality": "medium",
+    "costUsd": 0.01202,
+    "lettered": {
+      "cardId": "lego-lego-4-ceiling-medium",
+      "font": "condensed",
+      "fontFamily": "Anton",
+      "words": "BIGGEST TOY COMPANY",
+      "subline": "first half of 2015",
+      "zone": "left",
+      "mainFontPxFull": 144,
+      "mainFontPxSide": 19,
+      "lines": 2,
+      "full": "probe-cards\\lego-lego-4-ceiling-medium-full.jpg",
+      "feed": "probe-cards\\lego-lego-4-ceiling-medium-feed.jpg",
+      "side": "probe-cards\\lego-lego-4-ceiling-medium-side.jpg",
+      "plain": "probe-cards\\lego-lego-4-ceiling-medium-plain.jpg"
+    }
+  },
+  {
+    "cardId": "eiffel-p2-ceiling-medium",
+    "quality": "medium",
+    "costUsd": 0.0121,
+    "lettered": {
+      "cardId": "eiffel-p2-ceiling-medium",
+      "font": "display",
+      "fontFamily": "Cinzel",
+      "words": "THE TOWER'S LAB",
+      "subline": "meteorology and radio",
+      "zone": "right",
+      "mainFontPxFull": 130,
+      "mainFontPxSide": 17,
+      "lines": 3,
+      "full": "probe-cards\\eiffel-p2-ceiling-medium-full.jpg",
+      "feed": "probe-cards\\eiffel-p2-ceiling-medium-feed.jpg",
+      "side": "probe-cards\\eiffel-p2-ceiling-medium-side.jpg",
+      "plain": "probe-cards\\eiffel-p2-ceiling-medium-plain.jpg"
+    }
+  },
+  {
+    "cardId": "mary-celeste-p1-ceiling-high",
+    "quality": "high",
+    "costUsd": 0.042885,
+    "lettered": {
+      "cardId": "mary-celeste-p1-ceiling-high",
+      "font": "serif",
+      "fontFamily": "PlayfairDisplay",
+      "words": "NOBODY ANSWERED",
+      "subline": "4 December 1872",
+      "zone": "top",
+      "mainFontPxFull": 108,
+      "mainFontPxSide": 14,
+      "lines": 1,
+      "full": "probe-cards\\mary-celeste-p1-ceiling-high-full.jpg",
+      "feed": "probe-cards\\mary-celeste-p1-ceiling-high-feed.jpg",
+      "side": "probe-cards\\mary-celeste-p1-ceiling-high-side.jpg",
+      "plain": "probe-cards\\mary-celeste-p1-ceiling-high-plain.jpg"
+    }
+  },
+  {
+    "cardId": "lego-lego-4-ceiling-high",
+    "quality": "high",
+    "costUsd": 0.04289,
+    "lettered": {
+      "cardId": "lego-lego-4-ceiling-high",
+      "font": "condensed",
+      "fontFamily": "Anton",
+      "words": "BIGGEST TOY COMPANY",
+      "subline": "first half of 2015",
+      "zone": "left",
+      "mainFontPxFull": 144,
+      "mainFontPxSide": 19,
+      "lines": 2,
+      "full": "probe-cards\\lego-lego-4-ceiling-high-full.jpg",
+      "feed": "probe-cards\\lego-lego-4-ceiling-high-feed.jpg",
+      "side": "probe-cards\\lego-lego-4-ceiling-high-side.jpg",
+      "plain": "probe-cards\\lego-lego-4-ceiling-high-plain.jpg"
+    }
+  },
+  {
+    "cardId": "eiffel-p2-ceiling-high",
+    "quality": "high",
+    "costUsd": 0.04297,
+    "lettered": {
+      "cardId": "eiffel-p2-ceiling-high",
+      "font": "display",
+      "fontFamily": "Cinzel",
+      "words": "THE TOWER'S LAB",
+      "subline": "meteorology and radio",
+      "zone": "right",
+      "mainFontPxFull": 130,
+      "mainFontPxSide": 17,
+      "lines": 3,
+      "full": "probe-cards\\eiffel-p2-ceiling-high-full.jpg",
+      "feed": "probe-cards\\eiffel-p2-ceiling-high-feed.jpg",
+      "side": "probe-cards\\eiffel-p2-ceiling-high-side.jpg",
+      "plain": "probe-cards\\eiffel-p2-ceiling-high-plain.jpg"
+    }
+  }
+]

@@ -1,0 +1,454 @@
+[
+  {
+    "scriptId": "mary-celeste",
+    "packages": [
+      {
+        "id": "p1",
+        "question": "Why was nobody answering the signals from a ship six miles off?",
+        "device": "mystery",
+        "supportingDevice": "scale",
+        "title": "Atlantic swell, 1872: a ship that won't answer",
+        "thumbnail": {
+          "subject": "A lone brigantine seen far across grey open water, her sails hanging oddly and unevenly, no figure visible on her deck",
+          "gazeOrGesture": "No one is at the helm or on deck; the ship drifts unsteadily, her bow angled slightly off the wind",
+          "scale": "The ship is small and far off, a pale shape on a vast grey swell filling most of the frame",
+          "threatOrMystery": "The empty deck we cannot read from this distance; only the oddly set sails hint that something is wrong",
+          "light": "Flat overcast afternoon light, cool grey water, a thin warm highlight on the distant canvas, fine film grain",
+          "composition": "Foreground: dark swell and a blurred wooden rail edge at the lower corner. Middle: the distant ship, off-centre to the right. Background: low grey horizon. The upper sky stays calm and open for lettering",
+          "lettering": {
+            "words": "NOBODY ANSWERED",
+            "subline": "4 December 1872",
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Opening section, and the chapter 'What did the boarding party find?'",
+        "supportQuote": "see a ship heading unsteadily toward them, and nobody answers their signals",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "p2",
+        "question": "What did the first two men to climb aboard find on deck and below?",
+        "device": "how",
+        "supportingDevice": "mystery",
+        "title": "Two mates row across the Atlantic swell in 1872",
+        "thumbnail": {
+          "subject": "Two men seen from behind in a small wooden boat, bent to their oars, pulling toward the high dark stern of a ship",
+          "gazeOrGesture": "Both face the ship, backs to the viewer, oars dipping into the swell",
+          "scale": "The ship's stern towers over the little boat, filling the upper half of the frame",
+          "threatOrMystery": "The ship's stern is plain and unreadable; there is no sign of anyone at the rail",
+          "light": "Cold overcast light on the water, warm pale highlight on the wet oar blades and the weathered planking",
+          "composition": "Foreground: blurred oar blade and gunwale. Middle: the two men, off-centre left. Background: the looming stern. The lower water band stays calm for lettering",
+          "lettering": {
+            "words": "CLIMBING ABOARD",
+            "subline": null,
+            "zone": "bottom"
+          }
+        },
+        "answeredAt": "Chapter 'What did the boarding party find?'",
+        "supportQuote": "sent first mate Oliver Deveau and second mate John Wright across by boat",
+        "deviceNote": "How is the weaker framing here: the script gives the boarding but not a survival process, so it is paired with mystery.",
+        "violations": []
+      },
+      {
+        "id": "p3",
+        "question": "What does the record say about the ghost-ship version everyone knows?",
+        "device": "correction",
+        "supportingDevice": null,
+        "title": "The Mary Celeste of 1872 against the ghost story",
+        "thumbnail": {
+          "subject": "A bare cabin table with an empty plain plate, a cold stove behind it, a child's wooden toy resting at the edge of the frame",
+          "gazeOrGesture": "No person present; the toy sits where a small hand left it",
+          "scale": "Intimate close-up, table edge large in the foreground",
+          "threatOrMystery": "The untouched, untidy cabin set against the legend of a hot meal and a burning fire",
+          "light": "Dim window light from the left, warm highlight on the wood, cool shadow in the corners",
+          "composition": "Foreground: table edge and plate, softly blurred. Middle: the toy, off-centre right. Background: the knocked-out stove in shadow. The empty left wall stays calm for lettering",
+          "lettering": {
+            "words": "NO WARM MEAL",
+            "subline": "The record differs",
+            "zone": "left"
+          }
+        },
+        "answeredAt": "Chapter 'What is the story most people have heard?'",
+        "supportQuote": "There was no meal on the cabin table, and nothing was cooking.",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "p4",
+        "question": "Who were the ten people aboard, and where were they going?",
+        "device": "person",
+        "supportingDevice": null,
+        "title": "A captain, his wife and their daughter, New York, 1872",
+        "thumbnail": {
+          "subject": "A man and woman seen from behind on a wooden pier, a small child between them holding a hand of each",
+          "gazeOrGesture": "They face a tall-masted ship moored ahead, the child's head turned up toward the woman",
+          "scale": "The three figures are small against the ship's dark hull and rigging",
+          "threatOrMystery": "The ship's open, shadowed deck, unreadable from here; the viewer knows only that they are about to board",
+          "light": "Soft dawn haze, cool shadows on the pier planks, warm pale glow on the hull",
+          "composition": "Foreground: blurred rope coil on the planks. Middle: the family, off-centre left. Background: the ship fading in haze. The hazy sky above stays calm for lettering",
+          "lettering": {
+            "words": "TEN ABOARD",
+            "subline": "Bound for Genoa",
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Chapter 'Who sailed on the Mary Celeste, and where were they going?'",
+        "supportQuote": "He sailed with his wife Sarah and their two-year-old daughter Sophia.",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "p5",
+        "question": "What did the court at Gibraltar find when it tested the stains and the cuts?",
+        "device": "stake",
+        "supportingDevice": "mystery",
+        "title": "A Gibraltar court in 1872: what was on the sword?",
+        "thumbnail": {
+          "subject": "A sheathed sword lying on a plain wooden bunk under a low beam, a lantern's glow falling across it",
+          "gazeOrGesture": "A single hand enters the frame from the right, fingers hovering just above the scabbard without touching it",
+          "scale": "Close-up on the sword and hand, the cabin dark around them",
+          "threatOrMystery": "The question of whether the dark marks mean a crime; the hand pauses before the answer",
+          "light": "Single warm lantern light from the upper right, cool deep shadow across the rest of the cabin",
+          "composition": "Foreground: bunk edge and blanket, soft. Middle: sword and hand, off-centre. Background: dark cabin wall. The dark lower third stays calm for lettering",
+          "lettering": {
+            "words": "TESTED AT GIBRALTAR",
+            "subline": null,
+            "zone": "bottom"
+          }
+        },
+        "answeredAt": "Chapter 'What did the court at Gibraltar actually find?'",
+        "supportQuote": "A sheathed sword lay under the captain's bed.",
+        "deviceNote": "Stake is moderate here: the script has a charged theory (murder) tested and rejected, not a live threat, so mystery supports.",
+        "violations": []
+      },
+      {
+        "id": "p6",
+        "question": "Why would anyone leave a ship that was still afloat?",
+        "device": "mystery",
+        "supportingDevice": null,
+        "title": "Why leave a ship still afloat, 1872?",
+        "thumbnail": {
+          "subject": "An empty small wooden yawl-sized boat davit space on a ship's deck, the lashing ropes hanging loose where the boat once sat",
+          "gazeOrGesture": "Loose rope ends sway in the breeze, as though the boat has only just gone",
+          "scale": "Close-up of the empty cradle with the open grey sea beyond the rail",
+          "threatOrMystery": "The missing lifeboat: the ten people have gone and the reason cannot be seen",
+          "light": "Pale overcast light, cool grey sea, warm highlight on the damp rope",
+          "composition": "Foreground: loose rope ends, softly blurred. Middle: the empty cradle, off-centre right. Background: grey sea and horizon. The calm left side stays open for lettering",
+          "lettering": {
+            "words": "THE YAWL WAS GONE",
+            "subline": "Ten never found",
+            "zone": "left"
+          }
+        },
+        "answeredAt": "Chapter 'Why would anyone leave a ship that was still afloat?'",
+        "supportQuote": "The only lifeboat, a small yawl, was gone.",
+        "deviceNote": "A second mystery package: the script supports no honest countdown and no strong scale device beyond the opening, so the strongest honest device is repeated.",
+        "violations": []
+      }
+    ]
+  },
+  {
+    "scriptId": "lego",
+    "packages": [
+      {
+        "id": "lego-1",
+        "question": "Could a company that had to sell its own theme parks to survive end up on top?",
+        "device": "stake",
+        "supportingDevice": "countdown",
+        "title": "Lego Was Losing 220 Million Dollars. Then It Sold Its Parks.",
+        "thumbnail": {
+          "subject": "A single plastic brick tower, a few bricks tall, standing alone in the middle of an enormous empty office floor",
+          "gazeOrGesture": "No face; the tower leans slightly, one top brick teetering at the edge as if about to fall",
+          "scale": "The small brick tower sits in the foreground at about one third of frame height, dwarfed by long rows of empty desks and a wall of dark windows behind it",
+          "threatOrMystery": "A pale grey floor around the tower is scattered with unsold bricks in silent heaps, and the office behind is dim and deserted, the sense of a company with nothing left",
+          "light": "Cold blue-grey daylight from tall windows on the left, a single warm orange rim light on the tower so it reads as the one thing still alive",
+          "composition": "Foreground: the lone teetering tower sharply lit. Middle: empty desks and heaps of unsold bricks in soft focus. Background: dark windows fading to shadow. Upper third stays calm and dark for lettering",
+          "lettering": {
+            "words": "HOLE IN THE BOOKS",
+            "subline": "2003",
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Chapters two and three: the 2004 layoffs and owner's cash, then the 2005 sale of the four Legoland parks",
+        "supportQuote": "Plain plastic bricks sat in silent heaps, unsold and unwanted.",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "lego-2",
+        "question": "Why did Lego sell the rides and crowds that everyone loved?",
+        "device": "mystery",
+        "supportingDevice": "stake",
+        "title": "Why Lego Sold Its Four Legoland Parks for 375 Million Euros",
+        "thumbnail": {
+          "subject": "A giant theme park entrance gate seen from behind a child-sized silhouette, the gate frame built from oversized colourful plastic bricks",
+          "gazeOrGesture": "A small child silhouette stands with their back to us, one hand raised toward the gate, as if saying goodbye or reaching for it",
+          "scale": "The brick gate towers over the child, filling most of the upper frame; the child is about one sixth of frame height",
+          "threatOrMystery": "Beyond the gate, a ride and crowd glow softly but are cut off by a dark half-closed barrier, so we cannot see what is on the other side",
+          "light": "Warm golden-hour sun low behind the gate, backlighting the child so they read as a clean dark silhouette, with long shadows toward the camera",
+          "composition": "Foreground: child silhouette on the bottom left. Middle: the brick gate and the faint glowing rides. Background: soft amber sky. The right side stays open and calm for lettering",
+          "lettering": {
+            "words": "THE PARKS HAD TO GO",
+            "subline": "2005",
+            "zone": "right"
+          }
+        },
+        "answeredAt": "Chapter three: the 2005 sale of the four Legoland parks and the goal to focus on the core toys",
+        "supportQuote": "Rides spun, crowds laughed, children screamed with joy — and still the parks had to go.",
+        "deviceNote": null,
+        "violations": [
+          "lettering 5 words, limit 4"
+        ]
+      },
+      {
+        "id": "lego-3",
+        "question": "What does a company cut when the walls are closing in?",
+        "device": "person",
+        "supportingDevice": "stake",
+        "title": "Almost a Thousand Lost Their Jobs. Then the Owner Put In 800 Million Kroner",
+        "thumbnail": {
+          "subject": "A lone factory worker in a work jacket walking out through a tall factory gate, seen three quarters from behind with head bowed",
+          "gazeOrGesture": "Head down, shoulders low, one hand gripping the strap of a bag, eyes cast at the ground",
+          "scale": "The worker is small against a tall gate, with a long line of other figures stretching away behind in the same posture",
+          "threatOrMystery": "The line of workers fades into grey mist at the factory gates; we feel the weight of leaving without seeing any face clearly",
+          "light": "Flat overcast daylight with a cool grey-blue cast, one thin shaft of warm light catching the worker's shoulder",
+          "composition": "Foreground: the worker on the left third, sharply focused. Middle: the line of figures receding toward the gate. Background: the factory wall in pale mist. A calm band of sky across the top stays open for lettering",
+          "lettering": {
+            "words": "HEADS DOWN AT THE GATES",
+            "subline": "2004",
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Chapter two: the 2004 layoffs and the owner's own money",
+        "supportQuote": "Picture them walking out of the factory gates, one after another, heads down.",
+        "deviceNote": "The script gives no named individual, so the person device is carried by an anonymous worker's gesture rather than a named human moment.",
+        "violations": [
+          "title 75 chars, limit 70",
+          "lettering 5 words, limit 4"
+        ]
+      },
+      {
+        "id": "lego-4",
+        "question": "Did going back to the brick really beat the biggest rival?",
+        "device": "scale",
+        "supportingDevice": "stake",
+        "title": "Lego Outsold Mattel: 2.1 Billion Dollars Against 1.9 Billion",
+        "thumbnail": {
+          "subject": "A single standard plastic brick standing upright like a monolith, rendered enormous, with a tiny child at its base looking up",
+          "gazeOrGesture": "The child tilts their head far back and points one arm up at the top of the brick",
+          "scale": "The brick towers across the whole frame height; the child at the base is under one tenth of frame height",
+          "threatOrMystery": "Behind the monolith, rows of colourful toy boxes on busy shelves glow as a distant crowd, and the brick rises above all of them",
+          "light": "Strong warm side light from the right grazing the brick's studs so they cast long shadows, with colourful shelf glow in soft focus behind",
+          "composition": "Foreground: child at bottom left, small and sharp. Middle: the giant brick dominating the centre. Background: out-of-focus shelves of colourful boxes. The left side stays shadowed and calm for lettering",
+          "lettering": {
+            "words": "BIGGEST TOY COMPANY",
+            "subline": "first half of 2015",
+            "zone": "left"
+          }
+        },
+        "answeredAt": "Chapter four: the first half of 2015, Lego outselling Mattel",
+        "supportQuote": "By sales, it had become the world's biggest toy company.",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "lego-5",
+        "question": "How does a company that is bleeding money climb back to number one?",
+        "device": "how",
+        "supportingDevice": "countdown",
+        "title": "How Lego Climbed Out of a 1.4 Billion Kroner Shortfall",
+        "thumbnail": {
+          "subject": "A pair of children's hands snapping one plastic brick onto a half-built colourful structure on a table",
+          "gazeOrGesture": "Fingers pressing the brick down firmly, the structure still unfinished with gaps showing",
+          "scale": "The hands and the half-built structure fill the lower two thirds of the frame in close-up, with a vast dim space behind",
+          "threatOrMystery": "Behind the table the room is dark and empty like the earlier quiet offices, and the unfinished build is the only thing glowing, so we wonder what it is becoming",
+          "light": "Warm lamp light from above and slightly front, making the bricks glow in saturated primary colours against a deep shadowed background",
+          "composition": "Foreground: hands and the glowing build, bottom centre. Middle: the table edge. Background: dark, empty room fading to black. The top third stays dark and calm for lettering",
+          "lettering": {
+            "words": "BACK TO THE BRICK",
+            "subline": null,
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Chapters two to four: the return to basics, then the 2015 result",
+        "supportQuote": "Children bent over tables, snapping bricks together, building worlds from almost nothing.",
+        "deviceNote": "The script describes the recovery as a single choice, going back to the brick, rather than a step by step process, so the how device is the weaker one here and rests on the 2003 shortfall to 2015 arc.",
+        "violations": []
+      },
+      {
+        "id": "lego-6",
+        "question": "Did the company that bled money find a new secret to win?",
+        "device": "correction",
+        "supportingDevice": "scale",
+        "title": "Lego Did Not Find a New Secret. It Went Back to the Brick",
+        "thumbnail": {
+          "subject": "A single plain plastic brick placed at the centre of a table, ordinary and small, with a dim glowing outline of a flashy gadget silhouette fading away behind it",
+          "gazeOrGesture": "No face; a hand is just withdrawing from the frame after setting the brick down",
+          "scale": "The brick fills the middle third of the frame; the faded gadget silhouette behind is much larger but ghostlike and transparent",
+          "threatOrMystery": "The ghosted shape of a grand, flashy invention dissolves into darkness behind the brick, the clever idea that was not needed",
+          "light": "A clean, neutral spotlight from above on the brick, deep shadow elsewhere, with a faint cool glow on the fading silhouette",
+          "composition": "Foreground: the brick on a plain surface, bottom centre. Middle: the ghosted gadget silhouette rising behind it. Background: near black. The right side stays calm and dark for lettering",
+          "lettering": {
+            "words": "NOT A NEW SECRET",
+            "subline": "just the brick",
+            "zone": "right"
+          }
+        },
+        "answeredAt": "Final paragraph of chapter four, where the script states the company won by going back to the brick",
+        "supportQuote": "It had not found a new secret. Lego won by going back to the brick.",
+        "deviceNote": "The script only offers a mild contrast, no new secret versus the expectation of one, rather than a popular version versus a documented record, so this correction angle is the weakest here and the lettering avoids loaded words like untold or what really happened.",
+        "violations": []
+      }
+    ]
+  },
+  {
+    "scriptId": "eiffel",
+    "packages": [
+      {
+        "id": "p1",
+        "question": "Why was the world's most famous tower almost torn down and sold for scrap?",
+        "device": "stake",
+        "supportingDevice": "countdown",
+        "title": "The Tower Paris Was Allowed to Tear Down After 20 Years",
+        "thumbnail": {
+          "subject": "A vast wrought-iron lattice tower, the single dominant subject, rising from the centre of the frame, its legs and first platform crisp in the foreground",
+          "gazeOrGesture": "A tiny silhouetted demolition worker in the foreground stands at the base of one leg, head tilted back, one hand resting on a riveted girder as if deciding",
+          "scale": "The worker is no taller than a single rivet-studded cross-brace of the tower's leg, dwarfed by the iron mass behind him",
+          "threatOrMystery": "A heavy wrecking crane with a hooked cable and chain hangs at the left edge, its hook swinging toward the tower's leg; a stack of cut iron scrap lies at the base",
+          "light": "Low raking amber sunset from the right, rim-lighting the iron edges, deep cool blue shadow on the left, dusty haze in the air",
+          "composition": "Foreground: worker and scrap pile at bottom; middle: tower leg and crane hook diagonal; background: pale dusk sky with the tower's tapering top fading into haze; top third left calm and dark-ish blue for lettering",
+          "lettering": {
+            "words": "SOLD FOR SCRAP?",
+            "subline": "20-year permit",
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Chapter 'So why was this record-breaking tower almost destroyed?'",
+        "supportQuote": "Its construction permit was only for 20 years. Once that permit expired, the city of Paris had the right to dismantle it completely and clear the site.",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "p2",
+        "question": "How did Eiffel turn a temporary fairground attraction into something the city couldn't afford to lose?",
+        "device": "how",
+        "supportingDevice": "stake",
+        "title": "How Eiffel Saved His Tower From Being Torn Down",
+        "thumbnail": {
+          "subject": "A radio antenna mast and scientific instruments crowning the top of a wrought-iron lattice tower, seen in tight upward view",
+          "gazeOrGesture": "A bearded 19th-century engineer in a long coat on the upper platform holds up a brass measuring instrument toward the sky, gazing at it intently",
+          "scale": "The engineer is a small dark figure on a narrow platform with iron lattice receding hundreds of metres below him into misty depth",
+          "threatOrMystery": "Far below, a faint cluster of city rooftops where the tower's fate is being decided; a weathervane-like wind gauge spins beside him",
+          "light": "Cold pale-blue daylight from above with a warm brass glint on the instrument, high-altitude clarity and drifting cloud wisps",
+          "composition": "Foreground: engineer and instrument bottom-left; middle: lattice and antenna rising diagonally; background: soft misty cityscape far below; right half is smooth, calm cloudy sky for lettering",
+          "lettering": {
+            "words": "THE TOWER'S LAB",
+            "subline": "meteorology and radio",
+            "zone": "right"
+          }
+        },
+        "answeredAt": "Chapter 'So how did it survive?'",
+        "supportQuote": "He used it for meteorological and aerodynamic experiments, and later as a radio antenna, giving it a practical purpose beyond spectacle.",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "p3",
+        "question": "How do you build something 300 metres tall out of 18,038 iron pieces in the 1880s?",
+        "device": "scale",
+        "supportingDevice": "how",
+        "title": "How They Built a 300-Metre Tower From 18,038 Iron Pieces",
+        "thumbnail": {
+          "subject": "An unfinished iron tower under construction, its half-built lattice legs curving up and joining, scaffolding clinging to the sides",
+          "gazeOrGesture": "A single riveter in a flat cap sits astride a girder in the foreground, one arm raised mid-swing with a hammer toward a glowing rivet, face turned up toward the unfinished sky above",
+          "scale": "The man is tiny compared with the towering legs that vanish upward past the top of the frame; a stack of identical iron beams beside him is taller than he is",
+          "threatOrMystery": "The tower's top simply stops in open sky where the unbuilt portion should be, the viewer left wondering how it could possibly reach 300 metres",
+          "light": "Hot orange glow from the rivet furnace at lower left, cool grey-blue overcast sky behind, sparks catching the light",
+          "composition": "Foreground: riveter and glowing rivet in lower left; middle: converging iron legs fill the centre; background: pale overcast sky; upper right stays a flat calm grey for lettering",
+          "lettering": {
+            "words": "18,038 PIECES",
+            "subline": "2.5 million rivets",
+            "zone": "right"
+          }
+        },
+        "answeredAt": "Chapter 'How do you even build something that tall?'",
+        "supportQuote": "It was assembled from 18,038 pieces of wrought iron, held together by two and a half million rivets. At 300 metres, it became the tallest man-made structure on Earth",
+        "deviceNote": null,
+        "violations": []
+      },
+      {
+        "id": "p4",
+        "question": "Who actually drew the first sketch of the tower, if not Eiffel himself?",
+        "device": "correction",
+        "supportingDevice": "person",
+        "title": "The Eiffel Tower's First Sketch Wasn't Drawn by Eiffel",
+        "thumbnail": {
+          "subject": "A large drawing table in an 1880s engineering office, centred on a sheet showing a rough pencil sketch of a tapering iron tower",
+          "gazeOrGesture": "Two engineers in waistcoats lean over the sketch, one pointing at it with a pencil; a third older man with a beard stands slightly back in the doorway, arms folded, watching them",
+          "scale": "The sketch sheet fills the lower half of the frame, its tower drawing taller than the pencil-holding hand, with the full office receding behind",
+          "threatOrMystery": "The man in the doorway has his face half in shadow so the viewer cannot tell his role, planting the question of who really authored the idea",
+          "light": "Warm gas-lamp glow from above the table, deep brown shadows in the corners, dust motes in the beam",
+          "composition": "Foreground: sketch and pointing hand across the bottom; middle: the two leaning engineers; background: the shadowed figure in the doorway; left side stays a calm dark wall for lettering",
+          "lettering": {
+            "words": "WHO DREW IT?",
+            "subline": "before Eiffel took over",
+            "zone": "left"
+          }
+        },
+        "answeredAt": "Opening chapter, the part beginning 'Designed at Gustave Eiffel's engineering company'",
+        "supportQuote": "the first sketch actually came from two of his engineers, Maurice Koechlin and Emile Nouguier, before Eiffel took the project forward.",
+        "deviceNote": "The script supports the contrast (two engineers sketched it, Eiffel took it forward) but does not say Eiffel claimed credit, so the title only states the sketch fact and avoids words like 'untold' or 'secret'.",
+        "violations": []
+      },
+      {
+        "id": "p5",
+        "question": "What was the tower for at the 1889 World's Fair, and why was it never meant to last?",
+        "device": "mystery",
+        "supportingDevice": "scale",
+        "title": "Why Paris Built a Tower It Never Meant to Keep",
+        "thumbnail": {
+          "subject": "The base of an enormous iron tower seen from the far end of a crowded fairground at dusk, only its lower legs and first platform visible, the rest swallowed by cloud",
+          "gazeOrGesture": "A woman in 1889-style dress and bonnet, seen from behind in the foreground, tilts her head far back and lifts one gloved hand to shade her eyes, looking up at the unseen top",
+          "scale": "The woman fills only a small slice of the lower frame while the iron legs rise out of sight above her, with crowds the size of ants at their feet",
+          "threatOrMystery": "The summit is hidden entirely in cloud; the viewer cannot see how tall it goes or what is up there",
+          "light": "Soft golden-hour glow from low behind the tower, silhouetting the legs, bunting and lanterns lit warm against a cool grey-violet sky",
+          "composition": "Foreground: woman from behind at bottom-left; middle: crowd and fairground stalls with the iron legs rising; background: cloud-wrapped upper tower; the top band of cloud stays soft and empty for lettering",
+          "lettering": {
+            "words": "1889 WORLD'S FAIR",
+            "subline": null,
+            "zone": "top"
+          }
+        },
+        "answeredAt": "Opening chapter, 'But before that, why was it built at all?'",
+        "supportQuote": "The city needed a centerpiece for the 1889 World's Fair, marking one hundred years since the French Revolution.",
+        "deviceNote": "Mystery is a moderate fit: the script poses 'why was it built at all?' and answers it directly, but there is no hidden or concealed element in the story, so the hidden summit is a visual device only, not a claim about unknown history.",
+        "violations": []
+      },
+      {
+        "id": "p6",
+        "question": "Would the tower have survived if Paris had acted the day its 20-year permit expired?",
+        "device": "countdown",
+        "supportingDevice": "stake",
+        "title": "20 Years to Live: The Tower's Permit Was Running Out",
+        "thumbnail": {
+          "subject": "A huge brass pocket-watch face laid over the lattice legs of the iron tower, hands standing near twelve, with the tower visible through and around it",
+          "gazeOrGesture": "A small figure in a top hat and frock coat stands on a bridge in the foreground with a rolled paper permit in one hand, looking up at the tower with his other hand held out palm-up as if waiting",
+          "scale": "The man is tiny at the bottom, the watch face and tower looming above him many times his height",
+          "threatOrMystery": "A faint crack of red light along the watch's rim and a distant demolition crane silhouette at the horizon suggest the clock running out",
+          "light": "Cool steel-blue twilight with a single warm amber glow behind the watch face, rim lighting on the iron, soft river mist",
+          "composition": "Foreground: man on bridge at bottom-centre; middle: tower with watch face overlay; background: dim dusk skyline and crane silhouette; bottom edge is a calm dark river surface for lettering",
+          "lettering": {
+            "words": "20 YEARS TO LIVE",
+            "subline": "permit expires",
+            "zone": "bottom"
+          }
+        },
+        "answeredAt": "Chapter 'So why was this record-breaking tower almost destroyed?'",
+        "supportQuote": "Its construction permit was only for 20 years. Once that permit expired, the city of Paris had the right to dismantle it completely and clear the site.",
+        "deviceNote": "The countdown is true (a 20-year permit), but the script gives no specific final date or deadline scene, so the clock is symbolic and the thumbnail avoids any exact date or time.",
+        "violations": []
+      }
+    ]
+  }
+]
