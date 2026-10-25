@@ -41,7 +41,7 @@ function bestLayout(ctx: SKRSContext2D, family: string, words: string, subline: 
       for (let size = Math.floor(FULL.h * 0.34); size >= 28; size -= 2) {
         ctx.font = `${size}px ${family}`;
         const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
-        const subSize = subline ? Math.max(24, Math.round(size * 0.3)) : 0;
+        const subSize = subline ? Math.max(36, Math.round(size * 0.34)) : 0;
         const height = lines.length * size * 1.04 + (subline ? subSize * 1.5 : 0);
         if (widest <= boxW && height <= boxH) {
           if (!best || size > best.size) best = { lines, size, subSize };

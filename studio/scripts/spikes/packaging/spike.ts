@@ -14,6 +14,7 @@ import { stageScripts, stagePackages, stagePrune, stageRender } from './stages';
 import { stageLetter } from './lettering';
 import { stageCritic } from './critic';
 import { stageSheet } from './sheet';
+import { stageProbe } from './probe';
 import { publish } from './publish';
 
 const STAGES = {
@@ -24,11 +25,12 @@ const STAGES = {
   letter: stageLetter,
   critic: stageCritic,
   sheet: stageSheet,
+  probe: stageProbe, // extra, only when named: --stages probe --qualities medium,high
 } as const;
 
 async function main() {
   const arg = process.argv.find((a, i, all) => all[i - 1] === '--stages');
-  const names = (arg ? arg.split(',') : Object.keys(STAGES)) as Array<keyof typeof STAGES>;
+  const names = (arg ? arg.split(',') : Object.keys(STAGES).filter((n) => n !== 'probe')) as Array<keyof typeof STAGES>;
   console.log(`mode=${LIVE ? 'LIVE' : 'STUB (no spend)'} out=${OUT} ceiling=$${SPEND_CEILING_USD.toFixed(2)} spentSoFar=$${ledger.total().toFixed(4)}`);
   for (const name of names) {
     if (!STAGES[name]) throw new Error(`unknown stage ${name}`);

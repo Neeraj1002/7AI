@@ -1,0 +1,247 @@
+[
+  {
+    "label": "script:mary-celeste",
+    "usd": 0.193666,
+    "at": "2026-10-25T02:50:44.959Z"
+  },
+  {
+    "label": "script:lego",
+    "usd": 0.011354,
+    "at": "2026-10-25T02:50:52.121Z"
+  },
+  {
+    "label": "packages:mary-celeste",
+    "usd": 0.039456,
+    "at": "2026-10-25T02:51:15.782Z"
+  },
+  {
+    "label": "packages:lego",
+    "usd": 0.037296,
+    "at": "2026-10-25T02:51:41.373Z"
+  },
+  {
+    "label": "packages:eiffel",
+    "usd": 0.040988,
+    "at": "2026-10-25T02:52:09.938Z"
+  },
+  {
+    "label": "prune:mary-celeste",
+    "usd": 0.002,
+    "at": "2026-10-25T02:52:15.719Z"
+  },
+  {
+    "label": "prune:lego",
+    "usd": 0.002501,
+    "at": "2026-10-25T02:52:20.287Z"
+  },
+  {
+    "label": "prune:eiffel",
+    "usd": 0.002106,
+    "at": "2026-10-25T02:52:24.076Z"
+  },
+  {
+    "label": "image:mary-celeste-p1",
+    "usd": 0.00727,
+    "at": "2026-10-25T02:53:07.322Z"
+  },
+  {
+    "label": "image:mary-celeste-p3",
+    "usd": 0.00711,
+    "at": "2026-10-25T02:53:17.966Z"
+  },
+  {
+    "label": "image:mary-celeste-p6",
+    "usd": 0.007115,
+    "at": "2026-10-25T02:53:28.782Z"
+  },
+  {
+    "label": "image:mary-celeste-p1-ceiling",
+    "usd": 0.006465,
+    "at": "2026-10-25T02:53:39.414Z"
+  },
+  {
+    "label": "image:lego-lego-4",
+    "usd": 0.006135,
+    "at": "2026-10-25T02:53:50.516Z"
+  },
+  {
+    "label": "image:lego-lego-1",
+    "usd": 0.00625,
+    "at": "2026-10-25T02:54:01.400Z"
+  },
+  {
+    "label": "image:lego-lego-5",
+    "usd": 0.006085,
+    "at": "2026-10-25T02:54:11.183Z"
+  },
+  {
+    "label": "image:lego-lego-4-ceiling",
+    "usd": 0.00647,
+    "at": "2026-10-25T02:54:27.601Z"
+  },
+  {
+    "label": "image:eiffel-p2",
+    "usd": 0.006215,
+    "at": "2026-10-25T02:54:40.712Z"
+  },
+  {
+    "label": "image:eiffel-p1",
+    "usd": 0.006355,
+    "at": "2026-10-25T02:54:53.574Z"
+  },
+  {
+    "label": "image:eiffel-p3",
+    "usd": 0.006295,
+    "at": "2026-10-25T02:55:05.729Z"
+  },
+  {
+    "label": "image:eiffel-p2-ceiling",
+    "usd": 0.00655,
+    "at": "2026-10-25T02:55:18.629Z"
+  },
+  {
+    "label": "critic:mary-celeste-p1",
+    "usd": 0.002871,
+    "at": "2026-10-25T02:55:42.123Z"
+  },
+  {
+    "label": "critic:mary-celeste-p3",
+    "usd": 0.003101,
+    "at": "2026-10-25T02:55:47.136Z"
+  },
+  {
+    "label": "critic:mary-celeste-p6",
+    "usd": 0.002985,
+    "at": "2026-10-25T02:55:52.054Z"
+  },
+  {
+    "label": "critic:mary-celeste-p1-ceiling",
+    "usd": 0.002951,
+    "at": "2026-10-25T02:55:56.763Z"
+  },
+  {
+    "label": "critic:lego-lego-4",
+    "usd": 0.002879,
+    "at": "2026-10-25T02:56:01.345Z"
+  },
+  {
+    "label": "critic:lego-lego-1",
+    "usd": 0.002887,
+    "at": "2026-10-25T02:56:06.080Z"
+  },
+  {
+    "label": "critic:lego-lego-5",
+    "usd": 0.002985,
+    "at": "2026-10-25T02:56:10.294Z"
+  },
+  {
+    "label": "critic:lego-lego-4-ceiling",
+    "usd": 0.003049,
+    "at": "2026-10-25T02:56:15.198Z"
+  },
+  {
+    "label": "critic:eiffel-p2",
+    "usd": 0.002901,
+    "at": "2026-10-25T02:56:19.750Z"
+  },
+  {
+    "label": "critic:eiffel-p1",
+    "usd": 0.002867,
+    "at": "2026-10-25T02:56:24.061Z"
+  },
+  {
+    "label": "critic:eiffel-p3",
+    "usd": 0.003076,
+    "at": "2026-10-25T02:56:28.918Z"
+  },
+  {
+    "label": "critic:eiffel-p2-ceiling",
+    "usd": 0.003061,
+    "at": "2026-10-25T02:56:33.728Z"
+  },
+  {
+    "label": "probe:mary-celeste-p1-ceiling-medium",
+    "usd": 0.012015,
+    "at": "2026-10-25T02:59:06.155Z"
+  },
+  {
+    "label": "probe:lego-lego-4-ceiling-medium",
+    "usd": 0.01202,
+    "at": "2026-10-25T02:59:19.347Z"
+  },
+  {
+    "label": "probe:eiffel-p2-ceiling-medium",
+    "usd": 0.0121,
+    "at": "2026-10-25T02:59:33.857Z"
+  },
+  {
+    "label": "probe:mary-celeste-p1-ceiling-high",
+    "usd": 0.042885,
+    "at": "2026-10-25T03:00:03.202Z"
+  },
+  {
+    "label": "probe:lego-lego-4-ceiling-high",
+    "usd": 0.04289,
+    "at": "2026-10-25T03:00:22.297Z"
+  },
+  {
+    "label": "probe:eiffel-p2-ceiling-high",
+    "usd": 0.04297,
+    "at": "2026-10-25T03:00:41.281Z"
+  },
+  {
+    "label": "critic:mary-celeste-p1",
+    "usd": 0.002751,
+    "at": "2026-10-25T03:01:04.049Z"
+  },
+  {
+    "label": "critic:mary-celeste-p3",
+    "usd": 0.002841,
+    "at": "2026-10-25T03:01:08.775Z"
+  },
+  {
+    "label": "critic:mary-celeste-p6",
+    "usd": 0.00297,
+    "at": "2026-10-25T03:01:12.970Z"
+  },
+  {
+    "label": "critic:mary-celeste-p1-ceiling",
+    "usd": 0.003031,
+    "at": "2026-10-25T03:01:17.887Z"
+  },
+  {
+    "label": "critic:lego-lego-4",
+    "usd": 0.003339,
+    "at": "2026-10-25T03:01:23.416Z"
+  },
+  {
+    "label": "critic:lego-lego-1",
+    "usd": 0.002762,
+    "at": "2026-10-25T03:01:27.752Z"
+  },
+  {
+    "label": "critic:lego-lego-4-ceiling",
+    "usd": 0.003149,
+    "at": "2026-10-25T03:01:32.842Z"
+  },
+  {
+    "label": "critic:eiffel-p2",
+    "usd": 0.002956,
+    "at": "2026-10-25T03:01:37.444Z"
+  },
+  {
+    "label": "critic:eiffel-p1",
+    "usd": 0.002722,
+    "at": "2026-10-25T03:01:41.747Z"
+  },
+  {
+    "label": "critic:eiffel-p3",
+    "usd": 0.002901,
+    "at": "2026-10-25T03:01:46.947Z"
+  },
+  {
+    "label": "critic:eiffel-p2-ceiling",
+    "usd": 0.002871,
+    "at": "2026-10-25T03:01:51.780Z"
+  }
+]
