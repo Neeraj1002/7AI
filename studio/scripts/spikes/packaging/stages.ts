@@ -217,7 +217,7 @@ export type Card = {
 // Highest estimate for one image: 'low' quality is about $0.005; padded so the ceiling check is conservative.
 const IMAGE_ESTIMATE_USD = 0.03;
 
-async function renderOne(cardId: string, prompt: string): Promise<{ rawFile: string | null; costUsd: number; skipped?: string }> {
+export async function renderOne(cardId: string, prompt: string): Promise<{ rawFile: string | null; costUsd: number; skipped?: string }> {
   ledger.assertRoom(IMAGE_ESTIMATE_USD, `image:${cardId}`);
   const cacheDir = ensureDir(path.join(OUT, 'stills-cache'));
   let costUsd = 0;

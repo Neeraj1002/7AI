@@ -35,3 +35,16 @@ export async function publish(): Promise<void> {
   console.log(`published ${(size / 1024 / 1024).toFixed(2)} MB to ${path.relative(process.cwd(), ASSETS_DIR)}`);
   if (size > MAX_BYTES) throw new Error(`assets are ${(size / 1024 / 1024).toFixed(1)} MB, over the 15 MB limit`);
 }
+
+// Round 2: adds sheet2/ (what the founder rates) and after-rating/round2/ (key, concepts, prompts, face checks).
+// Additive: leaves round 1's published files alone.
+export async function publishRound2(): Promise<void> {
+  if (!LIVE) throw new Error('publish is for live runs only');
+  const sheet2 = ensureDir(path.join(ASSETS_DIR, 'sheet2'));
+  const after = ensureDir(path.join(ASSETS_DIR, 'after-rating', 'round2'));
+  for (const f of fs.readdirSync(path.join(OUT, 'sheet2'))) fs.copyFileSync(path.join(OUT, 'sheet2', f), path.join(sheet2, f));
+  for (const f of ['KEY-round2.csv', 'key-round2.json', 'round2.json']) fs.copyFileSync(path.join(OUT, f), path.join(after, f));
+  const size = dirSize(ASSETS_DIR);
+  console.log(`assets now ${(size / 1024 / 1024).toFixed(2)} MB`);
+  if (size > MAX_BYTES) throw new Error('assets are over the 15 MB limit');
+}
