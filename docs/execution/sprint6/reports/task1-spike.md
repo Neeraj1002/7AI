@@ -170,7 +170,7 @@ The spike installs its own dependencies in `studio/scripts/spikes/packaging/pack
 
 ## 13. Hard rule 5 and 6 record
 
-Task doc identical to the source at every commit. Pulled `origin/main` before marking ready (`git fetch origin`, `git pull origin main`); result and the `git diff --name-only origin/main...HEAD -- docs/` listing are recorded in the PR description when I mark it ready. Hard rule 9 does not apply (no bug fixed).
+Task doc identical to the source at every commit (checked with `diff` before each one). Before marking ready, in my own worktree: `git fetch origin`, `git pull origin main` returned "Already up to date" (main was still at the branch point `1533d40`), so no conflicts to resolve; typecheck and eslint on the spike folder re-run clean; branch pushed. Docs scope, `git diff --name-only origin/main...HEAD -- docs/`: this task's doc (identical to the source), this report, and 83 files under `task1-spike-assets/`; nothing else. Outside `docs/`, only `studio/scripts/spikes/packaging/`. Hard rule 9 does not apply (no bug fixed).
 
 ## 14. Sign-Off
 
