@@ -26,7 +26,7 @@ const LABELS2 = 'MNOPQRSTUVWX';
 const ORIGINAL_LABELS = ['B', 'C', 'E', 'G', 'J', 'L'];
 
 function round2Spent(): number {
-  return ledger.entries.filter((e) => e.label.includes('r2:')).reduce((s, e) => s + e.usd, 0);
+  return ledger.entries.filter((e) => /r2[:-]/.test(e.label)).reduce((s, e) => s + e.usd, 0);
 }
 function assertRound2Room(estimate: number, label: string): void {
   if (round2Spent() + estimate > ROUND2_CAP_USD) {
@@ -135,7 +135,7 @@ export async function stageRound2(): Promise<Round2Card[]> {
     const prompt = faceCardPrompt(concept, spec.look.stylePrompt);
     const newCardId = `${spec.id}-${pkg.id}-face`;
     assertRound2Room(0.03, `r2:image:${newCardId}`);
-    const rendered = await renderOne(`r2:${newCardId}`, prompt);
+    const rendered = await renderOne(`r2-${newCardId}`, prompt);
     const rec: Round2Card = {
       newCardId, originalLabel: label, originalCardId: k.cardId, scriptId: spec.id, packageId: pkg.id, title: pkg.title,
       font: lettered1.find((l) => l.cardId === k.cardId)!.font,
@@ -189,7 +189,7 @@ export async function stageRound2(): Promise<Round2Card[]> {
     firstSheetLabel: it.kind === 'round1-original' ? key1.find((r) => r.cardId === it.cardId)!.label : out.find((r) => r.newCardId === it.cardId)!.originalLabel,
     title: it.title,
     look: it.kind === 'round2-face' ? it.rec!.look : key1.find((r) => r.cardId === it.cardId)!.look,
-    font: it.kind === 'round2-face' ? it.rec!.font : key1.find((r) => r.cardId === it.cardId)!.font,
+    font: it.kind === 'round2-face' ? it.rec!.lettered!.fontFamily : key1.find((r) => r.cardId === it.cardId)!.font,
     personRole: it.kind === 'round2-face' ? it.rec!.concept.personRole : '',
     seed: SEED2,
   }));
