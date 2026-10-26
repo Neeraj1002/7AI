@@ -10,7 +10,9 @@ import {
   downloadLink,
   durationChip,
   pictureLink,
+  headToHeadLine,
   publishedThumbnailStatus,
+  strangerLines,
   titleCounter,
   type PackageView,
   type PackagingView,
@@ -21,6 +23,7 @@ const pkg = (over: Partial<PackageView> = {}): PackageView =>
     id: 'c1', device: 'stake', supportingDevice: null, title: 'Why was it nearly torn down?', question: 'Why was the tower nearly torn down?',
     answeredAt: 'Chapter 3, Why Almost Destroyed, about 0:41', lettering: { words: 'SOLD FOR SCRAP?', subline: null, typeface: 'Anton' },
     readableAtSidebar: true, coldReader: { curiosity: 4, wouldClick: 'yes', guessedAbout: 'a tower.' },
+    stranger: null, headToHead: null, answerQuote: null, warnings: [],
     imageUrls: { full: '/runs/r/thumbnail/c1/full?t=abc', feed: '/runs/r/thumbnail/c1/feed?t=abc', sidebar: '/runs/r/thumbnail/c1/sidebar?t=abc' }, ...over,
   }) as PackageView;
 const view = (over: Partial<PackagingView> = {}): PackagingView =>
@@ -77,4 +80,19 @@ test('after publishing: a custom thumbnail is claimed live only when the server 
   assert.equal(kept?.canDownload, false);
   assert.equal(publishedThumbnailStatus({ coverFrameSet: false, thumbnail: { source: 'frame-grab' } }), null);
   assert.equal(publishedThumbnailStatus(undefined), null);
+});
+
+test('what a stranger said is shown as advisory lines, and an empty answer is left out', () => {
+  assert.deepEqual(strangerLines(pkg()), []);
+  const lines = strangerLines(
+    pkg({ stranger: { about: 'a tower', expectsToSee: 'the tower being built', wantsToKnow: 'why it was spared', wouldClick: 'maybe', wouldDisappoint: '' } }),
+  );
+  assert.deepEqual(lines, ['Might click', 'Expects to see: the tower being built', 'Wants to know: why it was spared']);
+});
+
+test('head to head: a plain count, with ties said, and nothing when there was nothing to compare', () => {
+  assert.equal(headToHeadLine(pkg()), null);
+  assert.equal(headToHeadLine(pkg({ headToHead: { wins: 0, losses: 0, ties: 0 } })), null);
+  assert.equal(headToHeadLine(pkg({ headToHead: { wins: 2, losses: 0, ties: 0 } })), 'Won 2 of 2 head-to-head comparisons.');
+  assert.equal(headToHeadLine(pkg({ headToHead: { wins: 1, losses: 0, ties: 1 } })), 'Won 1 of 2 head-to-head comparisons (1 tied).');
 });

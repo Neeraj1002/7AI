@@ -126,6 +126,44 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
     maxOutputTokens: 4_000,
     reasoning: "off",
   },
+
+  // Sprint 6 Task 1 PR B (R4). All four read a picture. The critic, the defect check and the head-to-head are short
+  // structured answers on Haiku 4.5 (its image input is already used by Video Intelligence); the payoff check is the
+  // hard gate (a scene the script lacks drops a package), so it takes Sonnet 5.5 where the real image check
+  // (scripts/packaging-vision-check.ts) showed it reads images.
+  "packaging-critic": {
+    provider: "anthropic",
+    model: "claude-haiku-4-5",
+    label: "Packaging critic",
+    maxOutputTokens: 3_000,
+    reasoning: "off",
+  },
+
+  "packaging-payoff": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Packaging payoff check",
+    maxOutputTokens: 4_000,
+    reasoning: "off",
+  },
+
+  // The defect check also gives face and subject boxes; the first real check showed Haiku missing lettering over a
+  // face, so this one is on Sonnet 5.5 as well.
+  "packaging-defect-check": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Packaging defect check",
+    maxOutputTokens: 2_000,
+    reasoning: "off",
+  },
+
+  "packaging-compare": {
+    provider: "anthropic",
+    model: "claude-haiku-4-5",
+    label: "Packaging compare",
+    maxOutputTokens: 2_000,
+    reasoning: "off",
+  },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {

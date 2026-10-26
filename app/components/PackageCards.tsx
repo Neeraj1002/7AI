@@ -14,8 +14,10 @@ import {
   deviceLabel,
   downloadLink,
   durationChip,
+  headToHeadLine,
   pictureLink,
   publishedThumbnailStatus,
+  strangerLines,
   titleCounter,
   type PackageView,
   type PackagingResponse,
@@ -60,9 +62,12 @@ function OptionCard({
   const chosenTitle = selected && view.choice?.title ? view.choice.title : pkg.title;
   const [title, setTitle] = useState(chosenTitle);
   const [sizesOpen, setSizesOpen] = useState(false);
+  const [strangerOpen, setStrangerOpen] = useState(false);
   const chip = durationChip(view.videoSeconds);
   const counter = titleCounter(title, view.titleLimit);
   const note = coldReaderLine(pkg);
+  const stranger = strangerLines(pkg);
+  const h2h = headToHeadLine(pkg);
   const download = downloadLink(pkg.imageUrls.full, apiUrl);
   return (
     <View style={[styles.option, selected && styles.optionSelected]}>
@@ -84,7 +89,21 @@ function OptionCard({
       </View>
       <Text style={styles.ask}>{askedLine(pkg.question)}</Text>
       <Text style={styles.answered}>{answeredLine(pkg.answeredAt)}</Text>
-      {note ? <Text style={styles.meta}>{note}</Text> : null}
+      {pkg.warnings.map((w) => (
+        <Text key={w} style={styles.warn}>
+          ! {w}
+        </Text>
+      ))}
+      {note && !stranger.length ? <Text style={styles.meta}>{note}</Text> : null}
+      {h2h ? <Text style={styles.meta}>{h2h}</Text> : null}
+      {stranger.length > 0 ? (
+        <>
+          <Pressable onPress={() => setStrangerOpen((o) => !o)} accessibilityRole="button" style={styles.link}>
+            <Text style={styles.linkText}>{strangerOpen ? 'Hide what a stranger said' : 'What a stranger said (advisory)'}</Text>
+          </Pressable>
+          {strangerOpen ? stranger.map((l) => <Text key={l} style={styles.meta}>{l}</Text>) : null}
+        </>
+      ) : null}
 
       {editable ? (
         <>
@@ -281,4 +300,5 @@ const styles = StyleSheet.create({
   feedSize: { width: 360, maxWidth: '100%', aspectRatio: 16 / 9, borderRadius: radius.sm },
   sidebarSize: { width: 170, aspectRatio: 16 / 9, borderRadius: radius.sm },
   error: { ...type.body, color: color.danger },
+  warn: { ...type.body, color: color.warnText },
 });

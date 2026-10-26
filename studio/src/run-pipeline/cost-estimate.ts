@@ -84,6 +84,10 @@ export function estimateRunCost(params: {
     ? llmUsd('packaging-brief', scriptTokens + 1_200, 700) +
       llmUsd('packaging-concepts', scriptTokens + 2_200, 3_500) +
       llmUsd('packaging-cold-reader', 1_200, 600) +
+      // PR B: per picture a defect check, the payoff check (the script and one image) and the critic; then every
+      // pair of survivors is compared in both orders.
+      RENDER_MAX * (llmUsd('packaging-defect-check', 1_800, 400) + llmUsd('packaging-payoff', scriptTokens + 1_800, 700) + llmUsd('packaging-critic', 1_800, 300)) +
+      RENDER_MAX * 2 * llmUsd('packaging-compare', 1_800, 150) +
       RENDER_MAX * resolveImagePricing(imageModel).perImageUsd
     : 0;
 

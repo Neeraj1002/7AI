@@ -85,9 +85,8 @@ describe('validateConcept: the checks that are code, not prompt hopes (spike reg
     expect(codes(makeConcept({ supportQuote: 'a child plays with a wooden toy on the table' }))).toContain('support_not_in_script');
   });
 
-  it('rejects a picture with a prop the script never mentions (spike: an invented toy)', () => {
-    expect(codes(makeConcept({ props: ['wooden toy'] }))).toContain('prop_not_in_script');
-    expect(codes(makeConcept({ props: ['rivets', 'sky', 'tower'] }))).toEqual([]);
+  it('a prop the script never names is not a reason to drop the concept (the payoff check looks at the picture)', () => {
+    expect(codes(makeConcept({ props: ['wooden toy'] }))).toEqual([]);
   });
 
   it('rejects a person who may be alive or is not in the script', () => {

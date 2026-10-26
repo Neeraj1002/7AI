@@ -46,6 +46,10 @@ export function correctionEarned(brief: CuriosityBrief | null, scriptText: strin
 
 export type ConceptIssue = { code: string; message: string };
 
+// PR B: a prop the concept lists that the script never names is no longer a reason to drop the concept (live runs: it
+// dropped six of six Ada concepts for a desk and a pen). It is a hint to the payoff check, which looks at the real
+// picture and decides. This function stays as the one rule for "named by the script".
+
 // Scenery and light that every picture has; a prop on this list needs no mention in the script.
 const GENERIC_SCENERY = new Set(['sky', 'sea', 'ocean', 'water', 'waves', 'wave', 'ground', 'floor', 'light', 'shadow', 'shadows', 'haze', 'fog', 'mist', 'cloud', 'clouds', 'horizon', 'sun', 'sunset', 'sunrise', 'smoke', 'dust', 'rain', 'snow', 'wall', 'walls', 'shore', 'sand', 'grass', 'silhouette', 'background', 'foreground']);
 
@@ -123,10 +127,6 @@ export function validateConcept(params: {
 
   if (!quoteInScript(scriptText, concept.answeredIn.quote)) {
     add('answer_not_in_script', 'The place the question is answered is not a quotation from the approved script.');
-  }
-  const missing = unsupportedProps(concept.props, scriptText);
-  if (missing.length > 0) {
-    add('prop_not_in_script', `The picture shows ${missing.join(', ')}, which the approved script never mentions.`);
   }
   if (!quoteInScript(scriptText, concept.supportQuote)) {
     add('support_not_in_script', 'The phrase said to support the picture is not in the approved script.');

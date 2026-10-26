@@ -36,6 +36,13 @@ describe('every purpose declares model, output limit and reasoning', () => {
     expect(LLM_REGISTRY['packaging-cold-reader'].maxOutputTokens).toBe(4_000);
   });
 
+  it('Sprint 6 Task 1 PR B picture purposes: critic 3,000, payoff 4,000, defect check 2,000, compare 2,000', () => {
+    expect(LLM_REGISTRY['packaging-critic'].maxOutputTokens).toBe(3_000);
+    expect(LLM_REGISTRY['packaging-payoff'].maxOutputTokens).toBe(4_000);
+    expect(LLM_REGISTRY['packaging-defect-check'].maxOutputTokens).toBe(2_000);
+    expect(LLM_REGISTRY['packaging-compare'].maxOutputTokens).toBe(2_000);
+  });
+
   it('reasoning is off everywhere in this task', () => {
     for (const purpose of PURPOSES) expect(LLM_REGISTRY[purpose].reasoning).toBe('off');
   });

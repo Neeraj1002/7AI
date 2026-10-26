@@ -18,6 +18,13 @@ export type PackageView = {
   lettering: { words: string; subline: string | null; typeface: string };
   readableAtSidebar: boolean;
   coldReader: { curiosity: number; wouldClick: 'yes' | 'maybe' | 'no'; guessedAbout: string } | null;
+  // PR B: what a stranger who saw only the picture and the title said, the head to head, and anything the founder
+  // should know. Advisory: none of it picks a package.
+  stranger: { about: string; expectsToSee: string; wantsToKnow: string; wouldClick: 'yes' | 'maybe' | 'no'; wouldDisappoint: string } | null;
+  headToHead: { wins: number; losses: number; ties: number } | null;
+  // Where in the script the answer sits, copied from the script (the payoff check found it).
+  answerQuote: string | null;
+  warnings: string[];
   imageUrls: Record<ThumbSize, string>;
 };
 
@@ -68,6 +75,12 @@ export function buildPackagingView(params: {
       lettering: { words: p.lettering.words, subline: p.lettering.subline, typeface: p.recipe.typefaceFamily },
       readableAtSidebar: p.lettering.readableAtSidebar,
       coldReader: p.coldReader,
+      stranger: p.checks
+        ? { about: p.checks.critic.about, expectsToSee: p.checks.critic.expectsToSee, wantsToKnow: p.checks.critic.wantsToKnow, wouldClick: p.checks.critic.wouldClick, wouldDisappoint: p.checks.critic.wouldDisappoint }
+        : null,
+      headToHead: p.checks ? { wins: p.checks.headToHead.wins, losses: p.checks.headToHead.losses, ties: p.checks.headToHead.ties } : null,
+      answerQuote: p.checks?.payoff.questionAnswered ? p.checks.payoff.answerQuote : null,
+      warnings: p.warnings ?? [],
       imageUrls: Object.fromEntries(THUMB_SIZES.map((s) => [s, params.linkFor ? params.linkFor(p.id, s) : `/runs/${runId}/thumbnail/${p.id}/${s}`])) as Record<ThumbSize, string>,
     })),
     dropped: packaging.dropped.map((d) => ({ title: d.title, device: d.device, stage: d.stage, reasons: d.reasons })),

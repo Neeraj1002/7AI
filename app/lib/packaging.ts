@@ -56,6 +56,27 @@ export function coldReaderLine(p: PackageView): string | null {
   return `A stranger guessed "${p.coldReader.guessedAbout.replace(/\.$/, '')}" and ${click} (curiosity ${p.coldReader.curiosity}/5).`;
 }
 
+// PR B: what a stranger who saw only the picture and the title said. Advisory; it never picks for the founder.
+export function strangerLines(p: PackageView): string[] {
+  if (!p.stranger) return [];
+  const click = p.stranger.wouldClick === 'yes' ? 'Would click' : p.stranger.wouldClick === 'maybe' ? 'Might click' : 'Would not click';
+  return [
+    click,
+    `Expects to see: ${p.stranger.expectsToSee}`,
+    `Wants to know: ${p.stranger.wantsToKnow}`,
+    `Would be disappointed by: ${p.stranger.wouldDisappoint}`,
+  ].filter((l) => !/: ?$/.test(l));
+}
+
+// "Won 2 of 2 head-to-head comparisons": the picture checks compare every kept option with the others.
+export function headToHeadLine(p: PackageView): string | null {
+  const h = p.headToHead;
+  if (!h) return null;
+  const total = h.wins + h.losses + h.ties;
+  if (total === 0) return null;
+  return `Won ${h.wins} of ${total} head-to-head comparisons${h.ties ? ` (${h.ties} tied)` : ''}.`;
+}
+
 // What the founder has chosen so far, in words.
 export function choiceSummary(view: PackagingView): string | null {
   if (!view.choice) return null;

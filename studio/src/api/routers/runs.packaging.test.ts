@@ -57,7 +57,7 @@ function packaging(over: Partial<PackagingOutput> = {}): PackagingOutput {
         id: 'c1', device: 'stake', supportingDevice: 'scale', title: concept.title, question: concept.question,
         answeredAt: { chapter: 3, chapterTitle: 'Why Almost Destroyed', startSec: 40, label: 'x', quote: 'q' },
         recipe: { concept: concept.thumbnail, faceMode: 'none', typeface: 'stakes', typefaceFamily: 'Anton', prompt: 'SECRET PROMPT', imageModel: 'm' },
-        lettering: { words: 'SOLD FOR SCRAP?', subline: null, sublineDropped: false, typeface: 'stakes', fontFamily: 'Anton', zone: 'top', requestedZone: 'top', lines: 1, mainPxFull: 150, mainPxFeed: 42, mainPxSidebar: 20, readableAtSidebar: true },
+        lettering: { words: 'SOLD FOR SCRAP?', subline: null, sublineDropped: false, typeface: 'stakes', fontFamily: 'Anton', zone: 'top', requestedZone: 'top', zonesByCalm: ['top', 'bottom', 'left', 'right'], textBox: { x0: 0.05, y0: 0.06, x1: 0.9, y1: 0.35 }, lines: 1, mainPxFull: 150, mainPxFeed: 42, mainPxSidebar: 20, readableAtSidebar: true },
         files: { full: 'c1-full.jpg', feed: 'c1-feed.jpg', sidebar: 'c1-sidebar.jpg' },
         coldReader: { curiosity: 4, wouldClick: 'yes', guessedAbout: 'a tower' },
         imageCostUsd: 0.0065,
