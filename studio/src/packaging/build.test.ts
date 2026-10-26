@@ -40,7 +40,7 @@ function setup(over: { brief?: CuriosityBrief; concepts?: Concept[]; reader?: Co
     composeThumbnail: vi.fn(async (p) => {
       composed.push(p.baseName);
       return {
-        words: p.words, subline: p.subline, sublineDropped: false, typeface: p.typeface, fontFamily: 'Anton', zone: p.zone, lines: 1,
+        words: p.words, subline: p.subline, sublineDropped: false, typeface: p.typeface, fontFamily: 'Anton', zone: p.zone, requestedZone: p.zone, lines: 1,
         mainPxFull: 160, mainPxFeed: 45, mainPxSidebar: 21, readableAtSidebar: true,
         files: { full: `/x/${p.baseName}-full.jpg`, feed: `/x/${p.baseName}-feed.jpg`, sidebar: `/x/${p.baseName}-sidebar.jpg` },
       };

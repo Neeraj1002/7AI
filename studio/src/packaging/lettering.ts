@@ -76,13 +76,52 @@ export function bestLayout(ctx: SKRSContext2D, family: string, words: string, su
 
 const sidebarPx = (px: number): number => (px * THUMB_SIDEBAR_WIDTH) / THUMB_FULL.width;
 
+// How much picture detail sits inside a zone's box: the mean brightness change between neighbouring pixels on a
+// small copy of the frame. A face, a ship or a stack of papers is high; sky, water and dark floor are low.
+const PROBE_W = 128;
+const PROBE_H = 72;
+export function zoneBusyness(frame: Canvas): Record<Zone, number> {
+  const probe = createCanvas(PROBE_W, PROBE_H);
+  const pctx = probe.getContext('2d');
+  pctx.drawImage(frame, 0, 0, PROBE_W, PROBE_H);
+  const { data } = pctx.getImageData(0, 0, PROBE_W, PROBE_H);
+  const luma = (x: number, y: number) => {
+    const i = (y * PROBE_W + x) * 4;
+    return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  };
+  const out = {} as Record<Zone, number>;
+  for (const zone of Object.keys(BOX) as Zone[]) {
+    const b = BOX[zone];
+    const x0 = Math.floor(b.x0 * PROBE_W), x1 = Math.ceil(b.x1 * PROBE_W), y0 = Math.floor(b.y0 * PROBE_H), y1 = Math.ceil(b.y1 * PROBE_H);
+    let sum = 0, n = 0;
+    for (let y = y0; y < y1 - 1; y += 1) {
+      for (let x = x0; x < x1 - 1; x += 1) {
+        sum += Math.abs(luma(x, y) - luma(x + 1, y)) + Math.abs(luma(x, y) - luma(x, y + 1));
+        n += 1;
+      }
+    }
+    out[zone] = n > 0 ? sum / n : 0;
+  }
+  return out;
+}
+
+// The zone the concept asked for, unless the picture is clearly busier there than somewhere else: lettering across
+// a face or the subject is the worse outcome (live check: a woman's eyes under a top line). Ties keep the concept's choice.
+export const BUSY_FACTOR = 1.5;
+export function chooseZone(preferred: Zone, busy: Record<Zone, number>): Zone {
+  const calmest = (Object.keys(busy) as Zone[]).reduce((a, b) => (busy[b] < busy[a] ? b : a));
+  return busy[preferred] > busy[calmest] * BUSY_FACTOR && busy[preferred] - busy[calmest] > 2 ? calmest : preferred;
+}
+
 export type LetteredThumbnail = {
   words: string;
   subline: string | null;
   sublineDropped: boolean;
   typeface: TypefaceMood;
   fontFamily: string;
+  // Where it was drawn, and where the concept asked for it (they differ when the picture was busy there).
   zone: Zone;
+  requestedZone: Zone;
   lines: number;
   mainPxFull: number;
   mainPxFeed: number;
@@ -122,7 +161,9 @@ export async function composeThumbnail(params: {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, sy, img.width, srcH, 0, 0, THUMB_FULL.width, THUMB_FULL.height);
 
-  const box = BOX[params.zone];
+  // Where the lettering goes: the concept's zone, moved to the calmest part of the picture when that part is busy.
+  const zone = chooseZone(params.zone, zoneBusyness(canvas));
+  const box = BOX[zone];
   const bx = box.x0 * THUMB_FULL.width;
   const by = box.y0 * THUMB_FULL.height;
   const bw = (box.x1 - box.x0) * THUMB_FULL.width;
@@ -141,9 +182,9 @@ export async function composeThumbnail(params: {
   // Scrim: a soft dark gradient on the side the lettering sits, so it reads on any picture.
   const pad = 0.12;
   const g =
-    params.zone === 'top' ? ctx.createLinearGradient(0, 0, 0, by + bh + THUMB_FULL.height * pad)
-    : params.zone === 'bottom' ? ctx.createLinearGradient(0, THUMB_FULL.height, 0, by - THUMB_FULL.height * pad)
-    : params.zone === 'left' ? ctx.createLinearGradient(0, 0, bx + bw + THUMB_FULL.width * pad, 0)
+    zone === 'top' ? ctx.createLinearGradient(0, 0, 0, by + bh + THUMB_FULL.height * pad)
+    : zone === 'bottom' ? ctx.createLinearGradient(0, THUMB_FULL.height, 0, by - THUMB_FULL.height * pad)
+    : zone === 'left' ? ctx.createLinearGradient(0, 0, bx + bw + THUMB_FULL.width * pad, 0)
     : ctx.createLinearGradient(THUMB_FULL.width, 0, bx - THUMB_FULL.width * pad, 0);
   g.addColorStop(0, 'rgba(0,0,0,0.72)');
   g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -151,9 +192,9 @@ export async function composeThumbnail(params: {
   ctx.fillRect(0, 0, THUMB_FULL.width, THUMB_FULL.height);
 
   const textH = layout.lines.length * layout.size * 1.04 + (subline ? layout.subSize * 1.5 : 0);
-  const align = params.zone === 'right' ? 'right' : 'left';
+  const align = zone === 'right' ? 'right' : 'left';
   const x = align === 'right' ? bx + bw : bx;
-  const yStart = params.zone === 'top' ? by : params.zone === 'bottom' ? by + bh - textH : by + (bh - textH) / 2;
+  const yStart = zone === 'top' ? by : zone === 'bottom' ? by + bh - textH : by + (bh - textH) / 2;
 
   ctx.textAlign = align;
   ctx.textBaseline = 'top';
@@ -194,7 +235,8 @@ export async function composeThumbnail(params: {
     sublineDropped,
     typeface: params.typeface,
     fontFamily: face.family,
-    zone: params.zone,
+    zone,
+    requestedZone: params.zone,
     lines: layout.lines.length,
     mainPxFull: layout.size,
     mainPxFeed: Math.round(((layout.size * THUMB_FEED_WIDTH) / THUMB_FULL.width) * 10) / 10,

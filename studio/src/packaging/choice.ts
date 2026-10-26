@@ -35,7 +35,7 @@ export function resolveChoice(params: {
       briefText: params.briefText,
       brief: packaging.brief,
       titleLimit: packaging.titleLimit,
-      alsoShown: [pkg.lettering.words, pkg.lettering.subline].filter(Boolean).join(' '),
+      alsoShown: [pkg.lettering.words, pkg.lettering.subline].filter(Boolean).map((t) => `${t!.trim().replace(/[.!?]+$/, '')}.`).join(' '),
     });
     if (issues.length > 0) return { ok: false, message: `That title cannot be used: ${issues.map((i) => i.message).join(' ')}` };
   }

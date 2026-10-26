@@ -9,6 +9,7 @@ import { uploadResumableVideo, type SessionHooks } from './resumable-upload';
 import { stubUploadVideo, stubSetThumbnail, stubUploadCaptions } from './stub';
 import { env } from '../../config/env';
 import { buildMetadataUserMessage, scrubDescription, type PackagingParams } from './packaging';
+import { TITLE_MAX_CHARS } from '../../packaging/constants';
 import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, type UploadResult } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -33,7 +34,7 @@ writing (the script itself is already finished and approved).
 
 Respond with ONLY a JSON object:
 {"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}
-"title" is under 100 characters, attention-grabbing, and accurate to the content — no clickbait
+"title" is under ${TITLE_MAX_CHARS} characters, attention-grabbing, and accurate to the content — no clickbait
 that misrepresents what the video actually shows.
 "description" is 1-3 sentences summarizing the content; can restate the hashtags inline.
 "tags" is 5-15 short keyword phrases relevant to the topic, no leading '#' character.
@@ -53,7 +54,7 @@ optimization, not creative writing (the script itself is finished and approved).
 
 Respond with ONLY a JSON object:
 {"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}
-"title" is under 100 characters, specific, and accurate to the content - no clickbait that
+"title" is under ${TITLE_MAX_CHARS} characters, specific, and accurate to the content - no clickbait that
 misrepresents what the video shows.
 "description" is 2-4 sentences summarizing what the viewer will learn; do not write a chapter list,
 timestamps, or the word "Shorts" - those are handled separately. Use only facts from the script.

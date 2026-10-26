@@ -49,16 +49,18 @@ export type ConceptIssue = { code: string; message: string };
 // Scenery and light that every picture has; a prop on this list needs no mention in the script.
 const GENERIC_SCENERY = new Set(['sky', 'sea', 'ocean', 'water', 'waves', 'wave', 'ground', 'floor', 'light', 'shadow', 'shadows', 'haze', 'fog', 'mist', 'cloud', 'clouds', 'horizon', 'sun', 'sunset', 'sunrise', 'smoke', 'dust', 'rain', 'snow', 'wall', 'walls', 'shore', 'sand', 'grass', 'silhouette', 'background', 'foreground']);
 
-// A prop is supported when its last word (its head noun) appears in the script, allowing a plural or a plain
-// verb-ish ending. One fixed rule, so "a wooden toy" is refused when the script never says toy.
+// A prop is supported when its last word (its head noun), or another word of it five letters or longer, appears in
+// the script, allowing a plural or a short ending. So "calendar page" passes when the script says calendar, and
+// "wooden toy" is refused when the script never says wooden or toy.
 export function unsupportedProps(props: string[], scriptText: string): string[] {
   const scriptWords = normalise(scriptText).split(' ').filter(Boolean);
   return props.filter((raw) => {
     const words = normalise(raw).split(' ').filter(Boolean);
     const head = words[words.length - 1];
     if (!head || GENERIC_SCENERY.has(head)) return false;
-    const stem = head.length > 4 ? head.replace(/(ies|es|s)$/, '') : head.replace(/s$/, '');
-    return !scriptWords.some((w) => w.startsWith(stem) && w.length - stem.length <= 3);
+    const stemOf = (word: string) => (word.length > 4 ? word.replace(/(ies|es|s)$/, '') : word.replace(/s$/, ''));
+    const inScript = (word: string) => scriptWords.some((w) => w.startsWith(stemOf(word)) && w.length - stemOf(word).length <= 3);
+    return !(inScript(head) || words.slice(0, -1).some((w) => w.length >= 5 && !GENERIC_SCENERY.has(w) && inScript(w)));
   });
 }
 
@@ -106,7 +108,8 @@ export function validateConcept(params: {
   const add = (code: string, message: string) => issues.push({ code, message });
   const title = concept.title.trim();
   const { words, subline } = concept.thumbnail.lettering;
-  const lettered = [words, subline ?? ''].join(' ').trim();
+  // Sentences, so a number at the end of the lettering is not read as part of the subline's first words.
+  const lettered = [words, subline].filter(Boolean).map((t) => `${t!.trim().replace(/[.!?]+$/, '')}.`).join(' ');
 
   issues.push(...checkTitle({ title, scriptText, briefText, brief, titleLimit, alsoShown: lettered }));
   if (wordCount(words) < 1) add('lettering_empty', 'The thumbnail has no lettering.');

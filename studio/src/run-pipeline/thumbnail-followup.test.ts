@@ -16,7 +16,7 @@ function pkg(): PackageRecord {
     id: 'c2', device: 'stake', supportingDevice: null, title: c.title, question: c.question,
     answeredAt: { chapter: null, chapterTitle: null, startSec: null, label: 'In the script', quote: 'q' },
     recipe: { concept: c.thumbnail, faceMode: 'none', typeface: 'stakes', typefaceFamily: 'Anton', prompt: 'p', imageModel: 'm' },
-    lettering: { words: 'W', subline: null, sublineDropped: false, typeface: 'stakes', fontFamily: 'Anton', zone: 'top', lines: 1, mainPxFull: 150, mainPxFeed: 42, mainPxSidebar: 20, readableAtSidebar: true },
+    lettering: { words: 'W', subline: null, sublineDropped: false, typeface: 'stakes', fontFamily: 'Anton', zone: 'top', requestedZone: 'top', lines: 1, mainPxFull: 150, mainPxFeed: 42, mainPxSidebar: 20, readableAtSidebar: true },
     files: { full: 'c2-full.jpg', feed: 'c2-feed.jpg', sidebar: 'c2-sidebar.jpg' }, coldReader: null, imageCostUsd: 0.0065,
   };
 }

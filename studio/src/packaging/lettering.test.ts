@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { TYPEFACE_MOODS, THUMB_FEED_WIDTH, THUMB_FULL, THUMB_SIDEBAR_WIDTH } from './constants';
-import { composeThumbnail } from './lettering';
+import { BUSY_FACTOR, chooseZone, composeThumbnail, zoneBusyness } from './lettering';
 
 let dir: string;
 let raw: string;
@@ -67,5 +67,47 @@ describe('composeThumbnail (R3)', () => {
     const corner = ctx.getImageData(THUMB_FULL.width - 150, THUMB_FULL.height - 70, 120, 40).data;
     const bright = Array.from({ length: corner.length / 4 }, (_, i) => corner[i * 4]).filter((v) => v > 250).length;
     expect(bright).toBe(0);
+  });
+});
+
+describe('where the lettering goes (live check: a top line sat across a woman face)', () => {
+  it('keeps the zone the concept asked for on a calm picture, and moves to the calmest zone when that zone is busy', () => {
+    const calm = { top: 3, bottom: 4, left: 5, right: 4 };
+    expect(chooseZone('top', calm)).toBe('top');
+    const busyTop = { top: 30, bottom: 4, left: 12, right: 14 };
+    expect(chooseZone('top', busyTop)).toBe('bottom');
+    // A small difference is not worth moving the lettering.
+    expect(chooseZone('top', { top: 5, bottom: 4, left: 5, right: 5 })).toBe('top');
+    expect(BUSY_FACTOR).toBeGreaterThan(1);
+  });
+
+  it('reads detail from the picture: noise at the top makes the top busy, a flat bottom stays calm', () => {
+    const c = createCanvas(1280, 720);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#334';
+    ctx.fillRect(0, 0, 1280, 720);
+    for (let i = 0; i < 4000; i += 1) {
+      ctx.fillStyle = i % 2 ? '#fff' : '#000';
+      ctx.fillRect(Math.random() * 1280, Math.random() * 300, 6, 6);
+    }
+    const busy = zoneBusyness(c);
+    expect(busy.top).toBeGreaterThan(busy.bottom * 3);
+    expect(chooseZone('top', busy)).not.toBe('top');
+  });
+
+  it('draws the lettering where the picture is calm and reports both zones', async () => {
+    const c = createCanvas(1536, 1024);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#556';
+    ctx.fillRect(0, 0, 1536, 1024);
+    for (let i = 0; i < 6000; i += 1) {
+      ctx.fillStyle = i % 2 ? '#eee' : '#111';
+      ctx.fillRect(Math.random() * 1536, Math.random() * 420, 8, 8);
+    }
+    const file = path.join(dir, 'busytop.png');
+    fs.writeFileSync(file, c.toBuffer('image/png'));
+    const out = await composeThumbnail({ rawImagePath: file, outDir: dir, baseName: 'busytop', words: 'Iron tower', subline: null, zone: 'top', typeface: 'stakes' });
+    expect(out.requestedZone).toBe('top');
+    expect(out.zone).not.toBe('top');
   });
 });

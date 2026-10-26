@@ -115,4 +115,14 @@ describe('unsupportedProps', () => {
   it('matches the head noun with a plural or a short ending, and ignores plain scenery', () => {
     expect(unsupportedProps(['iron rivets', 'engineers', 'rivet', 'sunset', 'toy', 'carousel'], EIFFEL_SCRIPT)).toEqual(['toy', 'carousel']);
   });
+  it('lets a compound prop through when a longer word of it is in the script, and still refuses a toy', () => {
+    expect(unsupportedProps(['wrought iron frame'], EIFFEL_SCRIPT)).toEqual([]);
+    expect(unsupportedProps(['wooden toy', 'toy horse'], EIFFEL_SCRIPT)).toEqual(['wooden toy', 'toy horse']);
+  });
+  it('reads the lettering and its subline as separate sentences, so a year is not glued to the next words', () => {
+    const script = 'In 1889 the tower opened. Ten engineers worked on it.';
+    const c = makeConcept({ title: 'Why did the tower open?', answeredIn: { chapter: null, quote: 'In 1889 the tower opened' }, supportQuote: 'In 1889 the tower opened', props: [] });
+    c.thumbnail.lettering = { words: 'OPENED 1889', subline: 'Ten engineers', zone: 'top' };
+    expect(validateConcept({ concept: c, scriptText: script, briefText: null, brief: makeBrief(), titleLimit: 70 }).map((i) => i.code)).toEqual([]);
+  });
 });
