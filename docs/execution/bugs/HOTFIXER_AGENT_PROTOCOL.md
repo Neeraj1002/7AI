@@ -60,7 +60,7 @@ already states.
   (they stopped determining branch choice as of the **Release & Branch Model** change below).
 
 **Out of scope — never touched by a hot-fixer chat**:
-- Anything under `docs/execution/sprint[N]/` or `docs/execution/frontend/` — planned feature work
+- Anything under `docs/execution/sprint[N]/` or `docs/execution/frontend/` (archived, see docs/ARCHIVE_INDEX.md) — planned feature work
   belongs to whichever chat/track owns that sprint, not to the bug queue.
 - Any task whose fix would require a schema migration, a new external credential/OAuth scope, or a
   change to auth/security logic beyond what's explicitly described in an existing bug task's Fix — stop
@@ -205,7 +205,7 @@ never "should work" or a simulated check standing in for it). **As of 2026-09-28
 preview deployment (`https://7aistudio.tech`) by default** — see the Environment note at the top of this
 file — not a locally-run dev server, unless a task doc explicitly says otherwise. A hot-fixer chat does
 not mark a task's `STATUS.md` row `Done` until it has actually reproduced the fix working there, the same
-bar `hardening-tenant-check.md` and every sprint task doc already hold themselves to.
+bar `hardening-tenant-check.md` (archived, see docs/ARCHIVE_INDEX.md) and every sprint task doc already hold themselves to.
 
 ## Same-cause sweep *(added 2026-10-20, after the chapter-limit bug)*
 
@@ -344,7 +344,7 @@ real files), and open with something like:
 ## Links & References
 - [TASK_TEMPLATE.md](../templates/TASK_TEMPLATE.md)
 - [STATUS.md](STATUS.md)
-- [hardening-tenant-check.md](../sprint3/tasks/hardening-tenant-check.md) — precedent for a real,
+- [hardening-tenant-check.md](../sprint3/tasks/hardening-tenant-check.md) (archived, see docs/ARCHIVE_INDEX.md) — precedent for a real,
   live-verification bar on a non-sprint-numbered fix
 - `docs/execution/admin/ADMIN_MODULE_DESIGN.md` — the admin module (bug and run views) that will replace pasted SQL
 - `docs/server/deployment/preview/detail.md`, `docs/server/usefulcmds.md` — the preview VPS itself:
