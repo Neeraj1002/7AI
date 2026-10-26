@@ -52,38 +52,10 @@ function wrapLines(ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']
   return lines;
 }
 
-export async function stageSheet(): Promise<KeyRow[]> {
-  const lettered = readJson<Lettered[]>(path.join(OUT, 'lettered.json'));
-  const packs = readJson<PackagesRecord[]>(path.join(OUT, 'packages.json'));
-  const cards = readJson<Card[]>(path.join(OUT, 'cards.json'));
-  const order = seededShuffle(lettered, SHUFFLE_SEED);
-  const sheetDir = ensureDir(path.join(OUT, 'sheet'));
+export type SheetRow = { label: string; title: string; file: string };
 
-  const rows: Array<KeyRow & { file: string }> = order.map((l, i) => {
-    const card = cards.find((c) => c.cardId === l.cardId)!;
-    const spec = SCRIPTS.find((s) => s.id === card.scriptId)!;
-    const pkg = packs.find((p) => p.scriptId === spec.id)!.packages.find((p) => p.id === card.packageId)!;
-    const label = LABELS[i];
-    fs.copyFileSync(path.join(OUT, l.full), path.join(sheetDir, `${label}.jpg`));
-    return {
-      label,
-      cardId: l.cardId,
-      script: spec.id,
-      channelLabel: spec.channelLabel,
-      look: card.kind === 'ceiling' ? 'ceiling (no channel look, richer prompt)' : spec.look.stylePrompt ? 'channel profile text' : 'neutral (no profile)',
-      kind: card.kind,
-      packageId: pkg.id,
-      device: pkg.device,
-      supportingDevice: pkg.supportingDevice ?? '',
-      font: l.fontFamily,
-      zone: l.zone,
-      title: pkg.title,
-      lettering: l.subline ? `${l.words} / ${l.subline}` : l.words,
-      seed: SHUFFLE_SEED,
-      file: `${label}.jpg`,
-    };
-  });
-
+// HTML plus PNG contact sheet and a blank ratings.csv for the rows given (images already copied into sheetDir).
+export async function writeSheet(rows: SheetRow[], sheetDir: string): Promise<void> {
   // HTML sheet (relative image paths; open it next to the A.jpg to L.jpg files).
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -157,6 +129,41 @@ ${rows.map((r) => `<div class="card"><span class="label">${r.label}</span><img s
     path.join(sheetDir, 'ratings.csv'),
     ['label,would_i_click_1_to_5,as_rich_as_my_references_1_to_5,note', ...rows.map((r) => `${r.label},,,`)].join('\n') + '\n',
   );
+}
+
+export async function stageSheet(): Promise<KeyRow[]> {
+  const lettered = readJson<Lettered[]>(path.join(OUT, 'lettered.json'));
+  const packs = readJson<PackagesRecord[]>(path.join(OUT, 'packages.json'));
+  const cards = readJson<Card[]>(path.join(OUT, 'cards.json'));
+  const order = seededShuffle(lettered, SHUFFLE_SEED);
+  const sheetDir = ensureDir(path.join(OUT, 'sheet'));
+
+  const rows: Array<KeyRow & { file: string }> = order.map((l, i) => {
+    const card = cards.find((c) => c.cardId === l.cardId)!;
+    const spec = SCRIPTS.find((s) => s.id === card.scriptId)!;
+    const pkg = packs.find((p) => p.scriptId === spec.id)!.packages.find((p) => p.id === card.packageId)!;
+    const label = LABELS[i];
+    fs.copyFileSync(path.join(OUT, l.full), path.join(sheetDir, `${label}.jpg`));
+    return {
+      label,
+      cardId: l.cardId,
+      script: spec.id,
+      channelLabel: spec.channelLabel,
+      look: card.kind === 'ceiling' ? 'ceiling (no channel look, richer prompt)' : spec.look.stylePrompt ? 'channel profile text' : 'neutral (no profile)',
+      kind: card.kind,
+      packageId: pkg.id,
+      device: pkg.device,
+      supportingDevice: pkg.supportingDevice ?? '',
+      font: l.fontFamily,
+      zone: l.zone,
+      title: pkg.title,
+      lettering: l.subline ? `${l.words} / ${l.subline}` : l.words,
+      seed: SHUFFLE_SEED,
+      file: `${label}.jpg`,
+    };
+  });
+
+  await writeSheet(rows.map((r) => ({ label: r.label, title: r.title, file: r.file })), sheetDir);
 
   const keyRows: KeyRow[] = rows.map(({ file, ...rest }) => {
     void file;

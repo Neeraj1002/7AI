@@ -15,7 +15,8 @@ import { stageLetter } from './lettering';
 import { stageCritic } from './critic';
 import { stageSheet } from './sheet';
 import { stageProbe } from './probe';
-import { publish } from './publish';
+import { stageRound2 } from './round2';
+import { publish, publishRound2 } from './publish';
 
 const STAGES = {
   scripts: stageScripts,
@@ -26,11 +27,12 @@ const STAGES = {
   critic: stageCritic,
   sheet: stageSheet,
   probe: stageProbe, // extra, only when named: --stages probe --qualities medium,high
+  round2: stageRound2, // extra, only when named: the face test (round 2), capped at $1.00
 } as const;
 
 async function main() {
   const arg = process.argv.find((a, i, all) => all[i - 1] === '--stages');
-  const names = (arg ? arg.split(',') : Object.keys(STAGES).filter((n) => n !== 'probe')) as Array<keyof typeof STAGES>;
+  const names = (arg ? arg.split(',') : Object.keys(STAGES).filter((n) => n !== 'probe' && n !== 'round2')) as Array<keyof typeof STAGES>;
   console.log(`mode=${LIVE ? 'LIVE' : 'STUB (no spend)'} out=${OUT} ceiling=$${SPEND_CEILING_USD.toFixed(2)} spentSoFar=$${ledger.total().toFixed(4)}`);
   for (const name of names) {
     if (!STAGES[name]) throw new Error(`unknown stage ${name}`);
@@ -39,6 +41,7 @@ async function main() {
     console.log(`stage ${name}: ok (${Array.isArray(result) ? result.length : 1} items, +$${(ledger.total() - before).toFixed(4)})`);
   }
   if (process.argv.includes('--publish')) await publish();
+  if (process.argv.includes('--publish2')) await publishRound2();
   console.log(`total spent: $${ledger.total().toFixed(4)} of $${SPEND_CEILING_USD.toFixed(2)}`, JSON.stringify(ledger.byPrefix()));
 }
 

@@ -1,0 +1,134 @@
+[
+  {
+    "label": "M",
+    "cardId": "lego-lego-5-face",
+    "round": "round2-face",
+    "firstSheetLabel": "J",
+    "title": "How Lego Climbed Out of a 1.4 Billion Kroner Shortfall",
+    "look": "neutral, no channel negative",
+    "font": "PlayfairDisplay",
+    "personRole": "A child building with Lego bricks at a table",
+    "seed": 20261026
+  },
+  {
+    "label": "N",
+    "cardId": "lego-lego-5",
+    "round": "round1-original",
+    "firstSheetLabel": "J",
+    "title": "How Lego Climbed Out of a 1.4 Billion Kroner Shortfall",
+    "look": "neutral (no profile)",
+    "font": "PlayfairDisplay",
+    "personRole": "",
+    "seed": 20261026
+  },
+  {
+    "label": "O",
+    "cardId": "mary-celeste-p3",
+    "round": "round1-original",
+    "firstSheetLabel": "L",
+    "title": "The Mary Celeste of 1872 against the ghost story",
+    "look": "channel profile text",
+    "font": "Anton",
+    "personRole": "",
+    "seed": 20261026
+  },
+  {
+    "label": "P",
+    "cardId": "eiffel-p1-face",
+    "round": "round2-face",
+    "firstSheetLabel": "B",
+    "title": "The Tower Paris Was Allowed to Tear Down After 20 Years",
+    "look": "neutral, no channel negative",
+    "font": "PlayfairDisplay",
+    "personRole": "An engineer from the tower's design and construction team, one of the people who built it and now watches it threatened with demolition",
+    "seed": 20261026
+  },
+  {
+    "label": "Q",
+    "cardId": "eiffel-p1",
+    "round": "round1-original",
+    "firstSheetLabel": "B",
+    "title": "The Tower Paris Was Allowed to Tear Down After 20 Years",
+    "look": "neutral (no profile)",
+    "font": "PlayfairDisplay",
+    "personRole": "",
+    "seed": 20261026
+  },
+  {
+    "label": "R",
+    "cardId": "eiffel-p3",
+    "round": "round1-original",
+    "firstSheetLabel": "C",
+    "title": "How They Built a 300-Metre Tower From 18,038 Iron Pieces",
+    "look": "neutral (no profile)",
+    "font": "Anton",
+    "personRole": "",
+    "seed": 20261026
+  },
+  {
+    "label": "S",
+    "cardId": "mary-celeste-p3-face",
+    "round": "round2-face",
+    "firstSheetLabel": "L",
+    "title": "The Mary Celeste of 1872 against the ghost story",
+    "look": "channel style text, no channel negative",
+    "font": "Anton",
+    "personRole": "A member of the Dei Gratia's boarding party who climbed aboard the deserted Mary Celeste and went below into the cabins",
+    "seed": 20261026
+  },
+  {
+    "label": "T",
+    "cardId": "mary-celeste-p1-face",
+    "round": "round2-face",
+    "firstSheetLabel": "G",
+    "title": "Atlantic swell, 1872: a ship that won't answer",
+    "look": "channel style text, no channel negative",
+    "font": "PlayfairDisplay",
+    "personRole": "A crew member of the Dei Gratia watching the unresponsive ship from the deck",
+    "seed": 20261026
+  },
+  {
+    "label": "U",
+    "cardId": "eiffel-p2-face",
+    "round": "round2-face",
+    "firstSheetLabel": "E",
+    "title": "How Eiffel Saved His Tower From Being Torn Down",
+    "look": "neutral, no channel negative",
+    "font": "Cinzel",
+    "personRole": "An engineer from Eiffel's company conducting meteorological and aerodynamic experiments at the top of the tower; imagined and anonymous, not a depiction of any real person",
+    "seed": 20261026
+  },
+  {
+    "label": "V",
+    "cardId": "eiffel-p2-ceiling",
+    "round": "round1-original",
+    "firstSheetLabel": "E",
+    "title": "How Eiffel Saved His Tower From Being Torn Down",
+    "look": "ceiling (no channel look, richer prompt)",
+    "font": "Cinzel",
+    "personRole": "",
+    "seed": 20261026
+  },
+  {
+    "label": "W",
+    "cardId": "eiffel-p3-face",
+    "round": "round2-face",
+    "firstSheetLabel": "C",
+    "title": "How They Built a 300-Metre Tower From 18,038 Iron Pieces",
+    "look": "neutral, no channel negative",
+    "font": "Anton",
+    "personRole": "A riveter working on the tower's construction, one of the workers who assembled it from iron pieces held together by rivets",
+    "seed": 20261026
+  },
+  {
+    "label": "X",
+    "cardId": "mary-celeste-p1",
+    "round": "round1-original",
+    "firstSheetLabel": "G",
+    "title": "Atlantic swell, 1872: a ship that won't answer",
+    "look": "channel profile text",
+    "font": "PlayfairDisplay",
+    "personRole": "",
+    "seed": 20261026
+  }
+]
