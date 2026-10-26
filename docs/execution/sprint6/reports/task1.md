@@ -1,8 +1,8 @@
 # Sprint 6 Task 1: Curiosity Packaging
 
 **Date**: 2026-10-26
-**Status**: PR A complete and ready for review (#116). PR B (picture checks) code-complete, draft PR #124 stacked on PR A. PR C (opening, record, final sweep) not started.
-**Branch / worktree / PR (PR B)**: `SPRINT6_TASK1B_BE` · `D:\Study Material\7AI-SPRINT6\task1b` · [PR #124](https://github.com/Neeraj1002/7AI/pull/124) (draft, base `SPRINT6_TASK1A_BE`)
+**Status**: PR A complete and ready for review (#116). PR B (picture checks) code-complete, PR #124 on `main` and ready for review (PR A merged as #116). PR C (opening, record, final sweep) not started.
+**Branch / worktree / PR (PR B)**: `SPRINT6_TASK1B_BE` · `D:\Study Material\7AI-SPRINT6\task1b` · [PR #124](https://github.com/Neeraj1002/7AI/pull/124) (base `main`, ready for review)
 **Branch / worktree / PR (PR A)**: `SPRINT6_TASK1A_BE` · `D:\Study Material\7AI-SPRINT6\task1a` · [PR #116](https://github.com/Neeraj1002/7AI/pull/116)
 **Task doc**: r7. Already on `main` (via the architect's docs PR #119) and byte-identical to the source in `D:\Study Material\7AI\docs\...` apart from line endings (compared with CRLF removed, same md5), so no `_DOC` commit was needed (Hard rule 5). My first branch was cut when r6 was current and I built part of it (a per-channel thumbnail setting, medium quality, a typeface download) before r7 arrived; I discarded all of that uncommitted work when r7 landed, and said so at the time.
 **Files**: 53 created, 17 modified against `main` (the task doc is not among them)
@@ -264,7 +264,7 @@ New tests: `vision.test.ts` (covering thresholds, every payoff failure named, th
 ## B9. Hard rules, statuses, open decisions
 
 - **Rule 5:** task doc r7 identical on `main` and to the source; no doc commit.
-- **Rule 6:** deferred, for the reason above (stacked on an unmerged PR A). I will do it in this worktree as soon as #116 merges: `git fetch`, `git merge origin/main`, re-run type check, lint and all tests (studio and app), the docs-scope check (only this report and its images), push, then `gh pr ready`.
+- **Rule 6:** done after #116 merged (2026-10-26). In this worktree: `git fetch origin`, `git merge origin/main` (**no conflicts to resolve**; the merge brought PR A as merged plus the architect's docs cleanup), PR retargeted from `SPRINT6_TASK1A_BE` to `main`. Re-ran type check and lint (studio and app), all studio tests (1,635 pass, 65 skipped as before) and all app tests (193 pass), then pushed. Docs scope, `git diff --name-only origin/main...HEAD -- docs/`: this report and its images only; the task doc is not listed because it is identical to `main` and to the source. This is a merge of `main` into my branch, not a push to `main`. Then `gh pr ready`.
 - **Rule 7:** I wrote only this report; no other doc.
 - **Rule 8:** not yet (PR C is still to come; the worktrees stay).
 - **Rule 9:** B8.
