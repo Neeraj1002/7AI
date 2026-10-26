@@ -6,6 +6,8 @@ The owner could not finish Sprint 4 testing because production video generation 
 
 Use the [57-case execution tracker](testing/sprint4-5-cases.csv) and [37-report bug traceability ledger](testing/sprint4-5-bug-traceability.csv). Every case starts **NOT_RUN** and every report starts **NOT_RETESTED**. Historical author test reports, database bug status and fresh acceptance are distinct evidence.
 
+> **Status note, 2026-10-26.** The execution document for this acceptance pass is now [SPRINT4_5_TEST_SEQUENCE.md](SPRINT4_5_TEST_SEQUENCE.md) (v2.3, T01 to T46): the founder runs that on the phone. This plan is the reasoning behind it and is **frozen at 17 Oct**: the PR table and incident notes in section 1 describe that day, not now. Since then every PR in it (#91 to #94 and the later fixes, #84 to #120) has merged except the Sprint 6 Task 1 backend, and Sprint 3 is closed. The 57 cases in `testing/sprint4-5-cases.csv` are still NOT_RUN until results are recorded; the new phone-only checks (T38 to T46) have no CSV row, because they are covered by the sequence and the results go to STATUS.
+
 ## 1. Where the application actually is
 
 ### Verified observations
