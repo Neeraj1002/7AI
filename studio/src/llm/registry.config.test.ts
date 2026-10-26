@@ -30,6 +30,12 @@ describe('every purpose declares model, output limit and reasoning', () => {
     expect(LLM_REGISTRY['video-intelligence-own-draft'].maxOutputTokens).toBe(4_000);
   });
 
+  it('Sprint 6 Task 1 packaging purposes: brief 4,000, six concepts 8,000, cold reader 4,000', () => {
+    expect(LLM_REGISTRY['packaging-brief'].maxOutputTokens).toBe(4_000);
+    expect(LLM_REGISTRY['packaging-concepts'].maxOutputTokens).toBe(8_000);
+    expect(LLM_REGISTRY['packaging-cold-reader'].maxOutputTokens).toBe(4_000);
+  });
+
   it('reasoning is off everywhere in this task', () => {
     for (const purpose of PURPOSES) expect(LLM_REGISTRY[purpose].reasoning).toBe('off');
   });

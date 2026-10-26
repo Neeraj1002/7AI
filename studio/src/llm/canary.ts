@@ -32,6 +32,8 @@ import { reviewScript } from '../agents/script-review';
 import { planVideoProduction } from '../agents/video-generation/plan';
 import { planLongVideoProduction } from '../agents/video-generation/plan-long';
 import { generatePublishingMetadata } from '../agents/publishing';
+import { coldRead, generateBrief, generateConcepts } from '../packaging/generate';
+import { faceModeFor } from '../packaging/prompts';
 import { buildSystemPrompt as buildVideoReviewPrompt } from '../agents/video-intelligence';
 import type { IntakeParsed } from '../types';
 
@@ -283,6 +285,23 @@ async function main() {
         retryGuard,
       });
       record('metadata-generation', 'S-1', result.llm);
+    });
+  }
+
+  // ---- packaging (Sprint 6 Task 1): brief, six concepts, cold reader, fed the S-1 script ----
+  if (scripts['S-1']) {
+    await step('packaging S-1', async () => {
+      const scriptText = scripts['S-1']!.scriptText;
+      const look = { stylePrompt: settings.visualStyle, titleGuidance: settings.titleGuidance };
+      const made = await generateBrief({ renderedScript: scriptText, scriptText, look, retryGuard });
+      for (const call of made.calls) record('packaging-brief', 'S-1', call);
+      const concepts = await generateConcepts({ renderedScript: scriptText, brief: made.brief, look, titleLimit: 60, faceMode: faceModeFor(made.brief.subjectKind), retryGuard });
+      record('packaging-concepts', 'S-1', concepts.llm);
+      const read = await coldRead({
+        items: concepts.value.map((c, index) => ({ index, title: c.title, lettering: c.thumbnail.lettering.words })),
+        retryGuard,
+      });
+      record('packaging-cold-reader', 'S-1', read.llm);
     });
   }
 

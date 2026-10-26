@@ -1,7 +1,12 @@
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
-import { findLatestAttempt } from '../models/repositories/pipeline-stage.repository';
+import { findLatestAttempt, listStagesForRun } from '../models/repositories/pipeline-stage.repository';
+import { findPipelineRunById } from '../models/repositories/pipeline-run.repository';
+import { resolveRequestIdentity } from '../auth';
+import { MVP_TENANT_ID } from '../types';
+import { readPackaging } from '../run-pipeline/packaging-stage';
+import { thumbnailFileFor } from '../packaging/view';
 import { DATA_DIR } from '../config/paths';
 
 // GET /runs/:id/video (BUSINESS_LOGIC.md Section 4, added 2026-09-09) — a
@@ -50,4 +55,24 @@ export async function registerVideoRoute(fastify: FastifyInstance): Promise<void
     };
   fastify.get<{ Params: { id: string } }>('/runs/:id/preview', sendReviewFile('previewPath', 'video/mp4'));
   fastify.get<{ Params: { id: string } }>('/runs/:id/subtitles', sendReviewFile('srtPath', 'application/x-subrip', 'captions.srt'));
+
+  // Sprint 6 Task 1 (R5, R6): one thumbnail of a run's Gate 2 packages, in one of three sizes. Unlike the video
+  // routes above this one checks that the run belongs to the caller's tenant (the packaging task's own rule), and
+  // takes the file name from the stored record, never from the request. `?download=1` sends it as a download.
+  fastify.get<{ Params: { id: string; packageId: string; size: string }; Querystring: { download?: string } }>(
+    '/runs/:id/thumbnail/:packageId/:size',
+    async (request, reply) => {
+      const identity = resolveRequestIdentity(request.headers.authorization);
+      const tenantId = identity.kind === 'session' ? identity.tenantId : identity.kind === 'ops-token' ? MVP_TENANT_ID : null;
+      const run = await findPipelineRunById(request.params.id);
+      if (!tenantId || !run || run.tenantId !== tenantId) return reply.code(404).send({ error: 'not available for this run' });
+      const stages = await listStagesForRun(run.id);
+      const packaging = [...stages].reverse().filter((st) => st.stageName === 'gate2').map((st) => readPackaging(st.output)).find(Boolean) ?? null;
+      const file = thumbnailFileFor(run.id, packaging, request.params.packageId, request.params.size);
+      if (!file) return reply.code(404).send({ error: 'not available for this run' });
+      if (request.query.download) reply.header('Content-Disposition', `attachment; filename="${run.id}-${request.params.packageId}-${request.params.size}.jpg"`);
+      reply.type('image/jpeg');
+      return reply.sendFile(file.name, file.dir);
+    },
+  );
 }

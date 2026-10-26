@@ -99,6 +99,33 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
     maxOutputTokens: 4_000,
     reasoning: "off",
   },
+
+  // Sprint 6 Task 1 (R1, R2): curiosity packaging. The brief and the six concepts are the creative step where
+  // quality drives clicks, so they take Script Generation's tier; the cold reader only ranks short texts. Sizes
+  // measured on the spike (reports/task1-spike.md): six concepts about 3,000 output tokens, a brief about 600.
+  "packaging-brief": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Packaging brief",
+    maxOutputTokens: 4_000,
+    reasoning: "off",
+  },
+
+  "packaging-concepts": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Packaging concepts",
+    maxOutputTokens: 8_000,
+    reasoning: "off",
+  },
+
+  "packaging-cold-reader": {
+    provider: "anthropic",
+    model: "claude-haiku-4-5",
+    label: "Packaging cold reader",
+    maxOutputTokens: 4_000,
+    reasoning: "off",
+  },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {

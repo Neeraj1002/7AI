@@ -70,6 +70,9 @@ import { TIMING_FAILURE_CODES } from '../agents/video-intelligence/quality-metri
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
+import { ensurePackagingForGate2, packagingFieldOf, readPackaging } from './packaging-stage';
+import { chosenPackage } from '../packaging/view';
+import { applyThumbnailFollowup, type FollowupState } from './thumbnail-followup';
 import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
 import { briefAllowsBrandMarks } from '../agents/video-generation/scene-prompts';
 import { readChapterTimings, findSrtPath } from '../long-form/artifacts';
@@ -1835,6 +1838,32 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     );
   }
 
+  // Sprint 6 Task 1 (R1 to R3): the curiosity packages for a long video are made here, before the gate opens, and
+  // kept on this Gate 2 row. Never throws and never blocks the gate: a failure only means YouTube's suggested
+  // thumbnail stays and the reason is shown with the warnings.
+  {
+    const gate1Output = (await findLatestAttempt(runId, 'gate1'))?.output as
+      | { sanctionedScriptText?: string; chapters?: Array<{ title: string; text: string }> }
+      | null
+      | undefined;
+    if (gate1Output?.sanctionedScriptText) {
+      const packaging = await ensurePackagingForGate2({
+        run,
+        channel,
+        gateRow: stage,
+        scriptText: gate1Output.sanctionedScriptText,
+        chapters: gate1Output.chapters,
+        videoGenOutput: videoGenStage.output,
+      }).catch((error) => {
+        console.error(`[gate2] run ${runId}: packaging could not start: ${error instanceof Error ? error.message : String(error)}`);
+        return null;
+      });
+      if (packaging && packaging.status !== 'ready') {
+        gate2Warnings.push(`No custom thumbnail options: ${packaging.reason ?? packaging.status}. YouTube's suggested thumbnail stays.`);
+      }
+    }
+  }
+
   // Bugs Task 12 (R5c) - invariant: a run is never 'running' at a gate. Whoever got us here (the
   // pipeline moving forward, a resume, a stray Retry) the run is parked at the gate, so the app shows
   // Approve/Reject/Revise for the pending approval registered just below.
@@ -1856,6 +1885,8 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   });
 
   const recordGate2Outcome = async (): Promise<PipelineRun> => {
+    // The packages and the founder's choice stay on the row the decision completes.
+    const packagingField = await packagingFieldOf(runId, stage.id);
     if (outcome.type === 'reject') {
       return await prisma.$transaction(async (tx) => {
         await insertReviewLog(
@@ -1871,7 +1902,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           },
           tx,
         );
-        await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason }, tx);
+        await completeStage(stage.id, { outcome: 'reject', reason: outcome.reason, ...packagingField }, tx);
         return await updatePipelineRun(
           runId,
           {
@@ -1907,7 +1938,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           },
           tx,
         );
-        await completeStage(stage.id, { outcome: 'approve', privacyStatus }, tx);
+        await completeStage(stage.id, { outcome: 'approve', privacyStatus, ...packagingField }, tx);
         return await updatePipelineRun(
           runId,
           {
@@ -1941,7 +1972,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
         },
         tx,
       );
-      await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes }, tx);
+      await completeStage(stage.id, { outcome: 'revise', notes: outcome.notes, ...packagingField }, tx);
       return await updatePipelineRun(runId, revisePatch, tx);
     });
   };
@@ -2007,6 +2038,10 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     throw new Error(`PipelineRun ${runId} has no completed gate2 output — cannot run publishing`);
   }
   const gate2Output = gate2Stage.output as { outcome?: string; privacyStatus?: PrivacyStatus };
+  // Sprint 6 Task 1 (R5, R6): the packages made for this Gate 2 and the founder's choice, written to the Gate 2 row before
+  // approval. Absent for a Short, a run whose Gate 2 was switched off, and any run from before this task.
+  const packaging = readPackaging(gate2Stage.output);
+  const chosenPkg = chosenPackage(packaging);
   if (gate2Output.outcome !== 'approve') {
     throw new Error(
       `PipelineRun ${runId}'s gate2 outcome is '${gate2Output.outcome}', not 'approve' — cannot run publishing`,
@@ -2127,7 +2162,9 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
             ...call,
           });
         }
-        return result;
+        // The title the founder approved at Gate 2 is the one published; the model still writes the rest.
+        const chosenTitle = packaging?.choice?.title ?? chosenPkg?.title;
+        return chosenTitle ? { ...result, metadata: { ...result.metadata, title: chosenTitle } } : result;
       };
       let { metadata } = await generate();
       // Sprint 5 Task 8 (R11.6): the title, description and tags get the same figure and hedge check the script
@@ -2294,7 +2331,25 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     // ever missing) rather than crashing the whole stage over metadata.
     let coverFrameSet = receipt.followups.thumbnail === 'succeeded';
     let coverFrameMessage: string | undefined;
-    if (typeof durationSeconds === 'number' && !coverFrameSet
+    // Sprint 6 Task 1 (R6): where the thumbnail came from, so the app can say what is live and offer the file.
+    let thumbnailInfo: { source: 'package' | 'youtube-suggested' | 'frame-grab'; packageId?: string; file?: string } = { source: 'frame-grab' };
+    if (packaging) {
+      const followup = await applyThumbnailFollowup({
+        runId,
+        packaging,
+        chosen: chosenPkg,
+        alreadySet: coverFrameSet,
+        state: receipt.followups.thumbnail as FollowupState,
+        setThumbnail: (imagePath) => setThumbnail({ channelId: channel.id, youtubeVideoId: uploadResult.youtubeVideoId, imagePath }),
+        mark: (state) => markFollowup(runId, token, 'thumbnail', state),
+        readState: async () => (await readPublishingReceipt(runId))?.followups.thumbnail as FollowupState | undefined,
+        failureMessage: thumbnailFailureMessage,
+        log: (message) => console.error(`[publishing] run ${runId}: ${message}`),
+      });
+      coverFrameSet = followup.coverFrameSet;
+      coverFrameMessage = followup.coverFrameMessage;
+      thumbnailInfo = followup.thumbnail;
+    } else if (typeof durationSeconds === 'number' && !coverFrameSet
         && receipt.followups.thumbnail !== 'started' && receipt.followups.thumbnail !== 'uncertain') {
       try {
         await markFollowup(runId, token, 'thumbnail', 'started');
@@ -2364,6 +2419,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
       selfDeclaredMadeForKids: uploadResult.selfDeclaredMadeForKids,
       coverFrameSet,
       ...(coverFrameMessage && { coverFrameMessage }),
+      thumbnail: thumbnailInfo,
       metadata,
       // Sprint 3 Task 12 (R3) — included directly in this same fullOutput
       // object (not a separate post-hoc patchStageOutput call the way R2's
