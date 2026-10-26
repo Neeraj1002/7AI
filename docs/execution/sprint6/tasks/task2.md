@@ -2,14 +2,14 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r5, 2026-10-24. Adds the toggle default, the exact voice-clip method, a report-first rule for the AI-use gap, spend ceiling and the sweep. r4 simplified the control to On/Off.
+**Revision**: r6, 2026-10-25. No new settings: the On/Off default is derived from the script; no channel name in code, prompts or fixtures. r5 added the clip method, the report-first rule for the AI-use gap, the spend ceiling and the sweep.
 
 **Written**: 2026-10-24 by the architect chat, at the founder's request. **Status**: not started. **Priority**: P2. Runs **before** Sprint 6 Task 1 PR C (both change the Short opening); independent of Task 1 PR A and PR B, so start now. **Branch**: `SPRINT6_TASK2_BE` (add `SPRINT6_TASK2_FE` only if R0 shows the app change should be separate); worktree `task2` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
 **Founder direction (2026-10-24)**: Use the fixed sentence **"This video includes imagined reconstructions."**, one Ash voice clip at 2x speed, and one unbranded dark translucent card with white text, adapted only for 9:16 and 16:9 framing. Each video has one disclaimer choice: `on` plays the voice and shows the card together after the hook; `off` uses neither and hides the optional `Imagined` tag. The sentence, voice and visual are never edited per video. The YouTube AI-use declaration remains independent of this choice.
 
 **Founder decisions still open (recommendations given)**
-1. **Toggle default.** Recommendation: new runs start **On**; one tap turns it Off per video. Runs created or in flight before this ships render exactly as today (no card, no clip, no tag) and show the control as Off until the founder changes it. If you would rather have a per-channel default, say so: it is a boolean in the profile, not wording.
+1. **Toggle default (decided 25 Oct: derived from the script, no setting).** For each new run the system sets the default itself: **On** when the script contains imagined or dramatised material (R0 finds the signal that already exists: the brief's IMAGINED allowance, the script's own imagined passages, or what Script Review detects), **Off** when the script is purely factual, and **On when it cannot tell**. The founder changes it per video with one tap; that tap is the only human choice. There is no per-channel default and no channel setting. Runs created or in flight before this ships render exactly as today (no card, no clip, no tag) and show the control as Off until the founder changes it.
 2. **Description and pinned-comment wording.** Recommendation: keep the current description disclosure and pinned-comment wording as they are; the short fixed sentence serves the video only. No comment automation is added by this task (P11 owns that).
 3. **Speed.** 2x is the decision. R2 requires a listening check; only if the clip is not clearly intelligible do you report it, with a 1.5x sample, and the founder decides.
 
@@ -21,11 +21,11 @@
 
 ## Task Requirement
 
-Sprint 6 P5, grounded in NIYT gap G5, with the founder's 24 Oct fixed-disclaimer direction controlling the in-video treatment for every channel. Do not add editable in-video wording to profiles or runs. This task does not build P4's reviewer allowance, P11's comment automation or Task 1's thumbnail work.
+Sprint 6 P5 (the disclosure need first raised in the NIYT test channel's gap register, G5, but built for every channel), with the founder's 24 Oct fixed-disclaimer direction controlling the in-video treatment for every channel. Do not add editable in-video wording to profiles or runs. **No new settings and no channel names.** Nothing here is configured per channel: the sentence, voice and card are fixed, the default comes from the script, and the one per-video control is the On/Off. No channel name appears in code, prompts or fixtures; tests use at least two differently configured channels. This task does not build P4's reviewer allowance, P11's comment automation or Task 1's thumbnail work.
 
 ## R0. Read the real code first and confirm
 
-**Where**: run creation options, Gate 1 decision path, script generation and review, video renderer, audio timing, fonts and media assets, the description builder, publishing upload flags, app controls, and the current NIYT disclosure policy and its test cases.
+**Where**: run creation options, Gate 1 decision path, script generation and review, video renderer, audio timing, fonts and media assets, the description builder, publishing upload flags, app controls, and each existing channel's current disclosure wording (its spoken disclaimer in the story guide, its description template) and their test cases.
 
 **Fix**: report confirmed / wrong / unknown for: whether any in-video disclosure or `Imagined` tag is rendered today; where a per-run On/Off can be saved before paid rendering; whether one pre-made voice clip can be reused with no per-video speech call; how fixed video and audio assets are versioned and inserted; how `containsSyntheticMedia` is calculated; how this behaves when Gate 1 is disabled and for runs already in flight; whether the Ash voice is available to this provider. Never treat a doc's intended feature as a code fact.
 
@@ -37,7 +37,7 @@ Sprint 6 P5, grounded in NIYT gap G5, with the founder's 24 Oct fixed-disclaimer
 
 **Fix**: add one video-level boolean (On/Off) saved before the render spends money, with the fixed asset version it resolved to. Only that boolean is editable per video. `off` removes both the card and clip and the optional `Imagined` tag. Keep deriving YouTube's AI-use declaration from the actual content and current provider policy, never from this toggle. **If R0 shows that derivation is incomplete for realistic synthetic content, report it first with the evidence; fix it in this task only if the fix is small and obvious, otherwise raise it to the architect as its own task.** This is compliance work and must not be changed quietly.
 
-**Verify**: two videos on one channel can differ; every On video uses identical assets; Off does not force `containsSyntheticMedia` false; the choice and asset version survive reload and restart and show in the approval record.
+**Verify**: the default is derived from the script (a script with imagined material defaults On, a purely factual one defaults Off, an unclassifiable one defaults On); two videos on one channel can differ; every On video uses identical assets; Off does not force `containsSyntheticMedia` false; the choice and asset version survive reload and restart and show in the approval record.
 
 ## R2. Insert the fixed card and the fixed voice after the hook
 
@@ -65,7 +65,7 @@ Sprint 6 P5, grounded in NIYT gap G5, with the founder's 24 Oct fixed-disclaimer
 
 ## R5. Same-cause sweep (Hard rule 9)
 
-Name the cause (disclosure wording, the `Imagined` tag or the disclaimer defined in more than one place). Search `studio/`, `app/` and the channel docs for every copy: the NIYT config's spoken disclaimer, any in-video tag code, the description builder, test fixtures. List each hit as fixed here, left alone with a reason, or needing a new task; give the canonical sentence one owner in code. Do not edit docs other than your report; list the doc hits for the architect (the NIYT config and the Sprint 6 plan need updating from this task).
+Name the cause (disclosure wording, the `Imagined` tag or the disclaimer defined in more than one place, and any channel name or single-channel assumption in code, prompts or fixtures). Search `studio/`, `app/` and the channel docs for every copy: the NIYT config's spoken disclaimer, any in-video tag code, the description builder, test fixtures. List each hit as fixed here, left alone with a reason, or needing a new task; give the canonical sentence one owner in code. Do not edit docs other than your report; list the doc hits for the architect (the NIYT config and the Sprint 6 plan need updating from this task).
 
 ## Spend
 
@@ -93,8 +93,9 @@ Backend and app type check, lint, focused tests found in R0. Cover: On and Off o
 
 ## Links & References
 
-`sprint6/PLAN.md` (P5; P1's hook dependency; the earlier frame-zero tag decision, now superseded) · `docs/channel_bibles/NIYT_CHANNEL_CONFIG.md` (section 2 disclosure policy, section 7 description template, section 11 packaging, G5, section 14 hook-order decision) · [YouTube disclosure requirements](https://support.google.com/youtube/answer/14328491?hl=en) (verify current policy before shipping) · `sprint6/tasks/task1.md` · `docs/execution/templates/TASK_TEMPLATE.md`.
+`sprint6/PLAN.md` (P5; P1's hook dependency; the earlier frame-zero tag decision, now superseded) · `docs/channel_bibles/NIYT_CHANNEL_CONFIG.md` (one example of existing disclosure wording: section 2, section 7 description template, G5, section 14 hook-order decision; a test channel, not a rule) · [YouTube disclosure requirements](https://support.google.com/youtube/answer/14328491?hl=en) (verify current policy before shipping) · `sprint6/tasks/task1.md` · `docs/execution/templates/TASK_TEMPLATE.md`.
 
 ## Revision log
 - r5, 2026-10-24: toggle default (recommend On for new runs, old and in-flight unchanged); clip pre-rendered once, pitch-preserved, with a listening check; AI-use gap is report-first; card duration and caption rules; spend ceiling $0.50; sweep; header lines (branch, worktree, priority, ordering with Task 1).
 - r4, 2026-10-24: founder simplified the per-video control to On/Off.
+- r6, 2026-10-25: toggle default derived from the script (no per-channel default); no channel names in code, prompts or fixtures; NIYT references reworded as examples of existing wording; sweep also searches for channel-specific assumptions.
