@@ -4,7 +4,7 @@
 **Status**: PR A complete and ready for review. PR B (vision critic and payoff check) and PR C (opening, record, final sweep) not started.
 **Branch / worktree / PR (PR A)**: `SPRINT6_TASK1A_BE` · `D:\Study Material\7AI-SPRINT6\task1a` · [PR #116](https://github.com/Neeraj1002/7AI/pull/116)
 **Task doc**: r7. Already on `main` (via the architect's docs PR #119) and byte-identical to the source in `D:\Study Material\7AI\docs\...` apart from line endings (compared with CRLF removed, same md5), so no `_DOC` commit was needed (Hard rule 5). My first branch was cut when r6 was current and I built part of it (a per-channel thumbnail setting, medium quality, a typeface download) before r7 arrived; I discarded all of that uncommitted work when r7 landed, and said so at the time.
-**Files**: 70 created, 15 modified (studio 53 + 14, app 4 + 1, fonts 6, docs 15 report images + this report)
+**Files**: 53 created, 17 modified against `main` (the task doc is not among them)
 **Tests**: studio 1,602 pass (65 skipped, as before), app 191 pass, type check and lint clean on both.
 **Spend**: $0.53 of the $2.00 live-check ceiling (section 5).
 
@@ -142,7 +142,7 @@ Real YouTube was **not** called (the thumbnail 403 is Task 8 R11.5's; this task 
 ## 10. Hard rules and statuses
 
 - **Rule 5:** task doc r7 on `main` and identical to the source (line endings aside); no doc commit; I did not edit it.
-- **Rule 6:** `git fetch origin` and `git merge origin/main` into this branch, re-run of build, lint, type-check and tests, push; docs scope listed in the PR (this task's doc unchanged, this report, its images). Details at the end of this file once run.
+- **Rule 6:** in my own worktree, `git fetch origin` then `git merge origin/main` (twice: after the r7 doc landed, and just before marking ready; the second brought only the architect's `docs/STATUS.md` change). **No conflicts to resolve.** Re-ran type check (studio and app), lint (studio and app), all studio tests (1,602 pass, 65 skipped as before, exit 0) and all app tests (191 pass), then pushed. Docs scope, `git diff --name-only origin/main...HEAD -- docs/`: this report and its 15 images under `reports/task1-assets/`; the task doc is not in the list because it is identical on `main`; nothing else. Then `gh pr ready`. This is a merge of `main` into my branch, not a push to `main`.
 - **Rule 7:** this is the only doc I wrote; `STATUS.md`, `PLAN.md` and every other doc untouched.
 - **Rule 8:** not yet; runs after the founder says PR C is merged (the worktree stays for PR B and C).
 - **Rule 9:** section 7. **The scratch database `sevenai_task1a_20261026_test` was dropped.** `studio/data/` outputs of the live checks are gitignored; the two live scripts are committed with their caps and `--live`.
