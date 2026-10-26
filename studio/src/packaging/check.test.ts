@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTitle, parseTitleLimit, quoteInScript, validateConcept } from './check';
+import { checkTitle, parseTitleLimit, quoteInScript, unsupportedProps, validateConcept } from './check';
 import { EIFFEL_SCRIPT, makeBrief, makeConcept } from './testkit';
 
 const base = { scriptText: EIFFEL_SCRIPT, briefText: null, brief: makeBrief(), titleLimit: 70 };
@@ -85,6 +85,11 @@ describe('validateConcept: the checks that are code, not prompt hopes (spike reg
     expect(codes(makeConcept({ supportQuote: 'a child plays with a wooden toy on the table' }))).toContain('support_not_in_script');
   });
 
+  it('rejects a picture with a prop the script never mentions (spike: an invented toy)', () => {
+    expect(codes(makeConcept({ props: ['wooden toy'] }))).toContain('prop_not_in_script');
+    expect(codes(makeConcept({ props: ['rivets', 'sky', 'tower'] }))).toEqual([]);
+  });
+
   it('rejects a person who may be alive or is not in the script', () => {
     expect(codes(makeConcept({ namedPeople: [{ name: 'Gustave Eiffel', livingOrUnknown: true }] }))).toContain('living_person');
     expect(codes(makeConcept({ namedPeople: [{ name: 'Napoleon', livingOrUnknown: false }] }))).toContain('person_not_in_script');
@@ -103,5 +108,11 @@ describe('checkTitle (an edited title at Gate 2)', () => {
     const args = { scriptText: EIFFEL_SCRIPT, brief: makeBrief(), titleLimit: 70 };
     expect(checkTitle({ ...args, title: 'The tower that 99 engineers saved' }).map((i) => i.code)).toContain('unsupported_number');
     expect(checkTitle({ ...args, title: 'The tower that 300 metres of iron saved' })).toEqual([]);
+  });
+});
+
+describe('unsupportedProps', () => {
+  it('matches the head noun with a plural or a short ending, and ignores plain scenery', () => {
+    expect(unsupportedProps(['iron rivets', 'engineers', 'rivet', 'sunset', 'toy', 'carousel'], EIFFEL_SCRIPT)).toEqual(['toy', 'carousel']);
   });
 });

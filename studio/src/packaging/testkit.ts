@@ -41,6 +41,7 @@ export function makeConcept(over: Partial<Concept> = {}): Concept {
     answeredIn: { chapter: 3, quote: 'Its construction permit was only for 20 years' },
     supportQuote: SUPPORT_QUOTE,
     deviceNote: null,
+    props: ['rivets'],
     thumbnail: {
       subject: 'a huge iron tower under construction',
       gazeOrGesture: 'a worker looks up at it',

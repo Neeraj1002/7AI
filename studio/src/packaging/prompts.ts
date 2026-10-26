@@ -63,7 +63,7 @@ What makes a package work:
 
 Honest curiosity, never bent:
 - The question must be answered by the script; give the chapter number if there are chapters, and a quote of the answer copied EXACTLY from the script (answeredIn).
-- The thumbnail must not show a scene, person or object the script does not contain or support. Copy the short phrase of the script that supports the scene EXACTLY into supportQuote.
+- The thumbnail must not show a scene, person or object the script does not contain or support. Copy the short phrase of the script that supports the scene EXACTLY into supportQuote. List every distinct physical object, vehicle or building the picture shows besides its dominant subject in props, one lowercase noun each; each must be a thing the script itself names. Do not add personal items, toys, letters, food or other props the script does not mention, even to make a scene feel human; show the place, the light and the scale instead.
 - Words like "untold", "what really happened", "secret", "banned" only if the brief's correction field is set.
 - No fake badges or labels ("4K", "Full Movie", "Official"). No logos. No real, identifiable living people: list every real person named in a title, the lettering or the picture in namedPeople and say whether they may be alive.
 - Every figure, date and hedge word (about, roughly, almost, by sales) in a title or lettering must be in the script exactly as the script states it, hedges kept.

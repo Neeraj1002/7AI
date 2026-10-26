@@ -31,6 +31,7 @@ import { color, font, radius, space, type } from '../../../lib/theme';
 import { VideoChip } from '../../../components/VideoChip';
 import { LongPreview } from '../../../components/LongPreview';
 import { SubtitlesCard } from '../../../components/SubtitlesCard';
+import { PackageCards, PublishedThumbnailCard, type ChoosePayload } from '../../../components/PackageCards';
 import { RaiseLimitSheet } from '../../../components/RaiseLimitSheet';
 import { mmss, needsHigherLimit } from '../../../lib/long-video';
 import { FormScreen } from '../../../components/FormScreen';
@@ -187,6 +188,20 @@ export default function RunDetailScreen() {
         ),
     }),
   );
+  // Sprint 6 Task 1 (R5): the thumbnail and title options made for a long video's Gate 2, and the founder's choice.
+  // Fetched while Gate 2 is open (polling until the options exist) and once published (to offer the chosen file).
+  const packagingWanted = data?.videoKind === 'long' && (data.run.status === 'paused_gate2' || data.run.status === 'completed');
+  const packagingQuery = useQuery(
+    trpc.runs.packaging.queryOptions(
+      { runId: id! },
+      { enabled: Boolean(id) && packagingWanted, refetchInterval: (query) => (query.state.data?.pending ? 4_000 : false) },
+    ),
+  );
+  const chooseMutation = useMutation(
+    trpc.runs.choosePackage.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.runs.packaging.queryKey({ runId: id! }) }),
+    }),
+  );
   // Bugs Task 7 (R3) — the way out of needs_attention. Also used for E5
   // (cancel while running/pending) — same endpoint, different confirm copy
   // and follow-up UI since a running cancel isn't guaranteed synchronous.
@@ -279,7 +294,14 @@ export default function RunDetailScreen() {
   const videoReviewStage = latestStage(stages, 'video_review');
   // Bugs Task 9 (R3) — post-publish data (c13da242: "can't see any uploads").
   const publishOutput = latestStage(stages, 'publishing')?.output as
-    | { youtubeVideoId?: string; privacyStatus?: string; metadata?: { title?: string } }
+    | {
+        youtubeVideoId?: string;
+        privacyStatus?: string;
+        metadata?: { title?: string };
+        coverFrameSet?: boolean;
+        coverFrameMessage?: string;
+        thumbnail?: { source: 'package' | 'youtube-suggested' | 'frame-grab'; packageId?: string; file?: string };
+      }
     | undefined;
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
@@ -739,12 +761,27 @@ export default function RunDetailScreen() {
         </>
       ) : null}
 
+      {isPublished && isLong ? <PublishedThumbnailCard output={publishOutput} response={packagingQuery.data} apiUrl={apiUrl} /> : null}
+
       {isPublished && isLong ? (
         <SubtitlesCard
           subtitlesUploaded={data.subtitlesUploaded}
           subtitlesMessage={data.subtitlesMessage}
           subtitlesUrl={data.subtitlesUrl}
           apiUrl={apiUrl}
+        />
+      ) : null}
+
+      {isGate2 && isLong ? (
+        <PackageCards
+          response={packagingQuery.data}
+          channelName={channel?.name ?? 'Your channel'}
+          apiUrl={apiUrl}
+          token={token ?? ''}
+          editable={!decisionSent}
+          choosing={chooseMutation.isPending}
+          chooseError={chooseMutation.error?.message ?? null}
+          onChoose={(p: ChoosePayload) => chooseMutation.mutate({ runId: run.id, ...p })}
         />
       ) : null}
 

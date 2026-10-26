@@ -4,10 +4,10 @@ import Fastify from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Sprint 6 Task 1 (R5, R6): the thumbnail route checks the tenant, which the older video routes do not.
-const mocks = vi.hoisted(() => ({ run: vi.fn(), stages: vi.fn(), identity: vi.fn() }));
+const mocks = vi.hoisted(() => ({ run: vi.fn(), stages: vi.fn(), identity: vi.fn(), verify: vi.fn() }));
 vi.mock('../models/repositories/pipeline-run.repository', () => ({ findPipelineRunById: mocks.run }));
 vi.mock('../models/repositories/pipeline-stage.repository', () => ({ findLatestAttempt: vi.fn(), listStagesForRun: mocks.stages }));
-vi.mock('../auth', () => ({ resolveRequestIdentity: mocks.identity }));
+vi.mock('../auth', () => ({ resolveRequestIdentity: mocks.identity, verifyThumbnailLinkToken: mocks.verify }));
 
 import { registerVideoRoute } from './video-route';
 import { PACKAGING_OUTPUT_VERSION, thumbnailsDir } from '../packaging/build';
@@ -32,6 +32,7 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.identity.mockReturnValue({ kind: 'session', userId: 'u1', tenantId: 't1', role: 'owner' });
+  mocks.verify.mockReturnValue(null);
   mocks.run.mockResolvedValue({ id: RUN, tenantId: 't1' });
   mocks.stages.mockResolvedValue([{ stageName: 'gate2', output: { packaging } }]);
 });
@@ -62,6 +63,22 @@ describe('GET /runs/:id/thumbnail/:packageId/:size', () => {
     expect((await get(`/runs/${RUN}/thumbnail/c9/full`)).statusCode).toBe(404);
     expect((await get(`/runs/${RUN}/thumbnail/c1/huge`)).statusCode).toBe(404);
     expect((await get(`/runs/${RUN}/thumbnail/..%2F..%2Fc1/full`)).statusCode).toBe(404);
+  });
+
+  it('serves a signed link with no session, only for exactly the run, package and size it names', async () => {
+    mocks.identity.mockReturnValue({ kind: 'unauthenticated' });
+    mocks.verify.mockReturnValue({ purpose: 'thumbnail-link', runId: RUN, tenantId: 't1', packageId: 'c1', size: 'full' });
+    expect((await app.inject({ method: 'GET', url: `/runs/${RUN}/thumbnail/c1/full?t=tok` })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/runs/${RUN}/thumbnail/c1/feed?t=tok` })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: `/runs/${RUN}/thumbnail/c9/full?t=tok` })).statusCode).toBe(404);
+  });
+
+  it('refuses a signed link whose tenant belongs to another tenant, and a link that does not verify', async () => {
+    mocks.identity.mockReturnValue({ kind: 'unauthenticated' });
+    mocks.verify.mockReturnValue({ purpose: 'thumbnail-link', runId: RUN, tenantId: 'other-tenant', packageId: 'c1', size: 'full' });
+    expect((await app.inject({ method: 'GET', url: `/runs/${RUN}/thumbnail/c1/full?t=tok` })).statusCode).toBe(404);
+    mocks.verify.mockReturnValue(null);
+    expect((await app.inject({ method: 'GET', url: `/runs/${RUN}/thumbnail/c1/full?t=forged` })).statusCode).toBe(404);
   });
 
   it('is 404 for a run with no packaging', async () => {

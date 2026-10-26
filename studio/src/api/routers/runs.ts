@@ -61,6 +61,7 @@ import { readPackaging } from '../../run-pipeline/packaging-stage';
 import { buildPackagingView } from '../../packaging/view';
 import { resolveChoice } from '../../packaging/choice';
 import { readChapterTimings } from '../../long-form/artifacts';
+import { isAuthConfigured, signThumbnailLinkToken } from '../../auth';
 import { chapterBoundsForBrief, checkBriefChapterPlan, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
 import { chapterBounds, chapterBoundsView, scriptTargetWords, type ChapterBoundsView } from '../../long-form/chapter-bounds';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
@@ -1139,6 +1140,11 @@ export const runsRouter = router({
             packaging,
             chapterTimings: readChapterTimings(video?.output),
             videoSeconds: typeof videoOut?.durationSeconds === 'number' ? videoOut.durationSeconds : null,
+            // A one-hour link per picture, so the app and the system browser can fetch it without a header.
+            ...(isAuthConfigured() && {
+              linkFor: (packageId: string, size: string) =>
+                `/runs/${input.runId}/thumbnail/${packageId}/${size}?t=${signThumbnailLinkToken({ runId: input.runId, tenantId: run.tenantId, packageId, size })}`,
+            }),
           })
         : null,
     };

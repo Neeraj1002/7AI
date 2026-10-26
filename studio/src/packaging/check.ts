@@ -46,6 +46,22 @@ export function correctionEarned(brief: CuriosityBrief | null, scriptText: strin
 
 export type ConceptIssue = { code: string; message: string };
 
+// Scenery and light that every picture has; a prop on this list needs no mention in the script.
+const GENERIC_SCENERY = new Set(['sky', 'sea', 'ocean', 'water', 'waves', 'wave', 'ground', 'floor', 'light', 'shadow', 'shadows', 'haze', 'fog', 'mist', 'cloud', 'clouds', 'horizon', 'sun', 'sunset', 'sunrise', 'smoke', 'dust', 'rain', 'snow', 'wall', 'walls', 'shore', 'sand', 'grass', 'silhouette', 'background', 'foreground']);
+
+// A prop is supported when its last word (its head noun) appears in the script, allowing a plural or a plain
+// verb-ish ending. One fixed rule, so "a wooden toy" is refused when the script never says toy.
+export function unsupportedProps(props: string[], scriptText: string): string[] {
+  const scriptWords = normalise(scriptText).split(' ').filter(Boolean);
+  return props.filter((raw) => {
+    const words = normalise(raw).split(' ').filter(Boolean);
+    const head = words[words.length - 1];
+    if (!head || GENERIC_SCENERY.has(head)) return false;
+    const stem = head.length > 4 ? head.replace(/(ies|es|s)$/, '') : head.replace(/s$/, '');
+    return !scriptWords.some((w) => w.startsWith(stem) && w.length - stem.length <= 3);
+  });
+}
+
 // The checks a title alone can fail, shared by a concept (above) and a title the founder edits at Gate 2: length,
 // fake badges, words that promise a hidden truth, and figures or hedges the script does not support.
 export function checkTitle(params: {
@@ -104,6 +120,10 @@ export function validateConcept(params: {
 
   if (!quoteInScript(scriptText, concept.answeredIn.quote)) {
     add('answer_not_in_script', 'The place the question is answered is not a quotation from the approved script.');
+  }
+  const missing = unsupportedProps(concept.props, scriptText);
+  if (missing.length > 0) {
+    add('prop_not_in_script', `The picture shows ${missing.join(', ')}, which the approved script never mentions.`);
   }
   if (!quoteInScript(scriptText, concept.supportQuote)) {
     add('support_not_in_script', 'The phrase said to support the picture is not in the approved script.');

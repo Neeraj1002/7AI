@@ -90,7 +90,7 @@ describe('runs.packaging', () => {
     const view = out.view!;
     expect(view.packages).toHaveLength(1);
     expect(view.packages[0]).toMatchObject({ title: makeConcept().title, question: makeConcept().question, answeredAt: 'Chapter 3, Why Almost Destroyed, about 0:41' });
-    expect(view.packages[0].imageUrls.full).toBe(`/runs/${RUN_ID}/thumbnail/c1/full`);
+    expect(view.packages[0].imageUrls.full.startsWith(`/runs/${RUN_ID}/thumbnail/c1/full`)).toBe(true);
     expect(view.videoSeconds).toBe(120);
     const json = JSON.stringify(view);
     expect(json).not.toContain('SECRET PROMPT');

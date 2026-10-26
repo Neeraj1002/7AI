@@ -85,3 +85,24 @@ export function verifyOAuthStateToken(token: string): OAuthStateTokenPayload | n
     return null;
   }
 }
+
+// Sprint 6 Task 1 (R5, R6): a link to ONE thumbnail file, good for an hour, so the app can show it and the system
+// browser can open or download it without an Authorization header. Minted only by an authenticated, tenant-checked
+// call (runs.packaging); the route checks the token names this run, package and size and that the run is still
+// in the token's tenant.
+const THUMBNAIL_LINK_TTL_SECONDS = 60 * 60;
+export type ThumbnailLinkPayload = { purpose: 'thumbnail-link'; runId: string; tenantId: string; packageId: string; size: string };
+
+export function signThumbnailLinkToken(params: { runId: string; tenantId: string; packageId: string; size: string }): string {
+  const payload: ThumbnailLinkPayload = { purpose: 'thumbnail-link', ...params };
+  return jwt.sign(payload, requireSecret(), { expiresIn: THUMBNAIL_LINK_TTL_SECONDS });
+}
+
+export function verifyThumbnailLinkToken(token: string): ThumbnailLinkPayload | null {
+  try {
+    const decoded = jwt.verify(token, requireSecret()) as ThumbnailLinkPayload;
+    return decoded.purpose === 'thumbnail-link' ? decoded : null;
+  } catch {
+    return null;
+  }
+}

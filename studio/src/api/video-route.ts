@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { findLatestAttempt, listStagesForRun } from '../models/repositories/pipeline-stage.repository';
 import { findPipelineRunById } from '../models/repositories/pipeline-run.repository';
-import { resolveRequestIdentity } from '../auth';
+import { resolveRequestIdentity, verifyThumbnailLinkToken } from '../auth';
 import { MVP_TENANT_ID } from '../types';
 import { readPackaging } from '../run-pipeline/packaging-stage';
 import { thumbnailFileFor } from '../packaging/view';
@@ -59,11 +59,15 @@ export async function registerVideoRoute(fastify: FastifyInstance): Promise<void
   // Sprint 6 Task 1 (R5, R6): one thumbnail of a run's Gate 2 packages, in one of three sizes. Unlike the video
   // routes above this one checks that the run belongs to the caller's tenant (the packaging task's own rule), and
   // takes the file name from the stored record, never from the request. `?download=1` sends it as a download.
-  fastify.get<{ Params: { id: string; packageId: string; size: string }; Querystring: { download?: string } }>(
+  fastify.get<{ Params: { id: string; packageId: string; size: string }; Querystring: { download?: string; t?: string } }>(
     '/runs/:id/thumbnail/:packageId/:size',
     async (request, reply) => {
+      // Either the caller's own session (or the ops token), or a signed link minted by runs.packaging for exactly
+      // this run, package and size. A link never reaches another tenant's run: the tenant in it must match the run.
       const identity = resolveRequestIdentity(request.headers.authorization);
-      const tenantId = identity.kind === 'session' ? identity.tenantId : identity.kind === 'ops-token' ? MVP_TENANT_ID : null;
+      const link = request.query.t ? verifyThumbnailLinkToken(request.query.t) : null;
+      const linkMatches = Boolean(link && link.runId === request.params.id && link.packageId === request.params.packageId && link.size === request.params.size);
+      const tenantId = linkMatches ? link!.tenantId : identity.kind === 'session' ? identity.tenantId : identity.kind === 'ops-token' ? MVP_TENANT_ID : null;
       const run = await findPipelineRunById(request.params.id);
       if (!tenantId || !run || run.tenantId !== tenantId) return reply.code(404).send({ error: 'not available for this run' });
       const stages = await listStagesForRun(run.id);

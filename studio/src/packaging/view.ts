@@ -47,6 +47,9 @@ export function buildPackagingView(params: {
   packaging: PackagingOutput;
   chapterTimings?: ChapterTiming[];
   videoSeconds?: number | null;
+  // Mints the address of one picture; the router passes a signed, one-hour link. Without one the plain
+  // path is used and the caller must send its own Authorization header.
+  linkFor?: (packageId: string, size: ThumbSize) => string;
 }): PackagingView {
   const { runId, packaging } = params;
   return {
@@ -65,7 +68,7 @@ export function buildPackagingView(params: {
       lettering: { words: p.lettering.words, subline: p.lettering.subline, typeface: p.recipe.typefaceFamily },
       readableAtSidebar: p.lettering.readableAtSidebar,
       coldReader: p.coldReader,
-      imageUrls: Object.fromEntries(THUMB_SIZES.map((s) => [s, `/runs/${runId}/thumbnail/${p.id}/${s}`])) as Record<ThumbSize, string>,
+      imageUrls: Object.fromEntries(THUMB_SIZES.map((s) => [s, params.linkFor ? params.linkFor(p.id, s) : `/runs/${runId}/thumbnail/${p.id}/${s}`])) as Record<ThumbSize, string>,
     })),
     dropped: packaging.dropped.map((d) => ({ title: d.title, device: d.device, stage: d.stage, reasons: d.reasons })),
     choice: packaging.choice ? { packageId: packaging.choice.packageId, title: packaging.choice.title, titleEdited: packaging.choice.titleEdited } : null,

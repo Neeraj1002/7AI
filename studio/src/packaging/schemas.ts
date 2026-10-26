@@ -62,6 +62,9 @@ export const ConceptSchema = z.object({
   answeredIn: AnswerSchema,
   // A short phrase of the script that supports the scene the picture shows.
   supportQuote: z.string(),
+  // Every distinct physical object, vehicle or building visible besides the dominant subject, each one lowercase
+  // noun. Code checks each against the script: the spike's invented toy would have been caught here.
+  props: z.array(z.string()),
   // Said plainly when the script does not really support this device.
   deviceNote: z.string().nullable(),
   thumbnail: ThumbnailConceptSchema,
