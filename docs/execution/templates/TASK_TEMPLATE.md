@@ -4,16 +4,16 @@
 
 This is the standard template for every 7AI execution task, Week 2 onward. It's adapted from the template `yt_shorts` used, with two additions that matter specifically because 7AI is a stateful, multi-agent system rather than a single CRUD service: a **Schema Impact** section and a **Business Logic / State Transition** section. Almost every 7AI task touches the shared Postgres schema, the Orchestrator's state machine, or an agent contract — none of which a simpler template forces you to think through explicitly, and all three are exactly where "it compiled but the pipeline still broke" bugs come from in a system like this.
 
-**Week 1 is the one exception.** Because Week 1 is tightly-sequenced scaffolding (repo → DB → schema → orchestrator skeleton → bot → external setup), it ships as one consolidated document, `week1/WEEK1_INSTRUCTIONS.md`, instead of eight separate task files. Starting Week 2, each task gets its own file under `execution/week[N]/tasks/`, following this template exactly — mirroring how `yt_shorts` itself moved from a single `WEEK1_PLAN.md` to per-task files from Week 2 onward.
+**Week 1 is the one exception.** Because Week 1 is tightly-sequenced scaffolding (repo → DB → schema → orchestrator skeleton → bot → external setup), it ships as one consolidated document, `week1/WEEK1_INSTRUCTIONS.md` (archived, see docs/ARCHIVE_INDEX.md), instead of eight separate task files. Starting Week 2, each task gets its own file under `execution/week[N]/tasks/`, following this template exactly — mirroring how `yt_shorts` itself moved from a single `WEEK1_PLAN.md` to per-task files from Week 2 onward.
 
-**Updated 2026-09-09 — two parallel tracks.** Starting with Week 4 (backend) and the new frontend track, two independent lines of work build against this repo at the same time: the week-numbered backend track and the frontend track (`docs/execution/frontend/`). Everything below still applies unchanged to both — the only change is the Git Workflow section, which now distinguishes the two tracks by a `_BE`/`_FE` suffix on every branch, commit, and PR so it's unambiguous which track a given change belongs to. See that section for the full convention.
+**Updated 2026-09-09 — two parallel tracks.** Starting with Week 4 (backend) and the new frontend track, two independent lines of work build against this repo at the same time: the week-numbered backend track and the frontend track (`docs/execution/frontend/`) (archived, see docs/ARCHIVE_INDEX.md). Everything below still applies unchanged to both — the only change is the Git Workflow section, which now distinguishes the two tracks by a `_BE`/`_FE` suffix on every branch, commit, and PR so it's unambiguous which track a given change belongs to. See that section for the full convention.
 
 **Updated 2026-09-13 — "Sprint" replaces "Week" as the execution unit, starting Sprint 2.** The
-original Oct 15 MVP (`docs/execution/week1/` through `week5/`, plus `docs/execution/frontend/`) is
-now referred to as **Sprint 1** in planning docs (`docs/roadmap/SPRINT_ROADMAP.md`) — but its folders,
+original Oct 15 MVP (`docs/execution/week1/` through `week5/`, plus `docs/execution/frontend/`) (archived, see docs/ARCHIVE_INDEX.md) is
+now referred to as **Sprint 1** in planning docs (`docs/roadmap/SPRINT_ROADMAP.md`) (archived, see docs/ARCHIVE_INDEX.md) — but its folders,
 branches, and PRs are **not** retroactively renamed; `week[N]`/`WEEK[N]_BE` stays exactly as merged,
 as the historical record. Every unit of work from here on uses `sprint[N]` in place of `week[N]`:
-`docs/execution/sprint2/`, track identifier `SPRINT2_BE`/`SPRINT2_FE`, same internal shape
+`docs/execution/sprint2/` (archived, see docs/ARCHIVE_INDEX.md), track identifier `SPRINT2_BE`/`SPRINT2_FE`, same internal shape
 (`SCHEMA.md`/`BUSINESS_LOGIC.md`/`STATUS.md`/`tasks/`/`reports/`) as every week before it. Nothing
 else about this template changes — every section, the Git Workflow mechanics, and the naming rules
 below apply identically, with `sprint[N]` wherever `week[N]` is written.
@@ -79,7 +79,7 @@ _(This "read the template first" line is boilerplate — every task file include
 
 ### Context
 
-[Background from MVP_ROADMAP_OCT15.md or AGENT_FLEET_DESIGN.md, if relevant]
+[Background from MVP_ROADMAP_OCT15.md (archived, see docs/ARCHIVE_INDEX.md) or AGENT_FLEET_DESIGN.md, if relevant]
 
 ### Acceptance Criteria
 
@@ -271,7 +271,7 @@ Per-task reports: `reports/task[1-N].md`. Full narrative (once written): `report
 
 Update the row for _this_ task only — never rewrite other tasks' rows, and never let this file's status contradict what the task's own report says. If a later task changes an earlier task's status (e.g. the founder's Telegram token finally gets added and Task 6 becomes fully `Done`), that's the task that's actually doing the work updating the row, not a retroactive edit from whichever task happens to run next.
 
-The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (one `BUGS_TASK<N>` branch per release, covering every item regardless of role — changed 2026-09-26 from an earlier per-role split that was producing conflicting sibling PRs). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
+The frontend track follows this exact same pattern at `docs/execution/frontend/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) — it isn't week-numbered, but it gets the same one-file, upserted-per-task status tracker as any week does. From Sprint 2 onward, this same tracker lives at `docs/execution/sprint[N]/STATUS.md`. The bugs track's `docs/execution/bugs/STATUS.md` follows the same shape too — see `HOTFIXER_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (one `BUGS_TASK<N>` branch per release, covering every item regardless of role — changed 2026-09-26 from an earlier per-role split that was producing conflicting sibling PRs). The UI/UX track's `docs/execution/ui-ux/STATUS.md` also follows this same shape, with one addition — a **Sprint** column, since this track isn't sprint-numbered itself but its findings are usually discovered while a specific sprint's screens are being tested, and that context is worth keeping — see `UI_UX_AGENT_PROTOCOL.md` for that track's own Branch-naming specifics (`UIUX_FE`/`UIUX_APP_b<N>`).
 
 ### Git Workflow _(updated 2026-09-09 — two parallel tracks; updated 2026-09-13 — Sprint naming; updated 2026-09-25 — hard rules + checkout locations; updated 2026-10-06 — Hard rule 4, one worktree per concurrent session; updated 2026-10-19 — Hard rules 5 and 6, task doc in the first commit, pull main before ready)_
 
@@ -419,7 +419,7 @@ the Project (this same "7AI" Project, read via the docs tool) is always kept in 
 cross-checkout source of truth for reading, but a _committed_ git history — not a manually duplicated
 file — is still what makes a local checkout's own `docs/` folder correct.
 
-Two independent tracks now build against this repo at the same time: the **backend track** (`docs/execution/sprint[N]/` from Sprint 2 onward; `week[N]` for the historical Sprint 1) and the **frontend track** (`docs/execution/frontend/`, not sprint-numbered — one ongoing track rather than a sequence of sprints). Every branch, commit message, and PR title carries a suffix identifying which track it belongs to — **`_BE`** for backend, **`_FE`** for frontend — so it's unambiguous at a glance, in `git log`, the GitHub PR list, or anywhere else, which track a given change came from now that both can be in flight simultaneously.
+Two independent tracks now build against this repo at the same time: the **backend track** (`docs/execution/sprint[N]/` from Sprint 2 onward; `week[N]` for the historical Sprint 1) and the **frontend track** (`docs/execution/frontend/` (archived, see docs/ARCHIVE_INDEX.md), not sprint-numbered — one ongoing track rather than a sequence of sprints). Every branch, commit message, and PR title carries a suffix identifying which track it belongs to — **`_BE`** for backend, **`_FE`** for frontend — so it's unambiguous at a glance, in `git log`, the GitHub PR list, or anywhere else, which track a given change came from now that both can be in flight simultaneously.
 
 **Track identifier** (used in place of `[TRACK]` below):
 
@@ -473,7 +473,7 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 
 ## Links & References
 
-- [MVP_ROADMAP_OCT15.md](../../roadmap/MVP_ROADMAP_OCT15.md) — relevant section
+- [MVP_ROADMAP_OCT15.md](../../roadmap/MVP_ROADMAP_OCT15.md) (archived, see docs/ARCHIVE_INDEX.md) — relevant section
 - [AGENT_FLEET_DESIGN.md](../../design_doc/agents/all_agents/AGENT_FLEET_DESIGN.md) — relevant section
 - [SCHEMA.md](../SCHEMA.md)
 - [BUSINESS_LOGIC.md](../BUSINESS_LOGIC.md)
@@ -487,18 +487,18 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 7AI/docs/execution/
 ├── templates/
 │   └── TASK_TEMPLATE.md
-├── week1/                          ← Sprint 1 (historical — never renamed)
+├── week1/                          ← Sprint 1 (historical — never renamed) (archived, see docs/ARCHIVE_INDEX.md)
 │   ├── WEEK1_INSTRUCTIONS.md      ← single consolidated doc, no per-task files this week
 │   ├── SCHEMA.md
 │   ├── BUSINESS_LOGIC.md
 │   ├── STATUS.md                  ← one row per task, updated as each completes
 │   └── reports/
 │       └── week1-summary.md       ← written once Week 1 is done
-├── week2/  (same shape)            ← Sprint 1
-├── week3/  (same shape)            ← Sprint 1
-├── week4/  (same shape — backend track, branch/commit suffix `_BE`)   ← Sprint 1
-├── week5/  (same shape)            ← Sprint 1, closes out the original Oct 15 MVP
-├── frontend/  (same shape, not sprint-numbered — branch/commit suffix `_FE`)
+├── week2/  (same shape)            ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
+├── week3/  (same shape)            ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
+├── week4/  (same shape — backend track, branch/commit suffix `_BE`)   ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
+├── week5/  (same shape)            ← Sprint 1, closes out the original Oct 15 MVP (archived, see docs/ARCHIVE_INDEX.md)
+├── frontend/  (same shape, not sprint-numbered — branch/commit suffix `_FE`) (archived, see docs/ARCHIVE_INDEX.md)
 │   ├── SCHEMA.md
 │   ├── BUSINESS_LOGIC.md
 │   ├── STATUS.md
@@ -524,7 +524,7 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 │   ├── UI_UX_AGENT_PROTOCOL.md
 │   └── tasks/
 │       └── ...
-└── sprint2/  (same shape as week[N] above — first Sprint-2-onward unit)
+└── sprint2/  (same shape as week[N] above — first Sprint-2-onward unit) (archived, see docs/ARCHIVE_INDEX.md)
     ├── SCHEMA.md
     ├── BUSINESS_LOGIC.md
     ├── STATUS.md
@@ -542,7 +542,7 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
 
 ## How Claude Code Will Use This
 
-1. Claude reads the task file (or, for Week 1, `WEEK1_INSTRUCTIONS.md`) in full, plus the `SCHEMA.md`/`BUSINESS_LOGIC.md` it references.
+1. Claude reads the task file (or, for Week 1, `WEEK1_INSTRUCTIONS.md` (archived, see docs/ARCHIVE_INDEX.md)) in full, plus the `SCHEMA.md`/`BUSINESS_LOGIC.md` it references.
 2. If this is the track-iteration's first task: reads that track's `STATUS.md` `Branch` column first to
    check whether a branch is already in flight (Hard rule 3); if not, runs `git worktree list` and
    creates `[TRACK]_[SUFFIX]` (e.g. `SPRINT2_BE`, `FRONTEND_FE`) **in its own new worktree** from the
@@ -551,7 +551,7 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
    opens the track's draft PR — see "Git Workflow."
 3. Executes the "Implementation" section — entirely inside its own worktree.
 4. Runs the "Testing" section to verify.
-5. Generates the report at `execution/sprint[N]/reports/task[ID].md` (or `execution/week[N]/reports/task[ID].md` for Sprint 1, or `execution/frontend/reports/task[ID].md`) — committed from the same checkout the code changes came from.
+5. Generates the report at `execution/sprint[N]/reports/task[ID].md` (or `execution/week[N]/reports/task[ID].md` for Sprint 1, or `execution/frontend/reports/task[ID].md` (archived, see docs/ARCHIVE_INDEX.md)) — committed from the same checkout the code changes came from.
 6. Upserts this task's row in the track's `STATUS.md`, including the `Branch` column (creating the file if it's the track's first completed task).
 7. If implementation deviated from the schema or business logic as documented, updates `SCHEMA.md`/`BUSINESS_LOGIC.md` to match reality and flags the deviation in the report — the docs describe what was actually built, not just what was planned.
 8. Commits code + report + `STATUS.md` together and pushes to `[TRACK]_[SUFFIX]` — see "Git Workflow." Never to `main` (Hard rule 1), never to a branch this session didn't create (Hard rule 2), and never from a folder another session is using (Hard rule 4).

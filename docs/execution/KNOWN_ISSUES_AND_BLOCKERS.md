@@ -1,3 +1,5 @@
+Links to removed docs: see docs/ARCHIVE_INDEX.md (tag docs-archive-2026-10-26).
+
 # Known Issues & Blockers Tracker
 
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
