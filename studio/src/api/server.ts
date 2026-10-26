@@ -89,7 +89,9 @@ export async function startApiServer(): Promise<void> {
       // Testing-phase utility (see bug-report-page.ts) — deliberately
       // unauthenticated: a tester reporting "I can't log in" must still be
       // able to submit that report.
-      request.url.startsWith('/bugs')
+      request.url.startsWith('/bugs') ||
+      // Sprint 6 Task 1: a signed thumbnail link carries its own proof; the route verifies it and answers 404 otherwise.
+      /^\/runs\/[^/?]+\/thumbnail\/[^/?]+\/[^/?]+\?(?:.*&)?t=/.test(request.url)
     )
       return;
 

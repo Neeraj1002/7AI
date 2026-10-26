@@ -4,6 +4,7 @@ import { resolveAiVisualsPurpose, resolveImagePricing } from '../ai-visuals/regi
 import type { VideoKind } from '../formats/manifest';
 import { LONG_WORDS_PER_MINUTE } from '../agents/script-generation/long-form';
 import { longStillCount } from '../agents/video-generation/plan-long';
+import { RENDER_MAX } from '../packaging/constants';
 
 // Sprint 4 Task 9 (R7): a pre-flight cost estimate from the real unit prices
 // (never hard-coded rates), so the brief screen can suggest a per-video limit and
@@ -32,7 +33,8 @@ export type CostEstimate = {
   // Sprint 5 Task 8 (R8.1): what a run may spend including automatic retries, and the range to show.
   retryAllowanceUsd: number;
   rangeUsd: { minUsd: number; maxUsd: number };
-  breakdown: { stillsUsd: number; narrationUsd: number; transcriptionUsd: number; llmUsd: number; stillCount: number };
+  // packagingUsd (Sprint 6 Task 1): the curiosity packages and their thumbnails, long videos only, paid once per run.
+  breakdown: { stillsUsd: number; narrationUsd: number; transcriptionUsd: number; llmUsd: number; stillCount: number; packagingUsd: number };
 };
 
 function llmUsd(purpose: Parameters<typeof resolvePurpose>[0], inputTokens: number, outputTokens: number): number {
@@ -75,12 +77,22 @@ export function estimateRunCost(params: {
     // The Video Review call: up to 12 key frames (about 1,600 tokens each) and a short verdict.
     llmUsd('video-intelligence-own-draft', 12 * 1_600 + 800, 300);
 
+  // Sprint 6 Task 1 (decision 4): the packaging step is part of what a long video costs. Its text calls are the
+  // brief, six concepts and the cold reader; its pictures are RENDER_MAX stills at the same price the video's
+  // stills use. It runs once at Gate 2 and is reused by a Revise, so it is added once and not per attempt.
+  const packagingUsd = long
+    ? llmUsd('packaging-brief', scriptTokens + 1_200, 700) +
+      llmUsd('packaging-concepts', scriptTokens + 2_200, 3_500) +
+      llmUsd('packaging-cold-reader', 1_200, 600) +
+      RENDER_MAX * resolveImagePricing(imageModel).perImageUsd
+    : 0;
+
   const perAttempt = stillsUsd + narrationUsd + transcriptionUsd + llm;
   const rest = narrationUsd + transcriptionUsd + llm;
-  const estimateUsd = roundUsd(perAttempt);
+  const estimateUsd = roundUsd(perAttempt + packagingUsd);
   return {
     estimateUsd,
-    worstCaseUsd: roundUsd(stillsUsd + rest * ATTEMPTS_WORST_CASE),
+    worstCaseUsd: roundUsd(stillsUsd + rest * ATTEMPTS_WORST_CASE + packagingUsd),
     suggestedMaxUsd: suggestMaxUsd(estimateUsd),
     retryAllowanceUsd: roundUsd(estimateUsd * RETRY_ALLOWANCE_FACTOR),
     rangeUsd: { minUsd: estimateUsd, maxUsd: roundUsd(estimateUsd * RETRY_ALLOWANCE_FACTOR) },
@@ -90,6 +102,7 @@ export function estimateRunCost(params: {
       transcriptionUsd: roundUsd(transcriptionUsd),
       llmUsd: roundUsd(llm),
       stillCount,
+      packagingUsd: roundUsd(packagingUsd),
     },
   };
 }

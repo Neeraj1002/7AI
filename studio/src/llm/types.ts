@@ -12,6 +12,10 @@ export const PURPOSES = [
   'video-intelligence-own-draft',
   'video-production-planning',
   'metadata-generation',
+  // Sprint 6 Task 1 (curiosity packaging): the brief, the six concepts, and the text-only cold reader.
+  'packaging-brief',
+  'packaging-concepts',
+  'packaging-cold-reader',
 ] as const;
 export type Purpose = (typeof PURPOSES)[number];
 

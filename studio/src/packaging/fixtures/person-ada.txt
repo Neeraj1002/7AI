@@ -1,0 +1,9 @@
+Who wrote the first computer program? Most people say Ada Lovelace, and the claim is both true and more complicated than it sounds.
+
+In 1843 Ada Lovelace was twenty-seven years old. She had been asked to translate a French article about the Analytical Engine, a machine designed by Charles Babbage that was never built in his lifetime. She did more than translate it. She added her own notes, and together they were three times longer than the article itself.
+
+Why do those notes matter? The last of them, Note G, sets out a step-by-step method for the engine to calculate a sequence of numbers called Bernoulli numbers. It is the first published description of an algorithm written for a machine to carry out.
+
+But did she write the first program? Babbage had already sketched earlier calculations for his engine. What was new in her notes was the idea that such a machine might work on more than numbers. She wrote that it could act on anything whose relationships could be expressed in symbols, such as music.
+
+The engine itself was never completed, so her method was never run. She died in 1852, aged thirty-six. Her notes were largely forgotten until they were republished in 1953, and today she is remembered as the person who saw what a computing machine could become.

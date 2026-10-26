@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { TITLE_MAX_CHARS } from '../../packaging/constants';
 
 // This project's own Publishing request/response types — never the
 // underlying provider's. Mirrors studio/src/media/types.ts's shape.
 
 export const PublishingMetadataSchema = z.object({
-  title: z.string().min(1).max(100),
+  // One owner of the title limit: packaging/constants.ts (Sprint 6 Task 1 sweep).
+  title: z.string().min(1).max(TITLE_MAX_CHARS),
   description: z.string().min(1),
   tags: z.array(z.string()).min(1),
   // Sprint 2 Task 5 (H1) — where through the video (0 = first frame, 1 =

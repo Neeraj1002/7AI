@@ -7,6 +7,7 @@ import { findPipelineRunById, listRuns, listRunsPage, updatePipelineRun, claimPl
 import { createRun } from '../../run-pipeline/state-machine';
 import {
   listStagesForRun,
+  patchStageOutput,
   findLatestAttempt,
   findLatestCompletedAttempt,
 } from '../../models/repositories/pipeline-stage.repository';
@@ -56,6 +57,11 @@ import { LONG_WORDS_PER_MINUTE } from '../../agents/script-generation/long-form'
 import type { ChannelProfileData } from '../../channel-profile';
 import { readStillsProgress } from '../../run-pipeline/stills-progress';
 import { estimateRunCost } from '../../run-pipeline/cost-estimate';
+import { readPackaging } from '../../run-pipeline/packaging-stage';
+import { buildPackagingView } from '../../packaging/view';
+import { resolveChoice } from '../../packaging/choice';
+import { readChapterTimings } from '../../long-form/artifacts';
+import { isAuthConfigured, signThumbnailLinkToken } from '../../auth';
 import { chapterBoundsForBrief, checkBriefChapterPlan, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
 import { chapterBounds, chapterBoundsView, scriptTargetWords, type ChapterBoundsView } from '../../long-form/chapter-bounds';
 import { formatChapterSheet, parseChapterSheet } from '../../agents/script-generation/long-form';
@@ -1111,6 +1117,70 @@ export const runsRouter = router({
       }
       if (reviseRun) await recordManualRetry(reviseRun, 'video_generation');
       return { resolved: true };
+    }),
+
+  // Sprint 6 Task 1 (R5): the curiosity packages made for this run's Gate 2, in the shape the app shows, and the
+  // founder's choice once made. Same tenant scoping as `get`. `pending` is true while Gate 2 is open and the
+  // packages are still being made (or the run has no packaging, as for a Short).
+  packaging: publicProcedure.input(z.object({ runId: z.string().uuid() })).query(async ({ input, ctx }) => {
+    const run = await findPipelineRunById(input.runId);
+    if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+    const stages = await listStagesForRun(input.runId);
+    const gateRows = stages.filter((st) => st.stageName === 'gate2');
+    const withPackaging = [...gateRows].reverse().find((st) => readPackaging(st.output));
+    const packaging = withPackaging ? readPackaging(withPackaging.output) : null;
+    const video = [...stages].reverse().find((st) => st.stageName === 'video_generation' && st.status === 'completed');
+    const videoOut = video?.output as { durationSeconds?: number } | null | undefined;
+    return {
+      pending: !packaging && run.status === 'paused_gate2',
+      view: packaging
+        ? buildPackagingView({
+            runId: input.runId,
+            packaging,
+            chapterTimings: readChapterTimings(video?.output),
+            videoSeconds: typeof videoOut?.durationSeconds === 'number' ? videoOut.durationSeconds : null,
+            // A one-hour link per picture, so the app and the system browser can fetch it without a header.
+            ...(isAuthConfigured() && {
+              linkFor: (packageId: string, size: string) =>
+                `/runs/${input.runId}/thumbnail/${packageId}/${size}?t=${signThumbnailLinkToken({ runId: input.runId, tenantId: run.tenantId, packageId, size })}`,
+            }),
+          })
+        : null,
+    };
+  }),
+
+  // Sprint 6 Task 1 (R5): the founder's pick at Gate 2: a package (optionally with an edited title) or YouTube's
+  // suggested thumbnail. Written to the open Gate 2 row BEFORE `gate2` approve, so the choice survives a reload and
+  // a restart and publishing reads the same record. An edited title is checked like any title and refused when the
+  // script does not support it. Same ownership check as the gate itself.
+  choosePackage: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), packageId: z.string().min(1).max(40), editedTitle: z.string().max(200).optional() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+      const run = await findPipelineRunById(input.runId);
+      if (!run || run.status !== 'paused_gate2') {
+        throw new TRPCError({ code: 'CONFLICT', message: 'A thumbnail can only be chosen while the video is waiting at Gate 2.' });
+      }
+      const stages = await listStagesForRun(input.runId);
+      const gate = [...stages].reverse().find((st) => st.stageName === 'gate2' && st.status === 'running');
+      const packaging = gate ? readPackaging(gate.output) : null;
+      if (!gate || !packaging) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'The thumbnail options are not ready yet.' });
+      }
+      const gate1 = [...stages].reverse().find((st) => st.stageName === 'gate1' && st.status === 'completed');
+      const scriptText = (gate1?.output as { sanctionedScriptText?: string } | null)?.sanctionedScriptText ?? '';
+      const result = resolveChoice({
+        packaging,
+        packageId: input.packageId,
+        editedTitle: input.editedTitle,
+        scriptText,
+        briefText: run.briefText,
+        userId: ctx.userId,
+      });
+      if (!result.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: result.message });
+      await patchStageOutput(gate.id, { packaging: { ...packaging, choice: result.choice } });
+      return { choice: { packageId: result.choice.packageId, title: result.choice.title, titleEdited: result.choice.titleEdited } };
     }),
 
   // Bugs Task 7 (R3) — a needs_attention run had no way out from the app
