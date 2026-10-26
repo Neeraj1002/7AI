@@ -1,0 +1,13 @@
+label,cardId,round,firstSheetLabel,title,look,font,personRole,seed
+"M","lego-lego-5-face","round2-face","J","How Lego Climbed Out of a 1.4 Billion Kroner Shortfall","neutral, no channel negative","PlayfairDisplay","A child building with Lego bricks at a table","20261026"
+"N","lego-lego-5","round1-original","J","How Lego Climbed Out of a 1.4 Billion Kroner Shortfall","neutral (no profile)","PlayfairDisplay","","20261026"
+"O","mary-celeste-p3","round1-original","L","The Mary Celeste of 1872 against the ghost story","channel profile text","Anton","","20261026"
+"P","eiffel-p1-face","round2-face","B","The Tower Paris Was Allowed to Tear Down After 20 Years","neutral, no channel negative","PlayfairDisplay","An engineer from the tower's design and construction team, one of the people who built it and now watches it threatened with demolition","20261026"
+"Q","eiffel-p1","round1-original","B","The Tower Paris Was Allowed to Tear Down After 20 Years","neutral (no profile)","PlayfairDisplay","","20261026"
+"R","eiffel-p3","round1-original","C","How They Built a 300-Metre Tower From 18,038 Iron Pieces","neutral (no profile)","Anton","","20261026"
+"S","mary-celeste-p3-face","round2-face","L","The Mary Celeste of 1872 against the ghost story","channel style text, no channel negative","Anton","A member of the Dei Gratia's boarding party who climbed aboard the deserted Mary Celeste and went below into the cabins","20261026"
+"T","mary-celeste-p1-face","round2-face","G","Atlantic swell, 1872: a ship that won't answer","channel style text, no channel negative","PlayfairDisplay","A crew member of the Dei Gratia watching the unresponsive ship from the deck","20261026"
+"U","eiffel-p2-face","round2-face","E","How Eiffel Saved His Tower From Being Torn Down","neutral, no channel negative","Cinzel","An engineer from Eiffel's company conducting meteorological and aerodynamic experiments at the top of the tower; imagined and anonymous, not a depiction of any real person","20261026"
+"V","eiffel-p2-ceiling","round1-original","E","How Eiffel Saved His Tower From Being Torn Down","ceiling (no channel look, richer prompt)","Cinzel","","20261026"
+"W","eiffel-p3-face","round2-face","C","How They Built a 300-Metre Tower From 18,038 Iron Pieces","neutral, no channel negative","Anton","A riveter working on the tower's construction, one of the workers who assembled it from iron pieces held together by rivets","20261026"
+"X","mary-celeste-p1","round1-original","G","Atlantic swell, 1872: a ship that won't answer","channel profile text","PlayfairDisplay","","20261026"
