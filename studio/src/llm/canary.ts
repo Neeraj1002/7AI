@@ -34,6 +34,7 @@ import { planLongVideoProduction } from '../agents/video-generation/plan-long';
 import { generatePublishingMetadata } from '../agents/publishing';
 import { coldRead, generateBrief, generateConcepts } from '../packaging/generate';
 import { faceModeFor } from '../packaging/prompts';
+import { compareHeadToHead, criticRead, defectCheck, payoffCheck } from '../packaging/vision';
 import { buildSystemPrompt as buildVideoReviewPrompt } from '../agents/video-intelligence';
 import type { IntakeParsed } from '../types';
 
@@ -302,6 +303,23 @@ async function main() {
         retryGuard,
       });
       record('packaging-cold-reader', 'S-1', read.llm);
+    });
+  }
+
+  // ---- packaging pictures (Sprint 6 Task 1 PR B): defect check, payoff, critic, head to head on checked-in pictures ----
+  if (scripts['S-1']) {
+    await step('packaging pictures S-1', async () => {
+      const dir = path.join(__dirname, '..', 'packaging', 'fixtures', 'vision');
+      const script = scripts['S-1']!.scriptText;
+      const pic = { dir, full: 'eiffel-honest-feed.jpg', feed: 'eiffel-honest-feed.jpg', sidebar: 'eiffel-honest-sidebar.jpg' };
+      const defect = await defectCheck({ dir, feed: 'ada-clean-plain-feed.jpg', sidebar: 'ada-clean-plain-sidebar.jpg' }, retryGuard);
+      record('packaging-defect-check', 'S-1', defect.llm);
+      const payoff = await payoffCheck({ files: pic, scriptText: script, renderedScript: script, title: 'A morning in an Indus city', lettering: 'THE WEIGHER', question: 'What did a weigher do?', answeredAtQuote: script.slice(0, 80), retryGuard });
+      record('packaging-payoff', 'S-1', payoff.llm);
+      const critic = await criticRead(pic, 'A morning in an Indus city', retryGuard);
+      record('packaging-critic', 'S-1', critic.llm);
+      const compared = await compareHeadToHead({ a: { files: pic, title: 'A morning in an Indus city' }, b: { files: { ...pic, feed: 'eiffel-alt-feed.jpg', sidebar: 'eiffel-alt-sidebar.jpg' }, title: 'Why a weigher mattered' }, retryGuard });
+      for (const call of compared.calls) record('packaging-compare', 'S-1', call.llm);
     });
   }
 

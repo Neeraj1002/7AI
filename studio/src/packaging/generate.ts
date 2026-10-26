@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { callLLM, describeJsonError, extractJsonText, type LLMResponse, type Purpose, type RetryGuard } from '../llm';
+import type { LLMAttachment } from '../llm/types';
 import { NonTransientStageError } from '../run-pipeline/retry-with-backoff';
 import { llmUsageContext } from '../run-pipeline/stage-failure';
 import { quoteInScript } from './check';
@@ -28,17 +29,19 @@ import {
 
 export type Called<T> = { value: T; llm: LLMResponse };
 
-async function callJson<S extends z.ZodType>(params: {
+export async function callJson<S extends z.ZodType>(params: {
   purpose: Purpose;
   system: string;
   user: string;
   schema: S;
   retryGuard?: RetryGuard;
+  // Pictures the model reads with the text (PR B).
+  attachments?: LLMAttachment[];
 }): Promise<Called<z.infer<S>>> {
   const llm = await callLLM({
     purpose: params.purpose,
     system: params.system,
-    messages: [{ role: 'user', content: params.user }],
+    messages: [{ role: 'user', content: params.user, ...(params.attachments ? { attachments: params.attachments } : {}) }],
     outputSchema: params.schema,
     retryGuard: params.retryGuard,
   });

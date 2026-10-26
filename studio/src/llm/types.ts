@@ -16,6 +16,11 @@ export const PURPOSES = [
   'packaging-brief',
   'packaging-concepts',
   'packaging-cold-reader',
+  // Sprint 6 Task 1 PR B (R4): what a stranger sees, whether the script pays it off, a defect check, a head-to-head.
+  'packaging-critic',
+  'packaging-payoff',
+  'packaging-defect-check',
+  'packaging-compare',
 ] as const;
 export type Purpose = (typeof PURPOSES)[number];
 

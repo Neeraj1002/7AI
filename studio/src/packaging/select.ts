@@ -5,7 +5,7 @@ export type Dropped = {
   id: string;
   title: string;
   device: CuriosityDevice;
-  stage: 'code-check' | 'cold-reader' | 'render';
+  stage: 'code-check' | 'cold-reader' | 'render' | 'picture-check' | 'payoff';
   reasons: string[];
 };
 

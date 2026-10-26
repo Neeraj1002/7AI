@@ -6,10 +6,23 @@ import { STILL_SIZE_LANDSCAPE } from '../ai-visuals/sizes';
 import { DATA_DIR } from '../config/paths';
 import { formatTimestamp, type ChapterTiming } from '../long-form/chapters';
 import { coldReadSelection, type Dropped } from './select';
-import { parseTitleLimit, validateConcept, type ConceptIssue } from './check';
+import { parseTitleLimit, unsupportedProps, validateConcept, type ConceptIssue } from './check';
 import { RENDER_MAX, RENDER_MIN, TYPEFACES, type CuriosityDevice, type TypefaceMood } from './constants';
 import { coldRead as realColdRead, generateBrief as realGenerateBrief, generateConcepts as realGenerateConcepts } from './generate';
 import { composeThumbnail as realComposeThumbnail, type LetteredThumbnail } from './lettering';
+import {
+  compareHeadToHead as realCompare,
+  criticReasons,
+  criticRead as realCriticRead,
+  defectCheck as realDefectCheck,
+  defectWarnings,
+  lettersCover,
+  payoffCheck as realPayoffCheck,
+  payoffReasons,
+  type CriticRead,
+  type DefectCheck,
+  type PayoffCheck,
+} from './vision';
 import { faceModeFor, renderScript, thumbnailPrompt, type ChannelLook, type FaceMode, type ScriptChapterText } from './prompts';
 import type { Concept, CuriosityBrief } from './schemas';
 
@@ -40,11 +53,23 @@ export type PackageRecord = {
     prompt: string;
     imageModel: string;
   };
-  lettering: Omit<LetteredThumbnail, 'files'>;
-  // File names inside thumbnailsDir(runId).
-  files: { full: string; feed: string; sidebar: string };
+  lettering: Omit<LetteredThumbnail, 'files' | 'plain'>;
+  // File names inside thumbnailsDir(runId). `plain` is the picture before lettering (the defect check reads it).
+  files: { full: string; feed: string; sidebar: string; plainFeed?: string; plainSidebar?: string };
   coldReader: { curiosity: number; wouldClick: 'yes' | 'maybe' | 'no'; guessedAbout: string } | null;
   imageCostUsd: number;
+  // PR B (R4). Absent on packages made before it.
+  checks?: {
+    // A stranger who sees only the picture and the title. Advisory: it orders and annotates, never picks.
+    critic: CriticRead;
+    // The script against the picture and the words. The package is only here because every part passed.
+    payoff: PayoffCheck;
+    defects: Pick<DefectCheck, 'faceVisible' | 'uncannyAtFeed' | 'uncannyAtSidebar' | 'defects' | 'handsOk'>;
+    // Head to head against the other survivors, both orders each.
+    headToHead: { wins: number; losses: number; ties: number; reasons: string[] };
+  };
+  // Things the founder should know and that did not drop the package (an uncanny face, lettering moved off a face).
+  warnings?: string[];
 };
 
 export type PackagingStatus = 'ready' | 'weak_gap' | 'none_passed' | 'failed' | 'skipped';
@@ -88,6 +113,11 @@ export type BuildDeps = {
   coldRead: typeof realColdRead;
   generateStills: typeof realGenerateStills;
   composeThumbnail: typeof realComposeThumbnail;
+  // PR B
+  defectCheck: typeof realDefectCheck;
+  payoffCheck: typeof realPayoffCheck;
+  criticRead: typeof realCriticRead;
+  compareHeadToHead: typeof realCompare;
 };
 export const REAL_DEPS: BuildDeps = {
   generateBrief: realGenerateBrief,
@@ -95,11 +125,15 @@ export const REAL_DEPS: BuildDeps = {
   coldRead: realColdRead,
   generateStills: realGenerateStills,
   composeThumbnail: realComposeThumbnail,
+  defectCheck: realDefectCheck,
+  payoffCheck: realPayoffCheck,
+  criticRead: realCriticRead,
+  compareHeadToHead: realCompare,
 };
 
 export type BuildHooks = {
   // Every billed text call, booked by the caller as its own usage rows.
-  onText: (label: 'brief' | 'concepts' | 'cold-reader', calls: LLMResponse[]) => Promise<void>;
+  onText: (label: 'brief' | 'concepts' | 'cold-reader' | 'defect-check' | 'payoff' | 'critic' | 'compare', calls: LLMResponse[]) => Promise<void>;
   // Each image, right after it is paid for.
   onImage: (info: { packageId: string; costUsd: number; model: string }) => Promise<void>;
   // Durable progress, so a restart does not pay for finished steps twice.
@@ -196,6 +230,10 @@ export async function buildPackaging(params: {
   const dir = thumbnailsDir(params.runId);
   const packages: PackageRecord[] = [];
   let imageCostUsd = 0;
+  const bookCalls = async (label: Parameters<BuildHooks['onText']>[0], called: Array<{ llm: LLMResponse }>) => {
+    await params.hooks.onText(label, called.map((c) => c.llm));
+    textCostUsd += spent(called.map((c) => c.llm));
+  };
   for (const keep of selection.kept.slice(0, count)) {
     const concept = survivors.find((s) => s.id === keep.id)!.concept;
     const prompt = thumbnailPrompt(concept, params.look, faceMode);
@@ -227,7 +265,61 @@ export async function buildPackaging(params: {
       dropped.push({ id: keep.id, title: concept.title, device: concept.device, stage: 'render', reasons: [`The lettering is only ${lettered.mainPxSidebar}px tall at the sidebar size.`] });
       continue;
     }
-    const { files, ...letteringInfo } = lettered;
+
+    // ---- PR B (R4): the picture-reading checks. Hard results drop the package with the reason; nothing here picks.
+    const warnings: string[] = [];
+    const defect = await deps.defectCheck({ dir, feed: path.basename(lettered.plain.feed), sidebar: path.basename(lettered.plain.sidebar) }, params.retryGuard);
+    await bookCalls('defect-check', [defect]);
+    warnings.push(...defectWarnings(defect.value));
+    // Lettering over a face or the subject: the box is the lettering's own, the face and subject boxes are the model's.
+    // Try the picture's other zones, calmest first, with no new model call (the picture has not changed).
+    let drawn = lettered;
+    let cover = lettersCover(drawn.textBox, defect.value);
+    const tried = new Set([drawn.zone]);
+    const coveredWhat = cover.what;
+    for (const zone of drawn.zonesByCalm) {
+      if (!cover.covers) break;
+      if (tried.has(zone)) continue;
+      tried.add(zone);
+      const again = await deps.composeThumbnail({
+        rawImagePath: stills.imagePaths[0], outDir: dir, baseName: keep.id, words: concept.thumbnail.lettering.words,
+        subline: concept.thumbnail.lettering.subline, zone, exactZone: true, typeface,
+      });
+      const next = lettersCover(again.textBox, defect.value);
+      if (!next.covers && again.readableAtSidebar) {
+        warnings.push(`The lettering was moved to the ${zone} so it does not cover ${coveredWhat}.`);
+        // The record keeps the zone the concept asked for, not the one of the last try.
+        drawn = { ...again, requestedZone: lettered.requestedZone };
+        cover = next;
+      }
+    }
+    if (cover.covers) {
+      dropped.push({ id: keep.id, title: concept.title, device: concept.device, stage: 'picture-check', reasons: [`The lettering covers ${cover.what} wherever it is placed.`] });
+      continue;
+    }
+    const files = drawn.files;
+    const pictureFiles = { dir, full: path.basename(files.full), feed: path.basename(files.feed), sidebar: path.basename(files.sidebar) };
+    const letteringText = [concept.thumbnail.lettering.words, drawn.subline].filter(Boolean).join('. ');
+
+    const payoff = await deps.payoffCheck({
+      files: pictureFiles, scriptText: params.scriptText, renderedScript: rendered, title: concept.title.trim(), lettering: letteringText,
+      question: concept.question, answeredAtQuote: concept.answeredIn.quote, unnamedProps: unsupportedProps(concept.props, params.scriptText), retryGuard: params.retryGuard,
+    });
+    await bookCalls('payoff', [payoff]);
+    const payoffFails = payoffReasons(payoff.value, params.scriptText);
+    if (payoffFails.length > 0) {
+      dropped.push({ id: keep.id, title: concept.title, device: concept.device, stage: 'payoff', reasons: payoffFails });
+      continue;
+    }
+    const critic = await deps.criticRead(pictureFiles, concept.title.trim(), params.retryGuard);
+    await bookCalls('critic', [critic]);
+    const criticFails = criticReasons(critic.value);
+    if (criticFails.length > 0) {
+      dropped.push({ id: keep.id, title: concept.title, device: concept.device, stage: 'picture-check', reasons: criticFails });
+      continue;
+    }
+
+    const { files: drawnFiles, plain, ...letteringInfo } = drawn;
     packages.push({
       id: keep.id,
       device: concept.device,
@@ -237,13 +329,51 @@ export async function buildPackaging(params: {
       answeredAt: answeredAt(concept, params.chapters, params.chapterTimings),
       recipe: { concept: concept.thumbnail, faceMode, typeface, typefaceFamily: TYPEFACES[typeface].family, prompt, imageModel: stills.model },
       lettering: letteringInfo,
-      files: { full: path.basename(files.full), feed: path.basename(files.feed), sidebar: path.basename(files.sidebar) },
+      files: {
+        full: path.basename(drawnFiles.full), feed: path.basename(drawnFiles.feed), sidebar: path.basename(drawnFiles.sidebar),
+        plainFeed: path.basename(plain.feed), plainSidebar: path.basename(plain.sidebar),
+      },
       coldReader: read ? { curiosity: read.curiosity, wouldClick: read.wouldClick, guessedAbout: read.guessedAbout } : null,
       imageCostUsd: Number(stills.costUsd),
+      checks: {
+        critic: critic.value,
+        payoff: payoff.value,
+        defects: {
+          faceVisible: defect.value.faceVisible, uncannyAtFeed: defect.value.uncannyAtFeed, uncannyAtSidebar: defect.value.uncannyAtSidebar,
+          defects: defect.value.defects, handsOk: defect.value.handsOk,
+        },
+        headToHead: { wins: 0, losses: 0, ties: 0, reasons: [] },
+      },
+      ...(warnings.length > 0 && { warnings }),
     });
   }
+
+  // Head to head between the survivors, both orders each; advisory, it only orders the cards.
+  if (packages.length >= 2) {
+    for (let i = 0; i < packages.length; i += 1) {
+      for (let j = i + 1; j < packages.length; j += 1) {
+        const a = packages[i];
+        const b = packages[j];
+        const verdict = await deps.compareHeadToHead({
+          a: { files: { dir, full: a.files.full, feed: a.files.feed, sidebar: a.files.sidebar }, title: a.title },
+          b: { files: { dir, full: b.files.full, feed: b.files.feed, sidebar: b.files.sidebar }, title: b.title },
+          retryGuard: params.retryGuard,
+        });
+        await bookCalls('compare', verdict.calls);
+        const ha = a.checks!.headToHead;
+        const hb = b.checks!.headToHead;
+        if (verdict.winner === 'a') { ha.wins += 1; hb.losses += 1; }
+        else if (verdict.winner === 'b') { hb.wins += 1; ha.losses += 1; }
+        else { ha.ties += 1; hb.ties += 1; }
+        ha.reasons.push(...verdict.reasons);
+        hb.reasons.push(...verdict.reasons);
+      }
+    }
+    packages.sort((x, y) => (y.checks!.headToHead.wins - x.checks!.headToHead.wins) || ((y.coldReader?.curiosity ?? 0) - (x.coldReader?.curiosity ?? 0)));
+  }
   if (packages.length === 0) {
-    return { ...common, concepts, textCostUsd, dropped, imageCostUsd, status: 'none_passed', reason: 'No picture came back usable.' };
+    const why = dropped.filter((d) => d.stage === 'render' || d.stage === 'picture-check' || d.stage === 'payoff').map((d) => `"${d.title}": ${d.reasons.join(' ')}`);
+    return { ...common, concepts, textCostUsd, dropped, imageCostUsd, status: 'none_passed', reason: why.length > 0 ? `Every picture failed a check. ${why.join(' ')}` : 'No picture came back usable.' };
   }
   return { ...common, concepts, textCostUsd, imageCostUsd, dropped, packages, status: 'ready', reason: null };
 }

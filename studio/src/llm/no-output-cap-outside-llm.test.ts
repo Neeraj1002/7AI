@@ -35,7 +35,8 @@ describe('no file outside src/llm/ defines an output-token cap', () => {
         });
     }
     expect(found).toEqual([]);
-  });
+    // Reads the whole source tree; under a loaded full run the default 5 s was not enough (seen twice in Sprint 6 Task 1).
+  }, 30_000);
 
   it('the patterns catch what they are meant to catch', () => {
     expect(CAP_CONSTANT.test('export const SCRIPT_MAX_TOKENS = 4096;')).toBe(true);

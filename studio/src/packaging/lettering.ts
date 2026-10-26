@@ -20,6 +20,7 @@ import {
 export const THUMBNAIL_FONTS_DIR = path.resolve(DATA_DIR, 'fonts', 'thumbnails');
 
 export type Zone = 'top' | 'bottom' | 'left' | 'right';
+export type Box = { x0: number; y0: number; x1: number; y1: number };
 
 let fontsRegistered = false;
 function registerFonts(): void {
@@ -122,12 +123,18 @@ export type LetteredThumbnail = {
   // Where it was drawn, and where the concept asked for it (they differ when the picture was busy there).
   zone: Zone;
   requestedZone: Zone;
+  // Zones from calmest to busiest on this picture, for a second try (PR B).
+  zonesByCalm: Zone[];
+  // Where the lettering was drawn, as fractions of the frame (x0, y0, x1, y1).
+  textBox: Box;
   lines: number;
   mainPxFull: number;
   mainPxFeed: number;
   mainPxSidebar: number;
   readableAtSidebar: boolean;
   files: { full: string; feed: string; sidebar: string };
+  // The picture without lettering at feed and sidebar size, for the defect check only (never served).
+  plain: { feed: string; sidebar: string };
 };
 
 function scaled(src: Canvas, width: number): Canvas {
@@ -148,6 +155,8 @@ export async function composeThumbnail(params: {
   words: string;
   subline: string | null;
   zone: Zone;
+  // Draw in exactly this zone (a second try after the defect check found the first one covering the subject).
+  exactZone?: boolean;
   typeface: TypefaceMood;
 }): Promise<LetteredThumbnail> {
   registerFonts();
@@ -161,8 +170,14 @@ export async function composeThumbnail(params: {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, sy, img.width, srcH, 0, 0, THUMB_FULL.width, THUMB_FULL.height);
 
+  // The picture as the model drew it, before any scrim or lettering, for the defect check.
+  const plainCanvas = createCanvas(THUMB_FULL.width, THUMB_FULL.height);
+  plainCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
   // Where the lettering goes: the concept's zone, moved to the calmest part of the picture when that part is busy.
-  const zone = chooseZone(params.zone, zoneBusyness(canvas));
+  const busy = zoneBusyness(canvas);
+  const zone = params.exactZone ? params.zone : chooseZone(params.zone, busy);
+  const zonesByCalm = (Object.keys(busy) as Zone[]).sort((a, b) => busy[a] - busy[b]);
   const box = BOX[zone];
   const bx = box.x0 * THUMB_FULL.width;
   const by = box.y0 * THUMB_FULL.height;
@@ -222,9 +237,27 @@ export async function composeThumbnail(params: {
     ctx.shadowColor = 'transparent';
   }
 
+  // The lettering's own rectangle, from the same measurements that drew it.
+  ctx.font = `${layout.size}px ${face.family}`;
+  let widest = Math.max(...layout.lines.map((l) => ctx.measureText(l).width));
+  if (subline) {
+    ctx.font = `${layout.subSize}px ${face.family}`;
+    widest = Math.max(widest, ctx.measureText(subline.toUpperCase()).width);
+  }
+  const tx0 = align === 'right' ? x - widest : x;
+  const textBox: Box = {
+    x0: Math.max(0, tx0 / THUMB_FULL.width),
+    y0: Math.max(0, yStart / THUMB_FULL.height),
+    x1: Math.min(1, (tx0 + widest) / THUMB_FULL.width),
+    y1: Math.min(1, (yStart + textH) / THUMB_FULL.height),
+  };
+
   await fs.mkdir(params.outDir, { recursive: true });
   const base = path.join(params.outDir, params.baseName);
   const files = { full: `${base}-full.jpg`, feed: `${base}-feed.jpg`, sidebar: `${base}-sidebar.jpg` };
+  const plain = { feed: `${base}-plain-feed.jpg`, sidebar: `${base}-plain-sidebar.jpg` };
+  await fs.writeFile(plain.feed, scaled(plainCanvas, THUMB_FEED_WIDTH).toBuffer('image/jpeg', 90));
+  await fs.writeFile(plain.sidebar, scaled(plainCanvas, THUMB_SIDEBAR_WIDTH).toBuffer('image/jpeg', 90));
   await fs.writeFile(files.full, canvas.toBuffer('image/jpeg', 90));
   await fs.writeFile(files.feed, scaled(canvas, THUMB_FEED_WIDTH).toBuffer('image/jpeg', 90));
   await fs.writeFile(files.sidebar, scaled(canvas, THUMB_SIDEBAR_WIDTH).toBuffer('image/jpeg', 90));
@@ -237,12 +270,15 @@ export async function composeThumbnail(params: {
     fontFamily: face.family,
     zone,
     requestedZone: params.zone,
+    zonesByCalm,
+    textBox,
     lines: layout.lines.length,
     mainPxFull: layout.size,
     mainPxFeed: Math.round(((layout.size * THUMB_FEED_WIDTH) / THUMB_FULL.width) * 10) / 10,
     mainPxSidebar,
     readableAtSidebar: mainPxSidebar >= MIN_MAIN_LETTER_PX_SIDEBAR,
     files,
+    plain,
   };
 }
 
