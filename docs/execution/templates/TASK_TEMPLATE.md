@@ -85,6 +85,7 @@ _(This "read the template first" line is boilerplate — every task file include
 
 - [ ] Criterion 1
 - [ ] Criterion 2
+- [ ] No channel-specific literal added to code (STATUS rule 4): the report shows the search that proves it
 ```
 
 ### Schema Impact _(new — not in the yt_shorts template)_
@@ -572,3 +573,4 @@ Both files are created at the start of every week/sprint (alongside `STATUS.md`,
 8. **Historical units are never renamed** — Sprint 1's work stays `week[N]` exactly as merged; only planning language and everything from Sprint 2 forward uses `sprint[N]`.
 9. **Branch discipline is explicit, not assumed** _(added 2026-09-25)_ — never push or merge to `main` directly; only ever commit to a branch you created yourself; always record the branch name in `STATUS.md` the moment it's created. These are hard rules, not defaults to override when a task feels urgent.
 10. **Working-directory isolation is explicit, not assumed** _(added 2026-10-06)_ — branches isolate commits, not working files. Every concurrent session works in its own `git worktree`, never in a folder another session is using (Hard rule 4).
+11. **Nothing channel-specific is hardcoded** _(added 2026-10-27)_ — personas, topic words, hook and ending rules, looks, voices, wording and thresholds tuned to one channel or niche belong in channel settings or format data (`resolveChannelConfig`), never in code. A task that needs one adds a setting with a neutral default. Every task states this as an acceptance criterion and every report proves it (STATUS rule 4).
