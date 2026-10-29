@@ -3,6 +3,7 @@ import { coldRead as realColdRead, generateBrief as realGenerateBrief } from './
 import { FACE_RULE_TEXT, faceModeFor, renderScript, type ChannelLook } from './prompts';
 import { scriptHashOf } from './build';
 import { HOOK_MAX_CHARS, HOOK_MAX_WORDS } from './constants';
+import { LONG_WORDS_PER_MINUTE, SHORT_WORDS_PER_MINUTE } from '../run-pipeline/cost-estimate';
 import type { CuriosityBrief } from './schemas';
 import type { LLMResponse, RetryGuard } from '../llm';
 
@@ -14,7 +15,8 @@ import type { LLMResponse, RetryGuard } from '../llm';
 
 // The question must be opened within this many seconds of narration (R7: five for a Short, ten for a long video).
 export const OPEN_WITHIN_SECONDS = { short: 5, long: 10 } as const;
-const WORDS_PER_MINUTE = { short: 150, long: 140 } as const;
+// The narration pace: one owner each (script generation's long pace, the estimate's short pace), not a copy here.
+const WORDS_PER_MINUTE = { short: SHORT_WORDS_PER_MINUTE, long: LONG_WORDS_PER_MINUTE } as const;
 
 export type ShortOpening = {
   scriptHash: string;

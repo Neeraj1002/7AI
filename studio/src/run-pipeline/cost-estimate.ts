@@ -14,7 +14,7 @@ import { RENDER_MAX } from '../packaging/constants';
 
 // One pace for the script target and the estimate (calibrated from a real run; see long-form.ts).
 export { LONG_WORDS_PER_MINUTE };
-const SHORT_WORDS_PER_MINUTE = 150;
+export const SHORT_WORDS_PER_MINUTE = 150;
 const CHARS_PER_WORD = 6; // average English word plus its space
 const TOKENS_PER_WORD = 1.4;
 const SHORT_SECONDS_PER_STILL = 2.5;

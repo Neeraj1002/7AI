@@ -2,7 +2,10 @@
 // lettering) on a real approved or generated script, with the real LLM Registry calls and the real image model, and
 // writes everything to studio/data/packaging-real-check/<name>/ (gitignored) so the thumbnails can be looked at.
 //
-//   npx tsx scripts/packaging-real-check.ts --script <file> --name <name> [--look neutral|guided|styled] --live
+//   npx tsx scripts/packaging-real-check.ts --script <file> --name <name> [--look neutral|guided|styled] [--force-round-two] --live
+//
+// --force-round-two (R10): the first round's six concepts are canned and all break a code check (no model call), so the SECOND round
+// runs for real: the real concepts call with only rule names fed back, the real checks, the real pictures. Its own cap is $0.30.
 //
 // Spends real money (about $0.09 per run: text calls plus up to three images). Without --live it prints the plan and
 // exits. Looks are generic test profiles, not channels: neutral = no profile; guided = title guidance only;
@@ -10,12 +13,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import '../src/config/env'; // loads .env.local before anything reads the environment
-import { buildPackaging } from '../src/packaging/build';
+import { buildPackaging, REAL_DEPS } from '../src/packaging/build';
+import { makeConcept } from '../src/packaging/testkit';
 import { thumbnailsDir } from '../src/packaging/build';
 import { DATA_DIR } from '../src/config/paths';
 
 // This script's own cap; the whole task's live-check ceiling is the founder's $2.00 and every run counts against it.
-const MAX_SPEND_USD = 0.4;
+const MAX_SPEND_USD = process.argv.includes('--force-round-two') ? 0.3 : 0.4;
 
 const LOOKS = {
   neutral: {},
@@ -58,7 +62,26 @@ async function main() {
     scriptText,
     look: LOOKS[lookKey],
     imagesAllowed: 3,
+    ...(process.argv.includes('--force-round-two') && {
+      deps: {
+        ...REAL_DEPS,
+        generateConcepts: (() => {
+          let calls = 0;
+          return async (p: Parameters<typeof REAL_DEPS.generateConcepts>[0]) => {
+            calls += 1;
+            if (calls > 1) {
+              console.log(`round two is told:\n${(p.feedback ?? []).map((f) => `  ${f}`).join('\n')}`);
+              return REAL_DEPS.generateConcepts(p);
+            }
+            // Six concepts whose supporting phrase is not in the script: every one is dropped by the code checks.
+            const bad = Array.from({ length: 6 }, (_, i) => ({ ...makeConcept({ title: `Seeded failing concept ${i}`, supportQuote: 'an invented scene that is nowhere in the script' }) }));
+            return { value: bad, llm: { costUsd: '0', usage: { inputTokens: 0, outputTokens: 0 } } as never };
+          };
+        })(),
+      },
+    }),
     hooks: {
+      roundTwoRoom: async () => ({ ok: spent < MAX_SPEND_USD, imagesAllowed: 3, reason: 'the script own cap is reached' }),
       onText: async (label, calls) => {
         const cost = calls.reduce((s, c) => s + Number(c.costUsd), 0);
         spent += cost;
@@ -77,6 +100,7 @@ async function main() {
   for (const p of out.packages) for (const f of Object.values(p.files)) fs.copyFileSync(path.join(thumbnailsDir(runId), f), path.join(dest, `${p.id}-${path.basename(f).split('-').pop()}`));
   fs.writeFileSync(path.join(dest, 'result.json'), JSON.stringify(out, null, 2));
   console.log(events.join('\n'));
+  console.log(`second round: ${out.roundTwo?.state ?? 'n/a'}`);
   console.log(`status ${out.status}${out.reason ? `: ${out.reason}` : ''}; face ${out.faceMode}; typeface ${out.typeface}; total $${spent.toFixed(4)}`);
   if (out.brief) console.log(`brief: ${out.brief.question} | believe: ${out.brief.whatPeopleBelieve} | record: ${out.brief.whatTheRecordSays}`);
   for (const d of out.dropped) console.log(`dropped [${d.stage}] ${d.device} "${d.title}": ${d.reasons.join(' ')}`);

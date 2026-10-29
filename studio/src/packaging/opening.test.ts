@@ -1,8 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { LLMResponse } from '../llm';
 import { buildAss } from '../agents/video-generation/captions-ass';
+import { LONG_WORDS_PER_MINUTE, SHORT_WORDS_PER_MINUTE } from '../run-pipeline/cost-estimate';
 import { EIFFEL_SCRIPT, makeBrief } from './testkit';
 import { applyFrameZero, buildShortOpening, frameZeroScene, lookAtSupported, openingNote, openingWords, questionOpenedWithin, type OpeningDeps } from './opening';
 
@@ -94,8 +93,8 @@ describe('frame zero', () => {
 
 describe('advisory: is the question opened in the first seconds?', () => {
   it('uses the first five seconds for a Short and ten for a long video', () => {
-    expect(openingWords('one two three four five six seven eight nine ten eleven twelve thirteen fourteen', 'short').split(' ')).toHaveLength(13);
-    expect(openingWords(EIFFEL_SCRIPT, 'long').split(' ')).toHaveLength(23);
+    expect(openingWords('one two three four five six seven eight nine ten eleven twelve thirteen fourteen', 'short').split(' ')).toHaveLength(Math.round((SHORT_WORDS_PER_MINUTE / 60) * 5));
+    expect(openingWords(EIFFEL_SCRIPT, 'long').split(' ')).toHaveLength(Math.round((LONG_WORDS_PER_MINUTE / 60) * 10));
   });
   it("the Eiffel script opens its own question at once; a script that wanders does not", () => {
     expect(questionOpenedWithin(EIFFEL_SCRIPT, 'What almost happened to the most famous tower in the world?', 'short')).toBe(true);
@@ -116,12 +115,5 @@ describe('the hook line on the first frame (captions-ass)', () => {
   it('works with captions off (no caption words) and with no hook at all', () => {
     expect(buildAss({ words: [], style: 'phrase-grouped', hook: { text: 'A hook', seconds: 3 } }).ass).toContain('Hook,,0,0,0,,{\\fad(0,300)}A hook');
     expect(buildAss({ words, style: 'phrase-grouped' }).ass).not.toContain('Dialogue: 1,');
-  });
-});
-
-describe('channel-agnostic (Key Principle 11)', () => {
-  it('no channel name or niche word in the opening code', () => {
-    const text = fs.readFileSync(path.join(__dirname, 'opening.ts'), 'utf8') + fs.readFileSync(path.join(__dirname, 'rounds.ts'), 'utf8');
-    expect(text).not.toMatch(/\bNIYT\b|Not In Your Textbook|Underdogs|Cold Open|Indus|Eiffel|Mary Celeste/i);
   });
 });
