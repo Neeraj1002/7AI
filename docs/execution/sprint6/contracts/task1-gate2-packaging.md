@@ -1,6 +1,6 @@
 # Contract: Gate 2 packages (Sprint 6 Task 1, R5 and R6)
 
-**Status**: proposed 2026-10-29 by the architect, from the UI/UX designer's request (boards "NEXT 4", locked canvas) and the code on `main` after Task 1 PR A (#116) and PR B (#124). Agreed here before any build, so the backend and the app can work in parallel (contract first). Not a task doc: the backend and frontend tasks are written from it.
+**Status**: r2, 2026-10-29 (answers to the designer's three questions; "making" corrected). r1: proposed 2026-10-29 by the architect, from the UI/UX designer's request (boards "NEXT 4", locked canvas) and the code on `main` after Task 1 PR A (#116) and PR B (#124). Agreed here before any build, so the backend and the app can work in parallel (contract first). Not a task doc: the backend and frontend tasks are written from it.
 **What was read**: `studio/src/api/routers/runs.ts` (`packaging`, `choosePackage`), `studio/src/packaging/view.ts`, `choice.ts`, `build.ts`, `check.ts`, `constants.ts`, and the Task 1 reports. **Not read**: the app components and the exact shape of the publish receipt. Every "exists" line below is from the code; every "new" line is a decision; the agent confirms both in its R0.
 
 ## 1. What already exists (do not rebuild)
@@ -22,7 +22,7 @@ The designer's states map onto the existing ones. Keep the separate query (not `
 
 | Designer state | Server today | App rule |
 |---|---|---|
-| making | `pending: true` | Skeleton cards and the cost card. **No per-package `drawing / checking` progress in v1**: the packages are written when they are finished. |
+| making | **Correction 29 Oct (r2):** the packages are made *before* Gate 2 opens (`state-machine.ts` ~1845: made, then the approval is registered). While they are made the run is not yet `paused_gate2`, so today `runs.packaging` returns `pending: false, view: null`, and the app cannot tell "making" from "none". New field `making: boolean` (true while Gate 2 is being prepared and the packages are being made; the agent confirms the exact run state in R0). `pending: true` stays for the edge case (paused at Gate 2 with no packaging, for example after a restart). | Skeleton cards and the cost card while `making`. **No per-package `drawing / checking` progress in v1**: the packages are written when they are finished. |
 | ready | `status: 'ready'` | Swipe cards. |
 | none, weak gap | `status: 'weak_gap'` | "No honest package" board with `reason`. |
 | none, all dropped | `status: 'none_passed'` | Same board with `dropped[]` reasons. |
@@ -46,6 +46,8 @@ PackageView += {
 }
 ```
 
+**Approve, choose and edit are not available while `making`** (the approval is not open yet; the gate buttons appear when Gate 2 opens, as built). In the edge case (`pending`: paused at Gate 2, no packaging) Approve works and publishes with YouTube's suggested thumbnail; `choosePackage` refuses with "not ready yet". The app does not enable Approve on the making screen.
+
 The duration chip is drawn by the card from `videoSeconds` (already returned), never part of the file.
 
 ### B2. `runs.choosePackage`: unchanged
@@ -63,13 +65,13 @@ runs.checkPackageTitle({ runId, packageId, title })
                          supportedFigures: string[] }> }
 ```
 
-It wraps `checkTitle` (`studio/src/packaging/check.ts`) with the run's script and brief and **adds no rule**. The app does no rules of its own. **The limit is `titleLimit` from the server, not a literal 100:** it comes from the channel's title guidance (neutral 70, YouTube's own ceiling 100). There is no separate `editPackageTitle`: saving an edit is `choosePackage` with `editedTitle`, which refuses the same cases. Save is blocked in the app until `ok`.
+It wraps `checkTitle` (`studio/src/packaging/check.ts`) with the run's script and brief and **adds no rule**. The app does no rules of its own. **The limit is `titleLimit` from the server, not a literal 100:** it comes from the channel's title guidance (neutral 70, YouTube's own ceiling 100). There is no separate `editPackageTitle`: saving an edit is `choosePackage` with `editedTitle`, which refuses the same cases. **Saving an edit also chooses that package, by intent** (one choice per video; editing a title means you want that package): the card turns to "Chosen" with a small "title edited" note. Choosing another package, or YouTube's suggestion, drops the edit. Save is blocked in the app until `ok`.
 
 ### B4. Publish result for the thumbnail (new field on `runs.get`)
 
 ```ts
 runs.get += thumbnail: {
-  status: 'live' | 'not_applied' | 'pending';
+  status: 'live' | 'not_applied' | 'pending' | 'not_set';
   reasonText: string | null;           // YouTube's reason in plain words when not_applied
   source: 'package' | 'youtube-suggested' | 'frame-grab';
   packageId: string | null;
@@ -77,7 +79,7 @@ runs.get += thumbnail: {
 } | null                               // null until published
 ```
 
-Composed from the existing receipt (`coverFrameSet`, `coverFrameMessage`, the thumbnail follow-up state). Rule: `live` only when the follow-up reports success; a refusal is `not_applied` with the message; an `uncertain` or in-flight follow-up is `pending`. **A failed thumbnail never changes a successful video upload**, and the app never shows a custom thumbnail as live otherwise. The agent confirms the mapping in R0 and says what the receipt does not distinguish.
+Composed from the existing receipt (`coverFrameSet`, `coverFrameMessage`, the thumbnail follow-up state). `status` also takes `'not_set'`: **the app sent no thumbnail and YouTube chose its own** (`source: 'youtube-suggested'`). `reasonText` and `fileUrl` are null. The app shows one plain grey line, "YouTube chose the thumbnail": no tag, no amber, no download. For `source: 'frame-grab'` (a Short, a run whose Gate 2 packaging was off, an older run) `live` and `not_applied` keep today's meaning of the existing cover-frame result; `fileUrl` is null; the app shows no download. The custom-package states (tag "Live on YouTube", amber card with the reason, download) apply only when `source` is `'package'`. Rule: `live` only when the follow-up reports success; a refusal is `not_applied` with the message; an `uncertain` or in-flight follow-up is `pending`. **A failed thumbnail never changes a successful video upload**, and the app never shows a custom thumbnail as live otherwise. The agent confirms the mapping in R0 and says what the receipt does not distinguish.
 
 ## 3. Not in this contract (decided)
 
