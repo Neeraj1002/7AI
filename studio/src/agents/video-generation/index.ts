@@ -15,6 +15,9 @@ import type { VideoSpend } from './spend';
 import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
+import { buildDisclaimerCardAss } from '../../disclaimer/card-ass';
+import { readDisclaimerManifest } from '../../disclaimer/asset-spec';
+import { findHookEndSec, shiftTimed, spliceDisclaimerIntoNarration, type DisclaimerInsertion } from '../../disclaimer/splice';
 import { QUALITY_SPEC, END_TAIL_SECONDS } from './quality-spec';
 import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
 import {
@@ -432,6 +435,8 @@ export async function generateVideo(params: {
   spend?: VideoSpend;
   // Sprint 4 Task 12 (R4): stills finished so far, for runs.progress.
   onStillsProgress?: (progress: { done: number; total: number }) => void;
+  // Sprint 6 Task 2 (P5): insert the shared disclaimer clip and card after the hook.
+  disclaimer?: boolean;
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -446,11 +451,32 @@ export async function generateVideo(params: {
     params.spend.ttsCharacters = tts.characterCount;
     params.spend.ttsCostUsd = Number(tts.costUsd);
   }
-  const asr = await transcribe(tts.audioPath);
+  const asrSpoken = await transcribe(tts.audioPath);
   if (params.spend) {
     params.spend.transcriptionModel = resolveMediaPurpose('transcription').model;
-    params.spend.transcriptionSeconds = asr.audioDurationSeconds;
-    params.spend.transcriptionCostUsd = Number(asr.costUsd);
+    params.spend.transcriptionSeconds = asrSpoken.audioDurationSeconds;
+    params.spend.transcriptionCostUsd = Number(asrSpoken.costUsd);
+  }
+  // Sprint 6 Task 2 (P5): with the disclaimer On, the clip is spliced into the narration track after the hook and
+  // everything after it (captions, scene windows, stock cover, the mix) moves by the added seconds. Off: unchanged.
+  let voiceTrackPath = tts.audioPath;
+  let asr = asrSpoken;
+  let disclaimerInsertion: DisclaimerInsertion | undefined;
+  if (params.disclaimer) {
+    const manifest = await readDisclaimerManifest();
+    const spliced = path.join(path.dirname(tts.audioPath), `${path.basename(tts.audioPath, '.mp3')}-disclaimer.mp3`);
+    disclaimerInsertion = await spliceDisclaimerIntoNarration({
+      narrationPath: tts.audioPath,
+      hookEndSec: findHookEndSec(asrSpoken.segments),
+      clipSeconds: manifest.clipSeconds,
+      outputPath: spliced,
+    });
+    voiceTrackPath = spliced;
+    asr = {
+      ...asrSpoken,
+      segments: shiftTimed(asrSpoken.segments, disclaimerInsertion.atSec, disclaimerInsertion.gapSec),
+      audioDurationSeconds: asrSpoken.audioDurationSeconds + disclaimerInsertion.gapSec,
+    };
   }
   // Bugs Closure 2 (P8): the short hold after the last spoken word.
   const tailSeconds = END_TAIL_SECONDS;
@@ -460,6 +486,7 @@ export async function generateVideo(params: {
 
   const assFilename = `${params.attemptNumber}.ass`;
   const videoFilename = `${params.attemptNumber}.mp4`;
+  const cardAssFilename = `${params.attemptNumber}.disclaimer.ass`;
 
   // B5 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2/§3): captions are optional per
   // channel, default on (BrandAssets.captionsEnabled defaults to true if
@@ -481,6 +508,14 @@ export async function generateVideo(params: {
     assertCaptionFontPresent();
     const { ass } = buildAss({ words: timedWords, style: params.plan.captionStyle, holdLastCueMs: Math.round(tailSeconds * 1000) });
     await fs.writeFile(path.join(outputDir, assFilename), ass, 'utf-8');
+  }
+
+  if (disclaimerInsertion) {
+    await fs.writeFile(
+      path.join(outputDir, cardAssFilename),
+      buildDisclaimerCardAss({ layout: 'portrait', startSec: disclaimerInsertion.cardStartSec, endSec: disclaimerInsertion.cardEndSec }),
+      'utf-8',
+    );
   }
 
   const transcriptJsonPath = path.join(outputDir, `${params.attemptNumber}.transcript.json`);
@@ -618,9 +653,10 @@ export async function generateVideo(params: {
   // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
   // escape in the filtergraph, identical on Windows and the Linux VPS.
   const fontsDirArg = path.relative(outputDir, FONTS_DIR).split(path.sep).join('/');
-  const baseFilter = captionsEnabled
+  const cardFilter = disclaimerInsertion ? `,ass=${cardAssFilename}:fontsdir=${fontsDirArg}` : '';
+  const baseFilter = (captionsEnabled
     ? `${scaleCropFilter},ass=${assFilename}:fontsdir=${fontsDirArg}`
-    : scaleCropFilter;
+    : scaleCropFilter) + cardFilter;
   const videoFilterChain = hasLocalWatermark
     ? `${baseFilter}[framed];[framed][2:v]overlay=W-w-40:40[outv]`
     : `${baseFilter}[outv]`;
@@ -636,12 +672,12 @@ export async function generateVideo(params: {
   // sits the same distance under narration whatever track is picked.
   const bedGainDb = audioBedTrack
     ? computeBedGainDb(
-        await measureIntegratedLufs(tts.audioPath),
+        await measureIntegratedLufs(voiceTrackPath),
         await measureIntegratedLufs(audioBedTrack.filePath, { cache: true }),
       )
     : undefined;
   const measured = await measureMixLoudness({
-    voicePath: tts.audioPath,
+    voicePath: voiceTrackPath,
     bedPath: audioBedTrack?.filePath,
     bedGainDb,
     tailSeconds,
@@ -666,7 +702,7 @@ export async function generateVideo(params: {
     '-i',
     visualPath,
     '-i',
-    tts.audioPath,
+    voiceTrackPath,
     ...(hasLocalWatermark ? ['-i', watermarkPath as string] : []),
     ...(audioBedTrack ? ['-stream_loop', '-1', '-i', audioBedTrack.filePath] : []),
     '-filter_complex',
@@ -713,7 +749,7 @@ export async function generateVideo(params: {
   const ttsEntry = resolveMediaPurpose('tts', params.voice);
   const transcriptionEntry = resolveMediaPurpose('transcription');
   const visualCostUsd = stockFootageMeta ? Number(stockFootageMeta.costUsd) : Number(aiVisualsMeta?.costUsd ?? '0');
-  const costUsd = (Number(tts.costUsd) + Number(asr.costUsd) + visualCostUsd).toFixed(6);
+  const costUsd = (Number(tts.costUsd) + Number(asrSpoken.costUsd) + visualCostUsd).toFixed(6);
 
   return {
     output: {
@@ -726,7 +762,7 @@ export async function generateVideo(params: {
       provider: 'openai',
       model: `${ttsEntry.model}+${transcriptionEntry.model}`,
       characterCount: tts.characterCount,
-      audioDurationSeconds: asr.audioDurationSeconds,
+      audioDurationSeconds: asrSpoken.audioDurationSeconds,
       costUsd,
       metadata: {
         captionsEnabled,
@@ -755,8 +791,8 @@ export async function generateVideo(params: {
         ttsCostUsd: tts.costUsd,
         transcriptionProvider: transcriptionEntry.provider,
         transcriptionModel: transcriptionEntry.model,
-        transcriptionAudioDurationSeconds: asr.audioDurationSeconds,
-        transcriptionCostUsd: asr.costUsd,
+        transcriptionAudioDurationSeconds: asrSpoken.audioDurationSeconds,
+        transcriptionCostUsd: asrSpoken.costUsd,
         ffmpegCostUsd: 0,
       },
     },

@@ -53,6 +53,7 @@ import { loadResolvedConfig } from './resolved-config';
 import { findLikelyRepeatTopic } from './repeat-topic';
 import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
 import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
+import { disclaimerEnabled } from '../disclaimer/default';
 import { generateLongVideo } from '../agents/video-generation/long-form';
 import { planLongVideoProduction, reusableLongPlanningCheckpoint, type LongPlanningCheckpoint } from '../agents/video-generation/plan-long';
 import { assertWithinRunLimit } from './run-budget';
@@ -1296,6 +1297,7 @@ export async function runVideoGenerationStage(
             plan,
             voice: resolvedVoice,
             sceneStyle,
+            disclaimer: disclaimerEnabled(run.creationOptions),
             spend,
             guard: runLimitGuard,
             maxShotSeconds: qualityProfileFor('long', config.visualSecondsPerStill).maxShotSeconds,
@@ -1348,6 +1350,7 @@ export async function runVideoGenerationStage(
             excludeStockSourceIds: await listStockSourceIdsUsedByRun(runId),
             spend,
             onStillsProgress: stillsProgress.report,
+            disclaimer: disclaimerEnabled(run.creationOptions),
           });
       await stillsProgress.flush();
       await insertUsageEvent({

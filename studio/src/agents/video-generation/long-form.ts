@@ -17,6 +17,8 @@ import { buildSrtFromScript } from './subtitles-srt';
 import { renderProfileFor } from './render-profile';
 import {
   allocateFrames,
+  ffmpeg,
+  videoEncodeArgs,
   buildSceneTimeline,
   joinAndMux,
   mixLongAudio,
@@ -25,6 +27,10 @@ import {
   type ChapterSegmentPlan,
 } from './long-render';
 import type { ProductionPlan } from './plan';
+import { buildDisclaimerCardAss } from '../../disclaimer/card-ass';
+import { DISCLAIMER_ASSET_VERSION, readDisclaimerManifest } from '../../disclaimer/asset-spec';
+import { findHookEndSec, shiftChapters, shiftTimed, spliceDisclaimerIntoNarration, type DisclaimerInsertion } from '../../disclaimer/splice';
+import { FONTS_DIR } from './captions-ass';
 import { bindSceneAssets, createSceneMapping, validateScenePlan } from './scene-mapping';
 import type { VideoSpend } from './spend';
 import { addScenesToChapters, rebalanceShotLengths } from './shot-balance';
@@ -46,6 +52,8 @@ export type LongVideoParams = {
   plan: ProductionPlan;
   voice?: string;
   sceneStyle?: SceneStyle;
+  // Sprint 6 Task 2 (P5): insert the shared disclaimer clip and card after the hook.
+  disclaimer?: boolean;
   spend?: VideoSpend;
   onNarrationPaid?: (paid: NarrationPaid) => Promise<void>;
   onStillPaid?: (info: { index: number; costUsd: number; model: string }) => Promise<void>;
@@ -98,7 +106,7 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
 
   // 1. Narration, chunk by chunk, each booked as it is paid for.
   await guard();
-  const narration = await narrateChapters({
+  const narrationSpoken = await narrateChapters({
     chapters: params.chapters,
     voice: params.voice,
     workDir: path.join(workDir, 'narration'),
@@ -117,6 +125,27 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
       await guard();
     },
   });
+
+  // Sprint 6 Task 2 (P5): the clip is spliced into the narration after the hook; words, chapter markers and the
+  // length move by the added seconds, so scenes, subtitles and the mix below follow without further change.
+  let narration = narrationSpoken;
+  let disclaimerInsertion: DisclaimerInsertion | undefined;
+  if (params.disclaimer) {
+    const manifest = await readDisclaimerManifest();
+    disclaimerInsertion = await spliceDisclaimerIntoNarration({
+      narrationPath: narrationSpoken.audioPath,
+      hookEndSec: findHookEndSec(narrationSpoken.words),
+      clipSeconds: manifest.clipSeconds,
+      outputPath: path.join(workDir, `narration-${params.attemptNumber}-disclaimer.mp3`),
+    });
+    narration = {
+      ...narrationSpoken,
+      audioPath: path.join(workDir, `narration-${params.attemptNumber}-disclaimer.mp3`),
+      durationSeconds: narrationSpoken.durationSeconds + disclaimerInsertion.gapSec,
+      words: shiftTimed(narrationSpoken.words, disclaimerInsertion.atSec, disclaimerInsertion.gapSec),
+      chapterTimings: shiftChapters(narrationSpoken.chapterTimings, disclaimerInsertion.atSec, disclaimerInsertion.gapSec),
+    };
+  }
 
   const scriptWordCount = countWords(scriptText);
   const pace = measuredWordsPerMinute(scriptWordCount, narration.durationSeconds);
@@ -285,6 +314,19 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
     onChapterDone: (ci, resumed) =>
       console.log(`[video_generation] run ${params.pipelineRunId}: chapter ${ci + 1}/${params.chapters.length} ${resumed ? 'already rendered (resumed)' : 'rendered'}`),
   });
+  // The card is burned into the one chapter segment that holds the clip, so no other chapter is re-encoded.
+  if (disclaimerInsertion) {
+    const at = disclaimerInsertion.cardStartSec;
+    const ci = Math.max(0, narration.chapterTimings.findIndex((c) => at >= c.startSec && at < c.endSec));
+    const chapterStart = narration.chapterTimings[ci].startSec;
+    const cardEnd = Math.min(disclaimerInsertion.cardEndSec, narration.chapterTimings[ci].endSec) - chapterStart;
+    const assName = `disclaimer-card-${params.attemptNumber}.ass`;
+    await fs.writeFile(path.join(workDir, assName), buildDisclaimerCardAss({ layout: 'landscape', startSec: at - chapterStart, endSec: cardEnd }), 'utf-8');
+    const withCard = path.join(workDir, `chapter-${ci}-disclaimer-${DISCLAIMER_ASSET_VERSION}-${params.attemptNumber}.mp4`);
+    const fontsDir = path.relative(workDir, FONTS_DIR).split(path.sep).join('/');
+    await ffmpeg(['-y', '-i', chapterPaths[ci], '-vf', `ass=${assName}:fontsdir=${fontsDir}`, '-an', ...videoEncodeArgs(profile), withCard], workDir);
+    chapterPaths[ci] = withCard;
+  }
   const { frameCount } = await joinAndMux({ chapterPaths, audioPath: mixed.audioPath, workDir, outputPath: videoPath });
   const durationSeconds = await probeSeconds(videoPath);
   console.log(

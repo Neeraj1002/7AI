@@ -127,7 +127,7 @@ export function videoEncodeArgs(profile: RenderProfile): string[] {
 // ffmpeg steps
 // ---------------------------------------------------------------------------------------------
 
-async function ffmpeg(args: string[], cwd?: string): Promise<void> {
+export async function ffmpeg(args: string[], cwd?: string): Promise<void> {
   await execFileAsync(env.FFMPEG_PATH, ['-y', '-hide_banner', '-loglevel', 'error', ...args], { cwd, maxBuffer: FFMPEG_BUFFER });
 }
 

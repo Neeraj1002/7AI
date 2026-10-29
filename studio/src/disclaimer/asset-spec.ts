@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DATA_DIR } from '../config/paths';
 import { DISCLAIMER_SENTENCE, DISCLAIMER_SENTENCE_SHA256 } from './sentence';
@@ -49,5 +50,16 @@ export type DisclaimerManifest = {
   model: string;
   voice: string;
 };
+
+// Read at render time. Refuses a clip that was not made from the current words and treatment, so a render can never
+// speak a sentence the card does not show (or the other way round).
+export async function readDisclaimerManifest(): Promise<DisclaimerManifest> {
+  const manifest = JSON.parse(await fs.readFile(DISCLAIMER_MANIFEST_PATH, 'utf-8')) as DisclaimerManifest;
+  if (manifest.sentenceSha256 !== DISCLAIMER_SENTENCE_SHA256 || manifest.version !== DISCLAIMER_ASSET_VERSION) {
+    throw new Error('The disclaimer clip does not match the current sentence or version; record it again with scripts/build-disclaimer-assets.ts');
+  }
+  await fs.access(DISCLAIMER_CLIP_PATH);
+  return manifest;
+}
 
 export { DISCLAIMER_SENTENCE };
