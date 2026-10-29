@@ -15,6 +15,7 @@ export function CostCard({
   ended,
   attemptsCount,
   breakdown,
+  packagingLine,
 }: {
   spentUsd: number;
   limitUsd?: number | null;
@@ -26,6 +27,8 @@ export function CostCard({
   attemptsCount?: number;
   /** Per attempt and per stage, from `runs.get`; null on an older server or a run from before it. */
   breakdown?: CostBreakdown | null;
+  /** Sprint 6 Task 1: one extra line while Gate 2 packages are made ("Packaging so far $0.02"). */
+  packagingLine?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const fraction = limitUsd && limitUsd > 0 ? Math.min(1, spentUsd / limitUsd) : null;
@@ -53,6 +56,7 @@ export function CostCard({
         </View>
       ) : null}
       {extra.length > 0 ? <Text style={styles.meta}>{extra.join(' · ')}</Text> : null}
+      {packagingLine ? <Text style={styles.packaging}>{packagingLine}</Text> : null}
 
       {hasParts ? (
         <>
@@ -136,6 +140,7 @@ const styles = StyleSheet.create({
   track: { height: 6, borderRadius: 3, backgroundColor: color.border, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
   meta: { ...type.meta, fontSize: 12 },
+  packaging: { fontFamily: font.semibold, fontSize: 12, color: color.ink },
   toggle: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   toggleText: { fontFamily: font.black, fontSize: 13, color: color.accentText },
   parts: { gap: space.sm },
