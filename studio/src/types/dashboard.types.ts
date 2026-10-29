@@ -100,3 +100,22 @@ export type ChannelComparisonDashboard = {
 // Bugs Closure R3 (D3). medianDecisionSeconds blends per-verdict medians weighted by count (approximate).
 export type GateOutcome = { approved: number; revised: number; rejected: number; medianDecisionSeconds: number | null };
 export type GateAnalyticsDashboard = { gate1: GateOutcome; gate2: GateOutcome };
+
+// Sprint 6 Task 1 R8: Compare by curiosity device. One row per device the packaging used; metrics the provider and the existing
+// ingestion do not supply are null, never estimated (impressions and click-through rate are never supplied today).
+export type DeviceComparisonDashboard = {
+  devices: Array<{
+    device: string;
+    offered: number;
+    dropped: number;
+    chosen: number;
+    published: number;
+    avgViews: number | null;
+    avgViewDurationSec: number | null;
+    avgRetentionPct: number | null;
+    impressions: null;
+    clickThroughRate: null;
+  }>;
+  // Said once on the screen: why impressions and click-through rate are blank.
+  metricsNote: string;
+};

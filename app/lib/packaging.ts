@@ -127,3 +127,8 @@ export function publishedThumbnailStatus(out: { coverFrameSet?: boolean; coverFr
   }
   return null;
 }
+
+// ---- Compare by curiosity device (R8) ----
+// A blank is a blank: a metric the data does not supply is shown as a dash, never as zero or an estimate.
+export const dashIfNull = (n: number | null, format: (n: number) => string = (v) => String(Math.round(v * 10) / 10)): string => (n === null ? '\u2014' : format(n));
+export const watchTime = (sec: number | null): string => dashIfNull(sec, (v) => `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}`);

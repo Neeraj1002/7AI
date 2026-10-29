@@ -148,3 +148,25 @@ describe('runs.choosePackage', () => {
     expect(mocks.patchStageOutput).not.toHaveBeenCalled();
   });
 });
+
+describe('runs.packagingRecord (R8)', () => {
+  it('reads back, for a published run, the chosen package with its device and recipe, the rejected ones and the drops', async () => {
+    const p = packaging({ choice: { packageId: 'c1', title: 'Chosen title', titleEdited: true, chosenAt: 'x', chosenByUserId: 'u1' }, dropped: [{ id: 'c3', title: 'Dropped', device: 'how', stage: 'payoff', reasons: ['r'], rules: ['scene_not_in_script'], round: 1 }] });
+    mocks.listStagesForRun.mockResolvedValue(gateStages(p, 'completed'));
+    mocks.findPipelineRunById.mockResolvedValue(run({ status: 'completed' }));
+    const rec = await runsRouter.createCaller(owner).packagingRecord({ runId: RUN_ID });
+    expect(rec.kind).toBe('long_packages');
+    expect(rec.chosen).toMatchObject({ id: 'c1', device: 'stake', title: 'Chosen title', typeface: 'Anton' });
+    expect(rec.offered.map((o) => o.outcome)).toEqual(['chosen', 'dropped']);
+    expect(rec.chosen?.recipe.imageModel).toBe('m');
+  });
+
+  it("reads a Short's opening, says none for a run with neither, and refuses another tenant", async () => {
+    mocks.listStagesForRun.mockResolvedValue([]);
+    mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: { opening: { hookLine: 'Why?', firstStillPrompt: null, question: 'q', device: 'how', note: null, reasons: [], brief: null } } }));
+    expect((await runsRouter.createCaller(owner).packagingRecord({ runId: RUN_ID })).kind).toBe('short_opening');
+    mocks.findPipelineRunById.mockResolvedValue(run());
+    expect((await runsRouter.createCaller(owner).packagingRecord({ runId: RUN_ID })).kind).toBe('none');
+    await expect(runsRouter.createCaller(stranger).packagingRecord({ runId: RUN_ID })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});

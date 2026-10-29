@@ -60,6 +60,7 @@ import { estimateRunCost } from '../../run-pipeline/cost-estimate';
 import { readPackaging } from '../../run-pipeline/packaging-stage';
 import { buildPackagingView } from '../../packaging/view';
 import { resolveChoice } from '../../packaging/choice';
+import { buildPackagingRecord } from '../../packaging/record';
 import { readChapterTimings } from '../../long-form/artifacts';
 import { isAuthConfigured, signThumbnailLinkToken } from '../../auth';
 import { chapterBoundsForBrief, checkBriefChapterPlan, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
@@ -1149,6 +1150,20 @@ export const runsRouter = router({
           })
         : null,
     };
+  }),
+
+  // Sprint 6 Task 1 (R8): what was offered, chosen and rejected for this run, read back from what is stored (the Gate 2 packaging
+  // of a long video, the opening of a Short). Same tenant scoping as `get`.
+  packagingRecord: publicProcedure.input(z.object({ runId: z.string().uuid() })).query(async ({ input, ctx }) => {
+    const run = await findPipelineRunById(input.runId);
+    if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+    const stages = await listStagesForRun(input.runId);
+    const gate = [...stages].reverse().find((st) => st.stageName === 'gate2' && readPackaging(st.output));
+    return buildPackagingRecord({
+      packaging: gate ? readPackaging(gate.output) : null,
+      opening: (run.creationOptions?.opening as Parameters<typeof buildPackagingRecord>[0]['opening']) ?? null,
+    });
   }),
 
   // Sprint 6 Task 1 (R5): the founder's pick at Gate 2: a package (optionally with an edited title) or YouTube's

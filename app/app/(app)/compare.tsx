@@ -5,6 +5,7 @@ import { useTRPC } from '../../lib/trpc';
 import { useChannels } from '../../lib/channel-context';
 import { color, font, space, type } from '../../lib/theme';
 import { compactNumber, formatLabel } from '../../lib/compare';
+import { dashIfNull, deviceLabel, watchTime } from '../../lib/packaging';
 import { Screen } from '../../components/Screen';
 import { Card } from '../../components/Card';
 import { ChannelAvatar } from '../../components/ChannelAvatar';
@@ -21,6 +22,7 @@ export default function CompareScreen() {
   const { channelIndex } = useChannels();
   const [kind, setKind] = useState<'short' | 'long'>('short');
   const comparison = useQuery(trpc.dashboard.comparison.queryOptions({ videoKind: kind }));
+  const devices = useQuery(trpc.dashboard.devices.queryOptions({ videoKind: kind }));
   const formats = useQuery(trpc.channels.listFormats.queryOptions());
   const labels: Record<string, string> = Object.fromEntries((formats.data ?? []).map((f) => [f.key, f.label]));
 
@@ -80,6 +82,31 @@ export default function CompareScreen() {
             ) : null}
           </Card>
         ))}
+        {devices.data && devices.data.devices.length > 0 ? (
+          <Card>
+            <Text style={styles.title}>By curiosity device</Text>
+            <Text style={styles.meta}>How each kind of hook was offered, chosen and, once published, how those videos did.</Text>
+            <View style={styles.table}>
+              <View style={styles.tr}>
+                <Text style={[styles.th, styles.colFormat]}>DEVICE</Text>
+                <Text style={[styles.th, styles.colNum]}>OFFERED</Text>
+                <Text style={[styles.th, styles.colNum]}>CHOSEN</Text>
+                <Text style={[styles.th, styles.colNum]}>VIEWS</Text>
+                <Text style={[styles.th, styles.colNum]}>WATCH</Text>
+              </View>
+              {devices.data.devices.map((d) => (
+                <View key={d.device} style={styles.tr}>
+                  <Text style={[styles.td, styles.colFormat]}>{deviceLabel(d.device)}</Text>
+                  <Text style={[styles.td, styles.colNum, styles.tdMuted]}>{d.offered}</Text>
+                  <Text style={[styles.td, styles.colNum, styles.tdMuted]}>{d.chosen}</Text>
+                  <Text style={[styles.td, styles.colNum, styles.tdBold]}>{dashIfNull(d.avgViews, compactNumber)}</Text>
+                  <Text style={[styles.td, styles.colNum]}>{watchTime(d.avgViewDurationSec)}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.meta}>{devices.data.metricsNote}</Text>
+          </Card>
+        ) : null}
         <Text style={styles.meta}>Revenue appears once a channel joins the YouTube Partner Program.</Text>
       </>
     );
@@ -137,4 +164,5 @@ const styles = StyleSheet.create({
   colFormat: { flex: 1 },
   colVideos: { width: 44, textAlign: 'right' },
   colAvg: { width: 70, textAlign: 'right' },
+  colNum: { width: 56, textAlign: 'right' },
 });

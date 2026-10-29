@@ -5,6 +5,8 @@ import {
   answeredLine,
   askedLine,
   choiceSummary,
+  dashIfNull,
+  watchTime,
   coldReaderLine,
   deviceLabel,
   downloadLink,
@@ -104,4 +106,13 @@ test('the second round is said plainly: when it made the options, when nothing p
   assert.match(secondRoundNote(view({ status: 'none_passed', packages: [], secondRound: { state: 'finished', reason: null } }))!, /Nothing passed, even after a second try/);
   assert.match(secondRoundNote(view({ status: 'none_passed', packages: [], secondRound: { state: 'skipped', reason: "the run's spend limit leaves no room" } }))!, /second try was not made: the run's spend limit/);
   assert.equal(secondRoundNote(view({ status: 'weak_gap', packages: [] })), null);
+});
+
+test('Compare by device: a missing metric is a dash, never zero or an estimate', () => {
+  assert.equal(dashIfNull(null), '\u2014');
+  assert.equal(dashIfNull(0), '0');
+  assert.equal(dashIfNull(2500, (n) => `${n / 1000}K`), '2.5K');
+  assert.equal(watchTime(null), '\u2014');
+  assert.equal(watchTime(95), '1:35');
+  assert.equal(watchTime(0), '0:00');
 });
