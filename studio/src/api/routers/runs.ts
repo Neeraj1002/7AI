@@ -49,6 +49,7 @@ import { resolveChannelConfig } from '../../channel-profile';
 import { findActiveProfileForChannel } from '../../models/repositories/channel-profile-version.repository';
 import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
+import { buildDisclaimerChoice, disclaimerEnabled } from '../../disclaimer/default';
 import { sumUsageCostForRun, listUsageCostByStage } from '../../models/repositories/usage-event.repository';
 import { buildCostBreakdown, buildVideoAttempts, summarizeStages } from '../../run-pipeline/attempt-outcome';
 import { deriveDisplayChapters, deriveScriptVersions } from '../../run-pipeline/script-versions';
@@ -659,6 +660,8 @@ export const runsRouter = router({
         // Sprint 4 Task 9 (R7): per-video spend limit in USD for a long video; default is the
         // suggested value from runs.estimateCost. Stored now, enforced during the run in PR B.
         maxCostUsd: z.number().positive().optional(),
+        // Sprint 6 Task 2 (P5): an explicit On/Off for the in-video disclaimer; absent = derived default.
+        disclaimerEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -758,6 +761,7 @@ export const runsRouter = router({
         ...(input.sources?.length && { sources: input.sources }),
         ...(input.formatKey && { formatKey: input.formatKey }),
         ...(intakeWarnings.length > 0 && { intakeWarnings }),
+        disclaimer: buildDisclaimerChoice({ briefText: input.briefText, visualSource: resolvedOptions.visualSource.value, override: input.disclaimerEnabled }),
         resolvedOptions,
       };
       // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
@@ -1231,6 +1235,7 @@ export const runsRouter = router({
         visualSource: z.enum(VISUAL_SOURCES).optional(),
         privacyStatus: PrivacyStatusSchema.optional(),
         maxCostUsd: z.number().positive().optional(),
+        disclaimerEnabled: z.boolean().optional(),
         retry: z.boolean().optional(),
       }),
     )
@@ -1277,6 +1282,7 @@ export const runsRouter = router({
             visualSource: config.visualDefaultSource,
             privacyStatus: effectivePrivacy(run.creationOptions, gate2Choice, channel.defaultPrivacyStatus),
             maxCostUsd: run.creationOptions?.maxCostUsd,
+            disclaimerEnabled: disclaimerEnabled(run.creationOptions),
           },
           isLong: config.videoKind === 'long',
           gate2Enabled: channel.approvalGateConfig.gate2Enabled !== false,
@@ -1299,7 +1305,7 @@ export const runsRouter = router({
       // Preflight for the options as they would be, for each stage the change or the retry touches.
       const checks = new Set<PreflightStage>();
       const m = plan.merge;
-      if (m.voice !== undefined || m.audioLayer !== undefined || m.visualSource !== undefined || m.maxCostUsd !== undefined) checks.add('video_generation');
+      if (m.voice !== undefined || m.audioLayer !== undefined || m.visualSource !== undefined || m.maxCostUsd !== undefined || m.disclaimer !== undefined) checks.add('video_generation');
       if (m.privacyStatus !== undefined) checks.add('publishing');
       if (retryPlan) {
         checks.add(retryPlan.target === 'publishing' ? 'publishing' : retryPlan.target === 'video_generation' || retryPlan.target === 'video_review' ? 'video_generation' : 'intake');

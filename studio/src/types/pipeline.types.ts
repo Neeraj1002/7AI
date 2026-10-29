@@ -70,6 +70,11 @@ export const CreationOptionsSchema = z.object({
   // Sprint 5 Task 8 (R13): the per-run YouTube visibility (publishing reads it before Gate 2's choice, and Gate 2
   // writes its own choice back here), and the history of runs.updateSettings changes. No migration: JSON options.
   privacyStatus: z.enum(['private', 'unlisted', 'public']).optional(),
+  // Sprint 6 Task 2 (P5): the per-video in-video disclaimer choice and the platform asset version it resolved to.
+  // Absent on older runs, which render without it. See src/disclaimer/default.ts.
+  disclaimer: z
+    .object({ enabled: z.boolean(), assetVersion: z.string(), defaultReason: z.enum(['ai-visuals', 'imagined', 'factual', 'unknown']) })
+    .optional(),
   settingsChanges: z
     .array(
       z.object({

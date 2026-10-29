@@ -2,6 +2,7 @@ import { TTS_VOICES } from '../media';
 import { STAGE_NAMES } from '../types';
 import type { CreationOptions, PipelineRun, StageName } from '../types';
 import type { PrivacyStatus } from '../agents/publishing';
+import { DISCLAIMER_ASSET_VERSION } from '../disclaimer/asset-spec';
 
 // Sprint 5 Task 8 (R13): changing a run's settings while it waits (runs.updateSettings). This file is the rules and the
 // wording, pure so every rule is tested without a database. The router validates, re-runs preflight and writes once.
@@ -35,6 +36,7 @@ export type SettingsInput = {
   visualSource?: string;
   privacyStatus?: PrivacyStatus;
   maxCostUsd?: number;
+  disclaimerEnabled?: boolean;
 };
 
 export type SettingChange = { label: string; from: string; to: string };
@@ -66,7 +68,7 @@ export type SettingsPlanContext = {
   run: Pick<PipelineRun, 'status' | 'currentStage' | 'creationOptions'>;
   retryTarget: StageName | null;
   // What the run uses today (resolved), for the "from" side.
-  current: { voice: string; audioLayer: string | null; visualSource: string | null; privacyStatus: PrivacyStatus; maxCostUsd: number | undefined };
+  current: { voice: string; audioLayer: string | null; visualSource: string | null; privacyStatus: PrivacyStatus; maxCostUsd: number | undefined; disclaimerEnabled?: boolean };
   isLong: boolean;
   gate2Enabled: boolean;
   // YouTube already has this video, so its visibility is no longer this run's to set.
@@ -119,6 +121,16 @@ export function planSettingsChange(input: SettingsInput, ctx: SettingsPlanContex
     }
     changes.push({ label: 'YouTube visibility', from: PRIVACY_LABELS[ctx.current.privacyStatus], to: PRIVACY_LABELS[input.privacyStatus] });
     merge.privacyStatus = input.privacyStatus;
+  }
+  if (input.disclaimerEnabled !== undefined && input.disclaimerEnabled !== (ctx.current.disclaimerEnabled === true)) {
+    refuseMade('disclaimer');
+    changes.push({ label: 'Disclaimer', from: ctx.current.disclaimerEnabled === true ? 'On' : 'Off', to: input.disclaimerEnabled ? 'On' : 'Off' });
+    // Only the choice changes; the reason it was first defaulted stays, and the version is the current platform asset.
+    merge.disclaimer = {
+      enabled: input.disclaimerEnabled,
+      assetVersion: DISCLAIMER_ASSET_VERSION,
+      defaultReason: ctx.run.creationOptions?.disclaimer?.defaultReason ?? 'unknown',
+    };
   }
   if (input.maxCostUsd !== undefined && input.maxCostUsd !== ctx.current.maxCostUsd) {
     changes.push({ label: 'Max spend', from: usd(ctx.current.maxCostUsd), to: usd(input.maxCostUsd) });
