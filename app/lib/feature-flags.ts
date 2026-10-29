@@ -13,5 +13,5 @@ export const flags = {
   watermarkUpload: true, // B6 — watermark upload (native, needs the eas build this flag ships with)
   gateToggles: true, // B7 — per-channel Gate 1 / Gate 2 switches
   briefLength: true, // B10 — runs.create target length
-  gate2PackageScreens: false, // Sprint 6 Task 1 PR C, R11 — packaging making/round/hookLine fields, runs.checkPackageTitle, runs.get.thumbnail. Flip with the follow-up PR that deletes the first-pass PackageCards
+  gate2PackageScreens: true, // Sprint 6 Task 1 PR C (#130) merged and deployed: the Gate 2 package screens are on
 };

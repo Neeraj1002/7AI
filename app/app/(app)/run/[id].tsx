@@ -31,7 +31,6 @@ import { color, font, radius, space, type } from '../../../lib/theme';
 import { VideoChip } from '../../../components/VideoChip';
 import { LongPreview } from '../../../components/LongPreview';
 import { SubtitlesCard } from '../../../components/SubtitlesCard';
-import { PackageCards, PublishedThumbnailCard, type ChoosePayload } from '../../../components/PackageCards';
 import { Gate2Packages } from '../../../components/Gate2Packages';
 import { EditTitleScreen } from '../../../components/EditTitleScreen';
 import { Gate2Thumbnail } from '../../../components/Gate2Thumbnail';
@@ -44,9 +43,6 @@ import {
   packagingQueryWanted,
   statusLine,
   type Gate2Package,
-  type Gate2Response,
-  type ThumbnailResult,
-  type TitleCheck,
 } from '../../../lib/gate2-packaging';
 import { RaiseLimitSheet } from '../../../components/RaiseLimitSheet';
 import { mmss, needsHigherLimit } from '../../../lib/long-video';
@@ -206,33 +202,19 @@ export default function RunDetailScreen() {
   );
   // Sprint 6 Task 1 (R5): the thumbnail and title options made for a long video's Gate 2, and the founder's choice.
   // Fetched while Gate 2 is open (polling until the options exist) and once published (to offer the chosen file).
-  // gate2PackageScreens (Task 1 gate 2 FE): the new screens also need it while the packages are made, and poll then.
-  const newScreens = flags.gate2PackageScreens;
-  const packagingWanted = newScreens
-    ? Boolean(data) && packagingQueryWanted(data!.run, data!.videoKind === 'long')
-    : data?.videoKind === 'long' && (data.run.status === 'paused_gate2' || data.run.status === 'completed');
+  // Sprint 6 Task 1: the Gate 2 packages (or a Short's opening), polled while the server says they are being made.
   const packagingQuery = useQuery(
     trpc.runs.packaging.queryOptions(
       { runId: id! },
-      {
-        enabled: Boolean(id) && packagingWanted,
-        refetchInterval: (query) =>
-          newScreens ? packagingPollMs(query.state.data as unknown as Gate2Response | undefined, data?.run.status ?? '') : query.state.data?.pending ? 4_000 : false,
-      },
+      { enabled: Boolean(id) && Boolean(data) && packagingQueryWanted(data!.run), refetchInterval: (query) => packagingPollMs(query.state.data) },
     ),
   );
-  // The new screens read the same query through the contract's types until the real AppRouter types carry the new fields.
-  const gate2Response = packagingQuery.data as unknown as Gate2Response | undefined;
+  const gate2Response = packagingQuery.data;
   const trpcClient = useTRPCClient();
   const [editingPackage, setEditingPackage] = useState<Gate2Package | null>(null);
   const [askYoutube, setAskYoutube] = useState<{ privacy?: Privacy } | null>(null);
   const checkTitle = useCallback(
-    (title: string): Promise<TitleCheck> =>
-      (trpcClient.runs as unknown as { checkPackageTitle: { query: (i: { runId: string; packageId: string; title: string }) => Promise<TitleCheck> } }).checkPackageTitle.query({
-        runId: id!,
-        packageId: editingPackage?.id ?? '',
-        title,
-      }),
+    (title: string) => trpcClient.runs.checkPackageTitle.query({ runId: id!, packageId: editingPackage?.id ?? '', title }),
     [trpcClient, id, editingPackage],
   );
   const chooseMutation = useMutation(
@@ -338,12 +320,11 @@ export default function RunDetailScreen() {
         metadata?: { title?: string };
         coverFrameSet?: boolean;
         coverFrameMessage?: string;
-        thumbnail?: { source: 'package' | 'youtube-suggested' | 'frame-grab'; packageId?: string; file?: string };
       }
     | undefined;
 
   // gate2PackageScreens: the thumbnail result and what the new section needs from the packaging query.
-  const thumbnailResult = (data as unknown as { thumbnail?: ThumbnailResult | null }).thumbnail ?? null;
+  const thumbnailResult = data.thumbnail ?? null;
   const gate2View = gate2Response?.view ?? null;
   const gate2Kind = gate2Screen(gate2Response);
   const thumbnailPictureUrl = thumbnailResult?.packageId ? (gate2View?.packages.find((p) => p.id === thumbnailResult.packageId)?.imageUrls?.feed ?? null) : null;
@@ -457,9 +438,9 @@ export default function RunDetailScreen() {
   const cancelling = cancelMutation.isPending || (cancelRequested && !cancelTimedOut);
 
   const footer =
-    (isGate1 || isGate2) && !decisionSent ? (
+    (isGate1 || isGate2) && !decisionSent && !(isGate2 && gate2Kind === 'making') ? (
       <BottomActionBar onHeight={setBarHeight}>
-        {isGate2 && newScreens && gate2View && canChoose(gate2Response) ? (
+        {isGate2 && gate2View && canChoose(gate2Response) ? (
           <Text style={[styles.cardMeta, statusLine(gate2View).tone === 'pending' ? styles.statusPending : styles.statusDone]}>{statusLine(gate2View).text}</Text>
         ) : null}
         <GateActionBar
@@ -475,7 +456,7 @@ export default function RunDetailScreen() {
           defaultPrivacy={defaultPrivacy}
           onApprove={(privacy) => {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'approve' });
-            else if (newScreens && approveNeedsAsk(gate2Response)) setAskYoutube({ privacy });
+            else if (approveNeedsAsk(gate2Response)) setAskYoutube({ privacy });
             else {
               const payload: Gate2Input = {
                 runId: run.id,
@@ -823,8 +804,7 @@ export default function RunDetailScreen() {
         </>
       ) : null}
 
-      {isPublished && isLong && !newScreens ? <PublishedThumbnailCard output={publishOutput} response={packagingQuery.data} apiUrl={apiUrl} /> : null}
-      {isPublished && isLong && newScreens ? (
+      {isPublished ? (
         <Gate2Thumbnail thumbnail={thumbnailResult} apiUrl={apiUrl} token={token ?? ''} pictureUrl={thumbnailPictureUrl} />
       ) : null}
 
@@ -834,19 +814,6 @@ export default function RunDetailScreen() {
           subtitlesMessage={data.subtitlesMessage}
           subtitlesUrl={data.subtitlesUrl}
           apiUrl={apiUrl}
-        />
-      ) : null}
-
-      {isGate2 && isLong && !newScreens ? (
-        <PackageCards
-          response={packagingQuery.data}
-          channelName={channel?.name ?? 'Your channel'}
-          apiUrl={apiUrl}
-          token={token ?? ''}
-          editable={!decisionSent}
-          choosing={chooseMutation.isPending}
-          chooseError={chooseMutation.error?.message ?? null}
-          onChoose={(p: ChoosePayload) => chooseMutation.mutate({ runId: run.id, ...p })}
         />
       ) : null}
 
@@ -871,7 +838,7 @@ export default function RunDetailScreen() {
         </Card>
       ) : null}
 
-      {newScreens && isLong && (isGate2 || gate2Kind === 'making') ? (
+      {isGate2 && gate2Kind !== 'none' ? (
         <Gate2Packages
           response={gate2Response}
           channelName={channel?.name ?? 'Your channel'}
@@ -913,7 +880,7 @@ export default function RunDetailScreen() {
           breakdown={costs}
           ended={run.status === 'completed' || run.status === 'failed'}
           attemptsCount={videoAttempts}
-          packagingLine={newScreens && gate2Kind === 'making' ? packagingCostLine(gate2View?.packagingCostUsd, gate2View?.round) : null}
+          packagingLine={gate2Kind === 'making' ? packagingCostLine(gate2View?.packagingCostUsd, gate2View?.round) : null}
         />
       ) : null}
 

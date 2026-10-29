@@ -6,7 +6,6 @@ import { downloadLink, pictureLink } from '../lib/packaging';
 import {
   YOUTUBE_SUGGESTED,
   answeredChip,
-  canChoose,
   cardTitle,
   downloadLabel,
   durationChip,
@@ -87,8 +86,12 @@ function PackageCard({
             </View>
           </View>
           <View style={styles.shortText}>
-            <Text style={styles.label}>Title</Text>
-            <Text style={styles.cardHead}>{cardTitle(view, pkg)}</Text>
+            {cardTitle(view, pkg) ? (
+              <>
+                <Text style={styles.label}>Title</Text>
+                <Text style={styles.cardHead}>{cardTitle(view, pkg)}</Text>
+              </>
+            ) : null}
             {pkg.hookLine ? (
               <>
                 <Text style={[styles.label, { marginTop: space.xs }]}>Hook line</Text>
@@ -138,7 +141,15 @@ function PackageCard({
           </Text>
         ))}
       </View>
-      {editable ? (
+      {short && download ? (
+        <View style={styles.actions}>
+          <Pressable style={styles.secondaryBtn} onPress={() => void Linking.openURL(download)} accessibilityRole="link">
+            <Feather name="download" size={16} color={color.ink} />
+            <Text style={styles.secondaryText}>{downloadLabel(true)}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {editable && !short ? (
         <View style={styles.actions}>
           <Pressable
             onPress={onChoose}
@@ -158,7 +169,7 @@ function PackageCard({
               accessibilityRole="link"
             >
               <Feather name="download" size={16} color={color.ink} />
-              <Text style={styles.secondaryText}>{downloadLabel(short)}</Text>
+              <Text style={styles.secondaryText}>{downloadLabel(false)}</Text>
             </Pressable>
             <Pressable style={styles.secondaryBtn} onPress={onEdit} accessibilityRole="button">
               <Feather name="edit-2" size={16} color={color.ink} />
@@ -223,7 +234,7 @@ export function Gate2Packages({
       channelName={channelName}
       apiUrl={apiUrl}
       token={token}
-      editable={editable && canChoose(response)}
+      editable={editable}
       busy={choosing}
       dimmed={yt}
       onChoose={() => {
@@ -239,9 +250,10 @@ export function Gate2Packages({
         <Text style={styles.sectionTitle}>How should it look on YouTube?</Text>
         <Text style={styles.meta}>
           {short
-            ? 'One package for this Short. What you choose is exactly what gets published.'
+            ? 'This is how your Short opens. To change it, use Revise.'
             : 'Swipe to compare. You get one per video, and what you choose is exactly what gets published.'}
         </Text>
+        {short && view.openingNote ? <Text style={styles.meta}>{view.openingNote}</Text> : null}
         {view.round === 2 ? <Text style={styles.meta}>This is the second set. The first one didn’t pass our checks.</Text> : null}
       </View>
       {short ? (
@@ -267,11 +279,11 @@ export function Gate2Packages({
           <Text style={styles.dotLabel}>{packageLabel(index, total)}</Text>
         </View>
       ) : null}
-      {editable ? (
+      {editable && !short ? (
         yt ? (
           <View style={styles.ytRow}>
             <Feather name="check" size={20} color={color.okText} />
-            <Text style={styles.ytText}>{keptLabel(short)}</Text>
+            <Text style={styles.ytText}>{keptLabel}</Text>
             <Pressable onPress={() => setReopened(true)} accessibilityRole="button" style={styles.changeBtn}>
               <Text style={styles.changeText}>Change</Text>
             </Pressable>
@@ -283,7 +295,7 @@ export function Gate2Packages({
               onChoose(YOUTUBE_SUGGESTED);
             }}
             disabled={choosing} accessibilityRole="button" style={styles.quiet}>
-            <Text style={styles.quietText}>{quietLinkLabel(short)}</Text>
+            <Text style={styles.quietText}>{quietLinkLabel}</Text>
             <Feather name="chevron-right" size={16} color={color.muted} />
           </Pressable>
         )
