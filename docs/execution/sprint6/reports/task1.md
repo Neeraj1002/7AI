@@ -343,7 +343,7 @@ npx vitest run                           # 1,672 pass, 65 skipped (same skips as
 cd ../app && npx tsc --noEmit && npx expo lint          # clean
 cd ../studio && npx vitest run --root ../app            # 29 files, 195 tests pass
 npx tsx scripts/short-opening-check.ts --live [--offline-opening]       # cap $0.25
-npx tsx scripts/packaging-real-check.ts --script <file> --name <n> --force-round-two --live   # R10, cap $0.30 (not run, C1)
+npx tsx scripts/packaging-real-check.ts --script <file> --name <n> --force-round-two --live   # R10, cap $0.30 (run 1 Nov, $0.1176)
 ```
 
 New tests: the R10 block in `build.test.ts` (8 cases: second round once and marked, feedback has rules and no dropped text, picture-check rules fed back without the invented object, double failure with no third round, round two never shows what round one's rules drop, skipped with the reason, none when round one passes or the script has no gap, **restart in the middle of round two**), `roundTwoRoomFor` tests, `opening.test.ts` (12: the hook checks, weak gap, frame-zero support, the five and ten second advisory, the hook in the caption file with captions on and off), `short-opening-stage.test.ts` (once per run, reuse, none for long or budget, a failure never blocks), `record.test.ts` (6), packaging record route and app tests (stranger, second-round note, dashes).
@@ -373,7 +373,9 @@ New tests: the R10 block in `build.test.ts` (8 cases: second round once and mark
 
 ## C8. Whole-task statuses (Task 1)
 
-Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 and the brief-driven hook line not yet** (provider limit).
+Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 yes (1 Nov, below)**; the brief-driven hook line not yet.
+
+**R10 live check (1 Nov, after the provider limit reset).** `packaging-real-check.ts --force-round-two --live` on the Eiffel script, total **$0.1176** (cap $0.30). Six seeded failing concepts; round two was told only the rule names with fixed advice (`support_not_in_script`, `unsupported_number`), made 3 packages (second round), each passed the real picture checks, payoff, critic and head-to-head, and the run finished `ready`. One concept call booked for round two; no third round. The task's live spend is now about $1.70 of $2.00. The brief-driven Short hook check is still to run (about $0.02).
 
 ## C10. R11: backend for the Gate 2 package screens (task r9, contract r2)
 
