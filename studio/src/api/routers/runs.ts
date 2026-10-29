@@ -24,7 +24,7 @@ import {
   getRemainingWeeklyUsd,
   NoBudgetConfiguredError,
 } from '../../run-pipeline/budget-gate';
-import { resolvePendingApproval } from '../../notifications';
+import { hasPendingApproval, resolvePendingApproval } from '../../notifications';
 import { classifyEndError, type EndReason } from '../../run-pipeline/end-reason';
 import { recordPostHocTag } from '../../run-pipeline/post-hoc-tag';
 import {
@@ -43,13 +43,15 @@ import { TTS_VOICE_KEYS, assertSupportedVoice } from '../../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../../agents/video-generation/plan';
 import { PrivacyStatusSchema, type PrivacyStatus } from '../../agents/publishing';
 import { readPublishingReceipt } from '../../models/repositories/publishing-recovery.repository';
+import fs from 'node:fs';
+import path from 'node:path';
 import { FORMAT_KEYS, findFormat, type VideoKind } from '../../formats/manifest';
 import { isValidDuration, durationErrorMessage, resolveRequestedVideoKind } from '../../formats/video-kind';
 import { resolveChannelConfig } from '../../channel-profile';
 import { findActiveProfileForChannel } from '../../models/repositories/channel-profile-version.repository';
 import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
-import { sumUsageCostForRun, listUsageCostByStage } from '../../models/repositories/usage-event.repository';
+import { sumUsageCostForRun, sumPackagingCostForRun, listUsageCostByStage } from '../../models/repositories/usage-event.repository';
 import { buildCostBreakdown, buildVideoAttempts, summarizeStages } from '../../run-pipeline/attempt-outcome';
 import { deriveDisplayChapters, deriveScriptVersions } from '../../run-pipeline/script-versions';
 import { forecastLength, resolveVoicePace } from '../../run-pipeline/length-forecast';
@@ -61,6 +63,9 @@ import { readPackaging } from '../../run-pipeline/packaging-stage';
 import { buildPackagingView } from '../../packaging/view';
 import { resolveChoice } from '../../packaging/choice';
 import { buildPackagingRecord } from '../../packaging/record';
+import { checkPackageTitle as checkPackageTitleFor, packagingState, thumbnailResult } from '../../packaging/gate2-contract';
+import { buildShortView, OPENING_FRAME_FILE } from '../../packaging/view';
+import { thumbnailsDir } from '../../packaging/build';
 import { readChapterTimings } from '../../long-form/artifacts';
 import { isAuthConfigured, signThumbnailLinkToken } from '../../auth';
 import { chapterBoundsForBrief, checkBriefChapterPlan, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
@@ -396,7 +401,20 @@ async function getRunDetail(id: string, ctx: Context) {
   const approvedGate = stages.filter(s => s.stageName === 'gate1').sort((a, b) => b.attemptNumber - a.attemptNumber)[0] ?? null;
   const legacyRecovery = Boolean(legacyPlannerRecoveryCheckpoint(run, failedRetryStage, approvedGate, resolved, latestPlanningFixNotes(reviewLogs)));
 
+  // Sprint 6 Task 1 R11 (contract B4): the thumbnail's result, once published. Composed from the publishing output and the receipt's
+  // follow-up state; a failed thumbnail never changes the upload's own result.
+  const receiptForThumbnail = await readPublishingReceipt(id).catch(() => null);
+  const thumbnail = thumbnailResult({
+    output: [...stages].reverse().find((st) => st.stageName === 'publishing')?.output as Parameters<typeof thumbnailResult>[0]['output'],
+    followup: receiptForThumbnail?.followups.thumbnail,
+    fileUrlFor: (packageId) =>
+      isAuthConfigured()
+        ? `/runs/${id}/thumbnail/${packageId}/full?t=${signThumbnailLinkToken({ runId: id, tenantId: run.tenantId, packageId, size: 'full' })}`
+        : `/runs/${id}/thumbnail/${packageId}/full`,
+  });
+
   return {
+    thumbnail,
     run,
     channel,
     stages,
@@ -1133,24 +1151,53 @@ export const runsRouter = router({
     const packaging = withPackaging ? readPackaging(withPackaging.output) : null;
     const video = [...stages].reverse().find((st) => st.stageName === 'video_generation' && st.status === 'completed');
     const videoOut = video?.output as { durationSeconds?: number } | null | undefined;
+    const videoSeconds = typeof videoOut?.durationSeconds === 'number' ? videoOut.durationSeconds : null;
+    const channel = await findChannelById(run.channelId);
+    const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
+    const isLong = resolved.videoKind === 'long';
+    const packagingCostUsd = await sumPackagingCostForRun(input.runId);
+    // A one-hour link per picture, so the app and the system browser can fetch it without a header.
+    const linkFor = isAuthConfigured()
+      ? (packageId: string, size: string) =>
+          `/runs/${input.runId}/thumbnail/${packageId}/${size}?t=${signThumbnailLinkToken({ runId: input.runId, tenantId: run.tenantId, packageId, size })}`
+      : undefined;
+    // R7: a Short's package is its opening (hook line and first frame), kept on the run; it has nothing to choose.
+    const opening = run.creationOptions?.opening;
+    if (!isLong && opening) {
+      return {
+        making: false,
+        pending: false,
+        view: buildShortView({ runId: input.runId, opening, frameExists: fs.existsSync(path.join(thumbnailsDir(input.runId), OPENING_FRAME_FILE)), videoSeconds, packagingCostUsd, linkFor }),
+      };
+    }
+    // `making`: the packages are made before the Gate 2 approval is registered, while the run already reads paused_gate2.
+    const state = packagingState({ runStatus: run.status, isLong, packaging, approvalOpen: hasPendingApproval(input.runId) });
     return {
-      // 'building' is a checkpoint of packaging that is still being made.
-      pending: (!packaging || packaging.status === 'building') && run.status === 'paused_gate2',
+      making: state.making,
+      pending: state.pending,
       view: packaging && packaging.status !== 'building'
-        ? buildPackagingView({
-            runId: input.runId,
-            packaging,
-            chapterTimings: readChapterTimings(video?.output),
-            videoSeconds: typeof videoOut?.durationSeconds === 'number' ? videoOut.durationSeconds : null,
-            // A one-hour link per picture, so the app and the system browser can fetch it without a header.
-            ...(isAuthConfigured() && {
-              linkFor: (packageId: string, size: string) =>
-                `/runs/${input.runId}/thumbnail/${packageId}/${size}?t=${signThumbnailLinkToken({ runId: input.runId, tenantId: run.tenantId, packageId, size })}`,
-            }),
-          })
+        ? buildPackagingView({ runId: input.runId, packaging, chapterTimings: readChapterTimings(video?.output), videoSeconds, packagingCostUsd, ...(linkFor && { linkFor }) })
         : null,
     };
   }),
+
+  // Sprint 6 Task 1 R11 (contract B3): the live check of a title for one package, as the founder types. It is `checkTitle` and nothing
+  // else (the function `choosePackage` refuses with), so the two cannot disagree; the app adds no rule. Tenant-checked like `packaging`.
+  checkPackageTitle: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), packageId: z.string().min(1).max(40), title: z.string().max(400) }))
+    .query(async ({ input, ctx }) => {
+      const run = await findPipelineRunById(input.runId);
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+      if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+      const stages = await listStagesForRun(input.runId);
+      const packaging = [...stages].reverse().filter((st) => st.stageName === 'gate2').map((st) => readPackaging(st.output)).find((p) => p && p.status === 'ready') ?? null;
+      if (!packaging) throw new TRPCError({ code: 'CONFLICT', message: 'The thumbnail options are not ready yet.' });
+      const gate1 = [...stages].reverse().find((st) => st.stageName === 'gate1' && st.status === 'completed');
+      const scriptText = (gate1?.output as { sanctionedScriptText?: string } | null)?.sanctionedScriptText ?? '';
+      const result = checkPackageTitleFor({ title: input.title, packaging, packageId: input.packageId, scriptText, briefText: run.briefText });
+      if ('error' in result) throw new TRPCError({ code: 'BAD_REQUEST', message: `That option is not one of this video's options.` });
+      return result;
+    }),
 
   // Sprint 6 Task 1 (R8): what was offered, chosen and rejected for this run, read back from what is stored (the Gate 2 packaging
   // of a long video, the opening of a Short). Same tenant scoping as `get`.

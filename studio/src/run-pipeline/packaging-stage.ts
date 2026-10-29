@@ -9,6 +9,11 @@ import { insertUsageEvent, sumUsageCostForRun } from '../models/repositories/usa
 import { listStagesForRun, patchStageOutput } from '../models/repositories/pipeline-stage.repository';
 import { buildPackaging, scriptHashOf, PACKAGING_OUTPUT_VERSION, type PackagingOutput } from '../packaging/build';
 import { buildShortOpening, type ShortOpening } from '../packaging/opening';
+import { extractCoverFrame } from '../agents/publishing';
+import { thumbnailsDir } from '../packaging/build';
+import { OPENING_FRAME_FILE } from '../packaging/view';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { updatePipelineRun } from '../models/repositories/pipeline-run.repository';
 import { RENDER_MAX, RENDER_MIN } from '../packaging/constants';
 import type { ScriptChapterText } from '../packaging/prompts';
@@ -230,5 +235,18 @@ export async function ensureShortOpening(params: {
     }
     console.error(`[packaging] run ${run.id}: no opening for this Short, it is made as before - ${error instanceof Error ? error.message : String(error)}`);
     return undefined;
+  }
+}
+
+// R7 / contract B1: the first frame of a rendered Short, kept beside the thumbnails so Gate 2 can show it (`firstFrameUrl`). Best effort: a
+// failure only means the card has no picture; it never touches the video.
+export async function saveOpeningFrame(params: { runId: string; videoPath: string; durationSeconds: number }): Promise<void> {
+  try {
+    const frame = await extractCoverFrame({ videoPath: params.videoPath, durationSeconds: params.durationSeconds, coverFrameTimestampRatio: 0 });
+    const dir = thumbnailsDir(params.runId);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.copyFile(frame, path.join(dir, OPENING_FRAME_FILE));
+  } catch (error) {
+    console.error(`[packaging] run ${params.runId}: the Short's first frame could not be saved - ${error instanceof Error ? error.message : String(error)}`);
   }
 }

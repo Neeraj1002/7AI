@@ -70,7 +70,7 @@ import { TIMING_FAILURE_CODES } from '../agents/video-intelligence/quality-metri
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
-import { ensurePackagingForGate2, ensureShortOpening, packagingFieldOf, readPackaging } from './packaging-stage';
+import { ensurePackagingForGate2, ensureShortOpening, packagingFieldOf, readPackaging, saveOpeningFrame } from './packaging-stage';
 import { chosenPackage } from '../packaging/view';
 import { applyThumbnailFollowup, type FollowupState } from './thumbnail-followup';
 import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
@@ -1360,6 +1360,10 @@ export async function runVideoGenerationStage(
             spend,
             onStillsProgress: stillsProgress.report,
           });
+      // R7: keep the first frame of a Short that has an opening, so Gate 2 can show it.
+      if (!isLong && openingMade) {
+        await saveOpeningFrame({ runId, videoPath: output.videoPath, durationSeconds: output.durationSeconds });
+      }
       await stillsProgress.flush();
       await insertUsageEvent({
         tenantId: run.tenantId,

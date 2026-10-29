@@ -1,4 +1,4 @@
-import { checkTitle } from './check';
+import { titleIssues } from './gate2-contract';
 import { YOUTUBE_SUGGESTED } from './constants';
 import type { PackagingChoice, PackagingOutput } from './build';
 
@@ -25,18 +25,13 @@ export function resolveChoice(params: {
   const pkg = packaging.packages.find((p) => p.id === params.packageId);
   if (!pkg) return { ok: false, message: `That option is not one of this video's options.` };
 
+  // An edit that is explicitly empty is refused (not silently turned back into the package's own title).
+  if (params.editedTitle !== undefined && params.editedTitle.trim() === '') return { ok: false, message: 'That title cannot be used: The title is empty.' };
   const edited = params.editedTitle?.trim();
   const title = edited && edited !== pkg.title ? edited : pkg.title;
   const titleEdited = title !== pkg.title;
   if (titleEdited) {
-    const issues = checkTitle({
-      title,
-      scriptText: params.scriptText,
-      briefText: params.briefText,
-      brief: packaging.brief,
-      titleLimit: packaging.titleLimit,
-      alsoShown: [pkg.lettering.words, pkg.lettering.subline].filter(Boolean).map((t) => `${t!.trim().replace(/[.!?]+$/, '')}.`).join(' '),
-    });
+    const issues = titleIssues({ title, packaging, pkg, scriptText: params.scriptText, briefText: params.briefText });
     if (issues.length > 0) return { ok: false, message: `That title cannot be used: ${issues.map((i) => i.message).join(' ')}` };
   }
   return { ok: true, choice: { packageId: pkg.id, title, titleEdited, chosenAt, chosenByUserId: params.userId } };

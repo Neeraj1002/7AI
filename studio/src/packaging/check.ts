@@ -44,7 +44,8 @@ export function correctionEarned(brief: CuriosityBrief | null, scriptText: strin
   return Boolean(brief?.correction && quoteInScript(scriptText, brief.correction.quote));
 }
 
-export type ConceptIssue = { code: string; message: string };
+// `text` is the figure or phrase the sentence is about, when there is one (the app highlights it).
+export type ConceptIssue = { code: string; message: string; text?: string };
 
 // PR B: a prop the concept lists that the script never names is no longer a reason to drop the concept (live runs: it
 // dropped six of six Ada concepts for a desk and a pen). It is a hint to the payoff check, which looks at the real
@@ -96,7 +97,7 @@ export function checkTitle(params: {
     briefText: params.briefText,
     metadata: { title, description: params.alsoShown?.trim() || title, tags: [] },
   });
-  for (const c of claims) add(c.code, c.message);
+  for (const c of claims) issues.push({ code: c.code, message: c.message, ...(c.figure && { text: c.figure }) });
   return issues;
 }
 
