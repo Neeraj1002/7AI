@@ -1,3 +1,5 @@
+> **CANCELLED 29 Oct 2026 (founder): the in-video disclaimer is dropped. Do not build. See STATUS Decisions, "Disclosure".**
+
 # Sprint 6 Task 2: Per-Video Disclosure Controls (P5)
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
