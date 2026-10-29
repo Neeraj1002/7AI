@@ -1372,7 +1372,8 @@ export const runsRouter = router({
       tenantId: ctx.tenantId,
       channelId: sourceRun.channelId,
       briefText: sourceRun.briefText,
-      creationOptions: { ...picks, ...(intakeWarnings.length > 0 && { intakeWarnings }), resolvedOptions },
+      // A rerun keeps the disclaimer choice and points it at the current platform asset version.
+      creationOptions: { ...picks, ...(picks?.disclaimer && { disclaimer: { ...picks.disclaimer, assetVersion: DISCLAIMER_ASSET_VERSION } }), ...(intakeWarnings.length > 0 && { intakeWarnings }), resolvedOptions },
     });
     startPipelineInBackground(run.id);
     return run;

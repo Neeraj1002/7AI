@@ -54,3 +54,28 @@ Rule 5: task doc r7 copied from the source and committed alone (99782b3). Rules 
 ## Real renders (29 Oct)
 
 `src/disclaimer/render.integration.test.ts` (real FFmpeg, stub narration and pictures, the real recorded clip): 2 tests passed. Short: Off 27.30 s, On 31.22 s, 3.92 s added; at 4.5 s the On video shows the card and no captions while Off shows its caption. Long: chapter 1 end and chapter 2 start each moved by the same gap; picture length matches audio within 0.3 s; card burned into the chapter segment that holds the clip. First ten seconds kept locally, not committed. Not covered: real narration, a real-voice listening check of the clip over speech, two differently configured channels end to end, render-time effect (stub narration makes it meaningless), Gate 1 disabled, restart. Spend: $0 for this step.
+
+## Same-cause sweep (R5, Hard rule 9) — 29 Oct
+
+Cause: disclosure wording, voice or the `Imagined` tag defined in more than one place; a channel's own voice, sentence or history phrasing standing in for a platform asset; any channel name or single-channel assumption. Searched `studio/src`, `studio/data`, `studio/scripts`, `app/` and the channel and Sprint 6 docs.
+
+| Hit | Disposition |
+|---|---|
+| Canonical sentence, clip voice, card | One owner each in `studio/src/disclaimer/` (`sentence.ts`, `asset-spec.ts`, `card-ass.ts`). Tests (`guards.test.ts`) fail if these files import channels, profiles, the voice catalog or the registry, or if the splice takes a voice, channel or profile parameter. No channel name appears in any new file or test. **Fixed here.** |
+| In-video `Imagined` tag code | None existed in `studio/` or `app/`. Nothing to remove. |
+| `studio/src/agents/publishing/packaging.ts` (description template) | Uses the channel's own `descriptionTemplate`; no hardcoded disclosure wording. **Left alone** (decision 2: description and pinned comment unchanged; P11 owns comments). |
+| "reconstruction" / "imagined" in `script-review`, `plan.ts`, `plan-long.ts`, `video-intelligence`, `packaging/prompts.ts`, `still-check.ts` | Reviewer rules, scene-purpose enum and picture prompts; none is viewer-facing and none is the disclaimer. **Left alone.** |
+| `studio/src/media/voice-catalog.config.ts:28` ("AI-generated audio; tell listeners the voice is AI-generated") | Confirms the AI-narration gap: `deriveContainsSyntheticMedia` ignores it. **Needs a new task / architect decision** (compliance; not changed quietly). |
+| `app/app/(app)/channel/[id]/profile.tsx:329` ("AI-generated visuals are flagged as synthetic content on upload") | True for AI stills but incomplete (ignores narration; does not say the in-video disclaimer is separate). **Needs the FE change** (R3 UI states that the YouTube label is separate and may appear with Off). |
+| Test fixtures `long-form/fixtures/briefs/*.txt` | Brief IMAGINED lines are legitimate brief input and the default's signal. **Left alone.** |
+| `docs/channel_bibles/NIYT_CHANNEL_CONFIG.md` (spoken first-sentence disclaimer, description creative-liberty line, pinned comment, "(Imagined)" title tag, section 14 item 8) | Would duplicate the shared clip when On. **Doc hit for the architect**; I did not edit it. |
+| `docs/execution/sprint6/PLAN.md` lines 48, 81, 97, 102, 108 | Still describe the old sentence, the 2x clip and the frame-zero tag. **Doc hit for the architect.** |
+| `docs/execution/sprint6/tasks/task2.md` decision 3 | Placeholder sentence and 1x pace; actual: sentence "Visuals in this video are AI-generated or imagined.", 1.4x tempo. **Doc hit for the architect.** |
+| Old worktree `task2` (branch `SPRINT6_TASK2_BE`) | Has an earlier, uncommitted disclaimer build; untouched. **Architect decision.** |
+
+## Added tests and results (29 Oct)
+
+- `src/disclaimer/guards.test.ts`: platform-asset isolation (including "two channels with different narration voices get the same clip"), the AI-use derivation independent of the toggle, JSON round trip and restart, old runs unchanged, default independent of Gate 1 (set at creation), two videos on one channel differing.
+- `runs.create` tests updated for the new stored `disclaimer` choice; new test for default from visuals and an explicit override. A rerun keeps the choice and refreshes the asset version.
+- With `@napi-rs/canvas` now resolvable (this worktree's `node_modules` junction points at the Task 1b checkout's), `src/run-pipeline` and `src/api`: 63 files passed, 524 tests passed, 6 failed before the test update above; after it, the two affected files pass (56). `tsc --noEmit` and `eslint` on the changed files are clean.
+- Not verified: Gate 1 disabled end to end and a process restart in a live run (covered only by the persistence and creation-time tests above).

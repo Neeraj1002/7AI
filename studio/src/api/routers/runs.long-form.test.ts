@@ -49,10 +49,11 @@ const base = { channelId: CHANNEL_ID, briefText: 'a brief' };
 
 const profile = (offeredFormatKeys?: string[]) => ({ data: offeredFormatKeys ? { offeredFormatKeys } : {} });
 const createdAll = () => mocks.createRun.mock.calls[0]![0].creationOptions;
-// The user's picks as stored, without the Task 12 resolvedOptions (checked in runs.run-screen-data.test.ts).
+// The user's picks as stored, without the Task 12 resolvedOptions and the Sprint 6 disclaimer (checked in runs.run-screen-data.test.ts).
 const createdOptions = () => {
   const picks = { ...createdAll() };
   delete picks.resolvedOptions;
+  delete picks.disclaimer; // Sprint 6 Task 2: the derived disclaimer choice is checked in runs.run-screen-data.test.ts
   return Object.keys(picks).length > 0 ? picks : undefined;
 };
 

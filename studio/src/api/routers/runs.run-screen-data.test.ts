@@ -235,10 +235,19 @@ describe('runs.create: resolvedOptions (R1)', () => {
   const base = { channelId: CHANNEL_ID, briefText: 'a brief' };
   const stored = () => mocks.createRun.mock.calls[0]![0].creationOptions;
 
-  it('a run with every default stores resolvedOptions and nothing else', async () => {
+  it('a run with every default stores the derived disclaimer choice and resolvedOptions, nothing else', async () => {
     await caller().create(base);
-    expect(Object.keys(stored())).toEqual(['resolvedOptions']);
+    expect(Object.keys(stored())).toEqual(['disclaimer', 'resolvedOptions']);
     expect(stored().resolvedOptions.voice).toEqual({ key: 'alloy', label: 'Alloy', from: 'default' });
+  });
+
+  it('the disclaimer default comes from the visuals and the brief; one explicit tap overrides it', async () => {
+    await caller().create({ ...base, visualSource: 'ai-stills' });
+    expect(stored().disclaimer).toMatchObject({ enabled: true, defaultReason: 'ai-visuals' });
+    vi.clearAllMocks();
+    mocks.createRun.mockResolvedValue({ id: 'run1' });
+    await caller().create({ ...base, visualSource: 'ai-stills', disclaimerEnabled: false });
+    expect(stored().disclaimer).toMatchObject({ enabled: false, defaultReason: 'ai-visuals' });
   });
 
   it('picks are marked as coming from the run, and the picks stay as before', async () => {
