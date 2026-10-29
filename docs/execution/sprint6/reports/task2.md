@@ -1,8 +1,8 @@
-# Sprint 6 Task 2: Per-Video Disclosure Controls (P5) — R0 report (interim)
+# Sprint 6 Task 2: Per-Video Disclosure Controls (P5) — interim report (R0 + backend build)
 
 **Branch**: `SPRINT6_TASK2_BE2` · **Worktree**: `D:\Study Material\7AI-SPRINT6\task2b` · **PR**: draft, number in first reply
 **Task doc**: committed in 99782b3 (r7). Stale `SPRINT6_TASK2_BE` worktree (`task2`, 21 uncommitted files, disclaimer folder) was left untouched by founder decision; the architect should decide its fate.
-**Status**: R0 only. No code changed. Sentence not yet supplied by the founder.
+**Status**: backend built (R1, R2, R3 backend); app toggle (R3 UI), live renders, sweep (R5) and the AI-use decision still open. Code-complete: no. Merged: no. Deployed: no.
 
 ## R0 table (confirmed / wrong / unknown)
 
@@ -35,3 +35,18 @@ Old and in-flight runs: null creationOptions field, treated Off, no render chang
 
 ## Hard rules
 Rule 5: task doc r7 copied from the source and committed alone (99782b3). Rules 6, 8, 9: not yet applicable (no build; sweep happens in R5 after the sentence exists). No spend so far ($0).
+
+
+## Build status (backend, 29 Oct)
+
+**Rendered copy (exact)**: "Visuals in this video are AI-generated or imagined." One constant, `studio/src/disclaimer/sentence.ts`. Founder changed it from "Some visuals..." on 28 Oct.
+
+**Clip**: Ash, `gpt-4o-mini-tts`, fixed provider voice id and delivery in `disclaimer/asset-spec.ts` (no catalog, channel or run input). Recorded once by `scripts/build-disclaimer-assets.ts --live`, tempo set by the founder to **1.4x** (pitch-preserving `atempo`, applied at record time only), 3.216 s, version `f23eb08d55c3` (hash covers sentence, voice, delivery, pace, level, fades). Manifest in `studio/data/disclaimer/`; `readDisclaimerManifest` refuses a clip that does not match the sentence or version. Spend: about $0.006 of the $0.50 ceiling (5 short recordings). Listening check: founder confirmed tempo; intelligibility at 1.4x confirmed by founder only on tempo ("Tempo is right"); I cannot hear audio.
+
+**Run data contract**: `creationOptions.disclaimer = { enabled, assetVersion, defaultReason }`, no migration. Default: AI stills (every Long) On; brief IMAGINED line On; factual DOCUMENTED-only stock brief Off; cannot tell On. Changed via `runs.create({disclaimerEnabled})` or `runs.updateSettings({disclaimerEnabled})` (refused once the video is made; recorded in settings history). `runs.get.disclaimer` returns enabled, version, reason and the sentence for the app preview. Runs without the field render as today (Off). Note: the default for "imagined" reads only the brief's IMAGINED line; no machine-readable Script Review flag exists.
+
+**Render**: On splices the clip into the narration after the hook (first sentence end) with 0.35 s pads; narration words, chapter markers, scene windows, stock cover, captions and the mix all move by the added seconds (3.916 s with this clip). The clip is set 6 dB under measured narration inside the narration track, so the bed ducks under it and the final loudness stage keeps the ratio. Measured on a stand-in narration: narration -16.1 LUFS, clip window -22.7 LUFS (about 5.7 dB under). Fades 0.25 s in and out. Card: ASS boxed style, dark translucent (about 35% see-through), white text, two balanced lines, top area, fades with the clip, at least 2 s; checked at 360 px wide over a bright frame in both orientations (readable). Short: card burned in the main pass. Long: card burned into the one chapter segment that holds the clip.
+
+**Tests**: `npx vitest run src/agents/video-generation src/disclaimer`: 19 files, 155 passed. `tsc --noEmit` clean apart from the existing missing `@napi-rs/canvas` in the shared `node_modules`; that same missing package makes `src/run-pipeline/*` and `src/api/*` suites fail at load in this worktree (environmental, not from this change; needs `npm ci` with the package present). Those suites are therefore NOT verified.
+
+**Not done**: real first-ten-seconds renders of a Short and a Long (On/Off, two channels) and the added-render-time measurement; app On/Off toggle and preview (R3 UI, suggested as separate `SPRINT6_TASK2_FE`); same-cause sweep (R5); focused tests for Gate 1 disabled and restart; AI-use gap decision; NIYT config and PLAN doc updates for the architect.

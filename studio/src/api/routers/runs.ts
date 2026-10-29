@@ -50,6 +50,8 @@ import { findActiveProfileForChannel } from '../../models/repositories/channel-p
 import { loadResolvedConfig } from '../../run-pipeline/resolved-config';
 import { buildResolvedOptions } from '../../run-pipeline/resolved-options';
 import { buildDisclaimerChoice, disclaimerEnabled } from '../../disclaimer/default';
+import { DISCLAIMER_ASSET_VERSION } from '../../disclaimer/asset-spec';
+import { DISCLAIMER_SENTENCE } from '../../disclaimer/sentence';
 import { sumUsageCostForRun, listUsageCostByStage } from '../../models/repositories/usage-event.repository';
 import { buildCostBreakdown, buildVideoAttempts, summarizeStages } from '../../run-pipeline/attempt-outcome';
 import { deriveDisplayChapters, deriveScriptVersions } from '../../run-pipeline/script-versions';
@@ -439,6 +441,14 @@ async function getRunDetail(id: string, ctx: Context) {
     }),
     // Set while the run is parked by a pre-spend check (preflight); null otherwise.
     preflightBlock: run.creationOptions?.preflightBlock ?? null,
+    // Sprint 6 Task 2 (P5): the in-video disclaimer choice with the fixed sentence the app previews; a run made before this
+    // shipped has none and shows Off. The sentence, voice and card are platform assets: nothing here is per channel.
+    disclaimer: {
+      enabled: disclaimerEnabled(run.creationOptions),
+      assetVersion: run.creationOptions?.disclaimer?.assetVersion ?? DISCLAIMER_ASSET_VERSION,
+      defaultReason: run.creationOptions?.disclaimer?.defaultReason ?? null,
+      sentence: DISCLAIMER_SENTENCE,
+    },
     // Sprint 4 Task 12 (R1): the settings the run used and where each came from; absent on older runs.
     ...(run.creationOptions?.resolvedOptions && { resolvedOptions: run.creationOptions.resolvedOptions }),
     // Sprint 4 Task 2: what the Gate 1 screen shows beyond the score, in one
