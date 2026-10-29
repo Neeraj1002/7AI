@@ -112,11 +112,11 @@ The thumbnail and the title divide the work: large lettering (at most four words
 
 **Verify**: success shows in Studio with `coverFrameSet` true; refusal leaves the video published, `coverFrameSet` false, the file accessible; no second video.
 
-## R7. The opening opens the question (PR C, after Task 2 merges)
+## R7. The opening opens the question (PR C)
 
-**Fix**: for Shorts, the hook line and the frame-zero image come from the chosen package's question. Script Review gets an **advisory** note when the question is not opened within five seconds (ten for Long); it never enters the score or triggers a paid retry. The hook comes first; Task 2's disclaimer follows when its toggle is on.
+**Fix**: for Shorts, the hook line and the frame-zero image come from the chosen package's question. Script Review gets an **advisory** note when the question is not opened within five seconds (ten for Long); it never enters the score or triggers a paid retry. The hook comes first. (Task 2's disclaimer was dropped on 29 Oct; nothing follows the hook.)
 
-**Verify**: inspect the first frame and first ten seconds with Task 2 on and off.
+**Verify**: inspect the first frame and first ten seconds with the real narration.
 
 ## R8. Record what was offered, chosen and rejected (PR C)
 
@@ -140,7 +140,7 @@ Add packaging purposes to the registry (brief, concepts, cold reader, vision cri
 
 - **PR A (`SPRINT6_TASK1A_BE`)**: R0, R1, R2, R3, R5 (API plus cards), R6. Packages appear at Gate 2 with the title checks.
 - **PR B (`SPRINT6_TASK1B_BE`)**: R4 (vision critic and payoff check).
-- **PR C (`SPRINT6_TASK1C_BE`)**: R7, R8, R9 final; starts after Task 2 merges. Merge `main` into your branch first.
+- **PR C (`SPRINT6_TASK1C_BE`)**: R7, R8, R9 final; starts after r8 (Task 2 was dropped on 29 Oct). Merge `main` into your branch first.
 Report after each PR; the Hard rule 8 closing runs after PR C merges.
 
 ## Spend
