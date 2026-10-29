@@ -61,4 +61,4 @@ Sprint 6 Task 1 Gate 2 FE: PR #134 ready, all screens behind `gate2PackageScreen
 
 ## Hard rule 6 record
 
-(filled when marked ready)
+On 2026-10-30, before `gh pr ready`: `git fetch origin` and `git pull origin main` in this worktree: already up to date, no conflicts to resolve. Typecheck, lint and the 205 app tests re-run clean on the merged tree. `git diff --name-only origin/main...HEAD -- docs/` lists only this report. The task doc is identical to `main`.
