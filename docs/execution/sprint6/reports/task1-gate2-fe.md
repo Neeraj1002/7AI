@@ -62,3 +62,13 @@ Sprint 6 Task 1 Gate 2 FE: PR #134 ready, all screens behind `gate2PackageScreen
 ## Hard rule 6 record
 
 On 2026-10-30, before `gh pr ready`: `git fetch origin` and `git pull origin main` in this worktree: already up to date, no conflicts to resolve. Typecheck, lint and the 205 app tests re-run clean on the merged tree. `git diff --name-only origin/main...HEAD -- docs/` lists only this report. The task doc is identical to `main`.
+
+## Flip (SPRINT6_TASK1_GATE2_FLIP)
+
+`gate2PackageScreens` is now `true`; `PackageCards.tsx`, the first-pass helpers in `lib/packaging.ts` (kept only `deviceLabel`, `pictureLink`, `downloadLink`, `dashIfNull`, `watchTime`) and their tests are gone. Hand types and casts are replaced by the real `AppRouter` types (`runs.packaging`, `runs.checkPackageTitle`, `runs.get.thumbnail`). Typecheck, lint and 199 app tests pass. Not run against the deployed server or a device.
+
+Where the server differs from my hand types (server followed):
+1. **Short has nothing to choose.** Its single package is its opening: `kind: 'short'`, `title: ''`, `titleLimit: 0`, `choice: null`, and `choosePackage` would refuse. So the Short card is read-only (first frame, hook line, `openingNote`, Download frame): no Choose, no Edit title, no quiet link, and Approve does not ask. This replaces the task text's Short "quiet link" (R3). A Short is now detected by `kind`, not by `imageUrls === null`.
+2. **Making:** the run reads `paused_gate2` while packages are made, so the packaging query runs on `paused_gate2` and `completed` only, polls only while `making` or `pending`, and the Approve/Reject/Revise footer is hidden while `making` (it would otherwise show, since the run status is `paused_gate2`). The `currentStage` guess is deleted. The query now also runs for Shorts.
+3. "We tried twice" and the skipped-second-round line now come from `secondRound.state`/`reason`, not `round === 2`.
+4. `dropped[]` has a `stage`, `brief` has four fields, `stranger` has `about`: fixtures updated; unused by the screens.

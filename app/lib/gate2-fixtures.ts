@@ -5,6 +5,9 @@ import type { Gate2Package, Gate2Response, Gate2View, ThumbnailResult, TitleChec
 
 const pkg = (over: Partial<Gate2Package> & Pick<Gate2Package, 'id' | 'title' | 'question'>): Gate2Package => ({
   device: 'stake',
+  supportingDevice: null,
+  lettering: { words: 'FREE?', subline: null, typeface: 'Anton' },
+  readableAtSidebar: true,
   answeredAt: 'Chapter 3, about 4:20',
   answeredAtParts: { chapter: 3, chapterTitle: 'The catch', startSec: 260 },
   round: 1,
@@ -28,12 +31,12 @@ const P2 = pkg({
   answeredAt: 'Chapter 2, about 2:35',
   answeredAtParts: { chapter: 2, chapterTitle: 'The rule', startSec: 155 },
   coldReader: null,
-  stranger: { wouldClick: 'maybe', expectsToSee: 'names a gap in what they know.', wantsToKnow: 'whether it applies', wouldDisappoint: '' },
+  stranger: { about: 'a rule at work', wouldClick: 'maybe', expectsToSee: 'names a gap in what they know.', wantsToKnow: 'whether it applies', wouldDisappoint: '' },
 });
 const P3 = pkg({ id: 'p3', device: 'how', title: 'How a 401(k) match really works', question: 'How does the match work?', answeredAt: 'Chapter 1', answeredAtParts: { chapter: 1, chapterTitle: 'Basics', startSec: null } });
 const SHORT_PKG = pkg({
   id: 's1',
-  title: 'Why the 401(k) match isn’t really free',
+  title: '',
   question: 'Is the match really free?',
   answeredAt: '0:18 in the video',
   answeredAtParts: { chapter: null, chapterTitle: null, startSec: 18 },
@@ -45,7 +48,10 @@ const SHORT_PKG = pkg({
 const view = (over: Partial<Gate2View> = {}): Gate2View => ({
   status: 'ready',
   reason: null,
-  brief: { question: 'Is the match really free?' },
+  brief: { question: 'Is the match really free?', whatPeopleBelieve: '', whatTheRecordSays: '', promise: '' },
+  openingNote: null,
+  secondRound: { state: 'not_needed', reason: null },
+  kind: 'long',
   packages: [P1, P2],
   dropped: [],
   choice: null,
@@ -67,17 +73,17 @@ export const GATE2_FIXTURES: Record<string, Gate2Response> = {
   'ready-title-edited': resp(view({ choice: { packageId: 'p1', title: 'Why the 401(k) match isn’t free, and what it costs you', titleEdited: true } })),
   'ready-youtube': resp(view({ choice: { packageId: 'youtube-suggested', title: null, titleEdited: false } })),
   'round-two': resp(view({ round: 2, packages: [{ ...P1, round: 2 }, { ...P2, round: 2 }] })),
-  'short': resp(view({ packages: [SHORT_PKG], videoSeconds: 41 })),
-  'short-chosen': resp(view({ packages: [SHORT_PKG], videoSeconds: 41, choice: { packageId: 'youtube-suggested', title: null, titleEdited: false } })),
+  'short': resp(view({ kind: 'short', packages: [SHORT_PKG], videoSeconds: 41, titleLimit: 0, brief: null })),
   'weak-gap': resp(view({ status: 'weak_gap', packages: [], reason: 'The script explains how something works, but never raises a question a stranger would wonder about.' })),
   'none-passed': resp(
     view({
       status: 'none_passed',
       packages: [],
       round: 2,
+      secondRound: { state: 'finished', reason: null },
       dropped: [
-        { title: P1.title, device: 'stake', reasons: ['the title used a figure the script doesn’t support.'] },
-        { title: P2.title, device: 'mystery', reasons: ['the picture showed something the video doesn’t contain.'] },
+        { title: P1.title, device: 'stake', stage: 'title', reasons: ['the title used a figure the script doesn’t support.'] },
+        { title: P2.title, device: 'mystery', stage: 'picture', reasons: ['the picture showed something the video doesn’t contain.'] },
       ],
     }),
   ),

@@ -1,67 +1,27 @@
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
 import { mmss } from './long-video';
 
-// Sprint 6 Task 1 (Gate 2 package screens, FE): types written from docs/execution/sprint6/contracts/task1-gate2-packaging.md
-// (r2) and the pure helpers the new screens use, kept free of React so they can be tested. The server decides everything
-// that matters (limits, title checks, what is live); the app only formats it. The types are hand-written because the
-// backend adds these fields in Task 1 PR C (R11); the flip PR replaces them with the real AppRouter types.
+// Sprint 6 Task 1 (Gate 2 package screens, FE): the pure helpers the new screens use, kept free of React so they can be tested.
+// The server decides everything that matters (limits, title checks, what is live, what is being made); the app only formats it.
+// Types come from the real AppRouter (Task 1 PR C, #130).
 
 export const YOUTUBE_SUGGESTED = 'youtube-suggested';
 
-export type Gate2Package = {
-  id: string;
-  device: string;
-  title: string;
-  question: string;
-  answeredAt: string;
-  answeredAtParts?: { chapter: number | null; chapterTitle: string | null; startSec: number | null };
-  round?: 1 | 2;
-  hookLine?: string | null;
-  firstFrameUrl?: string | null;
-  imageUrls: { full: string; feed: string; sidebar: string } | null;
-  coldReader?: { curiosity: number; wouldClick: string; guessedAbout: string } | null;
-  stranger?: { wouldClick: string; expectsToSee: string; wantsToKnow: string; wouldDisappoint: string } | null;
-  headToHead?: { wins: number; losses: number; ties: number } | null;
-  answerQuote?: string | null;
-  warnings: string[];
-};
-
-export type Gate2View = {
-  status: 'ready' | 'weak_gap' | 'none_passed' | 'failed' | 'skipped';
-  reason: string | null;
-  brief: { question: string } | null;
-  packages: Gate2Package[];
-  dropped: Array<{ title: string; device: string; reasons: string[] }>;
-  choice: { packageId: string; title: string | null; titleEdited: boolean } | null;
-  titleLimit: number;
-  videoSeconds: number | null;
-  packagingCostUsd?: number;
-  round?: 1 | 2;
-};
-
-export type Gate2Response = { pending: boolean; making?: boolean; view: Gate2View | null };
-
-export type TitleProblem = {
-  kind: 'unsupported_figure' | 'too_long' | 'empty' | 'other';
-  text: string | null;
-  message: string;
-  supportedFigures: string[];
-};
-export type TitleCheck = { ok: boolean; length: number; titleLimit: number; problems: TitleProblem[] };
-
-export type ThumbnailResult = {
-  status: 'live' | 'not_applied' | 'pending' | 'not_set';
-  reasonText: string | null;
-  source: 'package' | 'youtube-suggested' | 'frame-grab';
-  packageId: string | null;
-  fileUrl: string | null;
-};
+type Outputs = inferRouterOutputs<AppRouter>['runs'];
+export type Gate2Response = Outputs['packaging'];
+export type Gate2View = NonNullable<Gate2Response['view']>;
+export type Gate2Package = Gate2View['packages'][number];
+export type TitleCheck = Outputs['checkPackageTitle'];
+export type TitleProblem = TitleCheck['problems'][number];
+export type ThumbnailResult = NonNullable<Outputs['get']['thumbnail']>;
 
 // ---- which screen ---------------------------------------------------------------------------------------------------
 
 export type Gate2Screen = 'none' | 'making' | 'pending' | 'cards' | 'short' | 'no_package';
 
 // A Short has no 16:9 image (imageUrls null) and one package; the cards are the Video swipe cards otherwise.
-export const isShortPackaging = (view: Gate2View): boolean => view.packages.length > 0 && view.packages.every((p) => p.imageUrls === null);
+export const isShortPackaging = (view: Gate2View): boolean => view.kind === 'short';
 
 export function gate2Screen(response: Gate2Response | undefined): Gate2Screen {
   if (!response) return 'none';
@@ -74,18 +34,14 @@ export function gate2Screen(response: Gate2Response | undefined): Gate2Screen {
   return isShortPackaging(view) ? 'short' : 'cards';
 }
 
-// Approve, choose and edit are not shown while the packages are made (the approval is not open yet).
-export const canChoose = (response: Gate2Response | undefined): boolean => gate2Screen(response) === 'cards' || gate2Screen(response) === 'short';
+// Choosing and editing are offered only for a Video's packages: not while they are made, not with none, and not for a Short
+// (its single package is its opening, kept on the run, with nothing to choose).
+export const canChoose = (response: Gate2Response | undefined): boolean => gate2Screen(response) === 'cards';
 
-// Whether to ask the run query for packaging at all: while Gate 2 is open or being prepared, and once published.
-export function packagingQueryWanted(run: { status: string; currentStage?: string | null }, isLong: boolean): boolean {
-  if (!isLong) return false;
-  if (run.status === 'paused_gate2' || run.status === 'completed') return true;
-  return (run.status === 'running' || run.status === 'pending') && (run.currentStage === 'video_review' || run.currentStage === 'gate2');
-}
+// Whether to ask the run query for packaging at all: while Gate 2 is open (the server says `making` itself) and once published.
+export const packagingQueryWanted = (run: { status: string }): boolean => run.status === 'paused_gate2' || run.status === 'completed';
 
-export const packagingPollMs = (response: Gate2Response | undefined, runStatus: string): number | false =>
-  response?.making || response?.pending || (runStatus !== 'paused_gate2' && runStatus !== 'completed') ? 4_000 : false;
+export const packagingPollMs = (response: Gate2Response | undefined): number | false => (response?.making || response?.pending ? 4_000 : false);
 
 // ---- the cards ------------------------------------------------------------------------------------------------------
 
@@ -121,26 +77,24 @@ export function whyThisWorks(p: Gate2Package): string | null {
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
-export const quietLinkLabel = (short: boolean): string => (short ? 'Use the script’s own title and hook' : 'Keep YouTube’s suggested thumbnail');
-export const keptLabel = (short: boolean): string =>
-  short ? 'Using the script’s own title and hook.' : 'Using YouTube’s suggested thumbnail. The title comes from the script.';
+export const quietLinkLabel = 'Keep YouTube’s suggested thumbnail';
+export const keptLabel = 'Using YouTube’s suggested thumbnail. The title comes from the script.';
 export const downloadLabel = (short: boolean): string => (short ? 'Download frame' : 'Download image');
 
 // The line above Approve in the bottom bar.
 export function statusLine(view: Gate2View): { text: string; tone: 'pending' | 'done' } {
-  const short = isShortPackaging(view);
   if (!view.choice) return { text: 'Nothing chosen yet. Choose a package, or keep YouTube’s thumbnail.', tone: 'pending' };
   if (view.choice.packageId === YOUTUBE_SUGGESTED) {
-    return { text: short ? 'Using the script’s own title and hook.' : 'Using YouTube’s suggested thumbnail. Title from the script.', tone: 'done' };
+    return { text: 'Using YouTube’s suggested thumbnail. Title from the script.', tone: 'done' };
   }
   const index = view.packages.findIndex((p) => p.id === view.choice!.packageId);
   const title = view.choice.title ?? view.packages[index]?.title ?? '';
   return { text: `Using package ${index + 1}${view.choice.titleEdited ? ' (title edited)' : ''}: ${title}`, tone: 'done' };
 }
 
-// Approve with nothing chosen asks first. Only when there are packages to choose from: with none, YouTube's is already the option.
+// Approve with nothing chosen asks first. Only when there are packages to choose from: with none, or for a Short, there is nothing to choose.
 export const approveNeedsAsk = (response: Gate2Response | undefined): boolean => {
-  if (gate2Screen(response) !== 'cards' && gate2Screen(response) !== 'short') return false;
+  if (gate2Screen(response) !== 'cards') return false;
   return !response?.view?.choice;
 };
 
@@ -203,9 +157,10 @@ export function noPackageCopy(view: Gate2View): NoPackageCopy {
     return { head: 'This script doesn’t raise a strong question', lead: 'We made no package rather than promise something the video doesn’t deliver.', reasons: reason };
   }
   if (view.status === 'none_passed') {
-    const tried = view.round === 2 ? ['We tried twice: the first set and one automatic second round. Nothing passed.'] : [];
+    const tried = view.secondRound.state === 'finished' ? ['We tried twice: the first set and one automatic second round. Nothing passed.'] : [];
     const dropped = view.dropped.map((d, i) => `Package ${i + 1}: ${d.reasons.join(' ')}`.trim());
-    return { head: 'Nothing passed our checks', lead: 'We’d rather not publish something that could mislead viewers.', reasons: [...tried, ...(dropped.length > 0 ? dropped : reason)] };
+    const skippedSecond = view.secondRound.state === 'skipped' && view.secondRound.reason ? [`A second try was not made: ${view.secondRound.reason}.`] : [];
+    return { head: 'Nothing passed our checks', lead: 'We’d rather not publish something that could mislead viewers.', reasons: [...tried, ...(dropped.length > 0 ? dropped : reason), ...skippedSecond] };
   }
   if (view.status === 'skipped') {
     return { head: 'No packages this time', lead: 'This video’s spend limit left no room to make them.', reasons: [...reason, 'Your video itself is not affected.'] };

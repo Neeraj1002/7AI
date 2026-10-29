@@ -28,7 +28,7 @@ const view = (k: string) => F[k].view!;
 test('every fixture maps to the screen it stands for', () => {
   const expected: Record<string, string> = {
     'making': 'making', 'making-round-2': 'making', 'ready-3': 'cards', 'ready-1': 'cards', 'ready-chosen': 'cards', 'ready-title-edited': 'cards',
-    'ready-youtube': 'cards', 'round-two': 'cards', 'short': 'short', 'short-chosen': 'short', 'weak-gap': 'no_package', 'none-passed': 'no_package',
+    'ready-youtube': 'cards', 'round-two': 'cards', 'short': 'short', 'weak-gap': 'no_package', 'none-passed': 'no_package',
     'skipped': 'no_package', 'failed': 'no_package', 'pending': 'pending',
   };
   for (const k of Object.keys(F)) assert.equal(gate2Screen(F[k]), expected[k], k);
@@ -38,13 +38,12 @@ test('every fixture maps to the screen it stands for', () => {
 
 test('choosing is only offered when there are packages to choose from, never while making or with none', () => {
   assert.equal(canChoose(F['ready-3']), true);
-  assert.equal(canChoose(F['short']), true);
-  for (const k of ['making', 'pending', 'weak-gap', 'none-passed', 'skipped', 'failed']) assert.equal(canChoose(F[k]), false, k);
+  for (const k of ['short', 'making', 'pending', 'weak-gap', 'none-passed', 'skipped', 'failed']) assert.equal(canChoose(F[k]), false, k);
 });
 
 test('Approve with nothing chosen asks first; a choice, or no packages, does not', () => {
   assert.equal(approveNeedsAsk(F['ready-3']), true);
-  assert.equal(approveNeedsAsk(F['short']), true);
+  assert.equal(approveNeedsAsk(F['short']), false);
   assert.equal(approveNeedsAsk(F['ready-chosen']), false);
   assert.equal(approveNeedsAsk(F['ready-youtube']), false);
   assert.equal(approveNeedsAsk(F['none-passed']), false);
@@ -52,15 +51,14 @@ test('Approve with nothing chosen asks first; a choice, or no packages, does not
   assert.equal(approveNeedsAsk(undefined), false);
 });
 
-test('the packaging query runs while Gate 2 is open or being prepared, and after publishing', () => {
-  assert.equal(packagingQueryWanted({ status: 'paused_gate2' }, true), true);
-  assert.equal(packagingQueryWanted({ status: 'completed' }, true), true);
-  assert.equal(packagingQueryWanted({ status: 'running', currentStage: 'gate2' }, true), true);
-  assert.equal(packagingQueryWanted({ status: 'running', currentStage: 'video_generation' }, true), false);
-  assert.equal(packagingQueryWanted({ status: 'paused_gate2' }, false), false);
-  assert.equal(packagingPollMs(F['making'], 'running'), 4_000);
-  assert.equal(packagingPollMs(F['pending'], 'paused_gate2'), 4_000);
-  assert.equal(packagingPollMs(F['ready-3'], 'paused_gate2'), false);
+test('the packaging query runs while Gate 2 is open and after publishing; it polls only while the server says making or pending', () => {
+  assert.equal(packagingQueryWanted({ status: 'paused_gate2' }), true);
+  assert.equal(packagingQueryWanted({ status: 'completed' }), true);
+  assert.equal(packagingQueryWanted({ status: 'running' }), false);
+  assert.equal(packagingPollMs(F['making']), 4_000);
+  assert.equal(packagingPollMs(F['pending']), 4_000);
+  assert.equal(packagingPollMs(F['ready-3']), false);
+  assert.equal(packagingPollMs(undefined), false);
 });
 
 test('the "answered at" chip uses the parts, and falls back to the string', () => {
@@ -83,9 +81,7 @@ test('the status line follows the choice', () => {
   assert.equal(statusLine(view('ready-chosen')).text, 'Using package 1: Why the 401(k) match isn’t really free');
   assert.match(statusLine(view('ready-title-edited')).text, /^Using package 1 \(title edited\): Why the 401\(k\) match isn’t free, and/);
   assert.equal(statusLine(view('ready-youtube')).text, 'Using YouTube’s suggested thumbnail. Title from the script.');
-  assert.equal(statusLine(view('short-chosen')).text, 'Using the script’s own title and hook.');
-  assert.equal(quietLinkLabel(true), 'Use the script’s own title and hook');
-  assert.equal(quietLinkLabel(false), 'Keep YouTube’s suggested thumbnail');
+  assert.equal(quietLinkLabel, 'Keep YouTube’s suggested thumbnail');
 });
 
 test('the title counter shows the server limit; the figures problem highlights the server\'s own text', () => {
@@ -123,7 +119,7 @@ test('the no-package screen says why, in each of the four cases', () => {
     'Package 1: the title used a figure the script doesn’t support.',
     'Package 2: the picture showed something the video doesn’t contain.',
   ]);
-  assert.equal(noPackageCopy({ ...view('none-passed'), round: 1 }).reasons[0], 'Package 1: the title used a figure the script doesn’t support.');
+  assert.equal(noPackageCopy({ ...view('none-passed'), secondRound: { state: 'not_needed', reason: null } }).reasons[0], 'Package 1: the title used a figure the script doesn’t support.');
   assert.deepEqual(noPackageCopy(view('skipped')).reasons, ['The spend limit for this video was reached first.', 'Your video itself is not affected.']);
   assert.equal(noPackageCopy(view('failed')).head, 'We couldn’t make packages');
 });
