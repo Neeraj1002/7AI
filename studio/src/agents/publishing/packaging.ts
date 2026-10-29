@@ -6,12 +6,19 @@
 
 export const FALLBACK_EDITOR = 'the team';
 
+// The one place that decides what name goes into a public credit. Only a real display name is ever published:
+// a blank name, or one that looks like an email address (contains '@'), counts as no name (Bugs Acceptance run 1, R1).
+export function publicEditorName(name: string | null | undefined): string {
+  const trimmed = name?.trim();
+  return trimmed && !trimmed.includes('@') ? trimmed : FALLBACK_EDITOR;
+}
+
 export type PackagingParams = {
   titleGuidance?: string | null;
   descriptionTemplate?: string | null;
   hashtagsBase?: string[];
   editorCredit?: boolean;
-  editorName?: string | null; // real approver name/email, or null for the ops path
+  editorName?: string | null; // real approver display name, or null for the ops path (never an email)
   sources?: string[];
 };
 
@@ -50,7 +57,7 @@ export function fillCreditPlaceholders(template: string, editor: string, sources
 export function buildMetadataUserMessage(params: { scriptText: string; hashtags: string[] } & PackagingParams): string {
   const hashtags = unionHashtags(params.hashtags, params.hashtagsBase);
   const lines = [`Script: ${params.scriptText}`, `Hashtags: ${hashtags.join(', ')}`];
-  const editor = params.editorName?.trim() || FALLBACK_EDITOR;
+  const editor = publicEditorName(params.editorName);
   const sources = formatSources(params.sources);
 
   if (params.titleGuidance) {
@@ -75,7 +82,7 @@ export function buildMetadataUserMessage(params: { scriptText: string; hashtags:
 // editor credit is appended when it was asked for but is missing, (3) likewise the
 // sources line when the template used {sources} and there are sources.
 export function scrubDescription(description: string, params: PackagingParams): string {
-  const editor = params.editorName?.trim() || FALLBACK_EDITOR;
+  const editor = publicEditorName(params.editorName);
   const sources = formatSources(params.sources);
   let out = fillCreditPlaceholders(description, editor, sources);
   const template = params.descriptionTemplate ?? '';

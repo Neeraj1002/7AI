@@ -2139,7 +2139,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   let editorName: string | null = null;
   try {
     const approver = await findGate1ApproverForRun(runId);
-    editorName = approver ? (approver.name?.trim() || approver.email) : null;
+    editorName = approver?.name ?? null;
   } catch (error) {
     console.error(`[publishing] run ${runId}: approver lookup failed, using the fallback credit: ${error instanceof Error ? error.message : String(error)}`);
   }
