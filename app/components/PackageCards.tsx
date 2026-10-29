@@ -69,11 +69,11 @@ function OptionCard({
   const note = coldReaderLine(pkg);
   const stranger = strangerLines(pkg);
   const h2h = headToHeadLine(pkg);
-  const download = downloadLink(pkg.imageUrls.full, apiUrl);
+  const download = downloadLink((pkg.imageUrls?.full ?? pkg.firstFrameUrl ?? ""), apiUrl);
   return (
     <View style={[styles.option, selected && styles.optionSelected]}>
       <View style={styles.thumbWrap}>
-        <Picture url={pkg.imageUrls.feed} apiUrl={apiUrl} token={token} style={styles.thumb} />
+        <Picture url={(pkg.imageUrls?.feed ?? pkg.firstFrameUrl ?? "")} apiUrl={apiUrl} token={token} style={styles.thumb} />
         {chip ? (
           <View style={styles.durationChip}>
             <Text style={styles.durationText}>{chip}</Text>
@@ -136,9 +136,9 @@ function OptionCard({
             Feed size · lettering is {pkg.lettering.words}
             {pkg.lettering.subline ? ` / ${pkg.lettering.subline}` : ''} in {pkg.lettering.typeface}
           </Text>
-          <Picture url={pkg.imageUrls.feed} apiUrl={apiUrl} token={token} style={styles.feedSize} />
+          <Picture url={(pkg.imageUrls?.feed ?? pkg.firstFrameUrl ?? "")} apiUrl={apiUrl} token={token} style={styles.feedSize} />
           <Text style={styles.meta}>Sidebar size</Text>
-          <Picture url={pkg.imageUrls.sidebar} apiUrl={apiUrl} token={token} style={styles.sidebarSize} />
+          <Picture url={(pkg.imageUrls?.sidebar ?? pkg.firstFrameUrl ?? "")} apiUrl={apiUrl} token={token} style={styles.sidebarSize} />
           {download ? (
             <Pressable onPress={() => void Linking.openURL(download)} accessibilityRole="link" style={styles.link}>
               <Text style={styles.linkText}>↓ Download the full-size file</Text>
@@ -262,7 +262,7 @@ export function PublishedThumbnailCard({
   const status = publishedThumbnailStatus(output);
   if (!status) return null;
   const pkg = output?.thumbnail?.packageId ? response?.view?.packages.find((p) => p.id === output.thumbnail!.packageId) : undefined;
-  const download = pkg ? downloadLink(pkg.imageUrls.full, apiUrl) : null;
+  const download = pkg ? downloadLink((pkg.imageUrls?.full ?? pkg.firstFrameUrl ?? ""), apiUrl) : null;
   return (
     <Card>
       <View style={styles.header}>

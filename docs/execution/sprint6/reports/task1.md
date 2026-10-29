@@ -375,6 +375,14 @@ New tests: the R10 block in `build.test.ts` (8 cases: second round once and mark
 
 Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 and the brief-driven hook line not yet** (provider limit).
 
+## C10. R11: backend for the Gate 2 package screens (task r9, contract r2)
+
+**R0 findings.** (1) While packages are made the run already reads `paused_gate2` and the Gate 2 row is `running`; the approval is not registered yet. So `making` = packaging not finished and no open approval (`hasPendingApproval`); `pending` = approval open, nothing there. (2) The receipt cannot tell a refused thumbnail call from an unknown outcome (both follow-up `uncertain`); the code tells them apart by `coverFrameMessage` in the stage output, and `not_set` also covers "YouTube chose its own". (3) A Short has no choosable options (founder, 30 Oct: no pick before render, no +$0.12): its one package is `opening`, with the brief's hook line and the first frame, empty title (written at publish), changed with Revise.
+
+**Built.** `runs.packaging` adds `making`, `packagingCostUsd` (usage rows named `packaging-*`, both rounds, text and pictures), `round`; each package adds `round`, `answeredAtParts`, `hookLine`, `firstFrameUrl` (signed), `imageUrls` null for a Short. New `runs.checkPackageTitle` wraps `checkTitle` (the function `choosePackage` refuses with), tenant-checked, returns the server `titleLimit`. `runs.get` adds `thumbnail` (live / not_applied / pending / not_set). `choosePackage` unchanged. Not built: `remakePackages`, per-package progress, 9:16 image.
+
+**Tests.** `gate2-contract.test.ts` and `runs.packaging.test.ts`: making, ready, weak gap, none passed, skipped, failed, round two, a Short, each thumbnail status; the title check agrees with `choosePackage` for an unsupported figure, over-length and empty; stranger gets FORBIDDEN. Studio tsc clean; full suite 1702 passed (one unrelated stock-footage test flaked once, passes alone); app tsc clean. No paid run.
+
 ## C9. Open decisions and what is next
 
 1. **Short with no pick (C1 row 3):** confirm that a Short's single derived opening is acceptable, or ask for a pick before render.
