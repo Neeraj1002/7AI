@@ -6,7 +6,7 @@
 
 ## 1. Bugs found (7)
 
-Fix order is the order below. One hot-fixer task (`BUGS_ACCEPTANCE_1`) takes B1 to B5; B6 and B7 are separate (see section 4).
+Fix order is the order below. One hot-fixer release (`BUGS_ACCEPTANCE_RUN_1`) takes B1 to B6 plus the tenant-check finding F1 (founder, 29 Oct); only B7 is separate (waits for Q4).
 
 | # | Bug | Steps | What the founder saw | What the code says (checked 26 Oct) | Severity |
 |---|---|---|---|---|---|
@@ -70,5 +70,5 @@ Legend: **PASS** founder said pass (or "works"). **FAIL** see the bug. **UNSURE 
 ## 4. Next actions
 
 1. Founder, now: edit the live description of the Mary Celeste video in YouTube Studio and delete the "Edited by …@gmail.com." line (B1 is live).
-2. Architect: one hot-fixer task for B1, B2, B3, B4 and B5 (B5 needs a check of whether the server or the app drops the estimate and limit). B6 goes to the backend agent that owns Cancel; B7 waits for Q4.
+2. Architect: one hot-fixer release (`BUGS_ACCEPTANCE_RUN_1`) for B1 to B6 and F1 (B5 needs a check of whether the server or the app drops the estimate and limit; B6 is one fix attempt, then report). B7 waits for Q4.
 3. After the fixes and the Task 1 deploy: retest T05, T16, T24, T25, T32, T33, T42, T43, T45, T46 and run T34, T36, T37, T39 (Part 6 of the test sequence).

@@ -42,7 +42,7 @@
 
 Plus a fourth bucket: **Commentary-only** facts (debated, hedged, or knowledge from after the scene, like "the script is still undeciphered"). A first-person narrator cannot know these. Only the commentary voice states them, hedges kept.
 
-**Disclosure, in three places:** (1) the exact spoken first sentence says it is imagined and built from real finds; (2) the description template carries the creative-liberty line on every video (✅ automatic); (3) the pinned comment repeats it (manual). Longs end with 30–45 seconds on what was documented, inferred and imagined.
+**Update 29 Oct 2026 (founder): there is no spoken or on-screen disclaimer.** The spoken first sentence in item (1) below, the disclaimer lines in S-1 and L-1 and the "hook order" item 8 are void; YouTube's altered-or-synthetic setting (default Yes) and the description line (2) remain. The first sentence of a treatment is editorial only. **Disclosure, in three places (as first written):** (1) the exact spoken first sentence says it is imagined and built from real finds; (2) the description template carries the creative-liberty line on every video (✅ automatic); (3) the pinned comment repeats it (manual). Longs end with 30–45 seconds on what was documented, inferred and imagined.
 
 ## 2a. Story feel and voices
 
