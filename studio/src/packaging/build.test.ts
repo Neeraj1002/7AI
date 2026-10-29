@@ -35,7 +35,11 @@ const CLEAN_DEFECT: DefectCheck = { faceVisible: false, uncannyAtFeed: false, un
 const llmOf = (cost = '0.002') => llm(cost);
 
 type Over = {
-  brief?: CuriosityBrief; concepts?: Concept[]; reader?: ColdReaderReply; imagesAllowed?: number;
+  brief?: CuriosityBrief; concepts?: Concept[] | ((call: number, feedback?: string[]) => Concept[]); reader?: ColdReaderReply; imagesAllowed?: number;
+  // R10: the second round's room; the default is no room, so the older tests see one round only.
+  roundTwoRoom?: BuildHooks['roundTwoRoom'];
+  // Throws inside this paid step (a crash) the first time it is reached: 'payoff:2' is the second payoff call.
+  crashAt?: string;
   payoff?: (title: string) => PayoffCheck; critic?: (title: string) => CriticRead; defect?: DefectCheck;
   // The lettering box each zone gets from the fake compose (default: top-left corner, away from the subject).
   boxFor?: (zone: string) => { x0: number; y0: number; x1: number; y1: number };
@@ -45,9 +49,26 @@ type Over = {
 function setup(over: Over = {}) {
   const calls: string[] = [];
   const composed: string[] = [];
+  const feedbackSeen: Array<string[] | undefined> = [];
+  let conceptCalls = 0;
+  let crashed = false;
+  const seen: Record<string, number> = {};
+  const maybeCrash = (step: string) => {
+    seen[step] = (seen[step] ?? 0) + 1;
+    if (!crashed && over.crashAt === `${step}:${seen[step]}`) {
+      crashed = true;
+      throw new Error(`crash at ${over.crashAt}`);
+    }
+  };
   const deps: BuildDeps = {
     generateBrief: vi.fn(async () => { calls.push('brief'); return { brief: over.brief ?? makeBrief(), calls: [llm()] }; }),
-    generateConcepts: vi.fn(async () => { calls.push('concepts'); return { value: over.concepts ?? sixConcepts(), llm: llm('0.04') }; }),
+    generateConcepts: vi.fn(async (p) => {
+      calls.push('concepts');
+      feedbackSeen.push(p.feedback);
+      conceptCalls += 1;
+      const value = typeof over.concepts === 'function' ? over.concepts(conceptCalls, p.feedback) : (over.concepts ?? sixConcepts());
+      return { value, llm: llm('0.04') };
+    }),
     coldRead: vi.fn(async () => { calls.push('cold'); return { value: over.reader ?? reader(), llm: llm('0.003') }; }),
     generateStills: vi.fn(async (p) => {
       calls.push('image');
@@ -66,7 +87,7 @@ function setup(over: Over = {}) {
       };
     }),
     defectCheck: vi.fn(async () => { calls.push('defect'); return { value: over.defect ?? CLEAN_DEFECT, llm: llmOf('0.006') }; }),
-    payoffCheck: vi.fn(async (p) => { calls.push('payoff'); return { value: (over.payoff ?? (() => GOOD_PAYOFF))(p.title), llm: llmOf('0.012') }; }),
+    payoffCheck: vi.fn(async (p) => { calls.push('payoff'); maybeCrash('payoff'); return { value: (over.payoff ?? (() => GOOD_PAYOFF))(p.title), llm: llmOf('0.012') }; }),
     criticRead: vi.fn(async (_f, title) => { calls.push('critic'); return { value: (over.critic ?? (() => GOOD_CRITIC))(title), llm: llmOf() }; }),
     compareHeadToHead: vi.fn(async (p) => {
       calls.push('compare');
@@ -77,11 +98,12 @@ function setup(over: Over = {}) {
   const checkpoints: Array<Partial<PackagingOutput>> = [];
   const booked: string[] = [];
   const hooks: BuildHooks = {
-    onText: async (label) => { booked.push(`text:${label}`); },
+    onText: async (label, _calls, meta) => { booked.push(`text:${label}${meta?.round === 2 ? ':r2' : ''}`); },
     onImage: async (info) => { booked.push(`image:${info.packageId}`); },
     checkpoint: async (p) => { checkpoints.push(p); },
+    roundTwoRoom: over.roundTwoRoom ?? (async () => ({ ok: false, imagesAllowed: 0, reason: 'test: no second round' })),
   };
-  const run = () =>
+  const run = (resume?: Partial<PackagingOutput>) =>
     buildPackaging({
       runId: '00000000-0000-4000-8000-000000000001',
       scriptText: EIFFEL_SCRIPT,
@@ -90,8 +112,11 @@ function setup(over: Over = {}) {
       imagesAllowed: over.imagesAllowed ?? 3,
       hooks,
       deps,
+      resume,
     });
-  return { run, deps, calls, composed, checkpoints, booked };
+  // What the stage would have saved by now: every checkpoint merged in order.
+  const saved = () => checkpoints.reduce<Partial<PackagingOutput>>((acc, c) => ({ ...acc, ...c }), {});
+  return { run, deps, calls, composed, checkpoints, booked, feedbackSeen, saved };
 }
 
 describe('buildPackaging', () => {
@@ -235,7 +260,7 @@ describe('PR B: the picture checks (R4)', () => {
     const out = await setup({ payoff: () => ({ ...GOOD_PAYOFF, questionAnswered: false }) }).run();
     expect(out.status).toBe('none_passed');
     expect(out.packages).toHaveLength(0);
-    expect(out.reason).toMatch(/Every picture failed a check/);
+    expect(out.reason).toMatch(/Nothing passed/);
     expect(out.reason).toMatch(/never answers/);
   });
 
@@ -274,6 +299,122 @@ describe('PR B: the picture checks (R4)', () => {
     expect(out.packages[0].title).toBe(titleOf(2));
     expect(out.packages[0].checks?.headToHead).toMatchObject({ wins: 2, losses: 0 });
     expect(out.choice).toBeUndefined();
+  });
+});
+
+describe('R10: one more round when every package fails', () => {
+  const TAGS2 = ['girders', 'workers', 'fair', 'permit', 'antenna', 'paris'] as const;
+  const titleTwo = (i: number) => `A different angle on the ${TAGS2[i]} story`;
+  const badQuote = 'an invented scene with a toy';
+  const allBad = (): Concept[] => sixConcepts().map((c) => ({ ...c, supportQuote: badQuote }));
+  const roundTwoConcepts = (): Concept[] =>
+    DEVICES.map((device, i) => {
+      const c = makeConcept({ device, title: titleTwo(i), supportQuote: SUPPORT_QUOTE });
+      c.thumbnail.lettering = { words: `ALL ${TAGS2[i].toUpperCase()}`, subline: null, zone: 'top' };
+      return c;
+    });
+  const room = async () => ({ ok: true, imagesAllowed: 3, reason: null });
+  // Round one's concepts fail the code checks; the second call (with feedback) returns good ones.
+  const twoRounds = (n: number, feedback?: string[]) => (n === 1 || !feedback ? allBad() : roundTwoConcepts());
+
+  it('a seeded brief whose six concepts all fail runs round two exactly once, and its packages are marked second round', async () => {
+    const s = setup({ concepts: twoRounds, roundTwoRoom: room });
+    const out = await s.run();
+    expect(s.calls.filter((c) => c === 'concepts')).toHaveLength(2);
+    expect(out.status).toBe('ready');
+    expect(out.packages.length).toBeGreaterThan(0);
+    expect(out.packages.every((p) => p.round === 2)).toBe(true);
+    expect(out.packages.every((p) => p.id.startsWith('r2-'))).toBe(true);
+    expect(out.roundTwo?.state).toBe('finished');
+    expect(out.rounds).toHaveLength(2);
+    expect(out.concepts).toHaveLength(12);
+    // the second round's calls are booked as their own rows, marked as round two
+    expect(s.booked).toEqual(expect.arrayContaining(['text:concepts:r2', 'text:cold-reader:r2', 'text:payoff:r2']));
+    expect(s.booked.filter((b) => b === 'text:concepts')).toHaveLength(1);
+  });
+
+  it('feeds back only rule names and fixed advice, never the dropped text', async () => {
+    const s = setup({ concepts: twoRounds, roundTwoRoom: room });
+    await s.run();
+    const feedback = s.feedbackSeen[1]!;
+    expect(feedback.join(' ')).toMatch(/support_not_in_script \(6\)/);
+    for (const text of [badQuote, 'toy', 'iron', ...sixConcepts().map((c) => c.title)]) expect(feedback.join(' ')).not.toContain(text);
+    expect(s.feedbackSeen[0]).toBeUndefined();
+  });
+
+  it('a rule that came from the picture checks is fed back by name, without the invented object', async () => {
+    const toy = (): PayoffCheck => ({ ...GOOD_PAYOFF, visibleThings: [{ what: 'a toy horse on the floor', supportedByScript: false }] });
+    const s = setup({ concepts: (n) => (n === 1 ? sixConcepts() : roundTwoConcepts()), payoff: (t) => (t.startsWith('A different angle') ? GOOD_PAYOFF : toy()), roundTwoRoom: room });
+    const out = await s.run();
+    expect(out.status).toBe('ready');
+    const feedback = s.feedbackSeen[1]!.join(' ');
+    expect(feedback).toMatch(/scene_not_in_script \(3\)/);
+    expect(feedback).not.toMatch(/toy|horse|floor/);
+  });
+
+  it('a double failure shows the empty result with every reason and makes no third round', async () => {
+    const s = setup({ concepts: () => allBad(), roundTwoRoom: room });
+    const out = await s.run();
+    expect(s.calls.filter((c) => c === 'concepts')).toHaveLength(2);
+    expect(out.status).toBe('none_passed');
+    expect(out.packages).toHaveLength(0);
+    expect(out.reason).toMatch(/Nothing passed, even after a second try/);
+    expect(out.dropped.filter((d) => d.round === 2)).toHaveLength(6);
+    expect(out.dropped.filter((d) => d.round !== 2).length).toBe(6);
+    expect(out.roundTwo?.state).toBe('finished');
+    // reopening Gate 2 (a build over the finished record) does not start another round
+    const again = await setup({ concepts: () => allBad(), roundTwoRoom: room }).run(s.saved());
+    expect(again.status).toBe('none_passed');
+    expect(again.rounds).toHaveLength(2);
+  });
+
+  it('round two never shows a package that round one rules would drop', async () => {
+    const sneaky = roundTwoConcepts();
+    sneaky[0].title = 'Official 4K tower film'; // a fake badge
+    sneaky[1].supportQuote = badQuote; // support not in the script
+    const out = await setup({ concepts: (n) => (n === 1 ? allBad() : sneaky), roundTwoRoom: room }).run();
+    expect(out.packages.map((p) => p.title)).not.toContain('Official 4K tower film');
+    expect(out.dropped.filter((d) => d.round === 2 && d.stage === 'code-check').flatMap((d) => d.rules ?? [])).toEqual(expect.arrayContaining(['badge', 'support_not_in_script']));
+  });
+
+  it('is skipped, with the reason shown, when the budget does not allow it', async () => {
+    const s = setup({ concepts: () => allBad(), roundTwoRoom: async () => ({ ok: false, imagesAllowed: 0, reason: "the run's spend limit leaves no room for another round of pictures" }) });
+    const out = await s.run();
+    expect(s.calls.filter((c) => c === 'concepts')).toHaveLength(1);
+    expect(out.status).toBe('none_passed');
+    expect(out.roundTwo?.state).toBe('skipped');
+    expect(out.reason).toMatch(/a second try was not made: the run's spend limit/);
+  });
+
+  it('no second round when round one found packages, or when the script has no gap', async () => {
+    const ok = setup({ roundTwoRoom: room });
+    await ok.run();
+    expect(ok.calls.filter((c) => c === 'concepts')).toHaveLength(1);
+    const weak = setup({ brief: makeBrief({ weakGap: 'nothing to ask' }), roundTwoRoom: room });
+    await weak.run();
+    expect(weak.calls).toEqual(['brief']);
+  });
+
+  it('a restart in the middle of round two resumes and never repeats a paid step that finished', async () => {
+    // round one fails at the code checks (no pictures); round two's second payoff call crashes
+    const first = setup({ concepts: twoRounds, roundTwoRoom: room, crashAt: 'payoff:2' });
+    await expect(first.run()).rejects.toThrow(/crash at payoff:2/);
+    const saved = first.saved();
+    expect(saved.roundTwo?.state).toBe('started');
+    expect(saved.rounds?.[1]?.processed.length).toBe(1);
+    // the process restarts: same object, resume from what was saved
+    const out = await first.run(saved);
+    expect(out.status).toBe('ready');
+    const count = (name: string) => first.calls.filter((c) => c === name).length;
+    expect(count('brief')).toBe(1);
+    expect(count('concepts')).toBe(2); // one per round, none repeated
+    expect(count('cold')).toBe(1); // round one never reached the cold reader; round two's was not repeated
+    // the package finished before the crash was not checked again: 3 packages, one payoff repeated (the crashed one)
+    expect(count('payoff')).toBe(4);
+    expect(count('defect')).toBe(4);
+    // and its cost rows: one concepts row for round two in total
+    expect(first.booked.filter((b) => b === 'text:concepts:r2')).toHaveLength(1);
+    expect(out.packages).toHaveLength(3);
   });
 });
 

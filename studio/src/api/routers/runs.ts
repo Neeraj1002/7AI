@@ -1133,8 +1133,9 @@ export const runsRouter = router({
     const video = [...stages].reverse().find((st) => st.stageName === 'video_generation' && st.status === 'completed');
     const videoOut = video?.output as { durationSeconds?: number } | null | undefined;
     return {
-      pending: !packaging && run.status === 'paused_gate2',
-      view: packaging
+      // 'building' is a checkpoint of packaging that is still being made.
+      pending: (!packaging || packaging.status === 'building') && run.status === 'paused_gate2',
+      view: packaging && packaging.status !== 'building'
         ? buildPackagingView({
             runId: input.runId,
             packaging,

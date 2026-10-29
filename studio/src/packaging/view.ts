@@ -25,6 +25,8 @@ export type PackageView = {
   // Where in the script the answer sits, copied from the script (the payoff check found it).
   answerQuote: string | null;
   warnings: string[];
+  // R10: 2 when this option came from the second round.
+  round: 1 | 2;
   imageUrls: Record<ThumbSize, string>;
 };
 
@@ -38,6 +40,8 @@ export type PackagingView = {
   choice: { packageId: string; title: string | null; titleEdited: boolean } | null;
   titleLimit: number;
   videoSeconds: number | null;
+  // R10: whether a second round was made (finished), not made for lack of budget (skipped), or not needed.
+  secondRound: { state: 'not_needed' | 'started' | 'finished' | 'skipped'; reason: string | null };
 };
 
 // The time label is read from the video that is current now, so a Revise that moves a chapter is reflected.
@@ -81,12 +85,14 @@ export function buildPackagingView(params: {
       headToHead: p.checks ? { wins: p.checks.headToHead.wins, losses: p.checks.headToHead.losses, ties: p.checks.headToHead.ties } : null,
       answerQuote: p.checks?.payoff.questionAnswered ? p.checks.payoff.answerQuote : null,
       warnings: p.warnings ?? [],
+      round: p.round ?? 1,
       imageUrls: Object.fromEntries(THUMB_SIZES.map((s) => [s, params.linkFor ? params.linkFor(p.id, s) : `/runs/${runId}/thumbnail/${p.id}/${s}`])) as Record<ThumbSize, string>,
     })),
     dropped: packaging.dropped.map((d) => ({ title: d.title, device: d.device, stage: d.stage, reasons: d.reasons })),
     choice: packaging.choice ? { packageId: packaging.choice.packageId, title: packaging.choice.title, titleEdited: packaging.choice.titleEdited } : null,
     titleLimit: packaging.titleLimit,
     videoSeconds: params.videoSeconds ?? null,
+    secondRound: { state: packaging.roundTwo?.state ?? 'not_needed', reason: packaging.roundTwo?.reason ?? null },
   };
 }
 

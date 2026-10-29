@@ -93,12 +93,14 @@ export async function generateConcepts(params: {
   look: ChannelLook;
   titleLimit: number;
   faceMode: FaceMode;
+  // Round two (R10): rule names and fixed advice from the first round's drops.
+  feedback?: string[];
   retryGuard?: RetryGuard;
 }): Promise<Called<Concept[]>> {
   const { value, llm } = await callJson({
     purpose: 'packaging-concepts',
     system: CONCEPTS_SYSTEM,
-    user: conceptsUser(params.renderedScript, params.brief, params.look, params.titleLimit, params.faceMode),
+    user: conceptsUser(params.renderedScript, params.brief, params.look, params.titleLimit, params.faceMode, params.feedback),
     schema: ConceptsReplySchema,
     retryGuard: params.retryGuard,
   });
