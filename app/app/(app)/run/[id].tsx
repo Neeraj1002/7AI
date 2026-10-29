@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TextInput, Pressable, Linking } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { Feather } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { useTRPC } from '../../../lib/trpc';
+import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
@@ -32,6 +32,22 @@ import { VideoChip } from '../../../components/VideoChip';
 import { LongPreview } from '../../../components/LongPreview';
 import { SubtitlesCard } from '../../../components/SubtitlesCard';
 import { PackageCards, PublishedThumbnailCard, type ChoosePayload } from '../../../components/PackageCards';
+import { Gate2Packages } from '../../../components/Gate2Packages';
+import { EditTitleScreen } from '../../../components/EditTitleScreen';
+import { Gate2Thumbnail } from '../../../components/Gate2Thumbnail';
+import {
+  approveNeedsAsk,
+  canChoose,
+  gate2Screen,
+  packagingCostLine,
+  packagingPollMs,
+  packagingQueryWanted,
+  statusLine,
+  type Gate2Package,
+  type Gate2Response,
+  type ThumbnailResult,
+  type TitleCheck,
+} from '../../../lib/gate2-packaging';
 import { RaiseLimitSheet } from '../../../components/RaiseLimitSheet';
 import { mmss, needsHigherLimit } from '../../../lib/long-video';
 import { FormScreen } from '../../../components/FormScreen';
@@ -190,12 +206,34 @@ export default function RunDetailScreen() {
   );
   // Sprint 6 Task 1 (R5): the thumbnail and title options made for a long video's Gate 2, and the founder's choice.
   // Fetched while Gate 2 is open (polling until the options exist) and once published (to offer the chosen file).
-  const packagingWanted = data?.videoKind === 'long' && (data.run.status === 'paused_gate2' || data.run.status === 'completed');
+  // gate2PackageScreens (Task 1 gate 2 FE): the new screens also need it while the packages are made, and poll then.
+  const newScreens = flags.gate2PackageScreens;
+  const packagingWanted = newScreens
+    ? Boolean(data) && packagingQueryWanted(data!.run, data!.videoKind === 'long')
+    : data?.videoKind === 'long' && (data.run.status === 'paused_gate2' || data.run.status === 'completed');
   const packagingQuery = useQuery(
     trpc.runs.packaging.queryOptions(
       { runId: id! },
-      { enabled: Boolean(id) && packagingWanted, refetchInterval: (query) => (query.state.data?.pending ? 4_000 : false) },
+      {
+        enabled: Boolean(id) && packagingWanted,
+        refetchInterval: (query) =>
+          newScreens ? packagingPollMs(query.state.data as unknown as Gate2Response | undefined, data?.run.status ?? '') : query.state.data?.pending ? 4_000 : false,
+      },
     ),
+  );
+  // The new screens read the same query through the contract's types until the real AppRouter types carry the new fields.
+  const gate2Response = packagingQuery.data as unknown as Gate2Response | undefined;
+  const trpcClient = useTRPCClient();
+  const [editingPackage, setEditingPackage] = useState<Gate2Package | null>(null);
+  const [askYoutube, setAskYoutube] = useState<{ privacy?: Privacy } | null>(null);
+  const checkTitle = useCallback(
+    (title: string): Promise<TitleCheck> =>
+      (trpcClient.runs as unknown as { checkPackageTitle: { query: (i: { runId: string; packageId: string; title: string }) => Promise<TitleCheck> } }).checkPackageTitle.query({
+        runId: id!,
+        packageId: editingPackage?.id ?? '',
+        title,
+      }),
+    [trpcClient, id, editingPackage],
   );
   const chooseMutation = useMutation(
     trpc.runs.choosePackage.mutationOptions({
@@ -303,6 +341,12 @@ export default function RunDetailScreen() {
         thumbnail?: { source: 'package' | 'youtube-suggested' | 'frame-grab'; packageId?: string; file?: string };
       }
     | undefined;
+
+  // gate2PackageScreens: the thumbnail result and what the new section needs from the packaging query.
+  const thumbnailResult = (data as unknown as { thumbnail?: ThumbnailResult | null }).thumbnail ?? null;
+  const gate2View = gate2Response?.view ?? null;
+  const gate2Kind = gate2Screen(gate2Response);
+  const thumbnailPictureUrl = thumbnailResult?.packageId ? (gate2View?.packages.find((p) => p.id === thumbnailResult.packageId)?.imageUrls?.feed ?? null) : null;
 
   const scriptText = (scriptGenStage?.output?.scriptText as string | undefined) ?? '';
   const isLong = data.videoKind === 'long';
@@ -415,6 +459,9 @@ export default function RunDetailScreen() {
   const footer =
     (isGate1 || isGate2) && !decisionSent ? (
       <BottomActionBar onHeight={setBarHeight}>
+        {isGate2 && newScreens && gate2View && canChoose(gate2Response) ? (
+          <Text style={[styles.cardMeta, statusLine(gate2View).tone === 'pending' ? styles.statusPending : styles.statusDone]}>{statusLine(gate2View).text}</Text>
+        ) : null}
         <GateActionBar
           key={run.id + run.status}
           gate={isGate1 ? 1 : 2}
@@ -428,6 +475,7 @@ export default function RunDetailScreen() {
           defaultPrivacy={defaultPrivacy}
           onApprove={(privacy) => {
             if (isGate1) gate1Mutation.mutate({ runId: run.id, action: 'approve' });
+            else if (newScreens && approveNeedsAsk(gate2Response)) setAskYoutube({ privacy });
             else {
               const payload: Gate2Input = {
                 runId: run.id,
@@ -615,6 +663,20 @@ export default function RunDetailScreen() {
       ) : null}
 
       <ConfirmSheet
+        visible={askYoutube !== null}
+        onClose={() => setAskYoutube(null)}
+        icon="image"
+        title="Use YouTube’s suggested thumbnail?"
+        body="You haven’t chosen a package. If you approve now, YouTube’s suggested thumbnail is used and the title is written for you."
+        confirmLabel="Approve with YouTube’s"
+        isConfirming={gate2Mutation.isPending}
+        onConfirm={() => {
+          const privacy = askYoutube?.privacy;
+          setAskYoutube(null);
+          gate2Mutation.mutate({ runId: run.id, action: 'approve', ...(flags.gate2Visibility && privacy ? { privacyStatus: privacy } : {}) } as Gate2Input);
+        }}
+      />
+      <ConfirmSheet
         visible={confirmCancel}
         onClose={() => setConfirmCancel(false)}
         icon="x-circle"
@@ -761,7 +823,10 @@ export default function RunDetailScreen() {
         </>
       ) : null}
 
-      {isPublished && isLong ? <PublishedThumbnailCard output={publishOutput} response={packagingQuery.data} apiUrl={apiUrl} /> : null}
+      {isPublished && isLong && !newScreens ? <PublishedThumbnailCard output={publishOutput} response={packagingQuery.data} apiUrl={apiUrl} /> : null}
+      {isPublished && isLong && newScreens ? (
+        <Gate2Thumbnail thumbnail={thumbnailResult} apiUrl={apiUrl} token={token ?? ''} pictureUrl={thumbnailPictureUrl} />
+      ) : null}
 
       {isPublished && isLong ? (
         <SubtitlesCard
@@ -772,7 +837,7 @@ export default function RunDetailScreen() {
         />
       ) : null}
 
-      {isGate2 && isLong ? (
+      {isGate2 && isLong && !newScreens ? (
         <PackageCards
           response={packagingQuery.data}
           channelName={channel?.name ?? 'Your channel'}
@@ -806,6 +871,39 @@ export default function RunDetailScreen() {
         </Card>
       ) : null}
 
+      {newScreens && isLong && (isGate2 || gate2Kind === 'making') ? (
+        <Gate2Packages
+          response={gate2Response}
+          channelName={channel?.name ?? 'Your channel'}
+          apiUrl={apiUrl}
+          token={token ?? ''}
+          editable={isGate2 && !decisionSent}
+          choosing={chooseMutation.isPending}
+          chooseError={editingPackage ? null : (chooseMutation.error?.message ?? null)}
+          onChoose={(packageId) => chooseMutation.mutate({ runId: run.id, packageId })}
+          onEdit={(p) => {
+            chooseMutation.reset();
+            setEditingPackage(p);
+          }}
+        />
+      ) : null}
+      <EditTitleScreen
+        visible={editingPackage !== null}
+        pkg={editingPackage}
+        index={Math.max(0, gate2View?.packages.findIndex((p) => p.id === editingPackage?.id) ?? 0)}
+        initialTitle={editingPackage ? (gate2View?.choice?.packageId === editingPackage.id && gate2View.choice.title ? gate2View.choice.title : editingPackage.title) : ''}
+        titleLimit={gate2View?.titleLimit ?? 0}
+        checkTitle={checkTitle}
+        saving={chooseMutation.isPending}
+        saveError={chooseMutation.error?.message ?? null}
+        apiUrl={apiUrl}
+        token={token ?? ''}
+        onClose={() => setEditingPackage(null)}
+        onSave={(title) =>
+          chooseMutation.mutate({ runId: run.id, packageId: editingPackage!.id, editedTitle: title }, { onSuccess: () => setEditingPackage(null) })
+        }
+      />
+
       {data.spentUsd !== undefined ? (
         <CostCard
           spentUsd={costs?.totalUsd ?? data.spentUsd}
@@ -815,6 +913,7 @@ export default function RunDetailScreen() {
           breakdown={costs}
           ended={run.status === 'completed' || run.status === 'failed'}
           attemptsCount={videoAttempts}
+          packagingLine={newScreens && gate2Kind === 'making' ? packagingCostLine(gate2View?.packagingCostUsd, gate2View?.round) : null}
         />
       ) : null}
 
@@ -969,6 +1068,8 @@ const styles = StyleSheet.create({
   chipMeta: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   runTitle: { fontFamily: font.black, fontSize: 22, lineHeight: 28, letterSpacing: -0.2, color: color.ink },
   cardMeta: { fontFamily: font.semibold, fontSize: 12, lineHeight: 16, color: color.muted },
+  statusPending: { fontFamily: font.bold, fontSize: 13, lineHeight: 18, color: color.warnText },
+  statusDone: { fontFamily: font.bold, fontSize: 13, lineHeight: 18, color: color.ink },
   cardTitle: { ...type.sectionTitle, color: color.ink },
   editSettings: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, alignSelf: 'flex-start' },
   editSettingsText: { fontFamily: font.black, fontSize: 14, color: color.accentText },
