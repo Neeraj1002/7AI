@@ -148,7 +148,7 @@ Real YouTube was **not** called (the thumbnail 403 is Task 8 R11.5's; this task 
 - **Rule 7:** this is the only doc I wrote; `STATUS.md`, `PLAN.md` and every other doc untouched.
 - **Rule 8:** not yet; runs after the founder says PR C is merged (the worktree stays for PR B and C).
 - **Rule 9:** section 7. **The scratch database `sevenai_task1a_20261026_test` was dropped.** `studio/data/` outputs of the live checks are gitignored; the two live scripts are committed with their caps and `--live`.
-- **Code-complete:** PR A yes. **Merged:** no. **Deployed:** no.
+- **Code-complete:** PR A yes. **Merged:** yes (#116). **Deployed:** no.
 
 ## 11. Open founder decisions
 
@@ -270,7 +270,7 @@ New tests: `vision.test.ts` (covering thresholds, every payoff failure named, th
 - **Rule 8:** not yet (PR C is still to come; the worktrees stay).
 - **Rule 9:** B8.
 - **The scratch database `sevenai_task1b_20261026_test` was dropped.**
-- **Code-complete:** PR B yes. **Merged:** no. **Deployed:** no.
+- **Code-complete:** PR B yes. **Merged:** yes (#124). **Deployed:** no.
 - **Open founder decisions:** (1) merge #116 first, then I retarget this PR; (2) is an empty Gate 2 (all packages dropped) acceptable, or should concepts be regenerated once with the reasons when that happens (about $0.08 more, only in that case)? (3) F1 and the R2 copy of thumbnail files from PR A are still open.
 
 **One line for PLAN.md:** P1 PR B: picture checks built and tested (defect check with code-decided lettering cover, payoff check against the script, critic connection check, both-orders head to head, uncanny-face warnings); seeded cases pass live; waits for PR A to merge, then retarget to main.
@@ -369,11 +369,11 @@ New tests: the R10 block in `build.test.ts` (8 cases: second round once and mark
 ## C7. Hard rules, statuses
 
 - **Rule 5:** done (r8, C header). **Rule 6:** `git fetch` then `git merge origin/main` into this branch twice; **no conflicts**; the second merge brought only the architect's Gate 2 contract doc. Re-ran type check, lint and all tests (studio and app), pushed. Docs scope, `git diff --name-only origin/main...HEAD -- docs/`: this report and its images (three new frames); nothing else. **Rule 7:** only this report; `STATUS.md`, `PLAN.md` and the contract untouched. **Rule 8:** runs after PR C merges (worktrees `task1a`, `task1b`, `task1c`). **Rule 9:** C6.
-- **Code-complete:** PR C yes, except the R10 live check (C1). **Merged:** no. **Deployed:** no.
+- **Code-complete:** PR C yes, R10 and the brief-driven Short live checks done (1 Nov). **Merged:** yes (#130). **Deployed:** no.
 
 ## C8. Whole-task statuses (Task 1)
 
-Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 yes (1 Nov, below)**; **brief-driven Short hook yes (1 Nov, below)**.
+Code-complete: PR A, B and C. Merged: PR A (#116), PR B (#124) and PR C (#130). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 yes (1 Nov, below)**; **brief-driven Short hook yes (1 Nov, below)**.
 
 **R10 live check (1 Nov, after the provider limit reset).** `packaging-real-check.ts --force-round-two --live` on the Eiffel script, total **$0.1176** (cap $0.30). Six seeded failing concepts; round two was told only the rule names with fixed advice (`support_not_in_script`, `unsupported_number`), made 3 packages (second round), each passed the real picture checks, payoff, critic and head-to-head, and the run finished `ready`. One concept call booked for round two; no third round. The task's live spend is now about $1.70 of $2.00. **Brief-driven Short check (1 Nov):** `short-opening-check.ts --live` with the real brief: hook line "The Eiffel Tower was nearly scrapped", device stake, question opened within five seconds. Frame zero kept the planner's own picture because the brief's picture is not named in the script (reason shown). 60.6 s render, total $0.0626 (cap $0.25). Task live spend is now about $1.76 of $2.00.
 
@@ -393,3 +393,7 @@ Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: non
 4. The base checkout's task doc is r7 (stale); pull `main` there.
 
 **One line for PLAN.md:** P1 PR C: R10 second round (restart-safe, rules-only feedback, budget-checked), R7 Short hook line and frame zero (real render checked), R8 record and Compare by device built and tested; live R10 check waits for the Anthropic quota reset on 1 Nov; Gate 2 contract items B1/B3/B4 wait for r9.
+
+## C11. Closed (Hard rule 8)
+
+After #130 merged: worktrees task1a, task1b, task1c removed, branches SPRINT6_TASK1A_BE, SPRINT6_TASK1B_BE, SPRINT6_TASK1C_BE deleted. Leftovers: none (the task1gate2fe worktree belongs to the Gate 2 frontend task).
