@@ -10,8 +10,8 @@ export const DISCLAIMER_TTS_MODEL = 'gpt-4o-mini-tts';
 export const DISCLAIMER_PROVIDER_VOICE = 'ash';
 export const DISCLAIMER_DELIVERY =
   'Speak quietly and gently, in a calm, neutral tone, at a brisk, flowing pace, with no long pauses between phrases. No drama, no emphasis; clear on every word.';
-// Natural pace (1x). Softness comes from level and fades, not from speed.
-export const DISCLAIMER_PACE = 1;
+// Founder decision 2026-10-29: 1.4x tempo, applied once when the clip is recorded (pitch-preserving atempo), not per render.
+export const DISCLAIMER_PACE = 1.4;
 // Level of the clip under the measured narration, set in the mix graph, so the final loudness stage keeps the ratio.
 export const DISCLAIMER_LEVEL_DB_UNDER_NARRATION = 6;
 export const DISCLAIMER_FADE_IN_SEC = 0.25;

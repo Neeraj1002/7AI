@@ -1,9 +1,9 @@
 {
-  "version": "598444c372d4",
+  "version": "f23eb08d55c3",
   "sentence": "Visuals in this video are AI-generated or imagined.",
   "sentenceSha256": "f487c3e23fcec83eb82c32ba313b466ca860263a1b8fd921c12594964b32d7c6",
-  "clipSha256": "1fb284e893e5eac1b02d576170d1ff0e337472a03ba6b6525a7bc6ae963c66b4",
-  "clipSeconds": 4.464,
+  "clipSha256": "17e9388b30bec5d0b26d40203ea968fda2cd843d7ed1fe3d79eb9cdb58af8b00",
+  "clipSeconds": 3.216,
   "model": "gpt-4o-mini-tts",
   "voice": "ash"
 }
