@@ -373,9 +373,9 @@ New tests: the R10 block in `build.test.ts` (8 cases: second round once and mark
 
 ## C8. Whole-task statuses (Task 1)
 
-Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 yes (1 Nov, below)**; the brief-driven hook line not yet.
+Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 yes (1 Nov, below)**; **brief-driven Short hook yes (1 Nov, below)**.
 
-**R10 live check (1 Nov, after the provider limit reset).** `packaging-real-check.ts --force-round-two --live` on the Eiffel script, total **$0.1176** (cap $0.30). Six seeded failing concepts; round two was told only the rule names with fixed advice (`support_not_in_script`, `unsupported_number`), made 3 packages (second round), each passed the real picture checks, payoff, critic and head-to-head, and the run finished `ready`. One concept call booked for round two; no third round. The task's live spend is now about $1.70 of $2.00. The brief-driven Short hook check is still to run (about $0.02).
+**R10 live check (1 Nov, after the provider limit reset).** `packaging-real-check.ts --force-round-two --live` on the Eiffel script, total **$0.1176** (cap $0.30). Six seeded failing concepts; round two was told only the rule names with fixed advice (`support_not_in_script`, `unsupported_number`), made 3 packages (second round), each passed the real picture checks, payoff, critic and head-to-head, and the run finished `ready`. One concept call booked for round two; no third round. The task's live spend is now about $1.70 of $2.00. **Brief-driven Short check (1 Nov):** `short-opening-check.ts --live` with the real brief: hook line "The Eiffel Tower was nearly scrapped", device stake, question opened within five seconds. Frame zero kept the planner's own picture because the brief's picture is not named in the script (reason shown). 60.6 s render, total $0.0626 (cap $0.25). Task live spend is now about $1.76 of $2.00.
 
 ## C10. R11: backend for the Gate 2 package screens (task r9, contract r2)
 
