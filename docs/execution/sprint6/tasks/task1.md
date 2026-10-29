@@ -2,7 +2,7 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r8, 2026-10-29 (written by the architect chat at the founder's request; there is no task writer for this task). r8 changes only PR C: new item R10 (try once more when every package fails), Task 2 dependency removed, decisions 5 to 7 added. PR A (#116) and PR B (#124) are merged and are not reopened. r7, 2026-10-25: built on the spike result (go, with the changes below), the no-new-settings rule and the channel-agnostic rule. r6 rewrote the task around curiosity; r5 treated it as "make options and upload a thumbnail".
+**Revision**: r9, 2026-10-29: PR C also builds the backend side of the Gate 2 screens (new item R11, from `sprint6/contracts/task1-gate2-packaging.md`). r8, 2026-10-29 (written by the architect chat at the founder's request; there is no task writer for this task). r8 changes only PR C: new item R10 (try once more when every package fails), Task 2 dependency removed, decisions 5 to 7 added. PR A (#116) and PR B (#124) are merged and are not reopened. r7, 2026-10-25: built on the spike result (go, with the changes below), the no-new-settings rule and the channel-agnostic rule. r6 rewrote the task around curiosity; r5 treated it as "make options and upload a thumbnail".
 
 **Written**: 2026-10-24, revised 2026-10-25 by the architect chat, at the founder's request. **Status**: PR A (#116) and PR B (#124) merged 26 Oct; **PR C is the only work left** (R7, R8, R10, R9 final). **Priority**: P2, runs first among the priority 2 items by founder direction (24 Oct), ahead of P12. **Branches**: `SPRINT6_TASK1A_BE`, `SPRINT6_TASK1B_BE`, `SPRINT6_TASK1C_BE` (add `_FE` branches only if R0 shows the app change is too big to share a PR); worktrees `task1a`, `task1b`, `task1c` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
@@ -135,6 +135,19 @@ The thumbnail and the title divide the work: large lettering (at most four words
 
 **Verify**: a seeded brief whose six concepts all fail runs round two exactly once; a seeded round-two success shows its packages marked "second round"; a seeded double failure shows the empty Gate 2 with reasons and no third round; a restart in the middle of round two does not repeat a paid step (usage rows prove it); round two never shows a package that round one's rules would drop.
 
+## R11. Backend for the Gate 2 package screens (PR C; r9)
+
+**Read first**: `docs/execution/sprint6/contracts/task1-gate2-packaging.md` (the agreed contract; the UI/UX designer's boards are built against it). It is the exact list; this item only says how to deliver it. Step one: confirm each "exists" line against the code, and say where the code disagrees.
+
+**Fix** (all additive; old runs and runs without the fields behave as today):
+1. `runs.packaging` output gains `making` (true while the packages are made before Gate 2 opens; confirm the exact run state in R0), `packagingCostUsd` (text plus pictures including round two, read from the stored costs and usage rows) and `round` (1 or 2, from R10). Each package gains `round`, `answeredAtParts { chapter, chapterTitle, startSec }` (the string `answeredAt` stays), and for a Short `hookLine`, `firstFrameUrl` (signed, same rule as the pictures) with `imageUrls` null.
+2. New query `runs.checkPackageTitle({ runId, packageId, title })` returning `{ ok, length, titleLimit, problems[{ kind, text, message, supportedFigures }] }`. It wraps `checkTitle` in `studio/src/packaging/check.ts` and **adds no rule**; map its issues to `unsupported_figure`, `too_long`, `empty` and `other` (the server's own sentence is `message`, shown as is). Tenant-checked like `runs.packaging`. The title limit is the server's `titleLimit`, never a literal 100.
+3. `runs.choosePackage` is unchanged except that saving an edited title also chooses that package (it already does); no `editPackageTitle`.
+4. `runs.get` gains `thumbnail { status, reasonText, source, packageId, fileUrl } | null`, composed from the existing receipt (`coverFrameSet`, `coverFrameMessage`, the thumbnail follow-up state). Statuses `live | not_applied | pending | not_set`; `not_set` means no thumbnail was sent and YouTube chose its own (`source: 'youtube-suggested'`). `live` only when the follow-up reports success; refusal is `not_applied` with the message; `uncertain` or in flight is `pending`. A failed thumbnail never changes a successful video upload. Say in R0 what the receipt cannot distinguish.
+5. Not built here: `runs.remakePackages` (rejected, R10 is the only extra round), per-package drawing or checking progress, any 9:16 thumbnail image.
+
+**Verify**: fixtures for each state (making, ready, weak gap, none passed, spend limit skipped, failed, round two, a Short, each thumbnail status); `checkPackageTitle` agrees with what `choosePackage` refuses for the same title, for a figure the script does not support, an over-length title and an empty one; tenant isolation (another tenant gets FORBIDDEN on the new query); the app's type check passes on the new output types. No channel-specific literal added (STATUS rule 4), with the search that proves it. No paid run is needed for R11 beyond the R10 live check.
+
 ## R9. Same-cause sweep (Hard rule 9)
 
 Causes: title or thumbnail made in more than one place with different rules; and any channel name or single-channel assumption in packaging code, prompts or fixtures. Search `studio/` and `app/` for every title builder, frame-grab cover, thumbnail helper, hard-coded length or font, and channel name. List each hit as fixed here, left alone with a reason, or needing a new task; give shared limits one owner.
@@ -151,7 +164,7 @@ Add packaging purposes to the registry (brief, concepts, cold reader, vision cri
 
 - **PR A (`SPRINT6_TASK1A_BE`)**: R0, R1, R2, R3, R5 (API plus cards), R6. Packages appear at Gate 2 with the title checks.
 - **PR B (`SPRINT6_TASK1B_BE`)**: R4 (vision critic and payoff check).
-- **PR C (`SPRINT6_TASK1C_BE`)**: R7, R8, R10, R9 final. Starts now (Task 2 was dropped on 29 Oct). Merge `main` into your branch first. The worktrees `task1a` and `task1b` close after PR C merges (Hard rule 8).
+- **PR C (`SPRINT6_TASK1C_BE`)**: R7, R8, R10, R11, R9 final. Starts now (Task 2 was dropped on 29 Oct). Merge `main` into your branch first. The worktrees `task1a` and `task1b` close after PR C merges (Hard rule 8).
 Report after each PR; the Hard rule 8 closing runs after PR C merges.
 
 ## Spend
@@ -193,6 +206,7 @@ Seven samples, described in our words; do not store or copy them. Four are ficti
 | G. Devotional story | A figure seen from behind facing an enormous demon, a burning city | Scale, Mystery (back view), Stake | "How ... defeated the unbeatable ...: the full story of the 9-day war" | "Unbeatable" plus "how"; a timely hook (the festival) | Sacred subject needs care; a "Short Movie 4K" label |
 
 ## Revision log
+- r9, 2026-10-29: new R11, the backend for the Gate 2 package screens (`making`, cost, round, structured answer place, Short hook line and first frame, `checkPackageTitle`, `thumbnail` on `runs.get`), from the agreed contract; PR C scope extended.
 - r8, 2026-10-29: PR C only. New R10 (one more round when every package fails, reasons fed back, hard cap, budget check, restart-safe); decisions 5 to 7 (local thumbnail files, no disclaimer after the hook, tenant check moved to the acceptance hot-fix); R7 no longer mentions Task 2; PR A and PR B marked merged.
 - r7, 2026-10-25: spike result built in (belief versus record, picture-title match, withhold the answer, code validators, pairwise critic, six concepts to three, `low` quality); channel-agnostic and no-new-settings rules; faces derived from the script; typeface engine-chosen from three open families; NIYT decisions removed; Gate 2 built to designer screens; new registry purposes; regression cases; packaging cost in the run estimate.
 - r6, 2026-10-24: rewritten around the founder's curiosity intent: curiosity grammar, honest-curiosity rules, packages (question, title, thumbnail, answer location), cold-reader and payoff checks, three PRs, spend ceiling, sweep, Appendix A. Short thumbnails and NIYT faces made explicit decisions. Stale L-1 example removed.
