@@ -41,6 +41,8 @@ export type PackagingView = {
   titleLimit: number;
   videoSeconds: number | null;
   // R10: whether a second round was made (finished), not made for lack of budget (skipped), or not needed.
+  // R7 advisory: the question is not opened in the first ten seconds of narration.
+  openingNote: string | null;
   secondRound: { state: 'not_needed' | 'started' | 'finished' | 'skipped'; reason: string | null };
 };
 
@@ -92,6 +94,7 @@ export function buildPackagingView(params: {
     choice: packaging.choice ? { packageId: packaging.choice.packageId, title: packaging.choice.title, titleEdited: packaging.choice.titleEdited } : null,
     titleLimit: packaging.titleLimit,
     videoSeconds: params.videoSeconds ?? null,
+    openingNote: packaging.openingNote ?? null,
     secondRound: { state: packaging.roundTwo?.state ?? 'not_needed', reason: packaging.roundTwo?.reason ?? null },
   };
 }

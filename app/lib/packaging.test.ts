@@ -28,7 +28,7 @@ const pkg = (over: Partial<PackageView> = {}): PackageView =>
     imageUrls: { full: '/runs/r/thumbnail/c1/full?t=abc', feed: '/runs/r/thumbnail/c1/feed?t=abc', sidebar: '/runs/r/thumbnail/c1/sidebar?t=abc' }, ...over,
   }) as PackageView;
 const view = (over: Partial<PackagingView> = {}): PackagingView =>
-  ({ status: 'ready', reason: null, brief: null, packages: [pkg()], dropped: [], choice: null, titleLimit: 70, videoSeconds: 125, secondRound: { state: 'not_needed', reason: null }, ...over }) as PackagingView;
+  ({ status: 'ready', reason: null, brief: null, packages: [pkg()], dropped: [], choice: null, titleLimit: 70, videoSeconds: 125, openingNote: null, secondRound: { state: 'not_needed', reason: null }, ...over }) as PackagingView;
 
 test('the duration chip is drawn by the card from the video length, never baked into the file', () => {
   assert.equal(durationChip(125), '2:05');

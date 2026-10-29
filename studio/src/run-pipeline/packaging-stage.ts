@@ -8,6 +8,8 @@ import { readChapterTimings } from '../long-form/artifacts';
 import { insertUsageEvent, sumUsageCostForRun } from '../models/repositories/usage-event.repository';
 import { listStagesForRun, patchStageOutput } from '../models/repositories/pipeline-stage.repository';
 import { buildPackaging, scriptHashOf, PACKAGING_OUTPUT_VERSION, type PackagingOutput } from '../packaging/build';
+import { buildShortOpening, type ShortOpening } from '../packaging/opening';
+import { updatePipelineRun } from '../models/repositories/pipeline-run.repository';
 import { RENDER_MAX, RENDER_MIN } from '../packaging/constants';
 import type { ScriptChapterText } from '../packaging/prompts';
 import type { Channel, PipelineRun, PipelineStage } from '../types';
@@ -184,4 +186,49 @@ async function finish(save: (p: Partial<PackagingOutput>) => Promise<void>, stat
     version: PACKAGING_OUTPUT_VERSION, status, reason, scriptHash: hash, brief: null, faceMode: null, typeface: null, titleLimit: 0,
     concepts: [], dropped: [], packages: [], textCostUsd: 0, imageCostUsd: 0,
   };
+}
+
+// R7: a Short's opening (hook line, frame-zero picture) from the curiosity brief, made once per run and script and kept on
+// the run's options, so a retry or a Revise reuses it and never pays twice. A failure or a refusal never stops the video:
+// the Short is then made exactly as it was before this task.
+export async function ensureShortOpening(params: {
+  run: PipelineRun;
+  channel: Channel;
+  scriptText: string;
+  stageId: string;
+}): Promise<{ hookLine: string | null; firstStillPrompt: string | null } | undefined> {
+  const { run, channel } = params;
+  const config = await loadResolvedConfig(run, channel);
+  if (config.videoKind !== 'short') return undefined;
+  const look = { stylePrompt: config.visualStylePrompt, titleGuidance: config.titleGuidance };
+  const hash = scriptHashOf(params.scriptText, look);
+  const stored = run.creationOptions?.opening;
+  if (stored && stored.scriptHash === hash) return { hookLine: stored.hookLine, firstStillPrompt: stored.firstStillPrompt };
+  try {
+    const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+    if (!budget.ok) return undefined;
+    const opening: ShortOpening = await buildShortOpening({
+      scriptText: params.scriptText,
+      briefText: run.briefText,
+      look,
+      retryGuard: makeLlmRetryGuard(run),
+      onText: async (label, calls) => {
+        for (const call of calls) {
+          for (const row of llmUsageRows(call)) {
+            await insertUsageEvent({ tenantId: run.tenantId, channelId: run.channelId, pipelineRunId: run.id, stageId: params.stageId, agent: `packaging-${label}`, ...row, metadata: { ...(row.metadata ?? {}), part: 'short-opening' } });
+          }
+        }
+      },
+    });
+    await updatePipelineRun(run.id, { creationOptionsMerge: { opening: { ...opening, brief: (opening.brief as unknown as Record<string, unknown> | null) ?? null } } });
+    return { hookLine: opening.hookLine, firstStillPrompt: opening.firstStillPrompt };
+  } catch (error) {
+    for (const spent of failureUsageEvents(error)) {
+      if (Number(spent.costUsd) > 0) {
+        await insertUsageEvent({ tenantId: run.tenantId, channelId: run.channelId, pipelineRunId: run.id, stageId: params.stageId, agent: 'packaging-failed-call', ...spent });
+      }
+    }
+    console.error(`[packaging] run ${run.id}: no opening for this Short, it is made as before - ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
 }

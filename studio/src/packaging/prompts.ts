@@ -33,7 +33,8 @@ Work in this order.
 7. What is the picture about (subjectKind)? iconic-thing: a landmark, ship, object or place that is the subject by itself. named-person: a named person is central to the story. anonymous-person: unnamed people (a crew, a worker, a child) are there. no-focal-subject: nothing in the story is a clear thing to look at.
 8. typefaceMood for the lettering: stakes (urgent, numbers, risk, business), editorial (people, human stories), historic (ancient or long-ago subjects).
 9. promise: one sentence saying what the first 5 to 10 seconds of the video deliver.
-10. correction: fill it ONLY when the script itself states the popular version and then the documented record. Quote the sentence that states the record, copied exactly. Otherwise null.
+10. hookLine: a line for the very first frame of a short video: at most 8 words, it OPENS the question and does NOT state the answer, uses only figures the script states exactly (keep any hedge word), and no label such as 4K or Official. Empty string when weakGap is set.
+11. correction: fill it ONLY when the script itself states the popular version and then the documented record. Quote the sentence that states the record, copied exactly. Otherwise null.
 
 If the script has no honest gap (no belief it contradicts, no open question it answers), set weakGap to one plain sentence saying why, and leave the other text fields as short plain statements. Do not dress up a weak script.
 

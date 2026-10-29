@@ -27,6 +27,7 @@ export function makeBrief(over: Partial<CuriosityBrief> = {}): CuriosityBrief {
     subjectKind: 'iconic-thing',
     typefaceMood: 'stakes',
     promise: 'In ten seconds we learn the tower had only a twenty year permit.',
+    hookLine: 'Why was it nearly torn down?',
     correction: null,
     ...over,
   };

@@ -70,7 +70,7 @@ import { TIMING_FAILURE_CODES } from '../agents/video-intelligence/quality-metri
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
 import { requestGate2Decision } from '../agents/gate2';
-import { ensurePackagingForGate2, packagingFieldOf, readPackaging } from './packaging-stage';
+import { ensurePackagingForGate2, ensureShortOpening, packagingFieldOf, readPackaging } from './packaging-stage';
 import { chosenPackage } from '../packaging/view';
 import { applyThumbnailFollowup, type FollowupState } from './thumbnail-followup';
 import { qualityProfileFor, type QualityMetrics } from '../agents/video-generation/quality-spec';
@@ -1219,6 +1219,16 @@ export async function runVideoGenerationStage(
   // Task 13 (R3) — the artifacts of the attempt that actually succeeded (a
   // retried attempt overwrites an earlier one's), for the post-transaction
   // bundle upload below.
+  // Sprint 6 Task 1 R7: a Short's hook line and frame-zero picture, made once however many attempts this stage makes.
+  let openingMade: Awaited<ReturnType<typeof ensureShortOpening>> | undefined;
+  let openingAsked = false;
+  const openingOnce = async () => {
+    if (!openingAsked) {
+      openingAsked = true;
+      openingMade = isLong ? undefined : await ensureShortOpening({ run, channel, scriptText: sanctionedScriptText, stageId: stage.id });
+    }
+    return openingMade;
+  };
   let lastArtifacts: VideoArtifacts | undefined;
   let lastUsage: VideoGenerationUsage | undefined;
   const attemptVideoOnce = async (plan: ProductionPlan): Promise<VideoGenerationOutput> => {
@@ -1338,6 +1348,7 @@ export async function runVideoGenerationStage(
             },
           })
         : await generateVideo({
+            opening: await openingOnce(),
             pipelineRunId: runId,
             attemptNumber,
             scriptText: sanctionedScriptText,
@@ -1858,6 +1869,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
         console.error(`[gate2] run ${runId}: packaging could not start: ${error instanceof Error ? error.message : String(error)}`);
         return null;
       });
+      if (packaging?.openingNote) gate2Warnings.push(packaging.openingNote);
       if (packaging && packaging.status !== 'ready') {
         gate2Warnings.push(`No custom thumbnail options: ${packaging.reason ?? packaging.status}. YouTube's suggested thumbnail stays.`);
       }

@@ -61,6 +61,23 @@ export const CreationOptionsSchema = z.object({
   manualRetries: z.record(z.string(), z.number().int().nonnegative()).optional(),
   plannerContractRecoveryUsed: z.boolean().optional(),
   videoFallbackUsed: z.boolean().optional(),
+  // Sprint 6 Task 1 R7/R8: a Short's opening (hook line, frame-zero picture) built from the curiosity brief, and what was offered.
+  // Run-owned bookkeeping like the three above: stripped by runs.rerun, small, no migration.
+  opening: z
+    .object({
+      scriptHash: z.string(),
+      hookLine: z.string().nullable(),
+      firstStillPrompt: z.string().nullable(),
+      question: z.string(),
+      device: z.string(),
+      answerQuote: z.string(),
+      reasons: z.array(z.string()),
+      note: z.string().nullable(),
+      textCostUsd: z.number(),
+      builtAt: z.string(),
+      brief: z.record(z.string(), z.unknown()).nullable(),
+    })
+    .optional(),
   // Bugs (chapter bounds): intake notes that do not stop the run (for example chapters averaging under
   // 40 seconds). Recomputed by runs.rerun; shown with the run.
   intakeWarnings: z.array(z.string()).optional(),

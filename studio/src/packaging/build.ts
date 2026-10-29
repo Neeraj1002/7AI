@@ -11,6 +11,7 @@ import { RENDER_MAX, RENDER_MIN, TYPEFACES, type CuriosityDevice, type TypefaceM
 import { coldRead as realColdRead, generateBrief as realGenerateBrief, generateConcepts as realGenerateConcepts } from './generate';
 import { composeThumbnail as realComposeThumbnail, type LetteredThumbnail } from './lettering';
 import { feedbackFromDrops, MAX_EXTRA_ROUNDS } from './rounds';
+import { openingNote } from './opening';
 import {
   compareHeadToHead as realCompare,
   criticFailures,
@@ -123,6 +124,8 @@ export type PackagingOutput = {
   // R10. Absent on records made before it.
   rounds?: RoundState[];
   roundTwo?: RoundTwo;
+  // R7 (advisory): the video does not open its question in the first ten seconds. Never part of a score, never a retry.
+  openingNote?: string | null;
   // Set by runs.choosePackage before Gate 2 is approved.
   choice?: PackagingChoice;
 };
@@ -244,6 +247,7 @@ export async function buildPackaging(params: {
   const finish = (status: PackagingStatus, reason: string | null): PackagingOutput => ({
     version: PACKAGING_OUTPUT_VERSION, scriptHash, titleLimit, faceMode, typeface, status, reason,
     brief, textCostUsd, imageCostUsd, rounds, roundTwo,
+    openingNote: brief && !brief.weakGap ? openingNote(params.scriptText, brief.question, 'long') : null,
     concepts: rounds.flatMap((r) => r.concepts),
     dropped: rounds.flatMap((r) => r.dropped),
     packages: rounds.find((r) => r.packages.length > 0 && r.finished)?.packages ?? [],

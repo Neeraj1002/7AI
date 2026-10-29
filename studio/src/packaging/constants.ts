@@ -50,3 +50,8 @@ export const TYPEFACES: Record<TypefaceMood, { family: string; file: string; col
 
 // How a thumbnail is shown when nothing custom is used.
 export const YOUTUBE_SUGGESTED = 'youtube-suggested' as const;
+
+// R7: the hook line of a Short (limits and how long it stays on the first frame).
+export const HOOK_MAX_WORDS = 8;
+export const HOOK_MAX_CHARS = 60;
+export const HOOK_SECONDS = 3;

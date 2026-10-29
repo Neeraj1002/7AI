@@ -202,6 +202,7 @@ export function PackageCards({
       <Text style={styles.meta}>Each option is a thumbnail and a title made as one pair. The line under each says what a viewer will ask and where the video answers it.</Text>
       {view.brief ? <Text style={styles.body}>The gap: {view.brief.question}</Text> : null}
       {secondRoundNote(view) ? <Text style={styles.warn}>{secondRoundNote(view)}</Text> : null}
+      {view.openingNote ? <Text style={styles.meta}>{view.openingNote}</Text> : null}
       {view.packages.map((p) => (
         <OptionCard
           key={p.id}

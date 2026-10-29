@@ -17,6 +17,8 @@ import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type Producti
 import { DATA_DIR } from '../../config/paths';
 import { QUALITY_SPEC, END_TAIL_SECONDS } from './quality-spec';
 import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
+import { HOOK_SECONDS } from '../../packaging/constants';
+import { applyFrameZero } from '../../packaging/opening';
 import {
   buildAudioFilterGraph,
   computeBedGainDb,
@@ -432,6 +434,9 @@ export async function generateVideo(params: {
   spend?: VideoSpend;
   // Sprint 4 Task 12 (R4): stills finished so far, for runs.progress.
   onStillsProgress?: (progress: { done: number; total: number }) => void;
+  // Sprint 6 Task 1 R7: the opening built from the curiosity brief. `hookLine` is drawn on the first frame; `firstStillPrompt`
+  // replaces the first scene prompt (frame zero) of an ai-stills video. Either may be absent.
+  opening?: { hookLine?: string | null; firstStillPrompt?: string | null };
 }): Promise<VideoGenerationResult> {
   // The production plan (plan.ts, called by state-machine.ts before this
   // function) is what makes a regen attempt actually different now — the
@@ -477,9 +482,17 @@ export async function generateVideo(params: {
   // end up burned in.
   const timedWords: TimedWord[] = captionsEnabled ? alignScriptToWhisper(params.scriptText, asr.segments) : asr.segments;
   const captionSegments = buildCaptionSegments(timedWords, params.plan.captionStyle);
-  if (captionsEnabled) {
+  const hookLine = params.opening?.hookLine?.trim() || null;
+  // One .ass file carries the captions and, when there is one, the hook line; a hook with captions off still gets its own file.
+  const hasAss = captionsEnabled || Boolean(hookLine);
+  if (hasAss) {
     assertCaptionFontPresent();
-    const { ass } = buildAss({ words: timedWords, style: params.plan.captionStyle, holdLastCueMs: Math.round(tailSeconds * 1000) });
+    const { ass } = buildAss({
+      words: captionsEnabled ? timedWords : [],
+      style: params.plan.captionStyle,
+      holdLastCueMs: Math.round(tailSeconds * 1000),
+      ...(hookLine && { hook: { text: hookLine, seconds: HOOK_SECONDS } }),
+    });
     await fs.writeFile(path.join(outputDir, assFilename), ass, 'utf-8');
   }
 
@@ -505,7 +518,9 @@ export async function generateVideo(params: {
   let stillsVideoPathArtifact: string | undefined;
 
   if (params.plan.visualSource === 'ai-stills') {
-    const scenePrompts = params.plan.stillScenePrompts ?? [];
+    // R7: frame zero is the brief's one thing to look at, when the script names it; every other still is the planner's.
+    const planned = params.plan.stillScenePrompts ?? [];
+    const scenePrompts = applyFrameZero(planned, params.opening?.firstStillPrompt);
     if (scenePrompts.length === 0) {
       // plan.ts's own schema refinement should make this unreachable in
       // practice, but this function takes `plan` as a plain parameter (e.g.
@@ -618,7 +633,7 @@ export async function generateVideo(params: {
   // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
   // escape in the filtergraph, identical on Windows and the Linux VPS.
   const fontsDirArg = path.relative(outputDir, FONTS_DIR).split(path.sep).join('/');
-  const baseFilter = captionsEnabled
+  const baseFilter = hasAss
     ? `${scaleCropFilter},ass=${assFilename}:fontsdir=${fontsDirArg}`
     : scaleCropFilter;
   const videoFilterChain = hasLocalWatermark
@@ -763,7 +778,7 @@ export async function generateVideo(params: {
     artifacts: {
       ttsAudioPath: tts.audioPath,
       transcriptJsonPath,
-      ...(captionsEnabled && { captionsPath: path.join(outputDir, assFilename) }),
+      ...(hasAss && { captionsPath: path.join(outputDir, assFilename) }),
       planJsonPath,
       ...(stockVideoPathArtifact && { stockVideoPath: stockVideoPathArtifact }),
       ...(stillImagePaths && { stillImagePaths }),
