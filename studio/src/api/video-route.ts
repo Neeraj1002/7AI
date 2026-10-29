@@ -28,7 +28,18 @@ export async function registerVideoRoute(fastify: FastifyInstance): Promise<void
     serve: false,
   });
 
+  // Bugs Acceptance run 1 (R5): the three older routes now apply the thumbnail route's rule: the caller's session
+  // tenant (or the ops token, which acts as the MVP tenant) must own the run; an unknown id and another tenant's run
+  // both answer 404, so the route never confirms that a run exists.
+  const ownsRun = async (request: { headers: { authorization?: string } }, runId: string): Promise<boolean> => {
+    const identity = resolveRequestIdentity(request.headers.authorization);
+    const tenantId = identity.kind === 'session' ? identity.tenantId : identity.kind === 'ops-token' ? MVP_TENANT_ID : null;
+    const run = tenantId ? await findPipelineRunById(runId) : null;
+    return Boolean(run && run.tenantId === tenantId);
+  };
+
   fastify.get<{ Params: { id: string } }>('/runs/:id/video', async (request, reply) => {
+    if (!(await ownsRun(request, request.params.id))) return reply.code(404).send({ error: 'no generated video for this run yet' });
     const stage = await findLatestAttempt(request.params.id, 'video_generation');
     const videoPath =
       stage?.status === 'completed'
@@ -45,7 +56,8 @@ export async function registerVideoRoute(fastify: FastifyInstance): Promise<void
   // Sprint 4 Task 10 (R3): the long-form Gate 2 preview copy and the subtitle file, served from the
   // local files when R2 is not configured (runs.get then returns these paths as previewUrl/subtitlesUrl).
   const sendReviewFile = (field: 'previewPath' | 'srtPath', contentType: string, filename?: string) =>
-    async (request: { params: { id: string } }, reply: import('fastify').FastifyReply) => {
+    async (request: { params: { id: string }; headers: { authorization?: string } }, reply: import('fastify').FastifyReply) => {
+      if (!(await ownsRun(request, request.params.id))) return reply.code(404).send({ error: 'not available for this run yet' });
       const stage = await findLatestAttempt(request.params.id, 'video_review');
       const filePath =
         stage?.status === 'completed' ? ((stage.output as Record<string, string | undefined> | null)?.[field] ?? undefined) : undefined;
