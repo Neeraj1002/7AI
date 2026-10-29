@@ -41,12 +41,15 @@ describe('estimateRunCost (long)', () => {
     const rest = e.estimateUsd - e.breakdown.stillsUsd - e.breakdown.packagingUsd;
     expect(e.worstCaseUsd).toBeCloseTo(e.breakdown.stillsUsd + e.breakdown.packagingUsd + rest * 3, 3);
   });
-  it('packaging is part of the estimate of a long video (Sprint 6 Task 1 decision 4) and a Short has none', () => {
+  it('packaging is part of the estimate of a long video (Sprint 6 Task 1 decision 4) and a Short pays only for its opening', () => {
     const long = estimateRunCost({ videoKind: 'long', targetSeconds: 600 });
     // Three thumbnail pictures at the stills' price plus the brief, the concepts and the cold reader.
     expect(long.breakdown.packagingUsd).toBeGreaterThan(0.03);
     expect(long.breakdown.packagingUsd).toBeLessThan(0.2);
-    expect(estimateRunCost({ videoKind: 'short', targetSeconds: 45 }).breakdown.packagingUsd).toBe(0);
+    // A Short pays only for its opening: the brief and one cold-reader read.
+    const short = estimateRunCost({ videoKind: 'short', targetSeconds: 45 }).breakdown.packagingUsd;
+    expect(short).toBeGreaterThan(0.005);
+    expect(short).toBeLessThan(0.03);
   });
   it('grows with length and with a shorter secondsPerStill', () => {
     const two = estimateRunCost({ videoKind: 'long', targetSeconds: 120 }).estimateUsd;

@@ -14,7 +14,7 @@ import { RENDER_MAX } from '../packaging/constants';
 
 // One pace for the script target and the estimate (calibrated from a real run; see long-form.ts).
 export { LONG_WORDS_PER_MINUTE };
-const SHORT_WORDS_PER_MINUTE = 150;
+export const SHORT_WORDS_PER_MINUTE = 150;
 const CHARS_PER_WORD = 6; // average English word plus its space
 const TOKENS_PER_WORD = 1.4;
 const SHORT_SECONDS_PER_STILL = 2.5;
@@ -33,7 +33,7 @@ export type CostEstimate = {
   // Sprint 5 Task 8 (R8.1): what a run may spend including automatic retries, and the range to show.
   retryAllowanceUsd: number;
   rangeUsd: { minUsd: number; maxUsd: number };
-  // packagingUsd (Sprint 6 Task 1): the curiosity packages and their thumbnails, long videos only, paid once per run.
+  // packagingUsd (Sprint 6 Task 1): a long video's curiosity packages and thumbnails, or a Short's opening; paid once per run.
   breakdown: { stillsUsd: number; narrationUsd: number; transcriptionUsd: number; llmUsd: number; stillCount: number; packagingUsd: number };
 };
 
@@ -77,7 +77,7 @@ export function estimateRunCost(params: {
     // The Video Review call: up to 12 key frames (about 1,600 tokens each) and a short verdict.
     llmUsd('video-intelligence-own-draft', 12 * 1_600 + 800, 300);
 
-  // Sprint 6 Task 1 (decision 4): the packaging step is part of what a long video costs. Its text calls are the
+  // Sprint 6 Task 1 (decision 4): the packaging step is part of what a video costs. Its text calls are the
   // brief, six concepts and the cold reader; its pictures are RENDER_MAX stills at the same price the video's
   // stills use. It runs once at Gate 2 and is reused by a Revise, so it is added once and not per attempt.
   const packagingUsd = long
@@ -89,7 +89,8 @@ export function estimateRunCost(params: {
       RENDER_MAX * (llmUsd('packaging-defect-check', 1_800, 400) + llmUsd('packaging-payoff', scriptTokens + 1_800, 700) + llmUsd('packaging-critic', 1_800, 300)) +
       RENDER_MAX * 2 * llmUsd('packaging-compare', 1_800, 150) +
       RENDER_MAX * resolveImagePricing(imageModel).perImageUsd
-    : 0;
+    // R7: a Short's opening is the curiosity brief and one cold-reader read of its hook line; its picture replaces the first still.
+    : llmUsd('packaging-brief', scriptTokens + 1_200, 700) + llmUsd('packaging-cold-reader', 300, 150);
 
   const perAttempt = stillsUsd + narrationUsd + transcriptionUsd + llm;
   const rest = narrationUsd + transcriptionUsd + llm;

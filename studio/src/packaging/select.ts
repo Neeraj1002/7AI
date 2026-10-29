@@ -7,6 +7,10 @@ export type Dropped = {
   device: CuriosityDevice;
   stage: 'code-check' | 'cold-reader' | 'render' | 'picture-check' | 'payoff';
   reasons: string[];
+  // The rule names behind the reasons (R10 tells round two these, never the dropped text). Absent on older records.
+  rules?: string[];
+  // 2 when the drop happened in the second round.
+  round?: 1 | 2;
 };
 
 type Candidate = { id: string; title: string; device: CuriosityDevice };
@@ -24,7 +28,7 @@ export function coldReadSelection(candidates: Candidate[], reply: ColdReaderRepl
   const eligible = order.filter((i) => !gaveAway.has(i));
   for (const i of gaveAway) {
     const c = candidates[i];
-    if (c) dropped.push({ id: c.id, title: c.title, device: c.device, stage: 'cold-reader', reasons: ['The title already gives its answer away.'] });
+    if (c) dropped.push({ id: c.id, title: c.title, device: c.device, stage: 'cold-reader', reasons: ['The title already gives its answer away.'], rules: ['answer_given_away'] });
   }
 
   const kept: number[] = [];
@@ -43,7 +47,7 @@ export function coldReadSelection(candidates: Candidate[], reply: ColdReaderRepl
   for (const i of eligible) {
     if (!kept.includes(i)) {
       const c = candidates[i];
-      dropped.push({ id: c.id, title: c.title, device: c.device, stage: 'cold-reader', reasons: ['Ranked below the three kept.'] });
+      dropped.push({ id: c.id, title: c.title, device: c.device, stage: 'cold-reader', reasons: ['Ranked below the three kept.'], rules: ['ranked_below_kept'] });
     }
   }
   kept.sort((a, b) => order.indexOf(a) - order.indexOf(b));

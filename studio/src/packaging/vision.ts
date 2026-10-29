@@ -142,24 +142,27 @@ export async function payoffCheck(params: {
   });
 }
 
-// The reasons a payoff answer drops a package. Pure, so the rule is tested without a model: any visible thing the
-// script does not support, a contradiction, a question not answered (or answered with a quote that is not in the
-// script), an answer that does not arrive, a fake label or unearned word.
-export function payoffReasons(check: PayoffCheck, scriptText: string): string[] {
-  const reasons: string[] = [];
-  const unsupported = check.visibleThings.filter((t) => !t.supportedByScript).map((t) => t.what);
-  if (unsupported.length > 0) reasons.push(`The picture shows ${unsupported.join('; ')}, which the video does not contain.`);
-  if (check.contradicts) reasons.push(`The picture contradicts its words or the script: ${check.contradictsWhy}`);
-  if (!check.questionAnswered) reasons.push('The script never answers the question this package raises.');
-  else if (!quoteInScript(scriptText, check.answerQuote)) reasons.push('The place the script is said to answer the question is not a quotation from the script.');
-  if (!check.arrives) reasons.push(`The answer does not pay off the curiosity: ${check.arrivesWhy}`);
-  if (check.fakeLabelOrUnearnedWord) reasons.push(`A label or word is not earned: ${check.labelWhy}`);
-  return reasons;
-}
+// What drops a package after the picture checks, as a rule name plus the sentence the founder reads. The rule names are
+// what R10's second round is told (never the dropped text); the messages are for Gate 2. Pure, so it is tested without a model.
+export type Failure = { rule: string; message: string };
 
-export function criticReasons(read: CriticRead): string[] {
-  return read.connects ? [] : [`The picture and the title do not read as one idea without the script: ${read.connectsWhy}`];
+export function payoffFailures(check: PayoffCheck, scriptText: string): Failure[] {
+  const out: Failure[] = [];
+  const unsupported = check.visibleThings.filter((t) => !t.supportedByScript).map((t) => t.what);
+  if (unsupported.length > 0) out.push({ rule: 'scene_not_in_script', message: `The picture shows ${unsupported.join('; ')}, which the video does not contain.` });
+  if (check.contradicts) out.push({ rule: 'picture_contradicts_words', message: `The picture contradicts its words or the script: ${check.contradictsWhy}` });
+  if (!check.questionAnswered) out.push({ rule: 'question_unanswered', message: 'The script never answers the question this package raises.' });
+  else if (!quoteInScript(scriptText, check.answerQuote)) out.push({ rule: 'answer_quote_not_in_script', message: 'The place the script is said to answer the question is not a quotation from the script.' });
+  if (!check.arrives) out.push({ rule: 'answer_does_not_pay_off', message: `The answer does not pay off the curiosity: ${check.arrivesWhy}` });
+  if (check.fakeLabelOrUnearnedWord) out.push({ rule: 'fake_label_or_unearned_word', message: `A label or word is not earned: ${check.labelWhy}` });
+  return out;
 }
+export const payoffReasons = (check: PayoffCheck, scriptText: string): string[] => payoffFailures(check, scriptText).map((f) => f.message);
+
+export function criticFailures(read: CriticRead): Failure[] {
+  return read.connects ? [] : [{ rule: 'picture_title_mismatch', message: `The picture and the title do not read as one idea without the script: ${read.connectsWhy}` }];
+}
+export const criticReasons = (read: CriticRead): string[] => criticFailures(read).map((f) => f.message);
 
 // A face that looks uncanny is reported, not hidden (the task: "an uncanny face is reported, not hidden").
 export function defectWarnings(check: DefectCheck): string[] {

@@ -33,7 +33,8 @@ Work in this order.
 7. What is the picture about (subjectKind)? iconic-thing: a landmark, ship, object or place that is the subject by itself. named-person: a named person is central to the story. anonymous-person: unnamed people (a crew, a worker, a child) are there. no-focal-subject: nothing in the story is a clear thing to look at.
 8. typefaceMood for the lettering: stakes (urgent, numbers, risk, business), editorial (people, human stories), historic (ancient or long-ago subjects).
 9. promise: one sentence saying what the first 5 to 10 seconds of the video deliver.
-10. correction: fill it ONLY when the script itself states the popular version and then the documented record. Quote the sentence that states the record, copied exactly. Otherwise null.
+10. hookLine: a line for the very first frame of a short video: at most 8 words, it OPENS the question and does NOT state the answer, uses only figures the script states exactly (keep any hedge word), and no label such as 4K or Official. Empty string when weakGap is set.
+11. correction: fill it ONLY when the script itself states the popular version and then the documented record. Quote the sentence that states the record, copied exactly. Otherwise null.
 
 If the script has no honest gap (no belief it contradicts, no open question it answers), set weakGap to one plain sentence saying why, and leave the other text fields as short plain statements. Do not dress up a weak script.
 
@@ -96,14 +97,18 @@ export const FACE_RULE_TEXT: Record<FaceMode, string> = {
   figure: 'Face rule: if a person is shown, make them one imagined, anonymous figure seen from behind, in profile or in shadow, never a recognisable face.',
 };
 
-export function conceptsUser(renderedScript: string, brief: unknown, look: ChannelLook, titleLimit: number, faceMode: FaceMode): string {
+export function conceptsUser(renderedScript: string, brief: unknown, look: ChannelLook, titleLimit: number, faceMode: FaceMode, feedback?: string[]): string {
   const title = look.titleGuidance
     ? `Title guidance for this channel (follow it; titles never longer than ${titleLimit} characters):\n${look.titleGuidance}`
     : `Title guidance: none given. Plain, specific, honest; at most about ${NEUTRAL_TITLE_LIMIT} characters.`;
   const visual = look.stylePrompt
     ? `Visual style of this channel's pictures (the concept must be drawable within it):\nStyle: ${look.stylePrompt}`
     : 'Visual style: none given. Any honest, cinematic look is fine.';
-  return `${title}\n\n${visual}\n\n${FACE_RULE_TEXT[faceMode]}\n\nThe curiosity brief:\n${JSON.stringify(brief, null, 2)}\n\nThe approved script:\n"""\n${renderedScript}\n"""\n\nReturn ${CONCEPTS_MADE} concepts.`;
+  // Round two (R10): only rule names and fixed advice, never any dropped text.
+  const again = feedback && feedback.length > 0
+    ? `This is a second try. Your first ${CONCEPTS_MADE} concepts were ALL dropped by these rules (the number is how many drops broke the rule):\n${feedback.map((f) => `- ${f}`).join('\n')}\nWrite ${CONCEPTS_MADE} new, different concepts, with new angles and new pictures, that keep every rule above.\n\n`
+    : '';
+  return `${again}${title}\n\n${visual}\n\n${FACE_RULE_TEXT[faceMode]}\n\nThe curiosity brief:\n${JSON.stringify(brief, null, 2)}\n\nThe approved script:\n"""\n${renderedScript}\n"""\n\nReturn ${CONCEPTS_MADE} concepts.`;
 }
 
 export const COLD_READER_SYSTEM = `You are an ordinary person scrolling YouTube. You know nothing about this channel or the video. For each candidate you see only its title and the big words on its thumbnail (and a small line under them, if any). For each one say, in a single short sentence, what you think the video is about; how curious it makes you from 1 (not at all) to 5 (I have to know); whether you would click (yes, maybe, no); and whether the title already tells you the answer to the question it raises (answerGivenAway). Then rank all candidates from most to least likely to be clicked by a stranger. Be honest and hard to impress; a title that gives its answer away is not curious. Reply with JSON only.`;

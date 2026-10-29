@@ -73,6 +73,13 @@ export async function sumUsageCostForRun(pipelineRunId: string): Promise<number>
   return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
 }
 
+// Sprint 6 Task 1 R11: what the curiosity packaging cost this run, both rounds, text and pictures, from the usage rows
+// (agents named `packaging-...`: brief, concepts, cold reader, defect check, payoff, critic, compare, thumbnail).
+export async function sumPackagingCostForRun(pipelineRunId: string): Promise<number> {
+  const result = await prisma.usageEvent.aggregate({ where: { pipelineRunId, agent: { startsWith: 'packaging-' } }, _sum: { costUsd: true } });
+  return result._sum.costUsd ? Math.round(Number(result._sum.costUsd) * 10000) / 10000 : 0;
+}
+
 // Backs the Script Generation cost gate (BUSINESS_LOGIC.md Section 2) — sums
 // spend for every channel on this (tenantId, platform), since UsageEvent
 // itself doesn't store platform directly (only channelId).

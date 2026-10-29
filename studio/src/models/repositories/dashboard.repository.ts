@@ -2,6 +2,8 @@ import { prisma } from '../prisma-client';
 import { currentBudgetWindowStart, loadChannelBudgetView, NoBudgetConfiguredError, nextBudgetWindowStart } from '../../run-pipeline/budget-gate';
 import { Prisma } from '@prisma/client';
 import { tallyEndedRuns } from '../../run-pipeline/end-reason';
+import { buildDeviceStats, type DeviceRunRow, type DeviceSnapshotRow } from '../../packaging/record';
+import type { DeviceComparisonDashboard } from '../../types/dashboard.types';
 import type {
   ChannelComparisonDashboard,
   ComparisonTotals,
@@ -585,4 +587,59 @@ export async function getGateAnalytics(tenantId: string, channelId?: string): Pr
     out[key].medianDecisionSeconds = w.n > 0 ? Math.round(w.sum / w.n) : null;
   }
   return out;
+}
+
+// Sprint 6 Task 1 R8: runs packaged around a curiosity device (a long video's Gate 2 packaging, a Short's opening) with the
+// latest snapshot of each published one. The grouping is pure (packaging/record.ts buildDeviceStats); this only reads.
+export async function getDeviceComparisonDashboard(tenantId: string, videoKind?: 'short' | 'long'): Promise<DeviceComparisonDashboard> {
+  const kindFilter = videoKind
+    ? videoKind === 'long'
+      ? Prisma.sql`AND pr."creationOptions"->>'videoKind' = 'long'`
+      : Prisma.sql`AND COALESCE(pr."creationOptions"->>'videoKind', 'short') <> 'long'`
+    : Prisma.empty;
+  const packagingRows = await prisma.$queryRaw<{ runId: string; packaging: unknown }[]>(
+    Prisma.sql`
+      SELECT DISTINCT ON (ps."pipelineRunId") ps."pipelineRunId" AS "runId", ps.output->'packaging' AS packaging
+      FROM pipeline_stages ps
+      JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
+      WHERE pr."tenantId" = ${tenantId}::uuid AND ps."stageName" = 'gate2' AND ps.output ? 'packaging' ${kindFilter}
+      ORDER BY ps."pipelineRunId", ps."attemptNumber" DESC
+    `,
+  );
+  const openingRows = await prisma.$queryRaw<{ runId: string; opening: unknown }[]>(
+    Prisma.sql`
+      SELECT pr.id AS "runId", pr."creationOptions"->'opening' AS opening
+      FROM pipeline_runs pr
+      WHERE pr."tenantId" = ${tenantId}::uuid AND pr."creationOptions" ? 'opening' ${kindFilter}
+    `,
+  );
+  let snapshots: DeviceSnapshotRow[] = [];
+  try {
+    const rows = await prisma.$queryRaw<{ runId: string; views: bigint; retentionPct: Prisma.Decimal | null; longFormMetrics: { averageViewDurationSec?: number | null } | null }[]>(
+      Prisma.sql`
+        SELECT DISTINCT ON (ps."youtubeVideoId") ps."pipelineRunId" AS "runId", ps.views, ps."retentionPct", ps."longFormMetrics"
+        FROM performance_snapshots ps
+        JOIN pipeline_runs pr ON pr.id = ps."pipelineRunId"
+        WHERE pr."tenantId" = ${tenantId}::uuid
+        ORDER BY ps."youtubeVideoId", ps."snapshotAt" DESC
+      `,
+    );
+    snapshots = rows.map((r) => ({
+      runId: r.runId,
+      views: Number(r.views),
+      retentionPct: r.retentionPct === null ? null : Number(r.retentionPct),
+      averageViewDurationSec: r.longFormMetrics?.averageViewDurationSec ?? null,
+    }));
+  } catch (error) {
+    // A missing performance_snapshots table means no data yet, as in the other dashboards.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2010' && error.meta?.code === '42P01')) throw error;
+  }
+  const runs: DeviceRunRow[] = [
+    ...packagingRows.map((r) => ({ runId: r.runId, packaging: r.packaging as DeviceRunRow['packaging'], opening: null })),
+    ...openingRows.filter((r) => !packagingRows.some((p) => p.runId === r.runId)).map((r) => ({ runId: r.runId, packaging: null, opening: r.opening as DeviceRunRow['opening'] })),
+  ];
+  return {
+    devices: buildDeviceStats(runs, snapshots),
+    metricsNote: 'Impressions and click-through rate are not supplied by the YouTube data this app reads, so they are blank, not estimated. Read views with watch time and retention, and with few videos per device, only as a hint.',
+  };
 }

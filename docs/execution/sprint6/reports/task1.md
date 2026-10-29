@@ -1,7 +1,8 @@
 # Sprint 6 Task 1: Curiosity Packaging
 
 **Date**: 2026-10-26
-**Status**: PR A complete and ready for review (#116). PR B (picture checks) code-complete, PR #124 on `main` and ready for review (PR A merged as #116). PR C (opening, record, final sweep) not started.
+**Status**: PR A (#116) and PR B (#124) merged. PR C (#130) code-complete and ready for review; its R10 live check waits for the language-model quota (1 Nov).
+**Branch / worktree / PR (PR C)**: `SPRINT6_TASK1C_BE` · `D:\Study Material\7AI-SPRINT6\task1c` · [PR #130](https://github.com/Neeraj1002/7AI/pull/130)
 **Branch / worktree / PR (PR B)**: `SPRINT6_TASK1B_BE` · `D:\Study Material\7AI-SPRINT6\task1b` · [PR #124](https://github.com/Neeraj1002/7AI/pull/124) (base `main`, ready for review)
 **Branch / worktree / PR (PR A)**: `SPRINT6_TASK1A_BE` · `D:\Study Material\7AI-SPRINT6\task1a` · [PR #116](https://github.com/Neeraj1002/7AI/pull/116)
 **Task doc**: r7. Already on `main` (via the architect's docs PR #119) and byte-identical to the source in `D:\Study Material\7AI\docs\...` apart from line endings (compared with CRLF removed, same md5), so no `_DOC` commit was needed (Hard rule 5). My first branch was cut when r6 was current and I built part of it (a per-channel thumbnail setting, medium quality, a typeface download) before r7 arrived; I discarded all of that uncommitted work when r7 landed, and said so at the time.
@@ -273,3 +274,122 @@ New tests: `vision.test.ts` (covering thresholds, every payoff failure named, th
 - **Open founder decisions:** (1) merge #116 first, then I retarget this PR; (2) is an empty Gate 2 (all packages dropped) acceptable, or should concepts be regenerated once with the reasons when that happens (about $0.08 more, only in that case)? (3) F1 and the R2 copy of thumbnail files from PR A are still open.
 
 **One line for PLAN.md:** P1 PR B: picture checks built and tested (defect check with code-decided lettering cover, payoff check against the script, critic connection check, both-orders head to head, uncanny-face warnings); seeded cases pass live; waits for PR A to merge, then retarget to main.
+
+# PR C (`SPRINT6_TASK1C_BE`): R10, R7, R8, R9 final
+
+**Branch / worktree / PR (PR C)**: `SPRINT6_TASK1C_BE` · `D:\Study Material\7AI-SPRINT6\task1c` · [PR #130](https://github.com/Neeraj1002/7AI/pull/130)
+**Task doc**: r8, on `main` and identical to the architect's latest (compared with CRLF removed, same md5). Note for the architect: the base checkout `D:\Study Material\7AI\docs\...` still holds **r7**, because that checkout has not pulled `main`; `main` is newer. I used `main`'s r8, and did not edit it. No `_DOC` commit.
+**Files**: 7 created, 28 modified against `main` (35 changed). **Tests**: studio 1,672 pass (65 skipped as before), app 195 pass; type check and lint clean on both.
+**Spend, PR C**: $0.054 (the real Short render). **Whole task: about $1.58 of the $2.00.** The R10 live check was **not run**: see C1, row 1.
+**Scope**: R7, R8, R10 and R9 as in r8. The architect's Gate 2 contract (`sprint6/contracts/task1-gate2-packaging.md`, on `main` while I worked) says its backend items B1, B3 and B4 go to this PR as `task1.md` r9, item R11. **r9 does not exist yet and R11 is not in r8, so I did not build them** (C9).
+
+## C1. R0 for PR C: what the code really is
+
+| # | Question | Result |
+|---|---|---|
+| 1 | **Can I run the live checks?** | **No, not the language-model ones.** My first real call (the Short's brief) was answered "You have reached your specified workspace API usage limits. You will regain access on 2026-11-01 at 00:00 UTC." The Anthropic workspace limit is spent, so R10's live check (which needs the real concepts call) and the live brief for a Short could not run. The image, narration and transcription providers (OpenAI) still work, so the **Short render was checked for real** with a fixed opening in place of the brief (C3). The R10 check script is committed, dry-run clean, and ready to run after 1 November (C2). Everything else for R10 is covered by seeded tests. |
+| 2 | Where does a Short's hook and first picture go? | **C.** `generateVideo` takes the plan's `stillScenePrompts` (the first is frame zero) and writes one `.ass` file for the captions that is burned in with `ass=`; the hook line is a second event in that same file; frame zero replaces the first scene prompt. No other stage touches either. |
+| 3 | "The hook line and frame zero come from the **chosen** package" | **W for a Short.** A Short has no Gate 2 choice before it is rendered: Gate 2 is after the video exists, and the hook and first picture are inside the video. So a Short's single package is the brief's own question, hook line and frame-zero picture, made automatically; the founder sees the result at Gate 2 and can Revise. A Short does not get six concepts or a pick. This is a design decision in your hands: **confirm or tell me to build a pick before rendering** (it would add a gate or an auto-pick and about $0.12 per Short). |
+| 4 | Where is the brief for a Short stored? | **C, no schema change.** `creationOptions.opening` (small, run-owned like `videoFallbackUsed`, stripped by `runs.rerun`, one brief about 1.5 KB). A retry or Revise of the same script reuses it, so it is paid once. |
+| 5 | Script Review and the "opened within five or ten seconds" note | **W as written.** Script Review runs before the script is approved, and the question exists only in the brief made after approval, so Script Review cannot judge it without a paid brief on every run. The advisory is computed where the brief exists: for a Short with its opening, for a long video when its packaging is made, and shown at Gate 2 (a warning line and on the packages card). It never enters a score or a retry. |
+| 6 | Did PR A/B resume an interrupted attempt? | **W (my own claim in PR A).** The checkpoints saved brief and concepts, but they were saved with status `failed` by default, so after a restart the stage returned that half-made record as a finished failure instead of resuming. Fixed here: unfinished attempts are `building` and are resumed (R10 rule 3 needed it). |
+| 7 | Metrics for R8 | **C.** The ingestion stores views, likes, comments, retention percentage and, for long videos, average view duration and watch minutes. `LongFormMetrics.impressionsClickThroughRate` is typed `null` and impressions are not stored at all: the provider data this app reads does not supply them. They stay null; nothing is estimated. |
+| 8 | Compare today | **C.** It groups channels by format (`dashboard.comparison`). Nothing grouped by device. |
+| 9 | Channel names in code | **C, none added**; searches in C6. |
+
+## C2. R10: when every package fails, one more round
+
+**What was built** (`packaging/rounds.ts`, `build.ts`, `packaging-stage.ts`, view and app):
+1. **One extra round, hard cap.** `MAX_EXTRA_ROUNDS = 1`. The round is recorded in the packaging output (`roundTwo.state`) and the cap is checked from the saved rounds, not from memory, so reopening Gate 2 any number of times, or a restart, can never start a third round.
+2. **Feedback is rule names only.** The first round's drops carry structured `rules` (the code of the failed check). The second concepts call is given `rule (count): fixed advice sentence` lines written in code (`ADVICE` in `rounds.ts`): never a dropped title, lettering, object or reason text. A test proves no dropped title, no invented object ("toy") and no quote appears in what the model is told.
+3. **Nothing relaxes.** Round two runs the same code checks, the same cold reader, the same render, the same defect, payoff and critic checks as round one (same function). A test seeds a round-two concept with a fake badge and one with an unsupported phrase and shows both dropped with their rules.
+4. **Budget first, and visible.** Before any spend `roundTwoRoomFor` checks the channel budget, the run's spend limit and the run's **retry allowance** (the smaller cap decides) and needs room for at least two pictures; otherwise the round is **skipped** and Gate 2 says why ("a second try was not made: the run's retry allowance leaves no room..."). Every paid call of round two is its own usage row, marked `packagingRound: 2` in its metadata, so it is not hidden.
+5. **Restart-safe.** The state is saved before anything is spent (`started`), and after every paid step of every package (processed ids, kept packages, drops, the cold-reader reads, head-to-head done). A resume skips what finished.
+6. **Marked.** A package kept in round two has `round: 2`, the id prefix `r2-`, a "Second round" chip on its Gate 2 card, and a line explaining that round one was dropped. After a double failure Gate 2 says "Nothing passed, even after a second try. Approving publishes with YouTube's suggested thumbnail and a title written for you", with every dropped option and its reasons.
+
+**Verified by the task's four cases** (`build.test.ts`, "R10" block): a seeded all-failing round one runs round two exactly once and its packages are marked second round; a seeded double failure shows the empty result with all twelve drops and makes no third round (a rebuild over the finished record starts nothing); **a crash inside round two's second payoff call, then a restart from what was saved, leaves one `brief`, two `concepts` calls (one per round), one cold-reader call and one booked round-two concepts row**; the only repeated step is the call that crashed; the budget refusal skips the round with its reason. `roundTwoRoomFor` has its own tests (channel budget, run limit, allowance).
+
+**Live check: not run** (C1 row 1). `scripts/packaging-real-check.ts --force-round-two --live` is ready: it seeds round one's six concepts as failing (no model call), then runs round two for real with the real concepts call, real checks and real pictures, prints exactly what round two was told, and has its own **$0.30** cap. Dry-run and lint pass. **To do after 1 November: run it once** (about $0.13 expected).
+
+## C3. R7: the opening opens the question
+
+**Built** (`packaging/opening.ts`, `captions-ass.ts`, `video-generation/index.ts`, `packaging-stage.ts` `ensureShortOpening`):
+- The curiosity brief gains `hookLine` (at most 8 words; opens the question; does not state the answer). A Short gets **one brief call**, made once per run and script and kept in `creationOptions.opening`.
+- **The hook line is checked in code, never repaired**: word and character limit, figures and hedges (`checkTitle`, the same rule as titles), "untold/secret" words only when earned, fake badges, then one cheap cold-reader read for "already gives away the answer". A failed hook is dropped and the reason recorded; the Short is made without it.
+- **Drawn on the first frame** for three seconds, top-centre, above the caption band and clear of the watermark corner, in the caption font, as an event of the same `.ass` file (so it also works with captions switched off).
+- **Frame zero**: the first still of an AI-stills Short becomes the brief's "one thing to look at" (with the face rule from the script) **only when the script names that thing** (`lookAtSupported`); otherwise the planner's own first picture stays and the reason is recorded. Stock-footage Shorts keep their clips (hook line only).
+- **A failure never stops the video**: no opening (a provider error, the channel budget, a weak gap) means the Short is made exactly as before. Cost is in the run estimate (a Short now includes about $0.01 for its opening).
+- **Advisory note** (`questionOpenedWithin`): the question is "opened" when the first five seconds of narration (ten for a long video) share at least half of its content words, or contain a question mark and share one. It is only a note.
+
+**Real render** (`scripts/short-opening-check.ts --live --offline-opening`, real narration, transcription and four stills, $0.054): a 60-second Short whose first frame shows the brief's picture (the tower, workers small beneath it) with the hook line "Why was it nearly torn down?" at the top while the narration begins "What almost happened to the most famous tower in the world?"; the hook is gone by 4 s and the captions continue. The opening here was **fixed, not model-made**, because of C1 row 1; the hook checks and the brief are covered by `opening.test.ts` with the registry call faked.
+
+Frames at 0 s, 2 s and 4 s (the hook is on 0 s and 2 s only): ![0 s](task1-assets/prC-short-frame-0s.jpg) ![2 s](task1-assets/prC-short-frame-2s.jpg) ![4 s](task1-assets/prC-short-frame-4s.jpg)
+
+## C4. R8: what was offered, chosen and rejected
+
+A **projection of what is already stored**, so it cannot drift (`packaging/record.ts`):
+- `runs.packagingRecord({ runId })` (tenant-checked) returns, for a published run: the brief, every option with its outcome (`chosen`, `rejected`, `not_chosen` when YouTube's thumbnail was kept or nothing was chosen, `dropped` with the stage, rule names and reasons, and round), the chosen package's device, title (and whether edited), recipe, typeface, face mode, critic and payoff results and head-to-head, and whether a second round was made; a Short returns its opening (hook line, whether frame zero was used, device, note, reasons).
+- `dashboard.devices` groups runs by the chosen device: options offered, options dropped by a check, times chosen, and for published ones the average views, average view duration and average retention **only where a snapshot supplies them**. `impressions` and `clickThroughRate` are typed `null` and the screen's note says why. The Compare screen has a new "By curiosity device" table with a dash for anything missing.
+- Verified: read-back of a published run in `runs.packaging.test.ts` and `record.test.ts` (chosen, rejected, dropped with rules; kept-YouTube; a Short); device averages count only supplied values; impressions and CTR are always null.
+- No claim about YouTube's Test and Compare, and no promise of a click-through lift anywhere.
+
+## C5. Tests and commands
+
+```
+cd studio
+npx tsc --noEmit -p tsconfig.json        # clean
+npx eslint .                             # clean
+npx vitest run                           # 1,672 pass, 65 skipped (same skips as before), 179 files
+cd ../app && npx tsc --noEmit && npx expo lint          # clean
+cd ../studio && npx vitest run --root ../app            # 29 files, 195 tests pass
+npx tsx scripts/short-opening-check.ts --live [--offline-opening]       # cap $0.25
+npx tsx scripts/packaging-real-check.ts --script <file> --name <n> --force-round-two --live   # R10, cap $0.30 (run 1 Nov, $0.1176)
+```
+
+New tests: the R10 block in `build.test.ts` (8 cases: second round once and marked, feedback has rules and no dropped text, picture-check rules fed back without the invented object, double failure with no third round, round two never shows what round one's rules drop, skipped with the reason, none when round one passes or the script has no gap, **restart in the middle of round two**), `roundTwoRoomFor` tests, `opening.test.ts` (12: the hook checks, weak gap, frame-zero support, the five and ten second advisory, the hook in the caption file with captions on and off), `short-opening-stage.test.ts` (once per run, reuse, none for long or budget, a failure never blocks), `record.test.ts` (6), packaging record route and app tests (stranger, second-round note, dashes).
+
+## C6. R9: same-cause sweep (Hard rule 9) and Key Principle 11
+
+**Causes searched:** a title, hook or thumbnail limit or rule made in more than one place; a hard-coded length or font; the narration pace; and any channel name or niche word in packaging code, prompts or fixtures.
+
+| Hit | Disposition |
+|---|---|
+| Title limit 100 in the metadata schema and prompts | **One owner already** (PR A): `packaging/constants.ts` `TITLE_MAX_CHARS`; the hook's limits (`HOOK_MAX_WORDS`, `HOOK_MAX_CHARS`, `HOOK_SECONDS`) live in the same file. |
+| Narration pace (words per minute) in `opening.ts` would be a third copy | **Fixed here**: it reads `SHORT_WORDS_PER_MINUTE` (now exported) and `LONG_WORDS_PER_MINUTE` from the estimate, which already owns them. |
+| Frame-grab cover (`extractCoverFrame`) in publishing | **Left alone**: still the cover for a run with no packaging (an old run, Gate 2 switched off). A Short's hook and first frame are made in the video, not by this path. |
+| Caption font Montserrat | **Left alone**: the hook uses the same caption font and file (`FONTS_DIR`), one owner; the thumbnail fonts stay with `TYPEFACES`. |
+| Dropped-rule advice sentences in two places (the Gate 2 reasons and the feedback) | **One owner**: reasons are what the checks say; `rounds.ts` `ADVICE` is the only feedback text. Two lists, kept apart on purpose (the reasons contain dropped text; the advice must not). |
+| `llm/canary.ts` reads the NIYT config document | **Left alone**: a test tool; NIYT is a test channel. |
+| "cold open" in script prompts | **Left alone**: a storytelling term, not a channel. |
+| PR A's `Dropped` records had no rule names | **Fixed here** (`rules`, `round` added; old records still read). |
+| The older `/runs/:id/video`, `/preview`, `/subtitles` tenant gap (F1) | **Not mine** per your instruction: the acceptance hot-fix. |
+
+**Proof for Key Principle 11 (no channel-specific literal added):** `grep -rniE "NIYT|not in your textbook|underdogs|cold open|indus|mary celeste|eiffel|lego"` over `studio/src/packaging/*.ts` (non-test, non-testkit), `run-pipeline/packaging-stage.ts`, `thumbnail-followup.ts`, `captions-ass.ts`, `app/components/PackageCards.tsx`, `app/lib/packaging.ts` and `compare.tsx` returns **no match**; and `build.test.ts`'s scan of the whole `packaging/` folder (sources, prompts and fixtures) passes. The hook limits, the five and ten second windows and the second-round advice are platform rules in constants, not tuned to a channel; the look and the title limit reach the code only as the channel's own profile text.
+
+## C7. Hard rules, statuses
+
+- **Rule 5:** done (r8, C header). **Rule 6:** `git fetch` then `git merge origin/main` into this branch twice; **no conflicts**; the second merge brought only the architect's Gate 2 contract doc. Re-ran type check, lint and all tests (studio and app), pushed. Docs scope, `git diff --name-only origin/main...HEAD -- docs/`: this report and its images (three new frames); nothing else. **Rule 7:** only this report; `STATUS.md`, `PLAN.md` and the contract untouched. **Rule 8:** runs after PR C merges (worktrees `task1a`, `task1b`, `task1c`). **Rule 9:** C6.
+- **Code-complete:** PR C yes, except the R10 live check (C1). **Merged:** no. **Deployed:** no.
+
+## C8. Whole-task statuses (Task 1)
+
+Code-complete: PR A, B and C. Merged: PR A (#116) and PR B (#124). Deployed: none. Live-checked: PR A and B yes; PR C's Short render yes (fixed opening); **R10 yes (1 Nov, below)**; **brief-driven Short hook yes (1 Nov, below)**.
+
+**R10 live check (1 Nov, after the provider limit reset).** `packaging-real-check.ts --force-round-two --live` on the Eiffel script, total **$0.1176** (cap $0.30). Six seeded failing concepts; round two was told only the rule names with fixed advice (`support_not_in_script`, `unsupported_number`), made 3 packages (second round), each passed the real picture checks, payoff, critic and head-to-head, and the run finished `ready`. One concept call booked for round two; no third round. The task's live spend is now about $1.70 of $2.00. **Brief-driven Short check (1 Nov):** `short-opening-check.ts --live` with the real brief: hook line "The Eiffel Tower was nearly scrapped", device stake, question opened within five seconds. Frame zero kept the planner's own picture because the brief's picture is not named in the script (reason shown). 60.6 s render, total $0.0626 (cap $0.25). Task live spend is now about $1.76 of $2.00.
+
+## C10. R11: backend for the Gate 2 package screens (task r9, contract r2)
+
+**R0 findings.** (1) While packages are made the run already reads `paused_gate2` and the Gate 2 row is `running`; the approval is not registered yet. So `making` = packaging not finished and no open approval (`hasPendingApproval`); `pending` = approval open, nothing there. (2) The receipt cannot tell a refused thumbnail call from an unknown outcome (both follow-up `uncertain`); the code tells them apart by `coverFrameMessage` in the stage output, and `not_set` also covers "YouTube chose its own". (3) A Short has no choosable options (founder, 30 Oct: no pick before render, no +$0.12): its one package is `opening`, with the brief's hook line and the first frame, empty title (written at publish), changed with Revise.
+
+**Built.** `runs.packaging` adds `making`, `packagingCostUsd` (usage rows named `packaging-*`, both rounds, text and pictures), `round`; each package adds `round`, `answeredAtParts`, `hookLine`, `firstFrameUrl` (signed), `imageUrls` null for a Short. New `runs.checkPackageTitle` wraps `checkTitle` (the function `choosePackage` refuses with), tenant-checked, returns the server `titleLimit`. `runs.get` adds `thumbnail` (live / not_applied / pending / not_set). `choosePackage` unchanged. Not built: `remakePackages`, per-package progress, 9:16 image.
+
+**Tests.** `gate2-contract.test.ts` and `runs.packaging.test.ts`: making, ready, weak gap, none passed, skipped, failed, round two, a Short, each thumbnail status; the title check agrees with `choosePackage` for an unsupported figure, over-length and empty; stranger gets FORBIDDEN. Studio tsc clean; full suite 1702 passed (one unrelated stock-footage test flaked once, passes alone); app tsc clean. No paid run.
+
+## C9. Open decisions and what is next
+
+1. **Short with no pick (C1 row 3):** confirm that a Short's single derived opening is acceptable, or ask for a pick before render.
+2. **Run the R10 and brief-driven Short checks after 1 November** (about $0.13 and $0.02; the task's $2.00 has $0.42 left).
+3. **R11 / the Gate 2 contract (B1, B3, B4):** waiting for `task1.md` r9. Overlap already in this PR so the work is smaller: `round` on each package, the second-round state on the view, the advisory note, `secondRound` text, the Short's hook line stored on the run. Not built: `packagingCostUsd`, `answeredAtParts`, `hookLine` and `firstFrameUrl` on the package view, `runs.checkPackageTitle`, and the thumbnail result on `runs.get`.
+4. The base checkout's task doc is r7 (stale); pull `main` there.
+
+**One line for PLAN.md:** P1 PR C: R10 second round (restart-safe, rules-only feedback, budget-checked), R7 Short hook line and frame zero (real render checked), R8 record and Compare by device built and tested; live R10 check waits for the Anthropic quota reset on 1 Nov; Gate 2 contract items B1/B3/B4 wait for r9.

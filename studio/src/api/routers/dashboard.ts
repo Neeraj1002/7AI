@@ -7,6 +7,7 @@ import {
   getQualityDashboard,
   getChannelComparisonDashboard,
   getGateAnalytics,
+  getDeviceComparisonDashboard,
 } from '../../models/repositories/dashboard.repository';
 
 const dashboardInput = z.object({ channelId: z.string().uuid().optional() });
@@ -41,4 +42,8 @@ export const dashboardRouter = router({
   comparison: publicProcedure
     .input(z.object({ videoKind: z.enum(['short', 'long']).optional() }).optional())
     .query(async ({ input, ctx }) => getChannelComparisonDashboard(ctx.tenantId, input?.videoKind)),
+  // Sprint 6 Task 1 R8: how each curiosity device was offered, chosen and (where published) performed.
+  devices: publicProcedure
+    .input(z.object({ videoKind: z.enum(['short', 'long']).optional() }).optional())
+    .query(async ({ input, ctx }) => getDeviceComparisonDashboard(ctx.tenantId, input?.videoKind)),
 });

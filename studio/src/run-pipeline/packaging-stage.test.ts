@@ -110,3 +110,26 @@ describe('packagingFieldOf / readPackaging', () => {
     expect(await packagingFieldOf('r1', 'other')).toEqual({});
   });
 });
+
+import { roundTwoRoomFor } from './packaging-stage';
+
+describe('roundTwoRoomFor (R10 rule 2: the budget is checked before a second round spends)', () => {
+  const base = { budgetOk: true, spentUsd: 0.4, imageUsd: 0.01, textReserveUsd: 0.1 };
+  it('allows a round when the limit and the retry allowance leave room', () => {
+    expect(roundTwoRoomFor({ ...base, limitUsd: 2, allowanceUsd: 2 })).toEqual({ ok: true, imagesAllowed: 3, reason: null });
+    expect(roundTwoRoomFor(base).ok).toBe(true);
+  });
+  it('refuses, with the reason, when the channel budget is reached', () => {
+    expect(roundTwoRoomFor({ ...base, budgetOk: false })).toMatchObject({ ok: false, reason: "the channel's spending limit is reached" });
+  });
+  it("refuses when the run's limit leaves fewer than two pictures, and names which limit", () => {
+    const tight = roundTwoRoomFor({ ...base, limitUsd: 0.51 });
+    expect(tight.ok).toBe(false);
+    expect(tight.reason).toMatch(/the run's spend limit leaves no room/);
+  });
+  it('the retry allowance counts: the smaller of the two caps decides', () => {
+    const r = roundTwoRoomFor({ ...base, limitUsd: 5, allowanceUsd: 0.5 });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/the run's retry allowance/);
+  });
+});

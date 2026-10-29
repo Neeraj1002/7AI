@@ -77,6 +77,15 @@ export function headToHeadLine(p: PackageView): string | null {
   return `Won ${h.wins} of ${total} head-to-head comparisons${h.ties ? ` (${h.ties} tied)` : ''}.`;
 }
 
+// R10: the plain sentence under an empty or second-round Gate 2. A second round is said, and so is a double failure.
+export function secondRoundNote(view: PackagingView): string | null {
+  const { state, reason } = view.secondRound;
+  if (view.status === 'ready') return state === 'finished' ? 'Every first-round option was dropped by the checks, so a second round was made. These come from it.' : null;
+  if (state === 'finished') return "Nothing passed, even after a second try. Approving publishes with YouTube's suggested thumbnail and a title written for you.";
+  if (state === 'skipped') return `Nothing passed, and a second try was not made: ${reason ?? 'there was no budget for it'}. Approving publishes with YouTube's suggested thumbnail and a title written for you.`;
+  return null;
+}
+
 // What the founder has chosen so far, in words.
 export function choiceSummary(view: PackagingView): string | null {
   if (!view.choice) return null;
@@ -118,3 +127,8 @@ export function publishedThumbnailStatus(out: { coverFrameSet?: boolean; coverFr
   }
   return null;
 }
+
+// ---- Compare by curiosity device (R8) ----
+// A blank is a blank: a metric the data does not supply is shown as a dash, never as zero or an estimate.
+export const dashIfNull = (n: number | null, format: (n: number) => string = (v) => String(Math.round(v * 10) / 10)): string => (n === null ? '\u2014' : format(n));
+export const watchTime = (sec: number | null): string => dashIfNull(sec, (v) => `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}`);

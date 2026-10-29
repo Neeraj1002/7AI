@@ -5,6 +5,8 @@ import {
   answeredLine,
   askedLine,
   choiceSummary,
+  dashIfNull,
+  watchTime,
   coldReaderLine,
   deviceLabel,
   downloadLink,
@@ -12,6 +14,7 @@ import {
   pictureLink,
   headToHeadLine,
   publishedThumbnailStatus,
+  secondRoundNote,
   strangerLines,
   titleCounter,
   type PackageView,
@@ -23,11 +26,11 @@ const pkg = (over: Partial<PackageView> = {}): PackageView =>
     id: 'c1', device: 'stake', supportingDevice: null, title: 'Why was it nearly torn down?', question: 'Why was the tower nearly torn down?',
     answeredAt: 'Chapter 3, Why Almost Destroyed, about 0:41', lettering: { words: 'SOLD FOR SCRAP?', subline: null, typeface: 'Anton' },
     readableAtSidebar: true, coldReader: { curiosity: 4, wouldClick: 'yes', guessedAbout: 'a tower.' },
-    stranger: null, headToHead: null, answerQuote: null, warnings: [],
+    stranger: null, headToHead: null, answerQuote: null, warnings: [], round: 1,
     imageUrls: { full: '/runs/r/thumbnail/c1/full?t=abc', feed: '/runs/r/thumbnail/c1/feed?t=abc', sidebar: '/runs/r/thumbnail/c1/sidebar?t=abc' }, ...over,
   }) as PackageView;
 const view = (over: Partial<PackagingView> = {}): PackagingView =>
-  ({ status: 'ready', reason: null, brief: null, packages: [pkg()], dropped: [], choice: null, titleLimit: 70, videoSeconds: 125, ...over }) as PackagingView;
+  ({ status: 'ready', reason: null, brief: null, packages: [pkg()], dropped: [], choice: null, titleLimit: 70, videoSeconds: 125, openingNote: null, secondRound: { state: 'not_needed', reason: null }, ...over }) as PackagingView;
 
 test('the duration chip is drawn by the card from the video length, never baked into the file', () => {
   assert.equal(durationChip(125), '2:05');
@@ -95,4 +98,21 @@ test('head to head: a plain count, with ties said, and nothing when there was no
   assert.equal(headToHeadLine(pkg({ headToHead: { wins: 0, losses: 0, ties: 0 } })), null);
   assert.equal(headToHeadLine(pkg({ headToHead: { wins: 2, losses: 0, ties: 0 } })), 'Won 2 of 2 head-to-head comparisons.');
   assert.equal(headToHeadLine(pkg({ headToHead: { wins: 1, losses: 0, ties: 1 } })), 'Won 1 of 2 head-to-head comparisons (1 tied).');
+});
+
+test('the second round is said plainly: when it made the options, when nothing passed even then, and when it was not made', () => {
+  assert.equal(secondRoundNote(view()), null);
+  assert.match(secondRoundNote(view({ secondRound: { state: 'finished', reason: null } }))!, /second round was made/);
+  assert.match(secondRoundNote(view({ status: 'none_passed', packages: [], secondRound: { state: 'finished', reason: null } }))!, /Nothing passed, even after a second try/);
+  assert.match(secondRoundNote(view({ status: 'none_passed', packages: [], secondRound: { state: 'skipped', reason: "the run's spend limit leaves no room" } }))!, /second try was not made: the run's spend limit/);
+  assert.equal(secondRoundNote(view({ status: 'weak_gap', packages: [] })), null);
+});
+
+test('Compare by device: a missing metric is a dash, never zero or an estimate', () => {
+  assert.equal(dashIfNull(null), '\u2014');
+  assert.equal(dashIfNull(0), '0');
+  assert.equal(dashIfNull(2500, (n) => `${n / 1000}K`), '2.5K');
+  assert.equal(watchTime(null), '\u2014');
+  assert.equal(watchTime(95), '1:35');
+  assert.equal(watchTime(0), '0:00');
 });

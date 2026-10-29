@@ -32,6 +32,8 @@ export const CuriosityBriefSchema = z.object({
   typefaceMood: z.enum(TYPEFACE_MOODS),
   // One sentence promising what the first 5 to 10 seconds deliver.
   promise: z.string(),
+  // R7: a line drawn on the first frame of a Short: at most 8 words, opens the question and withholds the answer. Empty when there is no honest gap.
+  hookLine: z.string(),
   // Set only when the script itself states the popular version and then the documented record.
   correction: z.object({ popularVersion: z.string(), record: z.string(), quote: z.string() }).nullable(),
 });

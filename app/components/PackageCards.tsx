@@ -17,6 +17,7 @@ import {
   headToHeadLine,
   pictureLink,
   publishedThumbnailStatus,
+  secondRoundNote,
   strangerLines,
   titleCounter,
   type PackageView,
@@ -68,11 +69,11 @@ function OptionCard({
   const note = coldReaderLine(pkg);
   const stranger = strangerLines(pkg);
   const h2h = headToHeadLine(pkg);
-  const download = downloadLink(pkg.imageUrls.full, apiUrl);
+  const download = downloadLink((pkg.imageUrls?.full ?? pkg.firstFrameUrl ?? ""), apiUrl);
   return (
     <View style={[styles.option, selected && styles.optionSelected]}>
       <View style={styles.thumbWrap}>
-        <Picture url={pkg.imageUrls.feed} apiUrl={apiUrl} token={token} style={styles.thumb} />
+        <Picture url={(pkg.imageUrls?.feed ?? pkg.firstFrameUrl ?? "")} apiUrl={apiUrl} token={token} style={styles.thumb} />
         {chip ? (
           <View style={styles.durationChip}>
             <Text style={styles.durationText}>{chip}</Text>
@@ -85,6 +86,7 @@ function OptionCard({
       <Text style={styles.meta}>{channelName} · Just now</Text>
       <View style={styles.chips}>
         <StatusChip kind="neutral" label={deviceLabel(pkg.device)} />
+        {pkg.round === 2 ? <StatusChip kind="attention" label="Second round" /> : null}
         {selected ? <StatusChip kind="ok" label="Chosen" icon="check" /> : null}
       </View>
       <Text style={styles.ask}>{askedLine(pkg.question)}</Text>
@@ -134,9 +136,9 @@ function OptionCard({
             Feed size · lettering is {pkg.lettering.words}
             {pkg.lettering.subline ? ` / ${pkg.lettering.subline}` : ''} in {pkg.lettering.typeface}
           </Text>
-          <Picture url={pkg.imageUrls.feed} apiUrl={apiUrl} token={token} style={styles.feedSize} />
+          <Picture url={(pkg.imageUrls?.feed ?? pkg.firstFrameUrl ?? "")} apiUrl={apiUrl} token={token} style={styles.feedSize} />
           <Text style={styles.meta}>Sidebar size</Text>
-          <Picture url={pkg.imageUrls.sidebar} apiUrl={apiUrl} token={token} style={styles.sidebarSize} />
+          <Picture url={(pkg.imageUrls?.sidebar ?? pkg.firstFrameUrl ?? "")} apiUrl={apiUrl} token={token} style={styles.sidebarSize} />
           {download ? (
             <Pressable onPress={() => void Linking.openURL(download)} accessibilityRole="link" style={styles.link}>
               <Text style={styles.linkText}>↓ Download the full-size file</Text>
@@ -186,6 +188,7 @@ export function PackageCards({
       <Card>
         <Text style={styles.cardTitle}>Thumbnail and title</Text>
         <Text style={styles.body}>No custom thumbnail options for this video: {view.reason ?? view.status}</Text>
+        {secondRoundNote(view) ? <Text style={styles.body}>{secondRoundNote(view)}</Text> : null}
         <Text style={styles.meta}>YouTube&apos;s suggested thumbnail stays, and the title is written when you approve.</Text>
         {view.dropped.length > 0 ? <Dropped view={view} /> : null}
       </Card>
@@ -198,6 +201,8 @@ export function PackageCards({
       <Text style={styles.cardTitle}>Thumbnail and title</Text>
       <Text style={styles.meta}>Each option is a thumbnail and a title made as one pair. The line under each says what a viewer will ask and where the video answers it.</Text>
       {view.brief ? <Text style={styles.body}>The gap: {view.brief.question}</Text> : null}
+      {secondRoundNote(view) ? <Text style={styles.warn}>{secondRoundNote(view)}</Text> : null}
+      {view.openingNote ? <Text style={styles.meta}>{view.openingNote}</Text> : null}
       {view.packages.map((p) => (
         <OptionCard
           key={p.id}
@@ -257,7 +262,7 @@ export function PublishedThumbnailCard({
   const status = publishedThumbnailStatus(output);
   if (!status) return null;
   const pkg = output?.thumbnail?.packageId ? response?.view?.packages.find((p) => p.id === output.thumbnail!.packageId) : undefined;
-  const download = pkg ? downloadLink(pkg.imageUrls.full, apiUrl) : null;
+  const download = pkg ? downloadLink((pkg.imageUrls?.full ?? pkg.firstFrameUrl ?? ""), apiUrl) : null;
   return (
     <Card>
       <View style={styles.header}>

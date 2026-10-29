@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   findPipelineRunById: vi.fn(),
   findChannelById: vi.fn(),
   resolvePendingApproval: vi.fn(),
+  hasPendingApproval: vi.fn(),
+  packagingCost: vi.fn(),
 }));
 
 vi.mock('../../models/repositories/review-log.repository', async (orig) => ({ ...(await orig<object>()), listReviewLogsForRun: async () => [] }));
@@ -20,7 +22,8 @@ vi.mock('../../models/repositories/pipeline-run.repository', () => ({
 }));
 vi.mock('../../models/repositories/channel.repository', () => ({ findChannelById: mocks.findChannelById }));
 vi.mock('../../run-pipeline/pipeline-runner', () => ({ startPipelineInBackground: vi.fn(), continuePipelineInBackground: vi.fn() }));
-vi.mock('../../notifications', async (orig) => ({ ...(await orig<object>()), resolvePendingApproval: mocks.resolvePendingApproval }));
+vi.mock('../../notifications', async (orig) => ({ ...(await orig<object>()), resolvePendingApproval: mocks.resolvePendingApproval, hasPendingApproval: mocks.hasPendingApproval }));
+vi.mock('../../models/repositories/usage-event.repository', async (orig) => ({ ...(await orig<object>()), sumPackagingCostForRun: mocks.packagingCost }));
 vi.mock('../../models/repositories/pipeline-stage.repository', async (orig) => ({
   ...(await orig<object>()),
   findLatestAttempt: mocks.findLatestAttempt,
@@ -73,7 +76,7 @@ const gateStages = (p: PackagingOutput | null, gateStatus = 'running') => [
   stage({ id: 'vg', stageName: 'video_generation', output: { durationSeconds: 120, chapterTimings: [{ title: 'Why Almost Destroyed', startSec: 41.2, endSec: 70 }] } }),
   stage({ id: 'g2', stageName: 'gate2', status: gateStatus, output: p ? { packaging: p } : null }),
 ];
-const run = (over: Record<string, unknown> = {}) => ({ id: RUN_ID, tenantId: 't1', channelId: 'c1', status: 'paused_gate2', briefText: '', ...over });
+const run = (over: Record<string, unknown> = {}) => ({ id: RUN_ID, tenantId: 't1', channelId: 'c1', status: 'paused_gate2', briefText: '', creationOptions: { videoKind: 'long' }, ...over });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -81,6 +84,8 @@ beforeEach(() => {
   mocks.findChannelById.mockResolvedValue({ id: 'c1', tenantId: 't1', ownerUserId: 'u1', isActive: true });
   mocks.listStagesForRun.mockResolvedValue(gateStages(packaging()));
   mocks.patchStageOutput.mockResolvedValue({});
+  mocks.hasPendingApproval.mockReturnValue(true);
+  mocks.packagingCost.mockResolvedValue(0.1371);
 });
 
 describe('runs.packaging', () => {
@@ -90,17 +95,41 @@ describe('runs.packaging', () => {
     const view = out.view!;
     expect(view.packages).toHaveLength(1);
     expect(view.packages[0]).toMatchObject({ title: makeConcept().title, question: makeConcept().question, answeredAt: 'Chapter 3, Why Almost Destroyed, about 0:41' });
-    expect(view.packages[0].imageUrls.full.startsWith(`/runs/${RUN_ID}/thumbnail/c1/full`)).toBe(true);
+    expect(view.packages[0].imageUrls?.full.startsWith(`/runs/${RUN_ID}/thumbnail/c1/full`)).toBe(true);
     expect(view.videoSeconds).toBe(120);
     const json = JSON.stringify(view);
     expect(json).not.toContain('SECRET PROMPT');
     expect(json).not.toContain('c1-full.jpg');
   });
 
-  it('is pending while Gate 2 is open and packaging is not there yet', async () => {
+  it('is making while the packages are made before the approval is open, and pending when the approval is open with none', async () => {
     mocks.listStagesForRun.mockResolvedValue(gateStages(null));
+    mocks.hasPendingApproval.mockReturnValue(false);
+    expect(await runsRouter.createCaller(owner).packaging({ runId: RUN_ID })).toEqual({ making: true, pending: false, view: null });
+    mocks.hasPendingApproval.mockReturnValue(true);
+    expect(await runsRouter.createCaller(owner).packaging({ runId: RUN_ID })).toEqual({ making: false, pending: true, view: null });
+  });
+
+  it('a checkpoint of packaging still being made reads as making, with no view', async () => {
+    mocks.listStagesForRun.mockResolvedValue(gateStages(packaging({ status: 'building' })));
+    mocks.hasPendingApproval.mockReturnValue(false);
+    expect(await runsRouter.createCaller(owner).packaging({ runId: RUN_ID })).toEqual({ making: true, pending: false, view: null });
+  });
+
+  it('adds the contract fields: the cost from the usage rows, the round, the parts of the answer place, no Short fields on a long video', async () => {
     const out = await runsRouter.createCaller(owner).packaging({ runId: RUN_ID });
-    expect(out).toEqual({ pending: true, view: null });
+    expect(out.making).toBe(false);
+    expect(out.view).toMatchObject({ packagingCostUsd: 0.1371, round: 1, kind: 'long', titleLimit: 70 });
+    expect(out.view?.packages[0]).toMatchObject({ round: 1, hookLine: null, firstFrameUrl: null, answeredAtParts: { chapter: 3, chapterTitle: 'Why Almost Destroyed', startSec: 41 } });
+  });
+
+  it("a Short's package is its opening: the hook line, no 16:9 picture, nothing to choose", async () => {
+    mocks.listStagesForRun.mockResolvedValue([]);
+    mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: { opening: { hookLine: 'Why was it nearly torn down?', firstStillPrompt: 'scene', question: 'q', device: 'stake', answerQuote: 'a', reasons: [], note: null, textCostUsd: 0.01, builtAt: 'x', scriptHash: 'h', brief: null } } }));
+    const out = await runsRouter.createCaller(owner).packaging({ runId: RUN_ID });
+    expect(out.view?.kind).toBe('short');
+    expect(out.view?.packages[0]).toMatchObject({ id: 'opening', hookLine: 'Why was it nearly torn down?', imageUrls: null });
+    expect(out.making).toBe(false);
   });
 
   it('refuses another tenant', async () => {
@@ -146,5 +175,51 @@ describe('runs.choosePackage', () => {
     await expect(choose(stranger, { packageId: 'c1' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(choose(member, { packageId: 'c1' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(mocks.patchStageOutput).not.toHaveBeenCalled();
+  });
+});
+
+describe('runs.packagingRecord (R8)', () => {
+  it('reads back, for a published run, the chosen package with its device and recipe, the rejected ones and the drops', async () => {
+    const p = packaging({ choice: { packageId: 'c1', title: 'Chosen title', titleEdited: true, chosenAt: 'x', chosenByUserId: 'u1' }, dropped: [{ id: 'c3', title: 'Dropped', device: 'how', stage: 'payoff', reasons: ['r'], rules: ['scene_not_in_script'], round: 1 }] });
+    mocks.listStagesForRun.mockResolvedValue(gateStages(p, 'completed'));
+    mocks.findPipelineRunById.mockResolvedValue(run({ status: 'completed' }));
+    const rec = await runsRouter.createCaller(owner).packagingRecord({ runId: RUN_ID });
+    expect(rec.kind).toBe('long_packages');
+    expect(rec.chosen).toMatchObject({ id: 'c1', device: 'stake', title: 'Chosen title', typeface: 'Anton' });
+    expect(rec.offered.map((o) => o.outcome)).toEqual(['chosen', 'dropped']);
+    expect(rec.chosen?.recipe.imageModel).toBe('m');
+  });
+
+  it("reads a Short's opening, says none for a run with neither, and refuses another tenant", async () => {
+    mocks.listStagesForRun.mockResolvedValue([]);
+    mocks.findPipelineRunById.mockResolvedValue(run({ creationOptions: { opening: { hookLine: 'Why?', firstStillPrompt: null, question: 'q', device: 'how', note: null, reasons: [], brief: null } } }));
+    expect((await runsRouter.createCaller(owner).packagingRecord({ runId: RUN_ID })).kind).toBe('short_opening');
+    mocks.findPipelineRunById.mockResolvedValue(run());
+    expect((await runsRouter.createCaller(owner).packagingRecord({ runId: RUN_ID })).kind).toBe('none');
+    await expect(runsRouter.createCaller(stranger).packagingRecord({ runId: RUN_ID })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('runs.checkPackageTitle (contract B3)', () => {
+  const check = (ctx: never, title: string, packageId = 'c1') => runsRouter.createCaller(ctx).checkPackageTitle({ runId: RUN_ID, packageId, title });
+  it('says ok for a supported title and names the problem for a figure, a length and an empty title, with the server limit', async () => {
+    expect(await check(owner, 'How do 18,038 iron pieces survive 20 years?')).toMatchObject({ ok: true, problems: [], titleLimit: 70 });
+    const figure = await check(owner, 'Why did 99 engineers nearly lose it?');
+    expect(figure.ok).toBe(false);
+    expect(figure.problems[0]).toMatchObject({ kind: 'unsupported_figure', text: expect.stringContaining('99') });
+    expect((await check(owner, 'x'.repeat(80))).problems.map((p) => p.kind)).toContain('too_long');
+    expect((await check(owner, '  ')).problems.map((p) => p.kind)).toContain('empty');
+  });
+  it('agrees with choosePackage: whatever the check refuses, the save refuses', async () => {
+    for (const title of ['Why did 99 engineers nearly lose it?', 'x'.repeat(80), '   ']) {
+      expect((await check(owner, title)).ok).toBe(false);
+      await expect(runsRouter.createCaller(owner).choosePackage({ runId: RUN_ID, packageId: 'c1', editedTitle: title })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    }
+  });
+  it('refuses another tenant, an unknown package and packaging that is not ready', async () => {
+    await expect(check(stranger, 'A title')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(check(owner, 'A title', 'zzz')).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    mocks.listStagesForRun.mockResolvedValue(gateStages(null));
+    await expect(check(owner, 'A title')).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 });

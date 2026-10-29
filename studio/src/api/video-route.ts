@@ -6,7 +6,8 @@ import { findPipelineRunById } from '../models/repositories/pipeline-run.reposit
 import { resolveRequestIdentity, verifyThumbnailLinkToken } from '../auth';
 import { MVP_TENANT_ID } from '../types';
 import { readPackaging } from '../run-pipeline/packaging-stage';
-import { thumbnailFileFor } from '../packaging/view';
+import { OPENING_FRAME_FILE, OPENING_PACKAGE_ID, thumbnailFileFor } from '../packaging/view';
+import { thumbnailsDir } from '../packaging/build';
 import { DATA_DIR } from '../config/paths';
 
 // GET /runs/:id/video (BUSINESS_LOGIC.md Section 4, added 2026-09-09) — a
@@ -72,7 +73,10 @@ export async function registerVideoRoute(fastify: FastifyInstance): Promise<void
       if (!tenantId || !run || run.tenantId !== tenantId) return reply.code(404).send({ error: 'not available for this run' });
       const stages = await listStagesForRun(run.id);
       const packaging = [...stages].reverse().filter((st) => st.stageName === 'gate2').map((st) => readPackaging(st.output)).find(Boolean) ?? null;
-      const file = thumbnailFileFor(run.id, packaging, request.params.packageId, request.params.size);
+      // A Short's first frame (R7) is not a package record: it is the one file kept for its opening.
+      const file = request.params.packageId === OPENING_PACKAGE_ID && request.params.size === 'frame' && run.creationOptions?.opening
+        ? { dir: thumbnailsDir(run.id), name: OPENING_FRAME_FILE }
+        : thumbnailFileFor(run.id, packaging, request.params.packageId, request.params.size);
       if (!file) return reply.code(404).send({ error: 'not available for this run' });
       if (request.query.download) reply.header('Content-Disposition', `attachment; filename="${run.id}-${request.params.packageId}-${request.params.size}.jpg"`);
       reply.type('image/jpeg');

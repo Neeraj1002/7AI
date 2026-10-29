@@ -27,6 +27,9 @@ const MARGIN_LR = captions.safeMarginX;
 export const SAFE_WIDTH_PX = captions.playResX - 2 * MARGIN_LR;
 const OUTLINE_PX = 7;
 const SHADOW_PX = 3;
+// R7 hook line: big enough to read at phone size, two lines at most for eight words.
+const HOOK_FONT_PX = 92;
+const HOOK_MARGIN_TOP_PX = 330;
 // Centre of the caption block, inside the 45%-70% band of the quality spec.
 const CAPTION_CENTER_Y = Math.round(captions.playResY * 0.57);
 
@@ -315,6 +318,8 @@ export function buildAss(params: {
   // Bugs Closure 2 (P8) - keeps the last caption on screen this long after its
   // last word, so it stays up through the end tail.
   holdLastCueMs?: number;
+  // Sprint 6 Task 1 R7: a line drawn from the first frame for `seconds`, near the top, above the caption band.
+  hook?: { text: string; seconds: number };
 }): AssBuildResult {
   const baseSize = captionFontSizePx(params.style);
   const karaoke = params.style !== 'word-flash';
@@ -336,6 +341,8 @@ export function buildAss(params: {
     // highlight colour (Primary) as each is spoken (\k tags below).
     styleLine('Plain', WHITE, WHITE),
     styleLine('Karaoke', HIGHLIGHT, WHITE),
+    // The hook: top-centre (alignment 8), clear of the caption band (45% to 70% of the height) and the watermark corner.
+    `Style: Hook,${CAPTION_FONT_FAMILY},${HOOK_FONT_PX},${WHITE},${WHITE},${BLACK},${SHADOW_COLOUR},0,0,0,0,100,100,0,0,1,${OUTLINE_PX},${SHADOW_PX},8,${MARGIN_LR},${MARGIN_LR},${HOOK_MARGIN_TOP_PX},1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -364,5 +371,8 @@ export function buildAss(params: {
     return `Dialogue: 0,${assTimestamp(cue.startMs)},${assTimestamp(endMs)},${karaoke ? 'Karaoke' : 'Plain'},,0,0,0,,${tags}${body}`;
   });
 
-  return { ass: [...header, ...events, ''].join('\n'), cueCount: cues.length, karaoke };
+  const hookEvents = params.hook?.text
+    ? [`Dialogue: 1,${assTimestamp(0)},${assTimestamp(Math.round(params.hook.seconds * 1000))},Hook,,0,0,0,,{\\fad(0,300)}${escapeAssText(params.hook.text)}`]
+    : [];
+  return { ass: [...header, ...hookEvents, ...events, ''].join('\n'), cueCount: cues.length, karaoke };
 }
