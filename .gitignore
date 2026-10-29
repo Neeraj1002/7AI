@@ -34,6 +34,8 @@ coverage/
 # Sprint 4 Task 8 (R2) exception: data/fonts/ holds the bundled, OFL-licensed caption
 # font (+ its licence) so laptop and VPS render captions identically.
 !**/data/fonts/
+# Sprint 6 Task 2 (P5): the one pre-rendered disclaimer clip and its manifest (platform asset, checked in).
+!**/data/disclaimer/
 
 .vscode/*
 !.vscode/extensions.json
