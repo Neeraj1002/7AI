@@ -1,6 +1,6 @@
 # Sprint 4 and 5 test sequence (founder run)
 
-**Version 2.3, 2026-10-26.** Added Part 5 (T38 to T46): checks for PRs merged since v2.2 or never covered (#96, #101, #103, #104, #106, #107, #114) and the Sprint 3 phone checks carried over when Sprint 3 closed. T12, T16 and T25 gain one pass condition each. **Version 2.2, 2026-10-24.** Added Part 4 (T29 to T37): the app and chapter-limit checks for Sprint 5 Tasks 7 and 8 and PRs #112, #113 and #115, to run on the build that contains #113. Changes in v2.1: the profile now holds the story guide, look A and the new title guidance (T04), S-1 carries an arc line (T09, T11) and T14 has a look test. Derived from `SPRINT4_5_ACCEPTANCE_PLAN.md` (journeys L1, S1, duration, phone checks) plus the first test run on 18 Oct. The 57-case CSV tracker is not on `main`, so steps carry their own IDs (T01 to T28). Reply in order: `T07 pass`, `T07 fail` plus a screenshot, or `T07 skip`. Add `G: <what>` whenever the video misses the channel concept (pictures not in the planned stance, no ambience, music not matching the emotion, flat voice, a story that makes you feel nothing); each G goes into the gap register (`channel_bibles/NIYT_CHANNEL_CONFIG.md` §13).
+**Version 2.4, 2026-10-26, evening.** First run done: results, the seven bugs and everything still untested are in [`testing/ACCEPTANCE_RESULTS_2026-10-26.md`](testing/ACCEPTANCE_RESULTS_2026-10-26.md). 35 of 46 steps passed; T16, T32, T33, T42, T45 and T46 failed; T05, T34, T36, T37 and T39 are still open (Part 6 lists the retest and the missing steps). T05, T29 and T36 below carry the extra detail the founder asked for. **Version 2.3, 2026-10-26.** Added Part 5 (T38 to T46): checks for PRs merged since v2.2 or never covered (#96, #101, #103, #104, #106, #107, #114) and the Sprint 3 phone checks carried over when Sprint 3 closed. T12, T16 and T25 gain one pass condition each. **Version 2.2, 2026-10-24.** Added Part 4 (T29 to T37): the app and chapter-limit checks for Sprint 5 Tasks 7 and 8 and PRs #112, #113 and #115, to run on the build that contains #113. Changes in v2.1: the profile now holds the story guide, look A and the new title guidance (T04), S-1 carries an arc line (T09, T11) and T14 has a look test. Derived from `SPRINT4_5_ACCEPTANCE_PLAN.md` (journeys L1, S1, duration, phone checks) plus the first test run on 18 Oct. The 57-case CSV tracker is not on `main`, so steps carry their own IDs (T01 to T28). Reply in order: `T07 pass`, `T07 fail` plus a screenshot, or `T07 skip`. Add `G: <what>` whenever the video misses the channel concept (pictures not in the planned stance, no ambience, music not matching the emotion, flat voice, a story that makes you feel nothing); each G goes into the gap register (`channel_bibles/NIYT_CHANNEL_CONFIG.md` §13).
 
 Channel settings, the two treatments (S-1 Short, L-1 Long) and the checklists are in `channel_bibles/NIYT_CHANNEL_CONFIG.md`. The channel keeps its current name for the tests.
 
@@ -18,7 +18,7 @@ Real 2-minute Video created from the phone with estimate and max spend · long-f
 | T02 | Note the installed app version | Noted; this is the build you test |
 | T03 | Channel detail: enter the values from spec §7 (niche, Private, Gate 1 and 2 on, captions on) | Saved and still there after reopening |
 | T04 | Content profile: enter every field from spec §7 (the story guide, look A style prompt and negative prompt, title guidance, description template and the rest); Save as a new version; reopen. If you saved an earlier set, save again as the next version | No red error, every value kept (the guide is 3,070 characters, the title guidance about 1,460), version history shows the save. A rejected field means the app disagrees with the doc: send a screenshot |
-| T05 | Check your account has a display name (profile or settings) | A name is set. If you cannot find where, say so: T16 covers it before anything goes Public |
+| T05 | Check your account has a display name: open the app, tap the profile or settings icon, look for "Name" or "Display name" | A name is set and is not your email. If there is no such field, that is a finding (the publish step then uses your email: bug B1); say which screens you opened |
 | T06 | Channels screen | Admin button visible (END-02); no stray "(default)" text on tiles |
 | T07 | New brief, Type Video | Visuals locked to AI images; Length 1 and 16 show the red error; 10 min shows the estimate and max spend; a max spend below the estimate is refused |
 | T08 | New brief: Sources field | A web link is accepted, plain text is refused |
@@ -87,9 +87,41 @@ Run after Part 4. No spend unless a row says so. Reply the same way (`T38 pass`)
 
 **Not in this test, and why.** The new-tenant $10 weekly default and its equal split (Sprint 3 R7) needs a new test tenant made with the invite script: not a phone step, so it stays "not verified". The manual Retry cap of 3 (Sprint 3 R2) needs three paid retries on one run: stays "not verified". The LLM Registry canary (#109) is a developer script; its effect (no cut-off at Gate 1) is covered by T09 and T18. If any attempt fails Video Review during the run, also note whether the retry reviewed the same video without paying for new pictures (Task 8 R3): the attempt costs in the cost card show it.
 
+## Part 6: still to run, and the retest after the fixes (26 Oct)
+
+**Not run or not confirmed in the first run (test these now, no code change needed):**
+
+| ID | Do | Pass if |
+|---|---|---|
+| T34 | As written above (reuse the T35 run if it is still at Gate 1) | As written above |
+| T36 | Use the two briefs below, Create each on the Cold Open channel as a Video; no spend | (a) accepted with an amber line, never red; (b) refused at Create with a plain sentence and no run created |
+| T37 | Send the three missing screenshots: Voice page, Gate 1 edit sheet with a limit warning, a run with an intake warning | Received |
+| T39 | On a run you edited at Gate 1, Script tab, tap "Show full script" | Your edited text shows; "Original draft" is collapsed underneath (it is absent on an unedited run, which is fine) |
+
+**T36 briefs (paste as the whole brief):**
+
+(a) 2-minute Video, 7 chapters:
+`Topic: How the paper clip became a symbol of quiet resistance in 1940.`
+`Constraint: seven chapters, titles exactly: "The invention", "The patent that never was", "Norway in 1940", "The clip on the lapel", "The ban", "The quiet signal", "What the record shows".`
+
+(b) Any length Video, 8 titles but 7 word budgets:
+`Topic: How the paper clip became a symbol of quiet resistance in 1940.`
+`Constraint: eight chapters, titles exactly: "The invention", "The patent that never was", "Norway in 1940", "The clip on the lapel", "The ban", "The quiet signal", "What the record shows", "The legend and the record". Word budgets: 150, 200, 200, 200, 200, 200, 150.`
+
+**Retest after the hot-fix (`BUGS_ACCEPTANCE_1`) and the Task 1 deploy:**
+
+| ID | Retest | Pass if |
+|---|---|---|
+| R-B1 (T16, T25, T43) | Publish one Private video; read the description | No email anywhere; the credit line shows your name, "the team", or is absent |
+| R-B2/B3 (T33, T42) | Voice page: play a sample, change the voice, Save, pick Ballad | The sample plays within a few seconds; no white screen; the choice saves or is refused with a sentence before any spend |
+| R-B4 (T45) | Upload a PNG watermark, save, reopen | Uploads and persists, no "Unsupported FormDataPart" |
+| R-B5 (T32) | Cost card of a finished run | Final cost, **estimate and limit** all show |
+| R-B6 (T46) | Cancel a running Short several times | Always ends at Cancelled within about a minute |
+| T24, T25 | After the Task 1 deploy, publish one Private Video | Thumbnail set; `coverFrameSet` true or a plain reason |
+
 ## Waiting on a build (do not test yet)
 
-Sprint 6 Task 1 (curiosity packaging: titles and thumbnails; three PRs) and Task 2 (per-video disclaimer On/Off; hook first): steps are added at the next version when each ships. Until then, this sequence judges today's build (S-1 and L-1 still open with the spoken disclaimer). Also waiting: Task 5 one-scene repair on a real video; Task 2 (Sprint 5) durable publishing recovery in a real upload; stale duplicate-attempt rows; weekly YouTube reconnect and Analytics API check; music tracks and licence check; the other items in the spec's gap register. **Now merged and covered by the steps above:** Task 6 Script Review rules (T11, T19), Task 8 backend fixes (voice list and preflight at T33; honest attempt status and cost at T32; logo check and no full rebuild by T14 and T22), Task 7 app screens (T30 to T34), the chapter-limit fix (T35, T36). **Added in v2.3:** Admin entry per account (T38; #101, #103), Script tab, Show more and Step history (T39 to T41), voice per model (T42; #104), Admin publishing summary (T43; #92, #96), numeric source links (T16, T25; #114), the Sprint 3 phone checks (T44 to T46).
+Sprint 6 Task 1 (curiosity packaging: titles and thumbnails): PR A (#116) and PR B (#124) merged on 26 Oct after the first run, so the first run did not test them; their steps are added when the build with them is deployed and the thumbnail retest (T24, T25 in Part 6) is run. PR C waits for Task 2 (per-video disclaimer On/Off; hook first). Until Task 2 ships, this sequence judges the spoken disclaimer as it is today (S-1 and L-1 still open). Also waiting: Task 5 one-scene repair on a real video; Task 2 (Sprint 5) durable publishing recovery in a real upload; stale duplicate-attempt rows; weekly YouTube reconnect and Analytics API check; music tracks and licence check; the other items in the spec's gap register. **Now merged and covered by the steps above:** Task 6 Script Review rules (T11, T19), Task 8 backend fixes (voice list and preflight at T33; honest attempt status and cost at T32; logo check and no full rebuild by T14 and T22), Task 7 app screens (T30 to T34), the chapter-limit fix (T35, T36). **Added in v2.3:** Admin entry per account (T38; #101, #103), Script tab, Show more and Step history (T39 to T41), voice per model (T42; #104), Admin publishing summary (T43; #92, #96), numeric source links (T16, T25; #114), the Sprint 3 phone checks (T44 to T46).
 
 ## Rules for the run
 
