@@ -1,6 +1,6 @@
 // Sprint 5 Task 7 R6 — with the field names of the Task 8 report: options.list.voices[].
 import { describe, it, expect } from 'vitest';
-import { nextPlayback, parseVoiceEntry, parseVoiceList, sampleId } from './voice-catalog';
+import { nextPlayback, parseVoiceEntry, parseVoiceList, pauseQuietly, sampleId } from './voice-catalog';
 
 const row = {
   key: 'marin',
@@ -41,5 +41,18 @@ describe('voice catalog (options.list.voices[])', () => {
     expect(nextPlayback(null, sampleId('marin', 'sad'))).toBe('play');
     expect(nextPlayback('marin:sad', 'marin:sad')).toBe('pause');
     expect(nextPlayback('marin:sad', 'marin:hopeful')).toBe('switch');
+  });
+});
+
+describe('pauseQuietly (Bugs Acceptance run 1, R2)', () => {
+  it('pauses a live player', () => {
+    let paused = false;
+    expect(pauseQuietly({ pause: () => { paused = true; } })).toBe(true);
+    expect(paused).toBe(true);
+  });
+  it('does not throw when the native player was already released (the unmount-time white screen)', () => {
+    const released = { pause: () => { throw new Error('Cannot use shared object that was already released'); } };
+    expect(() => pauseQuietly(released)).not.toThrow();
+    expect(pauseQuietly(released)).toBe(false);
   });
 });
