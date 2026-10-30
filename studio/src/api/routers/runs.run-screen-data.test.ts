@@ -235,9 +235,12 @@ describe('runs.create: resolvedOptions (R1)', () => {
   const base = { channelId: CHANNEL_ID, briefText: 'a brief' };
   const stored = () => mocks.createRun.mock.calls[0]![0].creationOptions;
 
-  it('a run with every default stores resolvedOptions and nothing else', async () => {
+  it('a run with every default stores resolvedOptions and, for a Short, its estimate (R4) and nothing else', async () => {
     await caller().create(base);
-    expect(Object.keys(stored())).toEqual(['resolvedOptions']);
+    expect(Object.keys(stored()).sort()).toEqual(['estimateUsd', 'resolvedOptions']);
+    expect(stored().estimateUsd).toBeGreaterThan(0);
+    expect(stored().maxCostUsd).toBeUndefined();
+    expect(stored().retryAllowanceUsd).toBeUndefined();
     expect(stored().resolvedOptions.voice).toEqual({ key: 'alloy', label: 'Alloy', from: 'default' });
   });
 

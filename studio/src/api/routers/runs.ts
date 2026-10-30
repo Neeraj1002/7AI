@@ -723,7 +723,7 @@ export const runsRouter = router({
         for (const warning of intakeWarnings) console.warn(`[runs.create] ${warning}`);
       }
       let maxCostUsd: number | undefined;
-      let storedEstimate: { estimateUsd: number; retryAllowanceUsd: number } | undefined;
+      let storedEstimate: { estimateUsd: number; retryAllowanceUsd?: number } | undefined;
       if (isLong) {
         const estimate = estimateRunCost({
           videoKind: 'long',
@@ -751,6 +751,10 @@ export const runsRouter = router({
         if (estimate.estimateUsd > remaining) {
           badRequest(`Estimated $${estimate.estimateUsd.toFixed(2)} for this video, $${remaining.toFixed(2)} left this week for this channel`);
         }
+      } else {
+        // Bugs Acceptance run 1 (R4): a Short has no spend limit, but its estimate is kept so the cost card can show
+        // it next to the final cost. Display only: nothing reads it to decide a retry or a block.
+        storedEstimate = { estimateUsd: estimateRunCost({ videoKind: 'short', targetSeconds: request.targetSeconds, secondsPerStill: request.secondsPerStill }).estimateUsd };
       }
 
       // Sprint 4 Task 12 (R1): the settings this run will use and where each came from, written once

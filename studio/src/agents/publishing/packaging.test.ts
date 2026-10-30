@@ -6,6 +6,7 @@ import {
   fillCreditPlaceholders,
   FALLBACK_EDITOR,
   scrubDescription,
+  publicEditorName,
 } from './packaging';
 
 const base = { scriptText: 'S', hashtags: ['history', 'rome'] };
@@ -99,5 +100,25 @@ describe('scrubDescription enforces credits after the model replies', () => {
     expect(scrubDescription('S', { descriptionTemplate: template, editorName: 'Ada' })).not.toContain('Sources');
     expect(scrubDescription('S', {})).toBe('S');
     expect(scrubDescription('S', { editorCredit: true, editorName: 'Ada' })).toBe('S\n\nEdited by Ada.');
+  });
+});
+
+describe('publicEditorName (Bugs Acceptance run 1, R1: an email never reaches a public field)', () => {
+  it('uses a real display name, trimmed', () => {
+    expect(publicEditorName('  Ada Lovelace ')).toBe('Ada Lovelace');
+  });
+
+  it.each([null, undefined, '', '   ', 'ada@example.com', 'Ada <ada@example.com>'])('falls back for %j', (name) => {
+    expect(publicEditorName(name as string | null | undefined)).toBe(FALLBACK_EDITOR);
+  });
+
+  it('keeps an email out of the prompt and the scrubbed description, whatever is passed as the name', () => {
+    const params = { editorCredit: true, editorName: 'ada@example.com', descriptionTemplate: 'Edited by {editor}. {summary}' };
+    const msg = buildMetadataUserMessage({ scriptText: 'S', hashtags: [], ...params });
+    expect(msg).not.toContain('@');
+    expect(msg).toContain(`Edited by ${FALLBACK_EDITOR}`);
+    const out = scrubDescription('A summary.\n\nEdited by {editor}.', params);
+    expect(out).not.toContain('@');
+    expect(out).toContain(`Edited by ${FALLBACK_EDITOR}.`);
   });
 });

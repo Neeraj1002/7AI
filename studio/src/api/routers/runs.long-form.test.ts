@@ -53,6 +53,8 @@ const createdAll = () => mocks.createRun.mock.calls[0]![0].creationOptions;
 const createdOptions = () => {
   const picks = { ...createdAll() };
   delete picks.resolvedOptions;
+  // Bugs Acceptance run 1 (R4): a Short also keeps its estimate for the cost card (checked in runs.run-screen-data.test.ts).
+  if (picks.videoKind !== 'long') delete picks.estimateUsd;
   return Object.keys(picks).length > 0 ? picks : undefined;
 };
 
