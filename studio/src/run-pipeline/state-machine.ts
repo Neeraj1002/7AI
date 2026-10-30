@@ -2015,8 +2015,22 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
 // docs/execution/week4/BUSINESS_LOGIC.md Sections 1-2.
 // Bugs Task 12 (R1) - read from the plan of the LATEST completed video_generation attempt, so the
 // stock -> ai-stills fallback attempt is disclosed as synthetic with no separate flag to keep in sync.
-export function deriveContainsSyntheticMedia(videoGenOutput: { plan?: { visualSource?: string } }): boolean {
-  return videoGenOutput.plan?.visualSource === 'ai-stills';
+// Bugs Acceptance run 1 (R7), founder decision 29 Oct: the flag is Yes whenever ANY picture in the video is AI-generated,
+// and the narration does not count (a stock-footage video with an AI voice sends No). The plan says which source the
+// render used; the other two signals catch a mixed video whose plan alone says stock: a visual repair splices a
+// generated still into a render, and the render's own record counts the AI stills it made. This is the one owner of the
+// decision; the upload, its recovery fingerprint and the receipt all take the value from here.
+export function deriveContainsSyntheticMedia(videoGenOutput: {
+  plan?: { visualSource?: string };
+  visualRepairReceipt?: unknown;
+  metadata?: { visualSource?: string; aiVisualsStillCount?: number };
+}): boolean {
+  return (
+    videoGenOutput.plan?.visualSource === 'ai-stills' ||
+    Boolean(videoGenOutput.visualRepairReceipt) ||
+    videoGenOutput.metadata?.visualSource === 'ai-stills' ||
+    (videoGenOutput.metadata?.aiVisualsStillCount ?? 0) > 0
+  );
 }
 
 export async function runPublishingStage(runId: string): Promise<PipelineRun> {
@@ -2079,6 +2093,8 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     videoPath?: string;
     durationSeconds?: number;
     plan?: { visualSource?: string };
+    visualRepairReceipt?: unknown;
+    metadata?: { visualSource?: string; aiVisualsStillCount?: number };
   };
   const videoPath = videoGenOutput.videoPath;
   if (!videoPath) {
