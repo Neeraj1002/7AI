@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { color, font, radius, space, type } from '../lib/theme';
-import { attemptsAddUp, formatMoney, stageCostText, stageDisplayName, type CostBreakdown, type CostEntry } from '../lib/run-cost';
+import { attemptsAddUp, costMetaParts, formatMoney, stageCostText, stageDisplayName, type CostBreakdown, type CostEntry } from '../lib/run-cost';
 import { OUTCOME_LABEL, type OutcomeKind } from '../lib/attempt-outcome';
 
 // What this run has cost (Sprint 5 Task 7 R2, follow-up R2). Collapsed: the total, a bar, "Estimate · limit · attempts" and
@@ -16,6 +16,7 @@ export function CostCard({
   attemptsCount,
   breakdown,
   packagingLine,
+  noLimitByDesign,
 }: {
   spentUsd: number;
   limitUsd?: number | null;
@@ -29,18 +30,15 @@ export function CostCard({
   breakdown?: CostBreakdown | null;
   /** Sprint 6 Task 1: one extra line while Gate 2 packages are made ("Packaging so far $0.02"). */
   packagingLine?: string | null;
+  /** A Short has no spend limit by design: with no limit stored the card says "No limit", not "not recorded". */
+  noLimitByDesign?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const fraction = limitUsd && limitUsd > 0 ? Math.min(1, spentUsd / limitUsd) : null;
   const over = limitUsd != null && spentUsd >= limitUsd;
   // Running: amber while it is still being spent; finished: green; at the limit: red.
   const barColor = over ? color.danger : ended ? color.okText : color.amber;
-  const extra = [
-    estimateUsd != null ? `Estimate ${formatMoney(estimateUsd)}` : null,
-    retryAllowanceUsd != null ? `Retries up to ${formatMoney(retryAllowanceUsd)}` : null,
-    limitUsd != null ? `Limit ${formatMoney(limitUsd)}` : null,
-    attemptsCount && attemptsCount > 1 ? `${attemptsCount} attempts` : null,
-  ].filter(Boolean);
+  const extra = costMetaParts({ estimateUsd, limitUsd, retryAllowanceUsd, attemptsCount, noLimitByDesign });
   const hasParts = breakdown != null && (breakdown.attempts.length > 0 || breakdown.others.length > 0);
   const recorded = breakdown != null || spentUsd > 0;
 
@@ -55,7 +53,7 @@ export function CostCard({
           <View style={[styles.fill, { width: `${Math.round(fraction * 100)}%`, backgroundColor: barColor }]} />
         </View>
       ) : null}
-      {extra.length > 0 ? <Text style={styles.meta}>{extra.join(' · ')}</Text> : null}
+      <Text style={styles.meta}>{extra.join(' · ')}</Text>
       {packagingLine ? <Text style={styles.packaging}>{packagingLine}</Text> : null}
 
       {hasParts ? (

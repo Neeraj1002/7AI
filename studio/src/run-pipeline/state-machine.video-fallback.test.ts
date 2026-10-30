@@ -137,3 +137,22 @@ describe('upload disclosure after the fallback', () => {
     expect(deriveContainsSyntheticMedia({})).toBe(false);
   });
 });
+
+// Bugs Acceptance run 1 (R7): Yes whenever any picture is AI-generated; AI narration alone does not count.
+describe('deriveContainsSyntheticMedia: all AI, mixed, stock only', () => {
+  it('all AI pictures: true', () => {
+    expect(deriveContainsSyntheticMedia({ plan: { visualSource: 'ai-stills' }, metadata: { visualSource: 'ai-stills', aiVisualsStillCount: 8 } })).toBe(true);
+  });
+
+  it('mixed (a stock plan that also holds AI pictures): true, whichever record shows it', () => {
+    const stock = { visualSource: 'stock-footage' };
+    expect(deriveContainsSyntheticMedia({ plan: stock, metadata: { visualSource: 'stock-footage', aiVisualsStillCount: 1 } })).toBe(true);
+    expect(deriveContainsSyntheticMedia({ plan: stock, visualRepairReceipt: { status: 'rendered' } })).toBe(true);
+    expect(deriveContainsSyntheticMedia({ plan: stock, metadata: { visualSource: 'ai-stills' } })).toBe(true);
+  });
+
+  it('stock footage only: false, even though the narration is AI (narration is not read at all)', () => {
+    expect(deriveContainsSyntheticMedia({ plan: { visualSource: 'stock-footage' }, metadata: { visualSource: 'stock-footage', aiVisualsStillCount: 0 } })).toBe(false);
+    expect(deriveContainsSyntheticMedia({ plan: { visualSource: 'stock-footage' } })).toBe(false);
+  });
+});

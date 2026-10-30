@@ -79,3 +79,18 @@ export function sampleButtonText(args: { which: 'sad' | 'hopeful'; playing: bool
   const name = args.which === 'sad' ? 'Sad' : 'Hopeful';
   return args.playing ? `■ ${name} ${formatElapsed(args.elapsed)}` : `▶ ${name}`;
 }
+
+/**
+ * Pause a player without ever throwing. expo-video releases the player when the component unmounts (`useVideoPlayer` →
+ * `useReleasingSharedObject`), and a cleanup effect that runs after that release calls into a freed native object, which
+ * throws; with no error boundary above the Voice page that unmount-time throw is a white screen (Bugs Acceptance run 1, R2).
+ * Returns false when the player was already gone.
+ */
+export function pauseQuietly(player: { pause: () => void }): boolean {
+  try {
+    player.pause();
+    return true;
+  } catch {
+    return false;
+  }
+}

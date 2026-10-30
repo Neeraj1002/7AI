@@ -1,7 +1,7 @@
 // Sprint 5 Task 7 R2 — cost sums on a fixture shaped like the Task 8 report's "App contract for Task 7".
 // Run with the server's vitest: cd studio && npx vitest run --root ../app
 import { describe, it, expect } from 'vitest';
-import { attemptsAddUp, costBreakdownOf, formatMoney, stageCostText, stageDisplayName } from './run-cost';
+import { attemptsAddUp, costBreakdownOf, costMetaParts, formatMoney, stageCostText, stageDisplayName } from './run-cost';
 
 const stage = (stageId: string, stageName: string, attemptNumber: number, outcome: string, costUsd: number, videoAttempt?: number) => ({
   stageId,
@@ -88,5 +88,23 @@ describe('money text', () => {
   it('names stages the way a person does', () => {
     expect(stageDisplayName('video_review')).toBe('Video review');
     expect(stageDisplayName('something_new')).toBe('something new');
+  });
+});
+
+describe('costMetaParts (Bugs Acceptance run 1, R4)', () => {
+  it('shows estimate and limit when both are stored', () => {
+    expect(costMetaParts({ estimateUsd: 0.31, limitUsd: 2 })).toEqual(['Estimate $0.31', 'Limit $2.00']);
+  });
+  it('says "not recorded" for an older run with neither, and never drops the row', () => {
+    expect(costMetaParts({})).toEqual(['Estimate not recorded', 'Limit not recorded']);
+    expect(costMetaParts({ estimateUsd: null, limitUsd: null })).toEqual(['Estimate not recorded', 'Limit not recorded']);
+  });
+  it('says "No limit" for a Short, which has no spend limit by design', () => {
+    expect(costMetaParts({ estimateUsd: 0.3, noLimitByDesign: true })).toEqual(['Estimate $0.30', 'No limit']);
+  });
+  it('keeps the retry allowance and attempt count when present', () => {
+    expect(costMetaParts({ estimateUsd: 1, limitUsd: 3, retryAllowanceUsd: 2, attemptsCount: 2 })).toEqual([
+      'Estimate $1.00', 'Retries up to $2.00', 'Limit $3.00', '2 attempts',
+    ]);
   });
 });

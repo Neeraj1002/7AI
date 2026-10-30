@@ -100,6 +100,26 @@ export function formatMoney(usd: number): string {
   return `$${usd > 0 && usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
 }
 
+/**
+ * The line under the cost bar (Bugs Acceptance run 1, R4). Estimate and limit are always shown: a run that stored
+ * neither says "not recorded" (an older run), and a Short, which has no spend limit by design, says "No limit".
+ * One owner for the three numbers; the card and the tests both use it.
+ */
+export function costMetaParts(p: {
+  estimateUsd?: number | null;
+  limitUsd?: number | null;
+  retryAllowanceUsd?: number | null;
+  attemptsCount?: number;
+  noLimitByDesign?: boolean;
+}): string[] {
+  return [
+    p.estimateUsd != null ? `Estimate ${formatMoney(p.estimateUsd)}` : 'Estimate not recorded',
+    p.retryAllowanceUsd != null ? `Retries up to ${formatMoney(p.retryAllowanceUsd)}` : null,
+    p.limitUsd != null ? `Limit ${formatMoney(p.limitUsd)}` : p.noLimitByDesign ? 'No limit' : 'Limit not recorded',
+    p.attemptsCount && p.attemptsCount > 1 ? `${p.attemptsCount} attempts` : null,
+  ].filter((x): x is string => x !== null);
+}
+
 /** A cost of 0 on a call that did not go through is shown as failed, not as an error or as free. */
 export function stageCostText(s: StageCost): string {
   return s.failed && s.usd === 0 ? 'failed, not charged' : formatMoney(s.usd);

@@ -6,7 +6,7 @@ import { useEvent, useEventListener } from 'expo';
 import { PrimaryButton } from './Buttons';
 import { useAuth } from '../lib/auth';
 import { color, font, radius, space, type } from '../lib/theme';
-import { nextPlayback, sampleButtonText, sampleId, useVoiceCatalog } from '../lib/voice-catalog';
+import { nextPlayback, pauseQuietly, sampleButtonText, sampleId, useVoiceCatalog } from '../lib/voice-catalog';
 
 // The voice list as a page (follow-up R1), not a modal: it sits inside whatever sheet shows it. Each voice has a radio,
 // its name, tone tags and a "▶ Sad" and a "▶ Hopeful" button streaming a stored sample; the playing button turns black with
@@ -52,12 +52,12 @@ export function VoicePicker({
     return () => clearInterval(t);
   }, [isPlaying, player]);
   // Leaving the page stops the sample.
-  useEffect(() => () => player.pause(), [player]);
+  useEffect(() => () => void pauseQuietly(player), [player]);
 
   const toggle = async (url: string, id: string) => {
     const action = nextPlayback(isPlaying ? playingId : null, id);
     if (action === 'pause') {
-      player.pause();
+      pauseQuietly(player);
       return;
     }
     setElapsed(0);
@@ -123,7 +123,7 @@ export function VoicePicker({
         label={useLabel}
         disabled={pick === null ? defaultLabel === undefined : !chosen}
         onPress={() => {
-          player.pause();
+          pauseQuietly(player);
           onUse(pick);
         }}
       />

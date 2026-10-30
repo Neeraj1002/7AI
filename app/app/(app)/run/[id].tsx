@@ -880,6 +880,7 @@ export default function RunDetailScreen() {
           breakdown={costs}
           ended={run.status === 'completed' || run.status === 'failed'}
           attemptsCount={videoAttempts}
+          noLimitByDesign={!isLong}
           packagingLine={gate2Kind === 'making' ? packagingCostLine(gate2View?.packagingCostUsd, gate2View?.round) : null}
         />
       ) : null}

@@ -41,7 +41,7 @@ export async function insertReviewLog(input: CreateReviewLogInput, client: DbCli
 // resolved without a user (ops/script path, auto-approve, no gate yet).
 export async function findGate1ApproverForRun(
   pipelineRunId: string,
-): Promise<{ userId: string; name: string | null; email: string } | null> {
+): Promise<{ userId: string; name: string | null } | null> {
   const row = await prisma.reviewLog.findFirst({
     where: {
       pipelineRunId,
@@ -51,10 +51,10 @@ export async function findGate1ApproverForRun(
       stage: { stageName: 'gate1' },
     },
     orderBy: { timestamp: 'desc' },
-    include: { approvedByUser: { select: { id: true, name: true, email: true } } },
+    include: { approvedByUser: { select: { id: true, name: true } } },
   });
   return row?.approvedByUser
-    ? { userId: row.approvedByUser.id, name: row.approvedByUser.name, email: row.approvedByUser.email }
+    ? { userId: row.approvedByUser.id, name: row.approvedByUser.name }
     : null;
 }
 
