@@ -1,7 +1,7 @@
 # Stock-footage audio and video timing hotfix
 
 **Date**: 2026-10-30 (IST)  
-**Status**: Local fix verified; preview retest pending
+**Status**: PR ready; preview retest pending
 **Branch**: `BUGS_STOCK_FOOTAGE_AV`  
 **Worktree**: `D:\Study Material\7AI\.worktrees\BUGS_STOCK_FOOTAGE_AV`  
 **Draft PR**: [#139](https://github.com/Neeraj1002/7AI/pull/139)  
@@ -45,7 +45,7 @@ No-cost local verification: a mixed 24/29.97/60 fps stock fixture, including a c
 
 Preview budget, founder estimate, one same-brief live run, packet probes and audible/visual comparison remain pending. These are required before claiming the reported experience is fixed.
 
-CI: the first PR run's studio job passed, but the app job stopped at `npm ci` because its existing lockfile lacked two transitive `@emnapi` peer packages. Adding those exact dev dependencies and their lock entries made a Linux `npm ci --dry-run` pass. The subsequent PR run passed both jobs (GitHub Actions run `41209156149`). Afterward, `git fetch origin` and `git pull origin main` reported the branch already up to date; the docs scope diff lists only this task doc and report, with no conflicts. The PR remains draft while live verification is pending.
+CI: the first PR run's studio job passed, but the app job stopped at `npm ci` because its existing lockfile lacked two transitive `@emnapi` peer packages. Adding those exact dev dependencies and their lock entries made a Linux `npm ci --dry-run` pass. Subsequent PR runs passed both jobs, including GitHub Actions run `41209385623` on commit `b2a0460`. Afterward, `git fetch origin` and `git pull origin main` reported the branch already up to date; the docs scope diff lists only this task doc and report, with no conflicts. PR #139 was marked ready after CI passed; preview playback verification is still a post-merge founder retest.
 
 ## Same-cause sweep
 
