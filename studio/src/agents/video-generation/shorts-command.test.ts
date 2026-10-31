@@ -10,10 +10,9 @@ vi.hoisted(() => {
 import { generateVideo } from './index';
 import { DATA_DIR } from '../../config/paths';
 
-// Sprint 4 Task 9 (R6.5): a Short's final ffmpeg command must not change when long-form lands. The
-// inline snapshot below was taken from the code BEFORE the long-form work (main at PR A) and must
-// keep matching: paths and the audio-dependent loudness numbers are normalised so it holds on any
-// machine. If this fails, a change touched the Shorts render.
+// The inline snapshot covers the shared Shorts mux for both AI stills and
+// stock footage. Paths and measured loudness values are normalised so it
+// holds across machines; deliberate render changes must update this contract.
 function normalise(args: string[], outputDir: string, ttsAudioPath: string): string[] {
   return args.map((a) =>
     a
@@ -28,8 +27,8 @@ function normalise(args: string[], outputDir: string, ttsAudioPath: string): str
   );
 }
 
-describe('Shorts render command is unchanged', () => {
-  it('matches the pre-long-form command for the same plan', async () => {
+describe('Shorts render command', () => {
+  it('uses a constant frame clock and the shared AAC target', async () => {
     const runId = `shorts-golden-${Date.now()}`;
     const result = await generateVideo({
       pipelineRunId: runId,
@@ -56,7 +55,7 @@ describe('Shorts render command is unchanged', () => {
         "-i",
         "<tts>",
         "-filter_complex",
-        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,tpad=stop_mode=clone:stop_duration=1.20,ass=1.ass:fontsdir=../../fonts[outv];[1:a]aformat=channel_layouts=stereo,apad=pad_dur=0.700,loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=<n>:measured_TP=<n>:measured_LRA=<n>:measured_thresh=<n>:offset=<n>:linear=true,aresample=48000[outa]",
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,setpts=N/(30*TB),tpad=stop_mode=clone:stop_duration=1.20,ass=1.ass:fontsdir=../../fonts[outv];[1:a]aformat=channel_layouts=stereo,apad=pad_dur=0.700,loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=<n>:measured_TP=<n>:measured_LRA=<n>:measured_thresh=<n>:offset=<n>:linear=true,aresample=48000[outa]",
         "-map",
         "[outv]",
         "-map",
@@ -71,12 +70,18 @@ describe('Shorts render command is unchanged', () => {
         "high",
         "-pix_fmt",
         "yuv420p",
+        "-r",
+        "30",
+        "-fps_mode",
+        "cfr",
+        "-video_track_timescale",
+        "15360",
         "-movflags",
         "+faststart",
         "-c:a",
         "aac",
         "-b:a",
-        "192k",
+        "320k",
         "-ar",
         "48000",
         "-shortest",

@@ -37,7 +37,7 @@ function loudnormFilter(measured?: MeasuredLoudness): string {
 }
 
 // TTS is mono; output is always stereo (the bed's stereo image is kept, and
-// stereo AAC at 192k actually reaches the >=160 kbps spec where mono VBR doesn't).
+// stereo AAC has room to meet the >=160 kbps measured spec where mono VBR doesn't).
 const STEREO = 'aformat=channel_layouts=stereo';
 
 export function buildAudioFilterGraph(params: {

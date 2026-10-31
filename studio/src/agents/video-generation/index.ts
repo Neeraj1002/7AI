@@ -627,7 +627,7 @@ export async function generateVideo(params: {
   // referenced by its plain filename, avoiding FFmpeg's notoriously fiddly
   // colon/backslash escaping for the `ass` filter's path argument on
   // Windows.
-  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}` +
+  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS},setpts=N/(${VIDEO_FPS}*TB)` +
     // P8: hold the last frame through the tail (generous pad; -shortest trims it to the audio).
     (tailSeconds > 0 ? `,tpad=stop_mode=clone:stop_duration=${(tailSeconds + 0.5).toFixed(2)}` : '');
   // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
@@ -700,6 +700,12 @@ export async function generateVideo(params: {
     'high',
     '-pix_fmt',
     QUALITY_SPEC.video.pixFmt,
+    '-r',
+    String(VIDEO_FPS),
+    '-fps_mode',
+    'cfr',
+    '-video_track_timescale',
+    String(QUALITY_SPEC.video.trackTimescale),
     '-movflags',
     '+faststart',
     '-c:a',

@@ -1,7 +1,7 @@
 # Stock-footage audio and video timing hotfix
 
 **Date**: 2026-10-30 (IST)  
-**Status**: Investigation in progress  
+**Status**: Local fix verified; preview retest pending
 **Branch**: `BUGS_STOCK_FOOTAGE_AV`  
 **Worktree**: `D:\Study Material\7AI\.worktrees\BUGS_STOCK_FOOTAGE_AV`  
 **Draft PR**: [#139](https://github.com/Neeraj1002/7AI/pull/139)  
@@ -23,7 +23,7 @@ The founder ran read-only SQL and FFprobe on the preview VPS and pasted the resu
 | 2 | `2.mp4` video | H.264 | 8,294.5 kbps | — | 30 / 29.8581 | 1/15360 | 35.233 s |
 | 2 | `2.mp4` audio | AAC | 114.9 kbps | 48 kHz | — | 1/48000 | 35.236 s |
 
-The final video/audio stream duration differences are 0.031 s and 0.003 s. Each final duration is about 0.70 s longer than its voice MP3, matching the designed end tail. The stock intermediates declare 30 fps but have packet durations of 0.032682, 0.033008 and 0.033333 s, so the joined files have slight frame-time variation; both final files include 0.066667 s video packet durations as well as 0.033333 s. Exact locations and audible effect are pending a frame/packet trace. FFprobe reported AAC `nb_frames` 1,094 and 962 for the two ~35 s finals; the meaning and timestamp continuity of these counts require packet-level confirmation before treating them as dropped audio.
+The final video/audio stream duration differences are 0.031 s and 0.003 s. Each final duration is about 0.70 s longer than its voice MP3, matching the designed end tail. The stock intermediates declare 30 fps but have packet durations of 0.032682, 0.033008 and 0.033333 s, so the joined files have slight frame-time variation; both final files include 0.066667 s video packet durations as well as 0.033333 s. A frame-timestamp trace found no gap over 0.05 s in either stock intermediate. The final videos each have isolated 0.067 s gaps at 3.833, 16.233, 20.833 and 30.500 s (attempt 1), and 4.200, 8.633, 12.833, 21.567 and 30.100 s (attempt 2). These isolated single-frame gaps do not by themselves establish the reported several-second speed-up. FFprobe reported AAC `nb_frames` 1,094 and 962 for the two ~35 s finals; the meaning and timestamp continuity of these counts require packet-level confirmation before treating them as dropped audio.
 
 Video Review recorded audio bitrate warnings of 129 and 115 kbps against the shared 160 kbps floor. It recorded 30 fps declared and average rates 29.886 and 29.858, both within the current gate's tolerance. The first attempt had eight detected shots; the second seven. Its loudness and true peak checks passed in both attempts.
 
@@ -37,8 +37,16 @@ The Shorts mux requests `-c:a aac -b:a 192k -ar 48000` and adds a 0.7 s audio ta
 
 ## Diagnosis, changes and verification
 
-Pending the preview file's frame/audio timestamp trace, the glitch timestamp, and a check of raw voice versus final audio. No render code has been changed yet.
+The preview trace establishes slight stock frame-time variation and four or five isolated one-frame gaps in each final. It does **not** establish a multi-second file timestamp jump or whether the audible slur is already in the source voice. The unusually low AAC frame counts suggest missing audio time, but packet timestamps were not available, so this remains a hypothesis. The shared encoder already requested 192 kbps on both attempts; no retry lowered it.
+
+To remove the demonstrated timing variation, every stock segment now gets `fps=30,setpts=N/(30*TB)`, an explicit CFR output mode, and the shared `1/15360` track timebase before concat. The final Shorts mux also assigns consecutive frame timestamps and CFR mode after decoding the joined source. The shared AAC request is raised from 192 to 320 kbps; this is content independent and applies to every Shorts visual source and long-form mastering. The original narration remains the mux input on each attempt, without `atempo` or another time-stretch filter.
+
+No-cost local verification: a mixed 24/29.97/60 fps stock fixture, including a clip starting at a nonzero timestamp, joined at declared/average 30 fps with timebase `1/15360` and no frame gap over 0.034 s. The local stock intermediate had only 0.033333 s video packet durations. The stock and AI-stills Shorts integration renders each probed at exactly 30 fps and `1/15360`, with matching 7.300 s audio/video durations, no frame gap over 0.05 s, and AAC 48 kHz at 210,977 bps. The stock fixture video was still about 7.16 Mbps; the preview's 6.4–8.3 Mbps video streams and potential player buffering have not been ruled out as a separate cause of the reported fast-forward. A local two-attempt stock revision test confirmed distinct fresh MP3 paths, no reference to the prior final MP4, and `320k` in both mux commands. Tests use provider stubs; no LLM/API spend occurred. Build, lint and typecheck passed after generating the local Prisma client.
+
+Preview budget, founder estimate, one same-brief live run, packet probes and audible/visual comparison remain pending. These are required before claiming the reported experience is fixed.
 
 ## Same-cause sweep
 
-Pending cause confirmation. The shared Shorts mux also processes AI-stills and the long-form path has separate picture joins and an AAC encode; each must be classified once the cause is known.
+- **Fixed here**: AI-stills Shorts use the same final mux, so their final frame clock and AAC target receive the same change. Long-form final audio mastering reads the same `QUALITY_SPEC.audio.bitrateKbps` value, so it also uses 320 kbps.
+- **Left alone**: long-form picture joins start with fixed-count `zoompan` frames from still images, encode with explicit `-r`, and have no variable-fps stock source. The separate 96 kbps long-form *preview* encode and 64/128 kbps intermediate MP3 narration are not final AAC quality checks. Test fixture encodes with `192k` are independent source files, not production mux settings.
+- **No matching cause found**: `app/` contains no video `setpts`, audio `atempo`, or duplicated AAC target. The player and HTTP Range delivery may need a separate task if the preview retest still shows a seconds-long catch-up while the downloaded MP4 plays normally.

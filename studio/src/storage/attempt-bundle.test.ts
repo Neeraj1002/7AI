@@ -19,6 +19,8 @@ import path from 'node:path';
 import { generateVideo } from '../agents/video-generation';
 import { measureQualityMetrics } from '../agents/video-intelligence/quality-metrics';
 import { CAPTION_FONT_FAMILY, CAPTION_FONT_FILE } from '../agents/video-generation/captions-ass';
+import { QUALITY_SPEC } from '../agents/video-generation/quality-spec';
+import { DATA_DIR } from '../config/paths';
 import { uploadAttemptBundle } from './attempt-bundle';
 import type { ProductionPlan } from '../agents/video-generation/plan';
 
@@ -69,8 +71,35 @@ describe('uploadAttemptBundle with the Task 8 renderer (all providers stubbed)',
       expect(manifest.captionFont).toEqual({ family: 'Montserrat ExtraBold', file: 'Montserrat-ExtraBold.ttf' });
       expect(manifest.qualityMetrics.width).toBe(1080);
       expect(manifest.qualityMetrics.fps).toBe(30);
+      expect(qualityMetrics.avgFps).toBeCloseTo(30, 4);
+      expect(qualityMetrics.audioBitrateKbps).toBeGreaterThanOrEqual(QUALITY_SPEC.audio.minBitrateKbps);
       expect(manifest.files.map((f: { name: string }) => f.name)).toContain('captions.ass');
       expect(manifest.stubFlags).toEqual({ media: true, stockFootage: true, aiVisuals: true });
     }, 240_000);
   }
+
+  it('a stock revision muxes a fresh original voice file at the same AAC target', async () => {
+    const runId = `stock-revise-${Date.now()}`;
+    try {
+      const params = {
+        pipelineRunId: runId,
+        scriptText: script,
+        brandAssets: { captionsEnabled: false } as never,
+        plan: plans.stock,
+      };
+      const first = await generateVideo({ ...params, attemptNumber: 1 });
+      const second = await generateVideo({ ...params, attemptNumber: 2 });
+      const firstArgs = JSON.parse(await fs.readFile(first.artifacts.ffmpegArgsJsonPath, 'utf-8')) as { args: string[] };
+      const secondArgs = JSON.parse(await fs.readFile(second.artifacts.ffmpegArgsJsonPath, 'utf-8')) as { args: string[] };
+      expect(first.artifacts.ttsAudioPath).not.toBe(second.artifacts.ttsAudioPath);
+      expect(firstArgs.args).toContain(first.artifacts.ttsAudioPath);
+      expect(secondArgs.args).toContain(second.artifacts.ttsAudioPath);
+      expect(secondArgs.args).not.toContain(first.output.videoPath);
+      const bitrateAt = (args: string[]) => args[args.indexOf('-b:a') + 1];
+      expect(bitrateAt(firstArgs.args)).toBe('320k');
+      expect(bitrateAt(secondArgs.args)).toBe('320k');
+    } finally {
+      await fs.rm(path.join(DATA_DIR, 'videos', runId), { recursive: true, force: true });
+    }
+  }, 240_000);
 });
