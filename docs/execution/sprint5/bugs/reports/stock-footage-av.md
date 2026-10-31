@@ -45,6 +45,8 @@ No-cost local verification: a mixed 24/29.97/60 fps stock fixture, including a c
 
 Preview budget, founder estimate, one same-brief live run, packet probes and audible/visual comparison remain pending. These are required before claiming the reported experience is fixed.
 
+CI: the first PR run's studio job passed, but the app job stopped at `npm ci` because its existing lockfile lacked two transitive `@emnapi` peer packages. Adding those exact dev dependencies and their lock entries made a Linux `npm ci --dry-run` pass. The subsequent PR run passed both jobs (GitHub Actions run `41209156149`). Afterward, `git fetch origin` and `git pull origin main` reported the branch already up to date; the docs scope diff lists only this task doc and report, with no conflicts. The PR remains draft while live verification is pending.
+
 ## Same-cause sweep
 
 - **Fixed here**: AI-stills Shorts use the same final mux, so their final frame clock and AAC target receive the same change. Long-form final audio mastering reads the same `QUALITY_SPEC.audio.bitrateKbps` value, so it also uses 320 kbps.
