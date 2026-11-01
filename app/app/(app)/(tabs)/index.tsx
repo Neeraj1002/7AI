@@ -18,6 +18,7 @@ import { channelDotColor, color, font, radius, space, type } from '../../../lib/
 import { VideoChip } from '../../../components/VideoChip';
 import { imageStageFraction, imageStageLine } from '../../../lib/long-video';
 import { chipFromRun } from '../../../lib/run-video';
+import { isAngleWait } from '../../../lib/story-tests';
 
 const FAB_HEIGHT = 52;
 const ENDED_PAGE_SIZE = 20;
@@ -68,7 +69,7 @@ export default function QueueScreen() {
   const all = useMemo(() => {
     const rows = data ?? [];
     return {
-      waiting: rows.filter((r) => r.status === 'paused_gate1' || r.status === 'paused_gate2'),
+      waiting: rows.filter((r) => r.status === 'paused_gate1' || r.status === 'paused_gate2' || isAngleWait(r.status)),
       attention: rows.filter((r) => r.status === 'needs_attention'),
       inProgress: rows.filter((r) => r.status === 'running' || r.status === 'pending'),
     };

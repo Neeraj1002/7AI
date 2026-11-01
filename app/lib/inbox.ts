@@ -3,6 +3,7 @@
 // currentStage, lastError, completedAt) plus the group's own notification times. Nothing is fetched per card.
 import { runTopic } from './run-labels';
 import { chipFromRun } from './run-video';
+import { isAngleWait } from './story-tests';
 
 export type InboxNotification = {
   id: string;
@@ -31,7 +32,7 @@ export type InboxRun = {
 export const INBOX_PAGE_SIZE = 20;
 
 export type StepTone = 'ok' | 'alert' | 'dark' | 'warn' | 'fail';
-export type TimelineStep = { key: 'script' | 'video' | 'final'; name: string; word: string; tone: StepTone; glyph: string; when: Date | null };
+export type TimelineStep = { key: 'angle' | 'script' | 'video' | 'final'; name: string; word: string; tone: StepTone; glyph: string; when: Date | null };
 
 export type InboxCard = {
   key: string;
@@ -41,7 +42,7 @@ export type InboxCard = {
   /** Set for a long video, so the card can show the "Video · {n} min" chip. */
   video?: { videoKind: string | undefined; targetSeconds: number | undefined };
   /** Which review the "Review …" button opens; null on a card that needs nothing. */
-  gate: 1 | 2 | null;
+  gate: 1 | 2 | 'angle' | null;
   steps: TimelineStep[] | null;
   latestAt: Date;
 };
@@ -56,6 +57,9 @@ export function gateOf(message: string): 1 | 2 | null {
 const STAGE_ORDER = ['intake', 'script_generation', 'script_review', 'gate1', 'video_generation', 'video_review', 'gate2', 'publishing', 'analytics'];
 const GATE1 = STAGE_ORDER.indexOf('gate1');
 const GATE2 = STAGE_ORDER.indexOf('gate2');
+
+const waitingGateOf = (status: string): 1 | 2 | 'angle' | null =>
+  status === 'paused_gate1' ? 1 : status === 'paused_gate2' ? 2 : isAngleWait(status) ? 'angle' : null;
 
 function asDate(v: Date | string | null | undefined): Date | null {
   if (!v) return null;
@@ -89,6 +93,10 @@ export function runTimeline(run: InboxRun, group: InboxNotification[]): Timeline
           : { key: 'script', name: 'Script', word: 'In progress', tone: 'dark', glyph: '…', when: null },
       );
     }
+  }
+  // Sprint 6 Task 3 (R9): the step comes from the status, because currentStage stays 'intake' while the run waits for the angle.
+  if (isAngleWait(run.status)) {
+    steps.push({ key: 'angle', name: 'Angle', word: 'Waiting for you', tone: 'alert', glyph: '!', when: null });
   }
   if (run.status === 'paused_gate1') {
     steps.push({ key: 'script', name: 'Script', word: 'Waiting for you', tone: 'alert', glyph: '!', when: timeOf(1, 'createdAt') });
@@ -143,7 +151,7 @@ export function buildInboxCards(
     const openGate = open.map((n) => gateOf(n.message)).find((g): g is 1 | 2 => g !== null) ?? null;
 
     if (run) {
-      const waitingGate = run.status === 'paused_gate1' ? 1 : run.status === 'paused_gate2' ? 2 : null;
+      const waitingGate = waitingGateOf(run.status);
       const card: InboxCard = {
         key,
         runId: run.id,
@@ -175,7 +183,7 @@ export function buildInboxCards(
   for (const run of runs) {
     if (seen.has(run.id)) continue;
     seen.add(run.id);
-    const waitingGate = run.status === 'paused_gate1' ? 1 : run.status === 'paused_gate2' ? 2 : null;
+    const waitingGate = waitingGateOf(run.status);
     const card: InboxCard = {
       key: `run:${run.id}`,
       runId: run.id,
@@ -198,6 +206,6 @@ export function pageEarlier(earlier: InboxCard[], visible: number): { shown: Inb
   return { shown, remaining: earlier.length - shown.length };
 }
 
-export function reviewLabel(gate: 1 | 2 | null): string {
-  return gate === 1 ? 'Review script' : gate === 2 ? 'Review video' : 'Open run';
+export function reviewLabel(gate: 1 | 2 | 'angle' | null): string {
+  return gate === 'angle' ? 'Choose an angle' : gate === 1 ? 'Review script' : gate === 2 ? 'Review video' : 'Open run';
 }
