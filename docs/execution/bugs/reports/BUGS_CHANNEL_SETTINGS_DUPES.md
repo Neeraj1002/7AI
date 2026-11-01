@@ -11,15 +11,15 @@ Removed the Style guide box, its draft/changes handling, the Default voice row, 
 - `vitest run`: 30 files / 205 tests pass. No tests covered the removed boxes; the app has no component-render test setup, so no test was added for the new row (verify by eye on preview).
 
 ## Revision — gating and where each value lives
-- The setup row now shows only via `shouldOfferProfileSetup` (`app/lib/profile-setup.ts`): query succeeded AND no profile. Loading, error and has-profile show nothing. Four unit tests in `profile-setup.test.ts`. the "Voice & look" card still shows captions/watermark.
+- The setup row now shows only via `shouldOfferProfileSetup` (`app/lib/profile-setup.ts`): query succeeded AND no profile. Loading, error and has-profile show nothing. Three unit tests (loading/error share one case) in `profile-setup.test.ts`. the "Voice & look" card still shows captions/watermark.
 - Founder's symptom note: not provided (placeholder left unfilled), so the channel/state remains unknown.
 
 ### Style guide
 - Read by: `resolveChannelConfig` (`studio/src/channel-profile/resolve.ts`): `scriptGuide = profile.script.guide ?? channel.styleGuide ?? null`.
 - Set now: content profile screen, "Script guide" field.
-- Stored value on a no-profile channel: untouched in the DB and still used as the fallback until a profile with a guide exists. It can no longer be edited from channel settings, and the profile screen does not prefill from it (no legacy reference in `profile.tsx`), so the founder must retype it when setting up a profile.
+- Stored value on a no-profile channel: untouched in the DB and still used as the fallback until a profile with a guide exists. It can no longer be edited from channel settings.
 
 ### Default voice
 - Read by: same resolver, `audioDefaultVoice = runOverride ?? profile.audio.defaultVoice ?? channel.defaultVoice ?? DEFAULT_TTS_VOICE`; the new-brief and run screens also display `channel.defaultVoice`.
 - Set now: content profile screen, "Default voice" field (`profile.tsx`, `defaultVoice`). No lost function.
-- Stored value on a no-profile channel: untouched and still used as fallback; no longer editable until a profile exists, and not prefilled into the profile form.
+- Stored value on a no-profile channel: untouched and still used as fallback; no longer editable from channel settings.

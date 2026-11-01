@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { shouldOfferProfileSetup } from './profile-setup';
 
 describe('shouldOfferProfileSetup', () => {
-  it('does not offer setup while loading', () => {
-    expect(shouldOfferProfileSetup({ isSuccess: false, data: undefined })).toBe(false);
-  });
-  it('does not offer setup on error', () => {
+  it('does not offer setup while loading or on error', () => {
     expect(shouldOfferProfileSetup({ isSuccess: false, data: undefined })).toBe(false);
   });
   it('does not offer setup when a profile exists', () => {
