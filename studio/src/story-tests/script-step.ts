@@ -5,6 +5,7 @@ import { failureUsageEvents } from '../run-pipeline/stage-failure';
 import { NO_EXTRA_CALLS, worstCaseCostUsd } from './angle-step';
 import { PART_B_CAP_USD } from './constants';
 import { coldReaderSystem, coldReaderUser, promiseMatchSystem, promiseMatchUser } from './prompts';
+import { hookShape } from './learning';
 import { decideVerdict, scriptHash } from './script-check';
 import { ColdReaderReplySchema, PromiseMatchReplySchema, type ColdReaderReply, type PromiseMatchReply, type StoredCall, type StoredScriptCheck } from './schemas';
 
@@ -52,7 +53,7 @@ export async function runScriptStep(params: {
   const prior = params.priorSpentUsd ?? 0;
   const withinCap = (purpose: Purpose, system: string, user: string) => prior + spent + worstCaseCostUsd(purpose, system, user) <= cap;
 
-  const base = { version: 1 as const, scriptHash: scriptHash(params.scriptText), format: params.format, promiseUsed: params.angle };
+  const base = { version: 1 as const, scriptHash: scriptHash(params.scriptText), format: params.format, promiseUsed: params.angle, hookShape: hookShape(params.scriptText) };
   const noMatch = (note: string) => ({ ran: false, note, about: null, remembered: null });
   const notRun = (reason: string, match: StoredScriptCheck['promiseMatch'] = noMatch('Not compared: the check could not run'), reader: ColdReaderReply | null = null): StoredScriptCheck => ({
     ...base, status: 'not_run', notRunReason: reason, reader, swipeAtPercent: null, verdict: null, reasons: [],
@@ -111,7 +112,7 @@ export async function runScriptStep(params: {
 export function notRunScriptCheck(params: { reason: string; scriptText: string; format: 'short' | 'long' }): StoredScriptCheck {
   return {
     version: 1, status: 'not_run', notRunReason: params.reason, scriptHash: scriptHash(params.scriptText), format: params.format,
-    reader: null, swipeAtPercent: null, verdict: null, reasons: [], promiseUsed: null,
+    reader: null, swipeAtPercent: null, verdict: null, reasons: [], promiseUsed: null, hookShape: hookShape(params.scriptText),
     promiseMatch: { ran: false, note: 'Not compared: the check could not run', about: null, remembered: null },
     calls: [], costUsd: 0, tags: { partB: 'not_run' },
   };

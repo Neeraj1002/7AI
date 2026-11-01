@@ -30,6 +30,8 @@ export type StoredReaderRun = {
   error: string | null;
 };
 
+export type HookShape = { firstSentenceWordCount: number; kind: 'question' | 'statement'; hasFigure: boolean };
+
 export type StoredCall = {
   purpose: Extract<Purpose, 'story-angles' | 'story-pair-reader' | 'story-cold-reader' | 'story-promise-match'>;
   model: string;
@@ -107,4 +109,6 @@ export type StoredScriptCheck = {
   calls: StoredCall[];
   costUsd: number;
   tags: { partB: 'ran' | 'not_run' };
+  // Part C: the first sentence's shape, from code, for the script this check read. Absent on a check stored before Part C.
+  hookShape?: HookShape | null;
 };

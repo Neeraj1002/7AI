@@ -32,7 +32,9 @@ vi.mock('../../run-pipeline/story-tests-stage', async (orig) => ({
   notifyAngleWaiting: async (run: { id: string }) => void mocks.notified.push(run.id),
 }));
 
+import { env } from '../../config/env';
 import { prisma } from '../../models/prisma-client';
+import { buildLearningRecord, readPipelineTags } from '../../story-tests/learning';
 import { SANDBOX } from '../../test-support/sandbox';
 import { runsRouter } from './runs';
 import { runIntakeStage } from '../../run-pipeline/state-machine';
@@ -191,7 +193,21 @@ describe.skipIf(!SANDBOX)('paused_angle against the sandbox database', () => {
       const id = await freshRun();
       const run = await runIntakeStage(id);
       expect(run.currentStage).toBe('script_generation');
-      expect(readStoredStoryTests((await findLatestCompletedAttempt(id, 'intake'))?.output)).toBeNull();
+      const output = (await findLatestCompletedAttempt(id, 'intake'))?.output;
+      expect(readStoredStoryTests(output)).toBeNull();
+      // Part C: even with the feature off the run is tagged, so it reads as off and not as an old, untagged run.
+      expect(readPipelineTags(output)).toMatchObject({ version: 1, storyTests: 'off', stockFootageFix: null });
+    });
+
+    it('a run that paused for an angle is tagged on, and the record reads back whole from the database', async () => {
+      const id = await freshRun();
+      mocks.angleStep = waitingRecord();
+      env.STORY_TESTS_ENABLED = '1';
+      try { await runIntakeStage(id); } finally { env.STORY_TESTS_ENABLED = ''; }
+      const output = (await findLatestCompletedAttempt(id, 'intake'))?.output;
+      expect(readPipelineTags(output)?.storyTests).toBe('on');
+      const rec = buildLearningRecord({ run: { id, channelId, tenantId }, intakeOutput: output, scriptReviewOutput: null, packaging: null });
+      expect(rec).toMatchObject({ tenantId, channelId, partA: 'waiting', tags: { storyTests: 'on' } });
     });
   });
 

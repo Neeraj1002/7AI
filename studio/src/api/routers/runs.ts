@@ -20,6 +20,7 @@ import { requestCancellation, isCancellationRequested, isActivelyDriven } from '
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
 import { persistAngleChoice, AngleChoiceError, storyTestsEnabled } from '../../run-pipeline/story-tests-stage';
 import { buildStoryTestsView } from '../../story-tests/view';
+import { buildLearningRecord } from '../../story-tests/learning';
 import {
   checkBudget,
   describeBudgetRefusal,
@@ -1242,6 +1243,27 @@ export const runsRouter = router({
     return buildPackagingRecord({
       packaging: gate ? readPackaging(gate.output) : null,
       opening: (run.creationOptions?.opening as Parameters<typeof buildPackagingRecord>[0]['opening']) ?? null,
+    });
+  }),
+
+  // Sprint 6 Task 3 (Part C, R7): the learning record Compare can group by: pipeline-version tags, the angle step, the script
+  // check, shapes from code and per-call usage, read back from what is stored. Same tenant scoping as `packagingRecord`.
+  // An old run has no tags and reads as untagged (tags: null), never as off.
+  learningRecord: publicProcedure.input(z.object({ runId: z.string().uuid() })).query(async ({ input, ctx }) => {
+    const run = await findPipelineRunById(input.runId);
+    if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+    const stages = await listStagesForRun(input.runId);
+    const latest = (name: string) => stages.filter((st) => st.stageName === name && st.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+    const gate = [...stages].reverse().find((st) => st.stageName === 'gate2' && readPackaging(st.output));
+    return buildLearningRecord({
+      run,
+      intakeOutput: latest('intake')?.output,
+      scriptReviewOutput: latest('script_review')?.output,
+      packaging: buildPackagingRecord({
+        packaging: gate ? readPackaging(gate.output) : null,
+        opening: (run.creationOptions?.opening as Parameters<typeof buildPackagingRecord>[0]['opening']) ?? null,
+      }),
     });
   }),
 

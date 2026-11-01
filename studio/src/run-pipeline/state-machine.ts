@@ -8,6 +8,8 @@ import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
   markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
+import { buildPipelineTags } from '../story-tests/learning';
+import { resolveCommit } from '../api/system-info';
 import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun, storyTestsEnabled } from './story-tests-stage';
 import {
   createPipelineRun,
@@ -267,13 +269,15 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     // founder chooses or skips, runs.chooseAngle); anything else is recorded as "not run" and the script follows.
     const storyTests = await runAngleStepForRun({ run, stageId: stage.id, intake: output });
     const pauseForAngle = storyTests?.angleStep.status === 'waiting';
+    // Sprint 6 Task 3 (Part C): the pipeline-version tags, written now and never edited. Present with the feature on or off.
+    const pipelineTags = buildPipelineTags({ storyTestsOn: storyTestsEnabled(), buildCommit: await resolveCommit() });
 
     // Persist-before-advance: the stage's completion and the run's advance are
     // written together, in one transaction — this is what makes resumability
     // possible after a restart, without a window where currentStage lags what
     // pipeline_stages actually shows (B1 fix).
     const advanced = await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, storyTests ? { ...output, storyTests } : output, tx);
+      await completeStage(stage.id, { ...output, ...(storyTests && { storyTests }), pipelineTags }, tx);
       return await updatePipelineRun(
         runId,
         {

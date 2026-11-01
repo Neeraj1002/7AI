@@ -200,3 +200,50 @@ My Part A change (reading the chosen angle with `findLatestCompletedAttempt` in 
 - Swipe line matching now retries with whitespace collapsed and quotes/dashes normalised, mapped back to the original position; a line still absent stays not_run.
 - Main merged; prompt-index entries added for the four story purposes; prompt-index test passes.
 - Counts after the last two small edits (Part A cap, new tests) were checked on the story-tests/run-pipeline subsets only; the full run above pre-dates the final Part A cap edit.
+
+## Part C: the learning record, tags, sweep and analytics finding
+
+**Status**: built. Part C makes no model call; live spend is unchanged at $0.0215. The founder approved the Part B prompts on 1 Nov; no live call has been made on them.
+
+### R0 for Part C
+
+| # | Item | Result |
+|---|---|---|
+| 6 | Storage | **Confirmed, no schema change.** Part A and the tags sit on the intake stage row's `output`, Part B on the script review row's `output.storyTest`. Both survive a restart (stage rows). Tenant and channel come from the run row; the read path checks `run.tenantId` like `runs.get`. Compare reads `dashboard.comparison` and `dashboard.devices`, which group by format and device, not by these tags. |
+| 7 | Stock-footage fix identifier | **None exists.** No constant, flag or version string for it in `studio/src` (searched stock, normalize, AAC, timing). It is only PR #139 (merge commit 9be48fb). So `stockFootageFix` is `null` on every run and I did not invent one. The stable handle code can read is the **build commit** (`GIT_COMMIT`, else a cached `git rev-parse`, via `api/system-info.ts resolveCommit`), stored as `build`. "Before or after the fix" then becomes a commit comparison. It is the current process's commit, not an immutable build id (the caveat `system-info.ts` already states), and null if neither source works. |
+
+### What was built
+
+- `story-tests/learning.ts` (no model): `titleShape` (word count, question mark, figure, opening word type: number / question word / other / none), `hookShape` (first sentence: word count, question or statement, figure), `buildPipelineTags`, `readPipelineTags`, `buildLearningRecord`. The record is a projection of the intake row, the script review row and Task 1's `buildPackagingRecord`. The title shape is computed from `packaging.chosen.title`, so no title is stored twice.
+- Tags: `output.pipelineTags` = `{version:1, storyTests:'on'|'off', stockFootageFix:null, build}`, written by the intake stage **with the feature on or off**, at the moment intake completes, never edited. Part A used, skipped or not_run is the existing `storyTests.tags.partA` (set when the step runs and when the founder chooses or skips). The record shows it as `partA` (`used | skipped | not_run | waiting | null`). A run made before this part has no `pipelineTags` and reads `tags: null` (untagged), never as off.
+- **A deliberate small change when the switch is off:** the intake row's output gains one key, `pipelineTags`. The task requires a feature-off run to carry a tag, so this cannot be avoided. Nothing else on the off path changed (no new reads, no new calls).
+- Hook shape is stored with the Part B check (`storyTest.hookShape`, optional, version stays 1; a check stored before this reads `null`).
+- Per-call purpose, model, tokens, cost and time were already stored with each part (`calls`); the record concatenates them and sums the cost.
+- **Read path (additive, new): `runs.learningRecord({ runId })`**, modelled on `runs.packagingRecord`: FORBIDDEN for another tenant, NOT_FOUND for an unknown run. It returns `{version, runId, channelId, tenantId, tags, partA, angleStep, scriptCheck, titleShape, calls, costUsd}`. No existing shape changed, no app change. A Compare screen change would be a flow change, so I did not make one: Compare could group by `tags.storyTests`, `partA` and `tags.build` once the architect decides to build that.
+
+### Tests
+
+`story-tests/learning.test.ts`: shapes, tags, old run untagged, feature-off tagged off, Part A used / skipped / not_run / waiting, both parts joined, a pre-Part-C check reads a null hook shape. `api/routers/runs.learning-record.test.ts`: old run untagged, latest intake attempt wins, other tenant FORBIDDEN, unknown run NOT_FOUND. In the sandbox-database file: a feature-off run is tagged off, and a paused run is tagged on with its record read back whole from the database.
+
+### R9 sweep (grep proof)
+
+- (a) Channel or niche literals added by this PR: `git diff origin/main...HEAD -- studio app | grep '^+' | grep -iE 'underdogs|not in your textbook|cold open|niyt|lego|mary celeste|eiffel'` returned **nothing**. In the whole tree the only hits are older: `llm/canary.ts` (comments and a path to a channel bible doc) and `test-support/admin-fixture.ts` (a fixture channel name). **Left alone**: not part of this task, noted for the architect.
+- (b) Model names, output limits or prices outside the registry: none in `story-tests/` (the cost estimate reads the registry entry and price table, `angle-step.ts:34`). Elsewhere `agents/script-review/evaluation-budget.ts:3` holds `COMPARISON_MODELS`. **Left alone** (an evaluation tool, not this task), noted.
+- (c) A promise stored or derived in more than one place: **yes, one.** The chosen angle's promise is stored once (intake `storyTests`). Task 1's curiosity brief derives its own `promise` from the approved script (`packaging/schemas.ts:34`, `prompts.ts:35`). **Finding for the architect (Task 1 not changed):** once this lands, Task 1's R1 should take the chosen angle's promise as its input when one exists, instead of deriving a second one.
+- Task 1 reuse: `packaging-cold-reader` reads a title and thumbnail, not a script, so it is not reusable for Part B. **P16 overlap (finding only):** the reader persona line and the cold-reader prompts here could be one shared cold-reader piece with P16's adherence check. I built nothing for P16 and kept the persona as one optional string.
+- Whether channel guidance would improve Part A's angles (it sees the intake only) is a question for the architect.
+
+### Analytics finding (R0 item 8, read only, nothing built)
+
+- Long-form watch numbers are stored (`averageViewDurationSec`, `averageViewPercentage`, `estimatedMinutesWatched`, snapshot `longFormMetrics`), and `models/repositories/dashboard.repository.ts` aggregates them for Compare (a `watch` accumulator). STATUS's remark that `dashboard.comparison` returns no watch numbers does not match the code for long-form. I did not call the live route, so treat that as to confirm.
+- A retention curve is stored (`retentionCurve`: YouTube `audienceWatchRatio` against `elapsedVideoTimeRatio`) as a ratio curve, **not** as values at 3, 10 and 30 seconds. Nothing derives those marks.
+- **Nothing** is stored for a Shorts "viewed vs swiped away" rate (no such metric is requested).
+- No router exposes the retention curve, and there is no analytics-retention task file on `main`. **Missing: the 3/10/30-second marks, the Shorts viewed-vs-swiped rate, and a read route.** Findings for the architect (P21 in the plan), not work here.
+
+### Not verified in Part C
+
+The new query was tested with mocked repositories (the tenant checks) and the intake tags against the sandbox database; I did not call the query over HTTP. Compare was not changed and does not group by the new tags. `build` is the process's commit, not an immutable build id. The Gate 1 off question for Part B (it still runs and can cost up to $0.15 with nobody seeing it) is unanswered.
+
+### Counts (sandbox database, `--maxWorkers=4`)
+
+vitest: 201 files passed, 1 skipped; 1900 tests passed, 9 skipped, 0 failed. `tsc --noEmit`: 0 errors. `eslint src`: no errors, no warnings. The sandbox database was dropped afterwards.
