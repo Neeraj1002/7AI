@@ -568,12 +568,12 @@ founder merges the PR:
 ## Additional Notes
 
 ### Cross-track impact (do not edit these docs from this task; the BA chat updates them)
-- `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` and `bugs/Sprint3/closureTask.md` R0 say bug triage works
+- `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md` and `bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) R0 say bug triage works
   with an "owner session or the ops token". After R3 it is **Admin session or ops token**. Hot-fixer use of the
   ops token is unaffected. After R3 the status `awaiting_verification` and a short `note` exist, so the protocol's
   "Bug lifecycle" section should then say: a merged-but-unverified fix is set to `awaiting_verification` with the PR
   number in the note (until then it stays `open`).
-- `bugs/Sprint3/closureTask.md` R1 (weekly window, `checkBudget()`, and after 2026-10-06 the D4 budget model in
+- `bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) R1 (weekly window, `checkBudget()`, and after 2026-10-06 the D4 budget model in
   step 5b) is now a **dependency** of this task, not a coordination point; this task only reads what R1 builds.
   Admin Sprint 2's budget-edit write must use the same override validation, so put the validator in
   `budget-gate.ts`, not in a router.
@@ -592,8 +592,8 @@ founder merges the PR:
 
 ## Links & References
 - `docs/execution/admin/ADMIN_MODULE_DESIGN.md`, `ADMIN_TASK_TEMPLATE.md`
-- `docs/execution/bugs/Sprint3/closureTask.md` (F9/F10 findings that motivate R6/R7)
-- `docs/execution/sprint3/BUSINESS_LOGIC.md` (J1/K1 auth and gate-ownership rules)
+- `docs/execution/bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) (F9/F10 findings that motivate R6/R7)
+- `docs/execution/sprint3/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) (J1/K1 auth and gate-ownership rules)
 - `docs/server/deployment/preview/detail.md`, `docs/server/usefulcmds.md` (VPS paths and `psql`)
 
 ## Git Workflow

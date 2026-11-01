@@ -43,6 +43,12 @@ describe('every purpose declares model, output limit and reasoning', () => {
     expect(LLM_REGISTRY['packaging-compare'].maxOutputTokens).toBe(2_000);
   });
 
+  // Prompt tidy-up: the two checks that used to borrow another purpose's entry keep exactly that entry's settings.
+  it('still-check and hard-cap-confirmation keep the model, limit and reasoning they used to borrow', () => {
+    expect(LLM_REGISTRY['still-check']).toMatchObject({ model: 'claude-haiku-4-5', maxOutputTokens: 4_000, reasoning: 'off' });
+    expect(LLM_REGISTRY['hard-cap-confirmation']).toMatchObject({ model: 'claude-sonnet-5-5', maxOutputTokens: 16_000, reasoning: 'off' });
+  });
+
   it('reasoning is off everywhere in this task', () => {
     for (const purpose of PURPOSES) expect(LLM_REGISTRY[purpose].reasoning).toBe('off');
   });

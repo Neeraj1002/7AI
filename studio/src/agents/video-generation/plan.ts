@@ -254,8 +254,9 @@ export async function planVideoProduction(params: {
   // Sprint 2 Task 2 (E2) — an explicit per-run choice (resolved by the
   // caller from PipelineRun.creationOptions.visualSource) that the LLM is
   // instructed to honor. Enforced again, deterministically, after the LLM
-  // responds (see below) — this drives a real YouTube disclosure-policy
-  // flag downstream (E4), so it can't be left to prompt-following alone.
+  // responds (see below) — this feeds a real YouTube disclosure-policy
+  // flag downstream (E4: the flag is Yes when any picture is AI-generated,
+  // hot-fix #138), so it can't be left to prompt-following alone.
   visualSourceOverride?: VisualSource;
   // Sprint 2 Task 3 (F1) — same resolution-order pattern: an explicit
   // per-run choice always wins, else the planning LLM decides.
@@ -300,7 +301,8 @@ export async function planVideoProduction(params: {
 
   // Deterministic enforcement of an explicit visualSource override — the
   // prompt above asks the LLM to honor it, but visualSource drives a real
-  // YouTube disclosure-policy flag downstream (E4), so correctness can't
+  // YouTube disclosure-policy flag downstream (E4; Yes when any picture is
+  // AI-generated, hot-fix #138), so correctness can't
   // rest on prompt-following alone. If the LLM ignored the instruction,
   // force it back to the requested value rather than silently trusting the
   // model.

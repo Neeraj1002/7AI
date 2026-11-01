@@ -2,7 +2,7 @@
 
 **Written**: 2026-10-11 by the architect chat, from the UI designer's hand-off of the same day. **Status**: not started. Picked up by the UI/UX code agent from this folder.
 
-**Read `docs/execution/templates/TASK_TEMPLATE.md`, `UI_UX_AGENT_PROTOCOL.md` and the Definition of Done in `docs/execution/ui-ux/tasks/task5.md` before starting.** Hard rules apply: never push or merge to `main`, commit only to a branch you created, one worktree per session, record every branch in `docs/execution/sprint4/STATUS.md` the moment it exists. This file states only this task's specifics. Rules shared by Frontend Tasks 2, 3 and 4 are in the "Shared rules" section below and are not repeated in Tasks 3 and 4.
+**Read `docs/execution/templates/TASK_TEMPLATE.md`, `UI_UX_AGENT_PROTOCOL.md` and the Definition of Done in `docs/execution/ui-ux/tasks/task5.md` before starting.** Hard rules apply: never push or merge to `main`, commit only to a branch you created, one worktree per session, record every branch in `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) the moment it exists. This file states only this task's specifics. Rules shared by Frontend Tasks 2, 3 and 4 are in the "Shared rules" section below and are not repeated in Tasks 3 and 4.
 
 **Objective**: replace the built Run, Inbox and Queue screens with the redesigned layouts and apply the Sprint 4 polish to the Gate 1 and Gate 2 cards. Frontend only; no backend change is needed to start or finish.
 **Owning Component**: `app/` only. **Role**: `FE`, JS-only, OTA-eligible (fingerprint must match `main`).

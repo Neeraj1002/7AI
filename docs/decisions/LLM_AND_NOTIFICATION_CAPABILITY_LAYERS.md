@@ -2,7 +2,7 @@
 
 **Date**: 2026-09-07 (registry shape, fallback, and library-boundary mechanics resolved same day, in a follow-up pass — see "Decision" below)
 **Status**: Design decided, including implementation mechanics. Implementation pending — Week 1's `parse-brief.ts` still calls `@anthropic-ai/sdk` directly, as a known, deliberate temporary coupling (see "Current state" below), not an oversight.
-**Related**: `AGENT_FLEET_DESIGN.md` Section 5.1 (this decision, summarized) and Section 8.1 (model tiering); `docs/execution/week1/BUSINESS_LOGIC.md` Section 2 (Intake Parsing)
+**Related**: `AGENT_FLEET_DESIGN.md` Section 5.1 (this decision, summarized) and Section 8.1 (model tiering); `docs/execution/week1/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Section 2 (Intake Parsing)
 
 ## Why
 
@@ -28,7 +28,7 @@ This layer is text-completion only. Video/media generation (Video Generation age
 
 **Founder notification / approval-gate interface** — lives inside the existing `studio/src/notify-founder/` folder, not a new top-level layer. `notify-founder/` is already correctly named as a business action rather than a vendor, so the fix is internal: split into an interface (`requestApproval(...)`, `notify(...)`) and a Telegram adapter underneath. Script Review, Video Intelligence's own-draft gate, and Gate 1/Gate 2 generally call the interface, never `grammy` directly.
 
-The exact interface signature stays deferred to Week 2/Gate 1, as originally decided — but this is a low-risk deferral, not a real unknown. `MVP_ROADMAP_OCT15.md` Section 17 already sketches Gate 1's reply grammar (approve / reject-with-reason / edited-text) in enough detail that `requestApproval(...)`'s shape is mostly a formalization of something already decided elsewhere, not a fresh design done under time pressure in Week 2.
+The exact interface signature stays deferred to Week 2/Gate 1, as originally decided — but this is a low-risk deferral, not a real unknown. `MVP_ROADMAP_OCT15.md` (archived, see docs/ARCHIVE_INDEX.md) Section 17 already sketches Gate 1's reply grammar (approve / reject-with-reason / edited-text) in enough detail that `requestApproval(...)`'s shape is mostly a formalization of something already decided elsewhere, not a fresh design done under time pressure in Week 2.
 
 ## Scope — filtered to MVP-active components only (Principle 10: don't over-engineer)
 

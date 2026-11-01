@@ -84,6 +84,9 @@ export type ScriptReviewResult = {
   hardCapChecks?: HardCapCheck[];
 };
 
+// The factual-concern / style-guide paragraph, word for word the same in the Shorts and long-form prompts.
+const FAILURE_LISTS_PARAGRAPH = `"factualConcerns" contains ONLY actual SR-1/7/8/9 failures. "styleGuideViolations" contains ONLY actual SR-2 brief/channel failures, whether or not a channel style guide was supplied. Empty arrays mean no failures. Put SR-3/4/5 advisories in notes, never in the failure lists. Safe paraphrases and equivalent numeral/word forms are compliant unless an explicit exact-wording constraint says otherwise.`;
+
 export const SYSTEM_PROMPT = `You review a short-form vertical video script (YouTube Shorts)
 before it goes to production. Respond with ONLY a JSON object of the shape:
 {"score": number, "notes": string, "hookScore": number, "hookNotes": string, "videoGenFit": {"fitsLengthLimit": boolean, "pacingRealistic": boolean, "visualsProducible": boolean, "flags": string[]}, "factualConcerns": string[], "styleGuideViolations": string[]}
@@ -118,7 +121,7 @@ continuous physical action or custom motion-model footage:
   without assuming generated physical motion? A still reconstruction is not documentary evidence.
 - "flags": specific problems found for any of the above, empty array if none.
 
-"factualConcerns" contains ONLY actual SR-1/7/8/9 failures. "styleGuideViolations" contains ONLY actual SR-2 brief/channel failures, whether or not a channel style guide was supplied. Empty arrays mean no failures. Put SR-3/4/5 advisories in notes, never in the failure lists. Safe paraphrases and equivalent numeral/word forms are compliant unless an explicit exact-wording constraint says otherwise.
+${FAILURE_LISTS_PARAGRAPH}
 
 A low score or failed fit checks are still a valid review outcome, not an error — always
 respond with a complete, well-formed review. Respond with raw JSON only — no markdown code
@@ -146,7 +149,7 @@ action, generated tracking/drone movement, lip sync and motion-model footage are
 - "visualsProducible": can the implied beats be composed as still images? A reconstruction is an illustration, not documentary evidence or a factual verification.
 - "flags": specific technical composition problems, empty array if none.
 
-"factualConcerns" contains ONLY actual SR-1/7/8/9 failures. "styleGuideViolations" contains ONLY actual SR-2 brief/channel failures, whether or not a channel style guide was supplied. Empty arrays mean no failures. Put SR-3/4/5 advisories in notes, never in the failure lists. Safe paraphrases and equivalent numeral/word forms are compliant unless an explicit exact-wording constraint says otherwise.
+${FAILURE_LISTS_PARAGRAPH}
 
 "chapterNotes" has one entry per chapter, in order: "chapterTitle" exactly as given, and a one-sentence "note" on what works or what to fix in that chapter's pacing or dramatic tone.
 

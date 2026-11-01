@@ -143,4 +143,4 @@ Unit tests: `videoKind` validation (short unchanged, long 120 to 900 whole minut
 - Each channel's Content profile lists the formats it offers; the New brief picker shows only those that match the chosen Type, plus Freeform (always available, the default). A channel with no list shows only Freeform.
 
 ## Links & References
-- `docs/execution/sprint4/PENDING.md` · `sprint4/tasks/task8.md` and `reports/task8.md` · `sprint4/tasks/task6.md` · `Sprint3/tasks/hardening-gpt-image-migration.md` · `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` §14 (the one-off pilot renderer this replaces) · `docs/review_tuning/SCRIPT_REVIEW_MISSES.md`
+- `docs/execution/sprint4/PENDING.md` · `sprint4/tasks/task8.md` and `reports/task8.md` · `sprint4/tasks/task6.md` · `Sprint3/tasks/hardening-gpt-image-migration.md` (archived, see docs/ARCHIVE_INDEX.md) · `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` §14 (the one-off pilot renderer this replaces) · `docs/review_tuning/SCRIPT_REVIEW_MISSES.md`

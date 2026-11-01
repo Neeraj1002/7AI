@@ -3,7 +3,7 @@
 **Status**: Decided — Path A (stock footage) approved as the near-term build target. Path B (generative/character video) intentionally deferred, not designed in detail yet.
 **Date**: 2026-09-09
 **Owner**: Neeraj Singh (founder) — captured from a real architecture discussion, not decided unilaterally
-**Extends**: `AGENT_FLEET_DESIGN.md` Section 4.6 (Video Generation Agent), Week 1 Task 8's toolchain spike (`docs/execution/week1/reports/task8.md`)
+**Extends**: `AGENT_FLEET_DESIGN.md` Section 4.6 (Video Generation Agent), Week 1 Task 8's toolchain spike (`docs/execution/week1/reports/task8.md` (archived, see docs/ARCHIVE_INDEX.md))
 **Related, unresolved**: `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` §3, the caption/frame-sampling finding this decision directly addresses
 
 ## 1. The problem, with real evidence

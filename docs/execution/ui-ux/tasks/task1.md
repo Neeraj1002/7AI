@@ -391,5 +391,5 @@ plainly whether the fingerprint changed and how it shipped.
 - Canvas: "7AI Studio — Visual Directions" (founder's design artifact, direction C)
 - Backend B1 (Gate 2 visibility + per-channel default), B2 (edit channel), B3 (soft-delete channel) —
   owned by the architect chat; their task docs will be linked here once written
-- `docs/execution/bugs/Sprint3/tasks/task3.md` — R2 (bug report), R4 (keyboard), R5 (Telegram field) this builds on
+- `docs/execution/bugs/Sprint3/tasks/task3.md` (archived, see docs/ARCHIVE_INDEX.md) — R2 (bug report), R4 (keyboard), R5 (Telegram field) this builds on
 - `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`, `docs/execution/templates/TASK_TEMPLATE.md`
