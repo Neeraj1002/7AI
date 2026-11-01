@@ -28,12 +28,15 @@ export type { PublishingMetadata, UploadParams, UploadResult, PrivacyStatus } fr
 export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
 export { subtitlesFailureMessage, thumbnailFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
 
+// The reply shape, word for word the same in the Shorts and long-form metadata prompts.
+const METADATA_JSON_SHAPE = `Respond with ONLY a JSON object:
+{"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}`;
+
 const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags, and cover
 frame) from a sanctioned script and its hashtags — platform-specific optimization, not creative
 writing (the script itself is already finished and approved).
 
-Respond with ONLY a JSON object:
-{"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}
+${METADATA_JSON_SHAPE}
 "title" is under ${TITLE_MAX_CHARS} characters, attention-grabbing, and accurate to the content — no clickbait
 that misrepresents what the video actually shows.
 "description" is 1-3 sentences summarizing the content; can restate the hashtags inline.
@@ -52,8 +55,7 @@ const LONG_FORM_SYSTEM_PROMPT = `You are optimizing YouTube metadata (title, des
 frame) for a long-form 16:9 video from its sanctioned script and hashtags - platform-specific
 optimization, not creative writing (the script itself is finished and approved).
 
-Respond with ONLY a JSON object:
-{"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}
+${METADATA_JSON_SHAPE}
 "title" is under ${TITLE_MAX_CHARS} characters, specific, and accurate to the content - no clickbait that
 misrepresents what the video shows.
 "description" is 2-4 sentences summarizing what the viewer will learn; do not write a chapter list,

@@ -10,6 +10,9 @@ export const PURPOSES = [
   'script-generation',
   'script-review',
   'video-intelligence-own-draft',
+  // Prompt tidy-up: the two checks that used to borrow another purpose's entry, each now tuned on its own.
+  'still-check',
+  'hard-cap-confirmation',
   'video-production-planning',
   'metadata-generation',
   // Sprint 6 Task 1 (curiosity packaging): the brief, the six concepts, and the text-only cold reader.
