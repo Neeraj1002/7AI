@@ -1,3 +1,5 @@
+Links to removed docs: see docs/ARCHIVE_INDEX.md (tag docs-archive-2026-10-26).
+
 # MVP Part 3 — Content Intelligence & Growth Loop (Design Capture)
 
 **Status**: §1 and §2 (Track B's fold-ins and all of Track C) are now fully picked up — Sprint 2

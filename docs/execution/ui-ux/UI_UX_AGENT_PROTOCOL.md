@@ -65,10 +65,10 @@ and hands it back to the founder/BA chat rather than writing a backend fix itsel
 2. `docs/execution/ui-ux/STATUS.md` (this track's own — check before starting anything, so a resumed or
    parallel chat doesn't duplicate work) and `docs/execution/bugs/STATUS.md`. In particular, Bugs Task 3
    already has two UI items open — **R2** (bug-report tool's broken submit/no-feedback/browser-never-closes)
-   and **R4** (keyboard overlapping text inputs on every screen) — read `docs/execution/bugs/Sprint3/tasks/task3.md`
+   and **R4** (keyboard overlapping text inputs on every screen) — read `docs/execution/bugs/Sprint3/tasks/task3.md` (archived, see docs/ARCHIVE_INDEX.md)
    before starting, and either build on R4's findings (flagged there as needing exactly the kind of
    screen-by-screen audit this track exists to do) or explicitly say why something's being treated as
-   separate. Also skim whichever sprint is currently open (`docs/execution/sprint4/STATUS.md` as of this
+   separate. Also skim whichever sprint is currently open (`docs/execution/sprint5/STATUS.md` as of this
    writing) for any in-flight frontend work worth knowing about.
 3. `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md` for anything already flagged.
 4. Channel-bible / competitor-analysis docs (`docs/channel_bibles/`, `docs/competitor_analysis/`) only if
@@ -154,7 +154,7 @@ Then read (in this order):
 2. `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md` (this track's own full protocol — scope, branch
    convention, process) and `docs/execution/ui-ux/STATUS.md` (check what's already been found/filed
    before starting).
-3. `docs/execution/bugs/STATUS.md` and `docs/execution/bugs/Sprint3/tasks/task3.md` — that task's R2 (broken
+3. `docs/execution/bugs/STATUS.md` and `docs/execution/bugs/Sprint3/tasks/task3.md` (archived, see docs/ARCHIVE_INDEX.md) — that task's R2 (broken
    bug-report tool) and R4 (keyboard overlap on every screen) are already scoped there; build on R4
    rather than re-discovering it.
 4. `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md`.

@@ -8,7 +8,7 @@ output looks generic and identically-paced today. Fold in the one platform-wide 
 source proposal calls out explicitly (a fixed negative-prompt clause on every AI-generated image).
 
 **A note on risk, read before starting**: this task touches the exact code that produced a real,
-previously-shipped bug — `buildKenBurnsVideo`'s zoompan frame-count multiplication (`sprint2/BUSINESS_LOGIC.md`
+previously-shipped bug — `buildKenBurnsVideo`'s zoompan frame-count multiplication (`sprint2/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md)
 Task 2's own write-up: a 3-second segment silently became tens of thousands of frames, an 8-hour
 failure). This task does **not** touch `buildKenBurnsVideo` itself — only what's fed into it
 (`stillScenePrompts`, still count) — but the real regression-run requirement in Testing below is not
@@ -175,6 +175,6 @@ frame count) against Task 8's recorded baseline (`sprint4/reports/task8.md`; Spr
 passed" alone is not sufficient evidence, per this task's own risk note above.
 
 ## Links & References
-- `sprint2/BUSINESS_LOGIC.md` Task 2 — the Ken Burns double-multiplication bug and its fix; the
+- `sprint2/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Task 2 — the Ken Burns double-multiplication bug and its fix; the
   baseline this task's regression run is measured against.
 - `sprint4/tasks/task1.md` — `resolveChannelConfig`, consumed here.

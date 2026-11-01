@@ -5,7 +5,7 @@ local checkout at `D:\Study Material\7AI` and from the SQL the founder ran on th
 re-verify against `main` before building any item.
 
 **Purpose**: today the only way to see across tenants, agents, spend and bugs is to run SQL on the VPS and paste
-the results (that is how the budget problem in `bugs/Sprint3/closureTask.md` F9/F10 was found). The admin
+the results (that is how the budget problem in `bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) F9/F10 was found). The admin
 module gives the platform owner one place to **see** the whole system, **modify** the things that today need
 SQL or a script, and **decide** the things that are waiting on a person, with every change recorded.
 
@@ -207,7 +207,7 @@ Work is organised in **Admin sprints** under `docs/execution/admin/`, with its o
 | Admin sprint | Tasks | Covers |
 |---|---|---|
 | **Sprint 1** (the "see" release) | `sprint1/be/task1.md`, `sprint1/fe/task1.md` | A0 + A1, plus **read-only** slices of A2/A3: budget view with warnings, usage and cost gaps, bug triage (with the `awaiting_verification` status and a short note), a run inspector, a System card (commit and config flags), audit log. The only writes are bug triage and a script that sets the platform-admin flag. Estimates: BE ~24h, FE ~17.5h. |
-| Sprint 2 (the "modify" release), not yet written | | A2 writes: budget edit with preview, run force actions, tenant suspend; depends on `bugs/Sprint3/closureTask.md` R1 |
+| Sprint 2 (the "modify" release), not yet written | | A2 writes: budget edit with preview, run force actions, tenant suspend; depends on `bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) R1 |
 | Later | | A3 channels/health, A4, A5 |
 
 ---
@@ -236,7 +236,7 @@ Impersonating a tenant; billing and payments (INR display aside); a full RBAC sy
 
 ## 10. Links
 
-- `docs/execution/bugs/Sprint3/closureTask.md` — F9/F10 (the findings that motivated this), R1 (weekly budget,
+- `docs/execution/bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) — F9/F10 (the findings that motivated this), R1 (weekly budget,
   `checkBudget`), R3 (success rate per published video, per-gate analytics), D1-D3.
 - `docs/design_doc/MVP_PART2_MULTI_USER_AND_FLEXIBLE_CREATION.md` — the tenant model.
 - `docs/execution/admin/ADMIN_TASK_TEMPLATE.md`, `docs/execution/admin/sprint1/` — the admin track's template and first tasks.

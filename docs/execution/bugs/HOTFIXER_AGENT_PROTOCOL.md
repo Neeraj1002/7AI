@@ -42,14 +42,14 @@ not to prevent the setup itself — the setup is fine.
 
 ## Purpose
 A chat operating under this protocol is a **hot fixer**: it exists to pick up already-documented items
-in `docs/execution/bugs/Sprint3/tasks/`, implement them, verify them live, and report — nothing more. It does
+in the active sprint's bugs folder (`docs/execution/sprint<N>/bugs/tasks/`, see `sprint6/PLAN.md` section 1; `bugs/Sprint3/` is archived, see docs/ARCHIVE_INDEX.md), implement them, verify them live, and report — nothing more. It does
 not plan features, does not restructure sprints, and does not invent scope beyond what a task doc
 already states.
 
 ## Scope — in and out
 
 **In scope**:
-- Any task under `docs/execution/bugs/Sprint3/tasks/` whose `STATUS.md` row is `Not started`.
+- Any task under the active sprint's bugs folder (`docs/execution/sprint<N>/bugs/tasks/`) whose `STATUS.md` row is `Not started`.
 - Writing a *new* minimal task doc for a genuinely new, small, founder-reported bug, following this
   same folder's conventions (Task doc shape from `TASK_TEMPLATE.md`, `R1/R2/...` requirements with
   Where/Fix/Verify) — only when the founder hands it a bug directly and no task doc for it exists yet.
@@ -193,7 +193,7 @@ rebuild. Tag every `R#` item with its role regardless of the (now unified) branc
 For each `R#` item in the release: read it in full, implement, test (`npm run build`/`lint`/`typecheck`
 plus that item's own real-verification bar — **against preview by default now**, see the Environment
 note above), commit immediately (`BUGS_TASK<N>_R<X>: ...`), push. Once every item in the release is
-done: write the report at `docs/execution/bugs/Sprint3/reports/task[N].md`, upsert the `STATUS.md` row, commit
+done: write the report at `docs/execution/sprint<N>/bugs/reports/<name>.md`, upsert the `STATUS.md` row, commit
 that (`BUGS_TASK<N>_REPORT: ...`), push, and mark the PR ready for review — never merge, never push to
 `main`. The report carries a same-cause sweep section (see below), and after the founder merges, the task is
 closed per `TASK_TEMPLATE.md` Hard rule 8.
@@ -285,8 +285,7 @@ only on evidence from the deployed build, and nothing is built twice.
   be closed by the hot-fixer on its own evidence.
 - **Test first, code only if it still reproduces.** A report logged before a merged PR may already be
   fixed. Re-test it on the deployed build before writing any code.
-- **No duplicate work.** Before fixing anything, read `docs/execution/sprint4/STATUS.md` (and the current
-  sprint's STATUS), run `gh pr list`, and run `git log origin/main -- <file>` for every file you intend to
+- **No duplicate work.** Before fixing anything, read the current sprint's STATUS (`docs/execution/sprint5/STATUS.md`), run `gh pr list`, and run `git log origin/main -- <file>` for every file you intend to
   touch. If a merged PR already built it, call it and close the report against that PR. If an in-flight
   sprint task will build it, route the report to that task (note the task in the triage table) and do not
   fix it here. A genuine defect in code a merged PR owns gets a minimal fix with a test and a note saying

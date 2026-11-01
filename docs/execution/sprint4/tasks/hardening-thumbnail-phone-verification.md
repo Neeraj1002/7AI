@@ -1,7 +1,7 @@
 # Sprint 4 Hardening: Thumbnail 403 — Link to Phone Verification
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** Not a numbered Sprint 4
-task (same posture as `sprint3/tasks/hardening-tenant-check.md`) — a direct follow-on investigation
+task (same posture as `sprint3/tasks/hardening-tenant-check.md` (archived, see docs/ARCHIVE_INDEX.md)) — a direct follow-on investigation
 closing a real, already-tracked known issue, not new feature scope. Branch: continue on `SPRINT4_BE` if
 still open, otherwise a small standalone branch off `main`.
 
@@ -28,7 +28,7 @@ time).
 
 ### Where this stands today — read before doing anything else
 
-`sprint2/reports/task5.md` (H1) already did real, live investigation, not speculation: a real
+`sprint2/reports/task5.md` (archived, see docs/ARCHIVE_INDEX.md) (H1) already did real, live investigation, not speculation: a real
 `thumbnails.set` call against a real uploaded video hit a real, specific `403`:
 
 ```json
@@ -103,7 +103,7 @@ re-test's real result — success or a new, specific error. Do not report this a
 re-test's evidence, the same discipline Sprint 2 Task 5's own report already modeled.
 
 ## Links & References
-- `sprint2/tasks/task5.md`, `sprint2/reports/task5.md` — H1's original spike, the real 403 body, and
+- `sprint2/tasks/task5.md`, `sprint2/reports/task5.md` (archived, see docs/ARCHIVE_INDEX.md) — H1's original spike, the real 403 body, and
   the `longUploadsStatus`-isn't-the-gate finding this task builds directly on rather than re-investigating
   from scratch.
 - `KNOWN_ISSUES_AND_BLOCKERS.md` §1 (H1) — where this item is currently tracked as an open founder

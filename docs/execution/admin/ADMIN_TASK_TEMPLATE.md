@@ -36,7 +36,7 @@ docs/execution/admin/
     └── sprint1/
         ├── be/task1.md ...             ← same structure as the tasks
         └── fe/task1.md ...
-sprint2/ ... (same shape)
+sprint2/ (archived, see docs/ARCHIVE_INDEX.md) ... (same shape)
 ```
 
 `SCHEMA.md` and `BUSINESS_LOGIC.md` are **incremental** (a diff against the running system, not a full

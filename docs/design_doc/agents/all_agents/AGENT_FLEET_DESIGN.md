@@ -4,7 +4,7 @@
 **Date**: September 2026
 **Owner**: Neeraj Singh (founder)
 **Scope**: The full multi-agent content-automation platform — separate from, and broader than, the `yt_shorts` forecasting MVP. `yt_shorts` is the locked spec for *one* agent in this fleet (Trend Identification); this document defines the rest of the fleet and how they fit together.
-**Companion doc**: `7AI/docs/roadmap/MVP_ROADMAP_OCT15.md` — the MVP cut of this fleet, communication flow, and the build plan to a first end-to-end test by Oct 15, 2026. This document is the full long-term design; that one is what actually gets built first.
+**Companion doc**: `7AI/docs/roadmap/MVP_ROADMAP_OCT15.md` (archived, see docs/ARCHIVE_INDEX.md) — the MVP cut of this fleet, communication flow, and the build plan to a first end-to-end test by Oct 15, 2026. This document is the full long-term design; that one is what actually gets built first.
 
 > **Working name**: "7AI" is a placeholder — easy to change later, everything below is unaffected by the final brand name.
 
@@ -341,7 +341,7 @@ Unchanged from prior revision.
 │   │       └── data-ingestion-and-caching/  ← Section 7 detailed spec (deferred)
 │   ├── decisions/                            ← locked fleet-level decisions
 │   ├── roadmap/
-│   │   └── MVP_ROADMAP_OCT15.md             ← communication flow, MVP scope, week-by-week plan to first test
+│   │   └── MVP_ROADMAP_OCT15.md (archived, see docs/ARCHIVE_INDEX.md)             ← communication flow, MVP scope, week-by-week plan to first test
 │   └── execution/                            ← week-by-week build docs: schema/business-logic deltas, task instructions, completion reports
 │       ├── templates/
 │       │   └── TASK_TEMPLATE.md             ← the reusable task-file template, applied from Week 2 onward
@@ -375,4 +375,4 @@ The term "Orchestrator" stays as-is everywhere else in this document and the roa
 
 ## 11. Open Questions & Suggested Next Steps
 
-See `7AI/docs/roadmap/MVP_ROADMAP_OCT15.md` for the concrete, date-driven next steps. Longer-term open questions from prior revisions (orchestration framework choice, model routing config, cost budget thresholds, platform expansion timing) remain open and unaffected by the MVP cut.
+See `7AI/docs/roadmap/MVP_ROADMAP_OCT15.md` (archived, see docs/ARCHIVE_INDEX.md) for the concrete, date-driven next steps. Longer-term open questions from prior revisions (orchestration framework choice, model routing config, cost budget thresholds, platform expansion timing) remain open and unaffected by the MVP cut.

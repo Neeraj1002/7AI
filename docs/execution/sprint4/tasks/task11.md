@@ -42,7 +42,7 @@ Known about the replacement (OpenAI's `gpt-image-2.5-flare` page, read 2026-10-0
 3. Tests: cost from a response with `usage`, the fallback without it, an unknown model still throws, a 429 still waits, moderation skip unchanged, existing client tests unchanged. Keep the rate-limit wait, the moderation skip, the partial-spend context (Closure 2 P5) and the stub untouched except where R1 shows a real difference. Do not refactor.
 4. **The switch (last commit, only after the founder approves the contact sheets and the model choice):** `AI_VISUALS_REGISTRY['still-generation']` points at the chosen model, with the dated snapshot if that was the decision; update the comment above it. Push it to the same PR.
 
-**R4 (documents that quote the old numbers).** List and propose, do not edit Project documents without asking: the closure SQL that filters `model = 'gpt-image-1.5'` (`closureTask.md`, `closureTask2.md`); the channel playbook's pilot cost line (about $1.30 for 100 stills) in `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` section 14; the budget sizing note in `closureTask.md` (about $0.20 per attempt, $20 a week per channel); and the long-form cost estimate in Sprint 4 Task 9 R7.
+**R4 (documents that quote the old numbers).** List and propose, do not edit Project documents without asking: the closure SQL that filters `model = 'gpt-image-1.5'` (`closureTask.md` (archived, see docs/ARCHIVE_INDEX.md), `closureTask2.md` (archived, see docs/ARCHIVE_INDEX.md)); the channel playbook's pilot cost line (about $1.30 for 100 stills) in `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` section 14; the budget sizing note in `closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) (about $0.20 per attempt, $20 a week per channel); and the long-form cost estimate in Sprint 4 Task 9 R7.
 
 **R5 (verify, after the founder deploys).** One real `ai-stills` run per channel to Gate 2. Report the `video-generation` usage row (model name, cost), the number of stills, the render time compared with the old model, and the founder's judgement of the look. **Long-form check, whoever merges second:** if Task 9 is already on `main` when you finish, also run one 2-minute long-form test render on the new model; if it is not, Task 9's agent does that check after your merge.
 
@@ -60,7 +60,7 @@ npm run build && npm run lint && npm run typecheck && npx vitest run
 ```
 
 ## Report
-`docs/execution/sprint4/reports/task11.md`: the R1 measurement table (measured values), the contact-sheet decision, deviations, the R4 list. Do not edit `docs/STATUS.md` or other shared status pages; send the architect a one-line status. Record the branch in `docs/execution/sprint4/STATUS.md` when you create it.
+`docs/execution/sprint4/reports/task11.md`: the R1 measurement table (measured values), the contact-sheet decision, deviations, the R4 list. Do not edit `docs/STATUS.md` or other shared status pages; send the architect a one-line status. Record the branch in `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) when you create it.
 
 ## Links & References
 - OpenAI's deprecations page and the `gpt-image-2.5-flare` model page (read 2026-10-08); `studio/src/ai-visuals/registry.ts`, `client.ts`.

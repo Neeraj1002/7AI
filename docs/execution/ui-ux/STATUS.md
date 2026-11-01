@@ -16,7 +16,7 @@ Tasks 6 + 4 (E1, E5–E7; E8 deferred) built on `UIEnhancement-3` (draft PR #43)
 device verification and screenshots before any can be marked "Done". New Definition of Done (task 5): no
 UI task is "Done" without a phone screenshot beside each locked board it implements; built-but-flagged
 code is reported "Built — hidden (flag X off)".
-**Update 2026-10-11:** PRs #41 and #43 are merged and on the founder's phone. The founder's screenshots from 2026-10-10 and 2026-10-11 were reviewed against each task's checks; results are in the Notes column. Everything this track found is now an item in Bugs Task 12 (`bugs/Sprint3/tasks/task12.md`): R12 watermark upload, R13 "Reconnect needed", R14 polish items U1-U19. The "Done" gate is unchanged: a phone screenshot beside each locked board, attached to the report (Task 12 F5).
+**Update 2026-10-11:** PRs #41 and #43 are merged and on the founder's phone. The founder's screenshots from 2026-10-10 and 2026-10-11 were reviewed against each task's checks; results are in the Notes column. Everything this track found is now an item in Bugs Task 12 (`bugs/Sprint3/tasks/task12.md` (archived, see docs/ARCHIVE_INDEX.md)): R12 watermark upload, R13 "Reconnect needed", R14 polish items U1-U19. The "Done" gate is unchanged: a phone screenshot beside each locked board, attached to the report (Task 12 F5).
 **Last updated**: 2026-10-11 (verification status of tasks 3-6; items moved to Bugs Task 12). Before that: 2026-09-28 (tasks 6 and 4 built in draft PR #43; E8 watermark deferred, needs a native build).
 
 **Checkout location**: this track works from its own dedicated worktree, **`D:\Study Material\7AI-UI`**,

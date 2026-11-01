@@ -488,7 +488,7 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 7AI/docs/execution/
 ├── templates/
 │   └── TASK_TEMPLATE.md
-├── week1/                          ← Sprint 1 (historical — never renamed) (archived, see docs/ARCHIVE_INDEX.md)
+├── week1/ (archived, see docs/ARCHIVE_INDEX.md)                          ← Sprint 1 (historical — never renamed) (archived, see docs/ARCHIVE_INDEX.md)
 │   ├── WEEK1_INSTRUCTIONS.md      ← single consolidated doc, no per-task files this week
 │   ├── SCHEMA.md
 │   ├── BUSINESS_LOGIC.md
@@ -497,8 +497,8 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 │       └── week1-summary.md       ← written once Week 1 is done
 ├── week2/  (same shape)            ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
 ├── week3/  (same shape)            ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
-├── week4/  (same shape — backend track, branch/commit suffix `_BE`)   ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
-├── week5/  (same shape)            ← Sprint 1, closes out the original Oct 15 MVP (archived, see docs/ARCHIVE_INDEX.md)
+├── week4/ (archived, see docs/ARCHIVE_INDEX.md)  (same shape — backend track, branch/commit suffix `_BE`)   ← Sprint 1 (archived, see docs/ARCHIVE_INDEX.md)
+├── week5/ (archived, see docs/ARCHIVE_INDEX.md)  (same shape)            ← Sprint 1, closes out the original Oct 15 MVP (archived, see docs/ARCHIVE_INDEX.md)
 ├── frontend/  (same shape, not sprint-numbered — branch/commit suffix `_FE`) (archived, see docs/ARCHIVE_INDEX.md)
 │   ├── SCHEMA.md
 │   ├── BUSINESS_LOGIC.md
@@ -525,7 +525,7 @@ A task's own founder-action items (e.g. Task 6/7 in Week 1) don't block any of t
 │   ├── UI_UX_AGENT_PROTOCOL.md
 │   └── tasks/
 │       └── ...
-└── sprint2/  (same shape as week[N] above — first Sprint-2-onward unit) (archived, see docs/ARCHIVE_INDEX.md)
+└── sprint2/ (archived, see docs/ARCHIVE_INDEX.md)  (same shape as week[N] above — first Sprint-2-onward unit) (archived, see docs/ARCHIVE_INDEX.md)
     ├── SCHEMA.md
     ├── BUSINESS_LOGIC.md
     ├── STATUS.md

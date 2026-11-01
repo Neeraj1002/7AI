@@ -127,6 +127,6 @@ reports together.
 - `sprint4/tasks/task5.md` — the real `{editor}`/`{sources}` feature this task unblocks.
 - `types/review-log.types.ts`, `api/trpc.ts` (`Context.userId: string | null`),
   `api/routers/runs.ts` — the real gap and the real session-identity source this task threads through.
-- `sprint3/reports/task2.md` — `canResolveGate`'s own precedent for "the resolving user's identity is
+- `sprint3/reports/task2.md` (archived, see docs/ARCHIVE_INDEX.md) — `canResolveGate`'s own precedent for "the resolving user's identity is
   already available at this call site," which this task finally carries one layer further, into the
   audit row itself.
