@@ -8,7 +8,7 @@ import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
   markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
-import { runAngleStepForRun, notifyAngleWaiting } from './story-tests-stage';
+import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun } from './story-tests-stage';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -591,6 +591,11 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     // fix.
     const belowThreshold = output.score < SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD;
     const autoRejectAndRetry = belowThreshold && attemptNumber <= MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS;
+    // Sprint 6 Task 3 (Part B): the cold reader reads the script that is going to Gate 1 (not one about to be rewritten),
+    // after Script Review has finished. Advisory and separate from the score; null when the feature is off.
+    const storyTest = autoRejectAndRetry
+      ? null
+      : await runScriptCheckForRun({ run, stageId: stage.id, scriptText: scriptOutput.scriptText, format: config.videoKind, persona: config.readerPersona });
     const autoRetryCapReached = belowThreshold && !autoRejectAndRetry;
 
     // Sprint 3 Task 9 (R2) — only the passing-score outcome is affected by
@@ -627,7 +632,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     // between them used to risk a completed stage with no ReviewLog row,
     // which gate1 depends on to find the review score/notes.
     return await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, output, tx);
+      await completeStage(stage.id, storyTest ? { ...output, storyTest } : output, tx);
 
       const flagsNote =
         output.videoGenFit.flags.length > 0

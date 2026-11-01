@@ -184,6 +184,24 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
     maxOutputTokens: 1_500,
     reasoning: "off",
   },
+
+  // Sprint 6 Task 3 (Part B). The cold reader answers six short fields about a whole script, so it gets more room than
+  // a pair pick; the match check reads a few lines.
+  "story-cold-reader": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Story cold reader",
+    maxOutputTokens: 2_000,
+    reasoning: "off",
+  },
+
+  "story-promise-match": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Story promise match",
+    maxOutputTokens: 600,
+    reasoning: "off",
+  },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {

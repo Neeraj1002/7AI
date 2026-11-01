@@ -7,8 +7,9 @@ import { findLatestCompletedAttempt } from '../models/repositories/pipeline-stag
 import { applyAngleChoice } from '../story-tests/choice';
 import { notRunStoryTests, runAngleStep } from '../story-tests/angle-step';
 import { angleStepSkipReason } from '../story-tests/skip';
-import { readStoredStoryTests } from '../story-tests/view';
-import type { StoredStoryTests } from '../story-tests/schemas';
+import { chosenAngleOf, readStoredStoryTests } from '../story-tests/view';
+import { notRunScriptCheck, runScriptStep } from '../story-tests/script-step';
+import type { StoredScriptCheck, StoredStoryTests } from '../story-tests/schemas';
 import type { IntakeParsed, PipelineRun } from '../types';
 import { composeNotificationChannel, resolveNotificationRecipients } from '../notifications';
 import { checkBudget } from './budget-gate';
@@ -58,6 +59,44 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
   } catch (error) {
     console.error(`[story-tests] run ${run.id}: angle step failed, the script follows without it - ${error instanceof Error ? error.message : String(error)}`);
     return notRunStoryTests('the angle step stopped unexpectedly');
+  }
+}
+
+// Part B, at the run level: runs inside the script review stage, once, for the script that is going to Gate 1. Returns null
+// when the feature is off (the stage output is exactly as before). Never throws: a failure is recorded as "not run" and the
+// run goes on. It never enters Script Review's score or retry loop, and it cannot change a run's outcome.
+export async function runScriptCheckForRun(params: { run: PipelineRun; stageId: string; scriptText: string; format: 'short' | 'long'; persona: string | null }): Promise<StoredScriptCheck | null> {
+  if (!storyTestsEnabled()) return null;
+  const { run } = params;
+  try {
+    const channel = await findChannelById(run.channelId);
+    if (!channel) return notRunScriptCheck({ reason: 'the channel could not be found', scriptText: params.scriptText, format: params.format });
+    const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
+    if (!budget.ok) return notRunScriptCheck({ reason: "the channel's spending limit is reached", scriptText: params.scriptText, format: params.format });
+    const intake = await findLatestCompletedAttempt(run.id, 'intake');
+    return await runScriptStep({
+      scriptText: params.scriptText,
+      format: params.format,
+      persona: params.persona,
+      angle: chosenAngleOf(intake?.output),
+      deps: {
+        meter: async (llm, purpose: Purpose) => {
+          for (const row of llmUsageRows(llm)) {
+            await insertUsageEvent({ tenantId: run.tenantId, channelId: run.channelId, pipelineRunId: run.id, stageId: params.stageId, agent: purpose, ...row });
+          }
+        },
+        bookFailure: async (error, purpose: Purpose) => {
+          for (const spent of failureUsageEvents(error)) {
+            if (Number(spent.costUsd) > 0) {
+              await insertUsageEvent({ tenantId: run.tenantId, channelId: run.channelId, pipelineRunId: run.id, stageId: params.stageId, agent: `${purpose}-failed-call`, ...spent });
+            }
+          }
+        },
+      },
+    });
+  } catch (error) {
+    console.error(`[story-tests] run ${run.id}: script check failed, Gate 1 follows without it - ${error instanceof Error ? error.message : String(error)}`);
+    return notRunScriptCheck({ reason: 'the script check stopped unexpectedly', scriptText: params.scriptText, format: params.format });
   }
 }
 

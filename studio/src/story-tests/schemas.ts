@@ -30,7 +30,7 @@ export type StoredReaderRun = {
 };
 
 export type StoredCall = {
-  purpose: 'story-angles' | 'story-pair-reader';
+  purpose: 'story-angles' | 'story-pair-reader' | 'story-cold-reader' | 'story-promise-match';
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -64,3 +64,46 @@ export type StoredStoryTests = {
 };
 
 export const ANGLE_COUNT_RANGE = `${ANGLES_MIN} to ${ANGLES_MAX}`;
+
+// ---- Part B: the cold reader on the finished script ----
+
+// What the cold reader returns (R4): six fields. `swipe_line` is an exact quote from the script or the word "none".
+export const ColdReaderReplySchema = z.object({
+  about: z.string(),
+  why_care: z.string(),
+  swipe_line: z.string(),
+  remembered: z.string(),
+  first_sentence_keeps_me: z.object({ keeps: z.enum(['yes', 'no']), why: z.string() }),
+  weakest_sentence: z.object({ quote: z.string(), why: z.string() }),
+});
+export type ColdReaderReply = z.infer<typeof ColdReaderReplySchema>;
+
+// The promise-match check: for each of the reader's two answers, does it match the promise, with one short line.
+export const PromiseMatchReplySchema = z.object({
+  about: z.object({ match: z.enum(['yes', 'no']), note: z.string() }),
+  remembered: z.object({ match: z.enum(['yes', 'no']), note: z.string() }),
+});
+export type PromiseMatchReply = z.infer<typeof PromiseMatchReplySchema>;
+
+export type ScriptCheckReasonCode = 'cant_tell' | 'swipe_early' | 'first_sentence_no' | 'promise_mismatch';
+
+// The Part B record, kept on the script review stage's output as `storyTest` (contract C1). Version 1.
+export type StoredScriptCheck = {
+  version: 1;
+  status: 'ran' | 'not_run';
+  notRunReason: string | null;
+  // The script the reader saw: a hash of its text, so a later edit is noticed (no re-run).
+  scriptHash: string;
+  format: 'short' | 'long';
+  reader: ColdReaderReply | null;
+  // Where the swipe quote sits: 0 to 100, or null for "none" (or not found).
+  swipeAtPercent: number | null;
+  verdict: 'pass' | 'fail' | null;
+  reasons: ScriptCheckReasonCode[];
+  promiseMatch: { ran: boolean; note: string; about: { match: 'yes' | 'no'; note: string } | null; remembered: { match: 'yes' | 'no'; note: string } | null };
+  // The chosen angle's title and promise the match check compared against (null when none).
+  promiseUsed: { title: string; promise: string } | null;
+  calls: StoredCall[];
+  costUsd: number;
+  tags: { partB: 'ran' | 'not_run' };
+};

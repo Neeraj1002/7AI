@@ -418,7 +418,11 @@ async function getRunDetail(id: string, ctx: Context) {
   // Sprint 6 Task 3 (contract C3): the angle step's record, from the latest completed intake attempt. null for an old run
   // and for a run made with the feature off.
   const latestIntake = stages.filter((s) => s.stageName === 'intake' && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
-  const storyTests = buildStoryTestsView({ intakeOutput: latestIntake?.output, runStatus: run.status, runStage: run.currentStage, switchOn: storyTestsEnabled() });
+  const latestScriptReview = stages.filter((s) => s.stageName === 'script_review' && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const storyTests = buildStoryTestsView({
+    intakeOutput: latestIntake?.output, runStatus: run.status, runStage: run.currentStage, switchOn: storyTestsEnabled(),
+    scriptReviewOutput: latestScriptReview?.output, currentScriptText: forecastText ?? null,
+  });
 
   return {
     thumbnail,
