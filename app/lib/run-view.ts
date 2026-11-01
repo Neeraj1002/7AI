@@ -2,6 +2,7 @@
 // invented: every value is read from `runs.get` (or one of its optional Sprint 4 Task 12 fields) and every
 // missing field has the fallback the task doc names.
 import { humanizeRunError } from './run-labels';
+import { ANGLE_STATUS_WORDING, isAngleWait } from './story-tests';
 import { outcomeOfStage, type OutcomeKind, type OutcomeStage, type ServerOutcomes } from './attempt-outcome';
 import { MUSIC_MOODS, VISUAL_SOURCES, VOICES } from './pipeline-options';
 import type { inferRouterOutputs } from '@trpc/server';
@@ -22,6 +23,7 @@ export function runChip(
   run: { status: string; currentStage?: string | null },
   endReason: EndReason,
 ): { label: string; kind: StatusChipKind } {
+  if (isAngleWait(run.status)) return { label: ANGLE_STATUS_WORDING, kind: 'waiting' };
   switch (run.status) {
     case 'paused_gate1':
       return { label: 'Gate 1 · approve script', kind: 'waiting' };

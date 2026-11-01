@@ -8,6 +8,7 @@ import type { BottomTabBarProps } from 'expo-router/build/react-navigation/botto
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { queueBadgeStatuses } from '../../../lib/run-queries';
 import { useTRPC } from '../../../lib/trpc';
 import { color, font, radius, space } from '../../../lib/theme';
 
@@ -27,7 +28,7 @@ const TAB_LABEL: Record<string, string> = {
 function useQueueBadgeCount(): number {
   const trpc = useTRPC();
   const { data } = useQuery(
-    trpc.runs.list.queryOptions({ statuses: ['paused_gate1', 'paused_gate2'] }),
+    trpc.runs.list.queryOptions({ statuses: queueBadgeStatuses() }),
   );
   return data?.length ?? 0;
 }

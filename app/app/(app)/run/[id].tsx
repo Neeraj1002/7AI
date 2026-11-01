@@ -10,6 +10,9 @@ import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { useAuthedVideoSource } from '../../../lib/use-video-source';
 import { flags } from '../../../lib/feature-flags';
+import { AngleChooseCard, AngleDoneCard, AngleNotRunCard, AnglesMakingCard } from '../../../components/AngleCards';
+import { ScriptCheckCard } from '../../../components/ScriptCheckCard';
+import { angleCardKind, checkKind, chooseBar, confirmAngleId, CHOOSE_ERROR, MAKING_BAR, NO_CHOICE, storyTestsOf, type AngleChoice } from '../../../lib/story-tests';
 import { chapterWarningOf, manualRetryOf, videoFallbackUsed } from '../../../lib/server-extras';
 import { ageHours, automaticRegensUsed, AUTO_REGEN_CAP, isPublishingPhase, relativeTime, runTopic, startedLabel, stepperIndexForStage } from '../../../lib/run-labels';
 import { shortSentence } from '../../../lib/failure-text';
@@ -226,6 +229,13 @@ export default function RunDetailScreen() {
   // (cancel while running/pending) — same endpoint, different confirm copy
   // and follow-up UI since a running cancel isn't guaranteed synchronous.
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Sprint 6 Task 3 (R2, R4): the selection lives in the app until the one confirm tap; runs.chooseAngle is the only write.
+  const [angleChoice, setAngleChoice] = useState<AngleChoice>(NO_CHOICE);
+  const chooseAngleMutation = useMutation({
+    mutationFn: (angleId: string | null) =>
+      (trpcClient.runs as unknown as { chooseAngle: { mutate: (input: { runId: string; angleId: string | null }) => Promise<{ resolved: true }> } }).chooseAngle.mutate({ runId: id!, angleId }),
+    onSuccess: () => invalidate(),
+  });
   const [limitOpen, setLimitOpen] = useState(false);
   // R4: Edit settings sheet, and the lines it just recorded (shown in Step history until the server's own list arrives).
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -357,6 +367,8 @@ export default function RunDetailScreen() {
   // Automatic regenerations only (failed video reviews, max 2); manual Revise presses are not counted.
   const regensUsed = videoAttempts > 0 ? automaticRegensUsed(stages) : undefined;
 
+  const storyTests = storyTestsOf(data);
+  const angleKind = angleCardKind(storyTests, run.status);
   const isGate1 = run.status === 'paused_gate1';
   const isGate2 = run.status === 'paused_gate2';
   const isNeedsAttention = run.status === 'needs_attention';
@@ -399,7 +411,8 @@ export default function RunDetailScreen() {
   const isRunningOrPending = (run.status === 'running' || run.status === 'pending') && !isPublishing;
   const isPublished = run.status === 'completed' && !!publishOutput?.youtubeVideoId;
 
-  const chip = runChip(run, endReason);
+  // Board S3AngleWaiting: while the angles are made the run chip reads "Writing angles".
+  const chip = angleKind === 'making' ? { label: 'Writing angles', kind: 'neutral' as const } : runChip(run, endReason);
   const settings = settingTiles({
     creationOptions: run.creationOptions,
     resolved: data.resolvedOptions,
@@ -438,7 +451,34 @@ export default function RunDetailScreen() {
   const cancelling = cancelMutation.isPending || (cancelRequested && !cancelTimedOut);
 
   const footer =
-    (isGate1 || isGate2) && !decisionSent && !(isGate2 && gate2Kind === 'making') ? (
+    angleKind === 'making' ? (
+      <BottomActionBar onHeight={setBarHeight}>
+        <Text style={styles.angleBarHint}>{MAKING_BAR}</Text>
+      </BottomActionBar>
+    ) : angleKind === 'choose' && storyTests ? (
+      <BottomActionBar onHeight={setBarHeight}>
+        {(() => {
+          const bar = chooseBar(angleChoice, storyTests.angleStep.angles);
+          return (
+            <>
+              <Text style={[styles.angleBarHint, bar.enabled && styles.angleBarHintOn]}>{bar.hint}</Text>
+              {chooseAngleMutation.isError ? <Text style={styles.meta}>{CHOOSE_ERROR}</Text> : null}
+              <PrimaryButton
+                label={bar.button}
+                disabled={!bar.enabled}
+                style={!bar.enabled ? styles.angleGoOff : undefined}
+                labelStyle={!bar.enabled ? styles.angleGoOffLabel : undefined}
+                loading={chooseAngleMutation.isPending}
+                onPress={() => {
+                  const angleId = confirmAngleId(angleChoice);
+                  if (angleId !== undefined && !chooseAngleMutation.isPending) chooseAngleMutation.mutate(angleId);
+                }}
+              />
+            </>
+          );
+        })()}
+      </BottomActionBar>
+    ) : (isGate1 || isGate2) && !decisionSent && !(isGate2 && gate2Kind === 'making') ? (
       <BottomActionBar onHeight={setBarHeight}>
         {isGate2 && gate2View && canChoose(gate2Response) ? (
           <Text style={[styles.cardMeta, statusLine(gate2View).tone === 'pending' ? styles.statusPending : styles.statusDone]}>{statusLine(gate2View).text}</Text>
@@ -575,6 +615,13 @@ export default function RunDetailScreen() {
 
       <Text style={styles.runTitle}>{isPublished && publishOutput?.metadata?.title ? publishOutput.metadata.title : runTopic(run)}</Text>
       <VideoChip videoKind={data.videoKind} targetSeconds={data.targetSeconds} />
+
+      {angleKind === 'making' && storyTests ? <AnglesMakingCard /> : null}
+      {angleKind === 'choose' && storyTests ? (
+        <AngleChooseCard step={storyTests.angleStep} choice={angleChoice} onChange={setAngleChoice} disabled={chooseAngleMutation.isPending} />
+      ) : null}
+      {angleKind === 'done' && storyTests ? <AngleDoneCard step={storyTests.angleStep} /> : null}
+      {angleKind === 'not_run' && storyTests ? <AngleNotRunCard reason={storyTests.angleStep.notRunReason} /> : null}
 
       <RunSettingsTiles tiles={settings.tiles} formatLine={settings.formatLine} />
 
@@ -714,6 +761,7 @@ export default function RunDetailScreen() {
               />
             ) : null}
           </Card>
+          {checkKind(storyTests) !== 'none' && storyTests?.scriptCheck ? <ScriptCheckCard check={storyTests.scriptCheck} /> : null}
           <Gate1ReviewCards review={data.scriptReview} />
         </>
       ) : null}
@@ -1032,6 +1080,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.md },
   loadErrorActions: { width: '100%', gap: space.sm },
   errorText: { ...type.body, color: color.danger },
+  angleBarHint: { fontFamily: font.bold, fontSize: 13, lineHeight: 18, color: color.warnText },
+  angleBarHintOn: { color: color.ink },
+  angleGoOff: { backgroundColor: color.surface2, opacity: 1 },
+  angleGoOffLabel: { color: color.muted },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   chipMeta: { fontFamily: font.regular, fontSize: 12, color: color.muted },
   runTitle: { fontFamily: font.black, fontSize: 22, lineHeight: 28, letterSpacing: -0.2, color: color.ink },

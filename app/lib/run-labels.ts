@@ -3,8 +3,10 @@
 // ever reach a screen directly — route it through here instead.
 import type { StatusChipKind } from '../components/StatusChip';
 import { describeFailure, shortSentence } from './failure-text';
+import { ANGLE_STATUS_WORDING, isAngleWait } from './story-tests';
 
 export function statusLabel(status: string): string {
+  if (isAngleWait(status)) return ANGLE_STATUS_WORDING;
   switch (status) {
     case 'paused_gate1':
       return 'Waiting on you · Gate 1 script review';
@@ -44,6 +46,7 @@ export function automaticRegensUsed(stages: { stageName: string; output?: Record
 }
 
 export function statusChipKind(status: string): StatusChipKind {
+  if (isAngleWait(status)) return 'waiting';
   switch (status) {
     case 'paused_gate1':
     case 'paused_gate2':
