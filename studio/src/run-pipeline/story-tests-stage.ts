@@ -35,6 +35,7 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
       constraints: params.intake.constraints,
       sourceText: [run.briefText, params.intake.topic, ...params.intake.constraints].join('\n'),
       persona: config.readerPersona,
+      format: config.videoKind,
       deps: {
         meter: async (llm, purpose: Purpose) => {
           for (const row of llmUsageRows(llm)) {

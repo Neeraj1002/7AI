@@ -38,7 +38,7 @@ const pick = (want: string, skip: string) => (user: string) => {
 };
 
 const noMeter = { meter: async () => undefined, bookFailure: async () => undefined };
-const base = { topic: 'Why tides happen', constraints: ['under a minute'], sourceText: 'tides', persona: null };
+const base = { format: 'short' as const, topic: 'Why tides happen', constraints: ['under a minute'], sourceText: 'tides', persona: null };
 
 describe('validateAngles', () => {
   it('accepts four or five angles and gives each an id', () => {
@@ -97,7 +97,7 @@ describe('runAngleStep', () => {
       const all = `${s.system}\n${s.user}`;
       expect(all).not.toMatch(/tides|under a minute/i);
       expect(all).toContain('a busy commuter');
-      expect(all).not.toMatch(/Subject:/);
+      expect(all).not.toMatch(/<subject>/);
     }
     expect(seen[0]!.user).toContain('Why tides happen');
   });

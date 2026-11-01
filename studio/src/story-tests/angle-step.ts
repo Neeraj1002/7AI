@@ -5,7 +5,7 @@ import { failureUsageEvents } from '../run-pipeline/stage-failure';
 import { withFigureFlags, validateAngles } from './angles';
 import { PART_A_CAP_USD } from './constants';
 import { assignReaderIds, decideMark, failedReaderRun, mapReaderReply, readerItems, readerOrders, type Rng } from './pair-reader';
-import { ANGLES_SYSTEM, anglesUser, pairReaderSystem, pairReaderUser } from './prompts';
+import { anglesSystem, anglesUser, pairReaderSystem, pairReaderUser, type VideoFormat } from './prompts';
 import { AngleReplySchema, PairReaderReplySchema, type StoredCall, type StoredReaderRun, type StoredStoryTests } from './schemas';
 
 // R1 to R3, R8. Part A as one function: one angle call, then two blind reader calls, then the code verdict. At most
@@ -48,6 +48,7 @@ export async function runAngleStep(params: {
   // Text the figure flag compares a promise's numbers against (the brief and the intake result). Never sent to a model.
   sourceText: string;
   persona: string | null;
+  format: VideoFormat;
   deps: AngleStepDeps;
 }): Promise<StoredStoryTests> {
   const { deps } = params;
@@ -85,10 +86,10 @@ export async function runAngleStep(params: {
 
   // R1: the angle call.
   const anglesUserText = anglesUser(params.topic, params.constraints);
-  if (!withinCap('story-angles', ANGLES_SYSTEM, anglesUserText)) return notRun(CAP_REASON);
+  if (!withinCap('story-angles', anglesSystem(params.format), anglesUserText)) return notRun(CAP_REASON);
   let reply: z.infer<typeof AngleReplySchema>;
   try {
-    const out = await call({ purpose: 'story-angles', system: ANGLES_SYSTEM, user: anglesUserText, schema: AngleReplySchema, retryGuard: NO_EXTRA_CALLS });
+    const out = await call({ purpose: 'story-angles', system: anglesSystem(params.format), user: anglesUserText, schema: AngleReplySchema, retryGuard: NO_EXTRA_CALLS });
     await deps.meter(out.llm, 'story-angles');
     record(out.llm, 'story-angles');
     reply = out.value;
