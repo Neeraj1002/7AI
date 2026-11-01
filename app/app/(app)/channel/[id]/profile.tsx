@@ -3,7 +3,19 @@ import { View, Text, TextInput, StyleSheet, Pressable, BackHandler, ActivityIndi
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '../../../../lib/trpc';
+import { useTRPC, useTRPCClient } from '../../../../lib/trpc';
+import { flags } from '../../../../lib/feature-flags';
+import {
+  directionDirty,
+  effectiveDirection,
+  saveLabel,
+  SAVE_ERROR,
+  savedDirectionOf,
+  withDirection,
+  type Direction,
+  type DirectionPreset,
+} from '../../../../lib/direction';
+import { DirectionCard } from '../../../../components/DirectionCard';
 import { useAuth } from '../../../../lib/auth';
 import { useChannels } from '../../../../lib/channel-context';
 import { useOptionLists } from '../../../../lib/pipeline-options';
@@ -55,6 +67,20 @@ export default function ContentProfileScreen() {
   const active = useQuery(trpc.channels.getActiveProfile.queryOptions({ channelId: id }));
   const versions = useQuery(trpc.channels.listProfileVersions.queryOptions({ channelId: id }));
   const createVersion = useMutation(trpc.channels.createProfileVersion.mutationOptions());
+  // Sprint 6 Task 4 (NEXT 6): the presets come from the server; the call is untyped until the Task 4 backend's router types land.
+  const trpcClient = useTRPCClient();
+  const presetsQuery = useQuery({
+    queryKey: ['channels', 'directionPresets'],
+    enabled: flags.creativeDirection,
+    queryFn: () => (trpcClient.channels as unknown as { directionPresets: { query: () => Promise<DirectionPreset[]> } }).directionPresets.query(),
+  });
+  const savedDirection = useMemo(() => savedDirectionOf(active.data?.data), [active.data]);
+  const [directionEdit, setDirectionEdit] = useState<Direction | null>(null);
+  const directionDraft: Direction = directionEdit ?? effectiveDirection(savedDirection);
+  const directionChanged = flags.creativeDirection && directionDirty(directionDraft, savedDirection);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [saveWarnings, setSaveWarnings] = useState<string[]>([]);
+  const [savedVersion, setSavedVersion] = useState<number | null>(null);
   const formatsQuery = useQuery(trpc.channels.listFormats.queryOptions());
   const allFormats = useMemo(() => formatsQuery.data ?? [], [formatsQuery.data]);
 
@@ -97,7 +123,7 @@ export default function ContentProfileScreen() {
     }, 80);
   };
 
-  const dirty = edits !== null && !formsEqual(edits, baseline);
+  const dirty = (edits !== null && !formsEqual(edits, baseline)) || directionChanged;
   const nextVersion = (versions.data?.[0]?.version ?? 0) + 1;
   const set = (key: Exclude<ProfileFieldKey, 'offeredFormatKeys'>, value: string) => {
     setEdits((e) => ({ ...(e ?? baseline), [key]: value }));
@@ -126,20 +152,27 @@ export default function ContentProfileScreen() {
         throw err;
       }
       // `data` is validated server-side (Zod); its message comes back per field.
-      return createVersion.mutateAsync({ channelId: id, data: built.data });
+      // Whole profile data back: the form's sections, every key the app has no field for kept as read, and the direction only when it changed.
+      const data = withDirection(built.data, active.data?.data, directionChanged ? directionDraft : null) as typeof built.data;
+      return createVersion.mutateAsync({ channelId: id, data });
     },
     onSuccess: async (row) => {
       setError(null);
       setFieldErrors({});
       setSavedNote(`Saved as v${row.version}`);
+      setSaveFailed(false);
+      setSavedVersion(row.version);
+      setSaveWarnings((row as { warnings?: string[] }).warnings ?? []);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: trpc.channels.getActiveProfile.queryKey({ channelId: id }) }),
         queryClient.invalidateQueries({ queryKey: trpc.channels.listProfileVersions.queryKey({ channelId: id }) }),
       ]);
       // Only after the refetch, so the form never flashes the previous version.
       setEdits(null);
+      setDirectionEdit(null);
     },
     onError: (err) => {
+      setSaveFailed(true);
       const local = (err as Error & { local?: Partial<Record<ProfileFieldKey, string>> }).local;
       if (local) {
         setFieldErrors(local);
@@ -150,7 +183,12 @@ export default function ContentProfileScreen() {
       const parsed = parseServerProfileError(err instanceof Error ? err.message : 'Failed to save.');
       setFieldErrors(parsed.fields);
       revealError(parsed.fields);
-      setError(parsed.general ?? (Object.keys(parsed.fields).length > 0 ? 'Fix the highlighted fields.' : 'Failed to save.'));
+      // R18: with the card on, a save that fails for no field in particular says only the app's own words, never the server's reason.
+      setError(
+        flags.creativeDirection && Object.keys(parsed.fields).length === 0
+          ? SAVE_ERROR
+          : (parsed.general ?? (Object.keys(parsed.fields).length > 0 ? 'Fix the highlighted fields.' : 'Failed to save.')),
+      );
     },
   });
 
@@ -184,9 +222,17 @@ export default function ContentProfileScreen() {
 
   const footer = (
     <BottomActionBar onHeight={setBarHeight}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error && !(flags.creativeDirection && error === SAVE_ERROR) ? <Text style={styles.error}>{error}</Text> : null}
       {savedNote ? <Text style={styles.saved}>{savedNote}</Text> : null}
-      <PrimaryButton label={`Save as v${nextVersion}`} onPress={() => save.mutate()} disabled={!dirty} loading={save.isPending} />
+      <PrimaryButton
+        label={saveLabel({ dirty, saving: save.isPending, failed: saveFailed && dirty, nextVersion, flagOn: flags.creativeDirection })}
+        loadingLabel={flags.creativeDirection ? 'Saving…' : undefined}
+        onPress={() => save.mutate()}
+        disabled={!dirty}
+        style={flags.creativeDirection && !dirty ? { backgroundColor: color.surface2, opacity: 1 } : undefined}
+        labelStyle={flags.creativeDirection && !dirty ? { color: color.muted } : undefined}
+        loading={save.isPending}
+      />
       <Text style={styles.helper}>Saving creates a new version; runs already started keep theirs.</Text>
     </BottomActionBar>
   );
@@ -262,6 +308,26 @@ export default function ContentProfileScreen() {
               </View>
             ) : null}
           </Card>
+
+          {flags.creativeDirection ? (
+            <DirectionCard
+              presets={presetsQuery.data ?? []}
+              loading={presetsQuery.isLoading}
+              loadFailed={presetsQuery.isError}
+              saved={savedDirection}
+              draft={directionDraft}
+              onChange={(next) => {
+                setDirectionEdit(next);
+                setSaveWarnings([]);
+                setSaveFailed(false);
+                setSavedNote(null);
+              }}
+              saving={save.isPending}
+              savedVersion={savedVersion}
+              warnings={saveWarnings}
+              saveError={error === SAVE_ERROR}
+            />
+          ) : null}
 
           <Card>
             <SectionHeader title="Script" summary={sectionSummary(form, 'script')} open={open.script} onPress={() => toggleSection('script')} />

@@ -13,12 +13,14 @@ type ButtonProps = {
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
   labelStyle?: StyleProp<TextStyle>;
+  /** PrimaryButton only: shown beside the spinner while loading (otherwise the spinner stands alone). */
+  loadingLabel?: string;
 };
 
 // height 54, radius 14, centered [icon][label] row with flexShrink+numberOfLines
 // on the label — the fix for the Gate 2 "arrow stuck to the left" bug the
 // founder caught (a long label pushed the row's flex-start icon away from it).
-export function PrimaryButton({ label, onPress, icon, disabled, loading, style, labelStyle }: ButtonProps) {
+export function PrimaryButton({ label, onPress, icon, disabled, loading, style, labelStyle, loadingLabel }: ButtonProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -26,7 +28,10 @@ export function PrimaryButton({ label, onPress, icon, disabled, loading, style, 
       style={[styles.primary, (disabled || loading) && styles.disabled, style]}
     >
       {loading ? (
-        <ActivityIndicator color={color.onAccent} />
+        <>
+          <ActivityIndicator color={color.onAccent} />
+          {loadingLabel ? <Text style={[styles.primaryLabel, labelStyle]}>{loadingLabel}</Text> : null}
+        </>
       ) : (
         <>
           {icon ? <Feather name={icon} size={18} color={color.onAccent} /> : null}
