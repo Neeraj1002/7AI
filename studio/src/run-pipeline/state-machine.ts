@@ -1170,7 +1170,8 @@ export async function runVideoGenerationStage(
         // Impact is explicitly "no new tables or columns"). Narrowed here,
         // not cast — creationOptions.visualSource is stored as a plain
         // string (validated at the API edge, runs.ts, before it ever gets
-        // here), but this drives a real disclosure-policy flag downstream,
+        // here), but this feeds a real disclosure-policy flag downstream
+        // (Yes when any picture is AI-generated, hot-fix #138),
         // so an unrecognized value is treated as "no override" rather than
         // trusted blindly.
         // Sprint 4 Task 3: run override, else the profile's visual.defaultSource.
@@ -2110,8 +2111,10 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
   }
   const durationSeconds = videoGenOutput.durationSeconds;
   // Sprint 2 Task 2 (E4) — the real YouTube disclosure-policy flag, derived
-  // directly from the plan actually used to render this video, never a
-  // separately-set flag that could disagree with it. Falls back to `false`
+  // from the render actually produced (its plan and render record), never a
+  // separately-set flag that could disagree with it. Yes when any picture is
+  // AI-generated; narration does not count (hot-fix #138, see
+  // deriveContainsSyntheticMedia). Falls back to `false`
   // for a pre-Sprint-2 stage row (every such video really was stock
   // footage, since 'ai-stills' didn't exist yet).
   const containsSyntheticMedia = deriveContainsSyntheticMedia(videoGenOutput);

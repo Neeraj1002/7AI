@@ -75,7 +75,7 @@ export type StillCheckDeps = {
 export const defaultStillCheckDeps: StillCheckDeps = {
   ask: (system, content, imagesBase64, retryGuard) =>
     callLLM({
-      purpose: 'video-intelligence-own-draft',
+      purpose: 'still-check',
       retryGuard,
       system,
       messages: [{ role: 'user', content, attachments: imagesBase64.map((dataBase64) => ({ mediaType: 'image/jpeg', dataBase64 })) }],

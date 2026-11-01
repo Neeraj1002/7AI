@@ -73,7 +73,7 @@ export async function confirmHardCaps(params: { findings: string[]; brief: strin
     for (const sentence of sentences) {
       if (used >= MAX_CONFIRM_CALLS) break;
       used++;
-      const llm = await params.complete({ purpose: 'script-review', system: CONFIRM_SYSTEM_PROMPT,
+      const llm = await params.complete({ purpose: 'hard-cap-confirmation', system: CONFIRM_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: buildConfirmMessage(params.brief, sentence) }], outputSchema: HardCapVerdictSchema, retryGuard: params.retryGuard });
       params.calls.push(llm);
       let verdict: 'supported' | 'unsupported' | 'unreadable' = 'unreadable', reason: string | null = null;

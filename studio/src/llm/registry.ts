@@ -22,27 +22,19 @@ export type RegistryEntry = {
 // config map, not env vars or a config file — see the "Registry shape"
 // rationale in docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md.
 //
-// `script-generation` resolves to Anthropic's premium tier per
-// AGENT_FLEET_DESIGN.md 8.1 ("the one place quality directly drives views,
-// don't cost-optimize"). `intake-parsing`, `script-review`, and
-// `video-intelligence-own-draft` deliberately resolve to the cheap/fast
-// tier (`claude-haiku-4-5`, which supports image input) per 8.1's
-// classification/scoring row — `intake-parsing` was fixed onto this tier in
-// Week 5 Task 4 (it had inherited Week 1's premium default unchanged and
-// never gotten a deliberate tiering decision until then; see
-// `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md`). Changing a purpose's model
-// or provider is a one-line edit here, never a call-site change.
+// Tiers as the table below actually has them. Sonnet 5.5 (`claude-sonnet-5-5`): `script-generation`,
+// `script-review`, `video-production-planning`, `packaging-brief`, `packaging-concepts`,
+// `packaging-payoff` and `packaging-defect-check`. Haiku 4.5 (`claude-haiku-4-5`, which supports image
+// input): `intake-parsing`, `video-intelligence-own-draft`, `still-check`, `metadata-generation`,
+// `packaging-cold-reader`, `packaging-critic` and `packaging-compare`. `script-generation` is the premium
+// tier per AGENT_FLEET_DESIGN.md 8.1 ("the one place quality directly drives views, don't
+// cost-optimize"); `intake-parsing` was fixed onto the cheap tier in Week 5 Task 4 (see
+// `docs/execution/KNOWN_ISSUES_AND_BLOCKERS.md`). Changing a purpose's model or provider is a one-line
+// edit here, never a call-site change.
 //
-// `video-production-planning` (Week 4 Task 1) and `metadata-generation`
-// (Week 4 Task 2) are both "reasoning/explanation"-shaped per 8.1's table
-// (read by the assembler/founder, not the end viewer) — nominally mid-tier,
-// not cheap/fast classification and not Script Generation's premium
-// creative-generation tier. But 8.1's own mid-tier example ("Script Review's
-// revision notes") already resolves to `claude-haiku-4-5` in this registry —
-// no distinct mid-tier model has ever actually been added. Rather than
-// introduce a third pricing tier unprompted, both follow that same existing
-// precedent. Flagged in both tasks' reports as a judgment call, same
-// treatment as `intake-parsing`'s tier before it.
+// `still-check` and `hard-cap-confirmation` have their own entries so that tuning the frame review
+// (`video-intelligence-own-draft`) or the script review (`script-review`) cannot change them. Each starts
+// as a copy of the entry it used to borrow.
 //
 // Output limits (LLM Registry task, R1): 16,000 for script generation, video planning and script
 // review; 4,000 for the small structured replies. Every one sits well above that stage's real peak,
@@ -79,6 +71,24 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
     model: "claude-haiku-4-5",
     label: "Video Intelligence",
     maxOutputTokens: 4_000,
+    reasoning: "off",
+  },
+
+  // Same model, limit and reasoning as `video-intelligence-own-draft` had when the still check borrowed it.
+  "still-check": {
+    provider: "anthropic",
+    model: "claude-haiku-4-5",
+    label: "Still check",
+    maxOutputTokens: 4_000,
+    reasoning: "off",
+  },
+
+  // Same model, limit and reasoning as `script-review` had when the hard-cap confirmation borrowed it.
+  "hard-cap-confirmation": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Hard-cap confirmation",
+    maxOutputTokens: 16_000,
     reasoning: "off",
   },
 
@@ -212,8 +222,8 @@ export type PricingEntry = {
 
 export const MODEL_PRICING: Record<string, PricingEntry> = {
   "claude-sonnet-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
-  // $2 / $10 per MTok, platform.claude.com/docs/en/models/overview, 2026-10-19. No purpose uses it on this
-  // branch; the row lets a purpose move to it (and the real check call it) without a pricing error.
+  // $2 / $10 per MTok, platform.claude.com/docs/en/models/overview, 2026-10-19. Most purposes use it (see the
+  // table above); a purpose that moves to another model needs that model's row first.
   "claude-sonnet-5-5": { inputPerMillionUsd: 2.0, outputPerMillionUsd: 10.0 },
   "claude-haiku-4-5": { inputPerMillionUsd: 1.0, outputPerMillionUsd: 5.0 },
 };

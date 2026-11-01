@@ -18,8 +18,8 @@ import { buildSystemPrompt } from './script-generation';
 import { buildLongSystemPrompt } from './script-generation/long-form';
 import { SYSTEM_PROMPT as SHORT_REVIEW, LONG_FORM_SYSTEM_PROMPT as LONG_REVIEW } from './script-review';
 import { reviewRules } from './script-review/rules';
-import { CONFIRM_SYSTEM_PROMPT } from './script-review/hard-cap-confirmation';
-import { STILL_CHECK_SYSTEM_PROMPT } from './video-generation/still-check';
+import { CONFIRM_SYSTEM_PROMPT, confirmHardCaps } from './script-review/hard-cap-confirmation';
+import { STILL_CHECK_SYSTEM_PROMPT, defaultStillCheckDeps } from './video-generation/still-check';
 import { generatePublishingMetadata } from './publishing';
 
 const FILE = join(__dirname, 'prompt-goldens.json');
@@ -54,5 +54,20 @@ describe('prompts are byte-identical to the captured goldens', () => {
     const golden = JSON.parse(readFileSync(FILE, 'utf8')) as Record<string, string>;
     expect(Object.keys(now).sort()).toEqual(Object.keys(golden).sort());
     for (const key of Object.keys(golden)) expect(now[key], key).toBe(golden[key]);
+  });
+});
+
+describe('the two checks that own a registry purpose', () => {
+  it('the still check asks as still-check, with its prompt unchanged', async () => {
+    llm.calls.length = 0;
+    await defaultStillCheckDeps.ask(STILL_CHECK_SYSTEM_PROMPT, 'x', []).catch(() => undefined);
+    expect(llm.calls).toEqual([{ purpose: 'still-check', system: STILL_CHECK_SYSTEM_PROMPT }]);
+  });
+
+  it('the hard-cap confirmation asks as hard-cap-confirmation, with its prompt unchanged', async () => {
+    const seen: { purpose: string; system: string }[] = [];
+    const complete = (async (req: { purpose: string; system: string }) => { seen.push({ purpose: req.purpose, system: req.system }); throw new Error('stop'); }) as never;
+    await confirmHardCaps({ findings: ['SR-1: "The bridge opened in 1901."'], brief: 'b', script: 'The bridge opened in 1901.', complete, calls: [] }).catch(() => undefined);
+    expect(seen).toEqual([{ purpose: 'hard-cap-confirmation', system: CONFIRM_SYSTEM_PROMPT }]);
   });
 });
