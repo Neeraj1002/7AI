@@ -110,7 +110,8 @@ async function driveLoop(initial: PipelineRun): Promise<PipelineRun> {
   const runId = initial.id;
   let run = initial;
 
-  while (run.status !== 'needs_attention' && run.status !== 'failed') {
+  // Sprint 6 Task 3: a run at 'paused_angle' waits for runs.chooseAngle, which moves it on and starts a new driver.
+  while (run.status !== 'needs_attention' && run.status !== 'failed' && run.status !== 'paused_angle') {
     // Sprint 3 Task 11 (R3/B11) — checked at the same point
     // failRunIfChannelArchived already checks (top of the loop, before the
     // switch): a stage already mid-flight when the cancel request lands is

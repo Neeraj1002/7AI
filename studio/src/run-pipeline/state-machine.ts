@@ -8,6 +8,7 @@ import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
   markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
+import { runAngleStepForRun } from './story-tests-stage';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -260,19 +261,26 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   try {
     const output = await withRetryAndCircuitBreaker(attemptOnce);
 
+    // Sprint 6 Task 3 (Part A): with the switch on, four or five angles are proposed and read blind before the script
+    // is written. Never throws; null when the feature is off. A usable set pauses the run at `paused_angle` (the
+    // founder chooses or skips, runs.chooseAngle); anything else is recorded as "not run" and the script follows.
+    const storyTests = await runAngleStepForRun({ run, stageId: stage.id, intake: output });
+    const pauseForAngle = storyTests?.angleStep.status === 'waiting';
+
     // Persist-before-advance: the stage's completion and the run's advance are
     // written together, in one transaction — this is what makes resumability
     // possible after a restart, without a window where currentStage lags what
     // pipeline_stages actually shows (B1 fix).
     const advanced = await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, output, tx);
+      await completeStage(stage.id, storyTests ? { ...output, storyTests } : output, tx);
       return await updatePipelineRun(
         runId,
         {
           intakeParsed: output,
           // Advances to the next stage in sequence even though no processor exists
           // for it yet this week — a Week 1 test run stops here deliberately.
-          currentStage: nextStageAfter('intake'),
+          // Waiting for an angle: currentStage stays 'intake' (contract C2) and the choice moves it on.
+          ...(pauseForAngle ? { status: 'paused_angle' as const, currentStage: 'intake' as const } : { currentStage: nextStageAfter('intake') }),
         },
         tx,
       );

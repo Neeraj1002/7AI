@@ -357,7 +357,7 @@ export const channelsRouter = router({
       // stage) is failed directly with the literal 'Channel deleted'.
       const inFlight = await listRuns({
         channelId: channel.id,
-        statuses: ['pending', 'running', 'paused_gate1', 'paused_gate2'],
+        statuses: ['pending', 'running', 'paused_angle', 'paused_gate1', 'paused_gate2'],
       });
       let cancelled = 0;
       for (const run of inFlight) {

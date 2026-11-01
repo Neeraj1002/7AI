@@ -28,6 +28,14 @@ export const ChannelProfileVisualSchema = z
   })
   .strict();
 
+// Sprint 6 Task 3 (decision 2): one optional line describing the cold reader, empty by default (the platform's neutral
+// reader is used). It must never name a channel or a niche.
+export const ChannelProfileStoryTestsSchema = z
+  .object({
+    readerPersona: z.string().optional(),
+  })
+  .strict();
+
 export const ChannelProfileAudioSchema = z
   .object({
     defaultVoice: z.enum(TTS_VOICE_KEYS).optional(),
@@ -64,6 +72,7 @@ export const ChannelProfileDataSchema = z
     visual: ChannelProfileVisualSchema.optional(),
     audio: ChannelProfileAudioSchema.optional(),
     packaging: ChannelProfilePackagingSchema.optional(),
+    storyTests: ChannelProfileStoryTestsSchema.optional(),
   })
   .strict();
 export type ChannelProfileData = z.infer<typeof ChannelProfileDataSchema>;

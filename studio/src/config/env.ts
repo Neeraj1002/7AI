@@ -23,6 +23,9 @@ const EnvSchema = z.object({
   // real Anthropic call. Exists solely to drive the Task 4 kill-mid-stage/restart
   // resumability dry run (scripts/dry-run.ts) without needing a live API key.
   INTAKE_STAGE_STUB: z.string().optional().default(''),
+  // Sprint 6 Task 3: '1' turns on the story tests (angle pairing before the script, the cold read of the finished
+  // script). One deploy-time switch for the whole feature; off by default, never a channel setting.
+  STORY_TESTS_ENABLED: z.string().optional().default(''),
   // Testing-only: when '1', studio/src/media/ uses a stub instead of real OpenAI
   // TTS/transcription calls — no OPENAI_API_KEY has been available in any
   // session so far. Same pattern as INTAKE_STAGE_STUB.

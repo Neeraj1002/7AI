@@ -23,6 +23,7 @@ export type StageStatus = (typeof STAGE_STATUSES)[number];
 export const PIPELINE_RUN_STATUSES = [
   'pending',
   'running',
+  'paused_angle',
   'paused_gate1',
   'paused_gate2',
   'completed',

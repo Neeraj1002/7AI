@@ -21,6 +21,9 @@ export const PURPOSES = [
   'packaging-payoff',
   'packaging-defect-check',
   'packaging-compare',
+  // Sprint 6 Task 3 (Part A): the angle proposer and the blind pair reader. Both are advisory story tests.
+  'story-angles',
+  'story-pair-reader',
 ] as const;
 export type Purpose = (typeof PURPOSES)[number];
 
