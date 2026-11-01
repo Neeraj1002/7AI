@@ -1443,7 +1443,7 @@ export const runsRouter = router({
     await assertChannelCanRun(channel);
     // Bugs Task 12 - a new run starts at zero: drop the run-owned bookkeeping, keep the user's picks.
     const picks = sourceRun.creationOptions
-      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, opening: _o, resolvedOptions: _r, intakeWarnings: _w, preflightBlock: _pb, settingsChanges: _sc, estimateUsd: _e, retryAllowanceUsd: _ra, ...kept }) => kept)(sourceRun.creationOptions)
+      ? (({ manualRetries: _m, plannerContractRecoveryUsed: _p, videoFallbackUsed: _v, opening: _o, resolvedOptions: _r, intakeWarnings: _w, preflightBlock: _pb, settingsChanges: _sc, estimateUsd: _e, retryAllowanceUsd: _ra, presetKey: _pk, presetVersion: _pv, ...kept }) => kept)(sourceRun.creationOptions)
       : undefined;
     // Sprint 4 Task 12 (R1): recomputed against the channel's current profile. A long run stores its
     // resolved length, so the length counts as a pick only if the source said it was one.

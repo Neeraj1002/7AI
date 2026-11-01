@@ -160,7 +160,7 @@ export function normalizeShotList(parsed: unknown): unknown {
 // it as a deliberate choice. word-flash's known failure mode (a
 // midpoint-sampled review frame landing mid-word) is named explicitly so a
 // regen attempt that got fixNotes about exactly this can connect the dots.
-function buildSystemPrompt(
+export function buildSystemPrompt(
   visualSourceOverride: VisualSource | undefined,
   audioLayerOverride: AudioLayer | undefined,
   stillCount: number,

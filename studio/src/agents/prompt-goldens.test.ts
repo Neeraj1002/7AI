@@ -21,6 +21,9 @@ import { reviewRules } from './script-review/rules';
 import { CONFIRM_SYSTEM_PROMPT, confirmHardCaps } from './script-review/hard-cap-confirmation';
 import { STILL_CHECK_SYSTEM_PROMPT, defaultStillCheckDeps } from './video-generation/still-check';
 import { generatePublishingMetadata } from './publishing';
+import { buildSystemPrompt as buildShortPlanPrompt } from './video-generation/plan';
+import { buildSystemPrompt as buildLongPlanPrompt } from './video-generation/plan-long';
+import { buildSystemPrompt as buildFrameReviewPrompt } from './video-intelligence';
 
 const FILE = join(__dirname, 'prompt-goldens.json');
 
@@ -38,6 +41,13 @@ async function capture(): Promise<Record<string, string>> {
     'review-long/assembled': LONG_REVIEW + reviewRules(true),
     'hard-cap-confirmation': CONFIRM_SYSTEM_PROMPT,
     'still-check': STILL_CHECK_SYSTEM_PROMPT,
+    'plan-short/free': buildShortPlanPrompt(undefined, undefined, 6),
+    'plan-short/fixed': buildShortPlanPrompt('stock-footage', 'none', 6),
+    'plan-long/free': buildLongPlanPrompt({}),
+    'plan-long/fixed': buildLongPlanPrompt({ visualStyle: 'plain', scriptGuide: 'clear', audioLayerOverride: 'none' }),
+    'frame-short/stills': buildFrameReviewPrompt('ai-stills', true),
+    'frame-short/stock': buildFrameReviewPrompt('stock-footage', false),
+    'frame-long/stills': buildFrameReviewPrompt('ai-stills', true, { frameCount: 4 }),
   };
   for (const videoKind of ['short', 'long'] as const) {
     llm.calls.length = 0;
