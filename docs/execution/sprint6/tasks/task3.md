@@ -11,7 +11,7 @@
 1. **Shorts swipe-away threshold** for Part B: the swipe line sits in the first two sentences, or in the first ~15% of the script. Proposed: Shorts = first two sentences; long-form = first 15%. Confirm.
 2. **Reader persona wording per channel** (one config line each, for example "a stranger scrolling, no prior interest"). Proposed neutral default for a channel with no line: that sentence. The founder writes each channel's line; it must not name the channel or its niche.
 3. **Part B card at Gate 2 as well as Gate 1?** Proposed: Gate 1 only (the check reads the script, and Gate 2 has no new information for it). Confirm.
-4. **Part A on Shorts or Longs first.** The code treats video kind as a parameter either way. Proposed: start with the kind that ships daily, because the architect will judge the tests on those videos later.
+4. **DECIDED 1 Nov (founder): Part A covers Shorts and long-form in this task.** Build and live-check Shorts first (the kind that ships daily), then long-form in the same task and PRs. Long-form is not deferred to a new task. R0 reports any difference between the two kinds at the intake-to-script step; the live checks include one Short and one long-form run.
 5. **On/off and skip** (raised by the task writer; needed for the before/after tags in Part C): proposed one server-side switch for the whole feature (a deploy-time flag, not a channel setting), and a "write from the brief, skip angles" choice on the Part A card. Confirm, or name another way.
 6. **When Part A is skipped, what does Part B check against?** Proposed: nothing is inferred; the promise-match step records "not run: no chosen angle" and cannot cause a FAIL. Inferring a promise from the script would let the script grade itself.
 7. **Spend ceilings** (proposed in the Spend section; the founder confirms before work starts).
@@ -175,3 +175,4 @@ The code (no file was read; every code fact above is marked "confirm" or comes f
 ## Revision log
 - r1, 2026-11-01: first issue. Calibration on past videos removed by the founder (to be done later by the architect on live daily videos); Part C tags runs by pipeline version; Part C analytics is a read-only finding.
 - r2, 2026-11-01 (architect): item named P19 (P16 is creative direction); Task 2 references removed (cancelled 29 Oct); Task 1 and #139 recorded as merged; added the prompt-review step and the P16 overlap check. The seven open founder decisions are unchanged and still need answers before work starts.
+- r3, 2026-11-01 (architect): decision 4 recorded as decided (Shorts first, long-form in this task).
