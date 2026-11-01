@@ -11,7 +11,6 @@ import { useTRPC, useTRPCClient } from '../../../lib/trpc';
 import { useAuth } from '../../../lib/auth';
 import { useChannels } from '../../../lib/channel-context';
 import { flags } from '../../../lib/feature-flags';
-import { useOptionLists } from '../../../lib/pipeline-options';
 import { profileEntrySummary } from '../../../lib/profile-form';
 import { useAuthedImageSource } from '../../../lib/use-authed-image-source';
 import { color, font, radius, space, type } from '../../../lib/theme';
@@ -21,7 +20,6 @@ import { ChannelAvatar } from '../../../components/ChannelAvatar';
 import { StatusChip } from '../../../components/StatusChip';
 import { BottomActionBar } from '../../../components/BottomActionBar';
 import { ConfirmSheet } from '../../../components/ConfirmSheet';
-import { OptionSheet } from '../../../components/OptionSheet';
 import { SegmentedControl } from '../../../components/SegmentedControl';
 import { PrimaryButton, SecondaryButton } from '../../../components/Buttons';
 import type { AppRouter } from '../../../../studio/src/api/router';
@@ -73,9 +71,6 @@ export default function ChannelSettingsScreen() {
   const [savedNote, setSavedNote] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
-  // Task 4/E7 — live from options.list (B9), falling back to pipeline-options.ts.
-  const { voices: liveVoices } = useOptionLists();
 
   const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: trpc.channels.list.queryKey() });
   const set = (patch: Draft) => setDraft((d) => ({ ...d, ...patch }));
@@ -92,16 +87,9 @@ export default function ChannelSettingsScreen() {
     const next = spendText.trim() === '' ? null : Number(spendText);
     if (next !== savedBudget) changes.budgetOverrideUsd = next;
   }
-  if (draft.styleGuide !== undefined) {
-    // Backend stores '' as null — send null to clear, not an empty string.
-    const nextStyleGuide = !draft.styleGuide || draft.styleGuide.trim() === '' ? null : draft.styleGuide;
-    if (nextStyleGuide !== (channel?.styleGuide ?? null)) changes.styleGuide = nextStyleGuide;
-    else delete changes.styleGuide;
-  }
   if (channel) {
     if (changes.name === channel.name) delete changes.name;
     if (changes.nicheDescription === channel.nicheDescription) delete changes.nicheDescription;
-    if (changes.defaultVoice === (channel.defaultVoice ?? undefined)) delete changes.defaultVoice;
     if (changes.captionsEnabled === (channel.brandAssets.captionsEnabled ?? true)) delete changes.captionsEnabled;
     if (changes.defaultPrivacyStatus === channel.defaultPrivacyStatus) delete changes.defaultPrivacyStatus;
     if (changes.gate1Enabled === channel.approvalGateConfig.gate1Enabled) delete changes.gate1Enabled;
@@ -269,8 +257,6 @@ export default function ChannelSettingsScreen() {
 
   const name = draft.name ?? channel.name;
   const niche = draft.nicheDescription ?? channel.nicheDescription;
-  const styleGuideText = draft.styleGuide ?? channel.styleGuide ?? '';
-  const voice = draft.defaultVoice ?? channel.defaultVoice ?? null;
   const captions = draft.captionsEnabled ?? channel.brandAssets.captionsEnabled ?? true;
   const visibility: Privacy = draft.defaultPrivacyStatus ?? channel.defaultPrivacyStatus;
   const gate1 = draft.gate1Enabled ?? channel.approvalGateConfig.gate1Enabled;
@@ -356,22 +342,6 @@ export default function ChannelSettingsScreen() {
         ) : (
           <Text style={styles.body}>{channel.nicheDescription}</Text>
         )}
-        {flags.channelSettings && !hasProfile ? (
-          <>
-            <Text style={styles.label}>Style guide</Text>
-            <TextInput
-              selectionColor={color.accent}
-              cursorColor={color.accent}
-              style={[styles.input, styles.multiline, styles.styleGuide]}
-              value={styleGuideText}
-              onChangeText={(v) => set({ styleGuide: v })}
-              placeholder="Tone, words to avoid, how hooks should sound, audience…"
-              placeholderTextColor={color.muted}
-              multiline
-              scrollEnabled
-            />
-          </>
-        ) : null}
       </Card>
 
       <Pressable
@@ -397,19 +367,16 @@ export default function ChannelSettingsScreen() {
       {showVoiceLook ? (
         <Card>
           <Text style={styles.cardTitle}>Voice &amp; look</Text>
-          {hasProfile ? (
-            <View style={styles.profileNote}>
-              <Text style={styles.profileNoteText}>
-                Default voice and style guide now come from the content profile. Edit them there.
-              </Text>
-            </View>
-          ) : null}
-          {!hasProfile ? (
-            <Pressable style={styles.row} onPress={() => setVoiceOpen(true)} accessibilityRole="button">
-              <Feather name="mic" size={20} color={color.muted} />
+          {!hasProfile && !profile.isLoading ? (
+            <Pressable
+              style={styles.row}
+              onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
+              accessibilityRole="button"
+              accessibilityLabel="Set up content profile"
+            >
+              <Feather name="file-text" size={20} color={color.muted} />
               <View style={styles.rowText}>
-                <Text style={styles.rowCaption}>Default voice</Text>
-                <Text style={styles.rowValue}>{liveVoices.find((v) => v.value === voice)?.label ?? 'Alloy'}</Text>
+                <Text style={styles.rowValue}>Set up content profile</Text>
               </View>
               <Feather name="chevron-right" size={20} color={color.muted} />
             </Pressable>
@@ -593,16 +560,6 @@ export default function ChannelSettingsScreen() {
         </Pressable>
       ) : null}
 
-      <OptionSheet
-        visible={voiceOpen}
-        onClose={() => setVoiceOpen(false)}
-        title="Default voice"
-        options={liveVoices}
-        selected={voice ?? 'alloy'}
-        // Cast: options.list (E7) returns arbitrary strings; the server's own
-        // zod enum is still the real validation for whatever's actually sent.
-        onSelect={(v) => v && set({ defaultVoice: v as never })}
-      />
       <ConfirmSheet
         visible={discardOpen}
         onClose={() => setDiscardOpen(false)}
@@ -653,11 +610,8 @@ const styles = StyleSheet.create({
   },
   inputInvalid: { borderColor: color.danger },
   multiline: { minHeight: 90, maxHeight: 200, textAlignVertical: 'top' },
-  styleGuide: { minHeight: 120, maxHeight: 240 },
   profileEntry: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   profileChevron: { fontSize: 20, color: color.muted },
-  profileNote: { backgroundColor: color.warnBg, borderRadius: radius.sm, padding: 10 },
-  profileNoteText: { ...type.meta, fontSize: 13, lineHeight: 19, color: color.warnText },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
