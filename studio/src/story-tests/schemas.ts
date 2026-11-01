@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Purpose } from '../llm';
 import { ANGLES_MAX, ANGLES_MIN } from './constants';
 
 // What the angle call returns. Code validates the lengths and duplicates (angles.ts); the schema only fixes the shape.
@@ -30,7 +31,7 @@ export type StoredReaderRun = {
 };
 
 export type StoredCall = {
-  purpose: 'story-angles' | 'story-pair-reader' | 'story-cold-reader' | 'story-promise-match';
+  purpose: Extract<Purpose, 'story-angles' | 'story-pair-reader' | 'story-cold-reader' | 'story-promise-match'>;
   model: string;
   inputTokens: number;
   outputTokens: number;
