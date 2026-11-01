@@ -2,16 +2,16 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting, then `docs/decisions/PROMPT_LAYERS.md` in full.** The template defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. `PROMPT_LAYERS.md` (founder-decided 1 Nov) says which layer owns which question in an LLM call; every choice in this task follows it, and the task's job is to make the code obey it. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r2, 2026-11-01.
+**Revision**: r3, 2026-11-01.
 
-**Written**: 2026-11-01 by the architect chat (there is no task writer for this item), from `sprint6/PLAN.md` P16, the prompt audit of 1 Nov, `decisions/PROMPT_LAYERS.md` and the founder's answers of 1 Nov. **Status**: not started; starts when this doc is merged and the founder has approved the preset text (R6) and answered decision 9. **Priority**: P2. **Branches**: `SPRINT6_TASK4A_BE`, `SPRINT6_TASK4B_BE`, `SPRINT6_TASK4C_BE`; worktrees `task4a`, `task4b`, `task4c` under `D:\Study Material\7AI-SPRINT6`. The app part (the preset picker and the channel settings clean-up) is **not** in this agent's work: it is built with the Task 3 app task (Contract C5 and C6 below). Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
+**Written**: 2026-11-01 by the architect chat (there is no task writer for this item), from `sprint6/PLAN.md` P16, the prompt audit of 1 Nov, `decisions/PROMPT_LAYERS.md` and the founder's answers of 1 Nov. **Status**: not started; starts when this doc is merged, the founder has approved the `history` text in Appendix A (decision 7) and answered decision 9. **Priority**: P2. **Branches**: `SPRINT6_TASK4A_BE`, `SPRINT6_TASK4B_BE`, `SPRINT6_TASK4C_BE`; worktrees `task4a`, `task4b`, `task4c` under `D:\Study Material\7AI-SPRINT6`. The app part (the preset picker and the channel settings clean-up) is **not** in this agent's work: it is built with the Task 3 app task (Contract C5 and C6 below). Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
 ## Founder decisions
 
 Answered on 1 Nov:
 1. **Presets, not per-setting forms.** A channel's direction is one preset plus one short free-text note. No per-field form.
-2. **Which preset for which channel today.** Three channels are live (founder, 1 Nov): Not In Your Textbook (NIYT, to be renamed later, still a history documentary channel) gets `history`; Cold Open gets `story-first`; Start to Shelf gets `explainer`. Clocked In is not live and gets no preset now. **Correction to the plan row:** Cold Open is not a history channel. Since 30 Oct it tells real cons, heists, thefts, forgeries and trials from history, legend first and then the record, in a plain confident third-person voice (`channel_bibles/COLD_OPEN_CHANNEL_CONFIG.md` v1.1, sections 1, 2 and 8). So only NIYT can keep its prompts byte-identical; Cold Open's and Start to Shelf's will change, on purpose.
-3. **Switch the fallback to neutral inside this task**, after the three channels have explicit direction (so no channel is left on the old built-in behaviour). A fourth channel later gets its own preset; with none it gets neutral.
+2. **Which preset for which channel today.** Three channels are live (founder, 1 Nov): Not In Your Textbook (NIYT, to be renamed later, still a history documentary channel) gets `history`; Cold Open gets `story-first`; Start to Shelf gets `explainer`. Clocked In is not live and gets no preset now. **Correction to the plan row:** Cold Open is not a history channel. Since 30 Oct it tells real cons, heists, thefts, forgeries and trials from history, legend first and then the record, in a plain confident third-person voice (`channel_bibles/COLD_OPEN_CHANNEL_CONFIG.md` v1.1, sections 1, 2 and 8). All three channels' prompts change, on purpose. NIYT's are not preserved: the founder said (1 Nov) it will be rewritten as a channel, so `history` is written fresh like the others.
+3. **The fallback is `neutral`, from the first PR.** A profile with no direction gets the neutral preset. The three channels get their direction (R5) before PR B merges, so none lands on neutral by accident. A fourth channel later gets its own preset; with none it gets neutral.
 4. **Build three presets now** (history, story-first, explainer) plus the neutral fallback. The plan's other names (explainer-utility, facts-list) stay names only until a channel needs them.
 5. **Shorts consumers first** (the daily videos are Shorts), then long-form.
 6. **Evaluation ceiling $6**, hard, with the final cap proposed after the first check.
@@ -20,27 +20,29 @@ Also answered on 1 Nov:
 6a. **The layers are locked** (`decisions/PROMPT_LAYERS.md`): eight layers, one owner per question, locks and defaults, the enforcement checks in R10. The preset text is written to that doc.
 8. **Start to Shelf's description** is `channel_bibles/START_TO_SHELF_CHANNEL_CONFIG.md` (v0.2). It is the source for the `explainer` preset and for what stays in its content profile.
 
+7a. **Preset text approved** (founder, 1 Nov): `story-first`, `explainer` and `neutral`, as written in Appendix A.
+
 Still open (the founder answers before the step named):
-7. **Each preset's text is approved by the founder one at a time, in the architect chat, before this task starts.** The approved text is added to this doc (Appendix A) by the architect through a pull request; the agent copies it verbatim and never edits it. `history` is a verbatim copy of today's text, so its approval is a check that nothing changed.
+7. **The `history` text.** Every preset is approved by the founder in the architect chat before this task starts; the approved text is in Appendix A and the agent copies it verbatim and never edits it. `history` is written fresh (it is not a copy of today's code), and it is drafted in Appendix A and waits for the founder's approval. One change from today needs his eye: the old outro bridged to a future topic with a cliffhanger; the draft drops that and ends on a lingering thought.
 9. **Note length.** Proposed 300 characters. Confirm.
 
 ## Objective
 
 Move every piece of channel-specific creative direction out of shared prompts and into data, so a channel's voice, hook, ending, chapter style, pacing and visual-review tone come from its chosen preset, and the code holds only a neutral platform contract. Today the history persona is in the code: the long script writer is told it is "a master historical documentary filmmaker", the long review rewards a "historical moment" hook, the frame review fails pictures "unrelated to the historical topic", and the format hint and the writer contradict each other on chapter openings (audit findings A1, A2, A4, A7, A8, A9, D1, D4). Three channels now argue with that on every run.
 
-**Success Criteria**: (1) a profile can hold `direction { preset, note }`, validated; (2) `resolveChannelConfig` returns one resolved direction every consumer reads; (3) with `history` on NIYT, the prompts every consumer builds are **byte-identical** to `main` for the same inputs (snapshot tests); (4) Cold Open and Start to Shelf prompts change only where their preset text differs, and the founder has approved that text; (5) after the flip, no history, crime or niche word is in any shared prompt or code path outside the preset data file (grep proof); (6) the picker's read query exists and returns server wording; (7) each run records which preset and preset version made it; (8) the before-and-after evaluation is in the report under the spend ceiling; (9) full tests, type check and lint pass.
+**Success Criteria**: (1) a profile can hold `direction { preset, note }`, validated; (2) `resolveChannelConfig` returns one resolved direction every consumer reads; (3) every consumer's built prompt is covered by a snapshot test for each preset, so every prompt change is a visible diff, and the report lists the changes per channel; (4) each of the three channels' prompts changes only where a channel-specific sentence is replaced by the resolved preset parts, and the founder has approved that text; (5) no history, crime or niche word is in any shared prompt or code path outside the preset data file (grep proof); (6) the picker's read query exists and returns server wording; (7) each run records which preset and preset version made it; (8) the before-and-after evaluation is in the report under the spend ceiling; (9) full tests, type check and lint pass.
 
 ## Constraints that decide every choice
 
 - **Presets are data, not code.** One data file holds the presets (R1). History words inside that data file are allowed and are named in the grep proof; they are allowed nowhere else.
 - **Parts, not prose.** A preset is a set of small named parts (below). A new preset reuses parts; the consumers assemble the same sentences the same way.
-- **Zero change where promised.** For `history`, a consumer must produce today's exact text. Where today's prompt has a sentence that is not channel-specific (for example the JSON rules and safety rules), it stays in the platform contract unchanged.
+- **Platform sentences stay.** Where today's prompt has a sentence that is not channel-specific (for example the JSON rules and safety rules), it stays in the platform contract unchanged. Only the channel-specific sentences are replaced by the resolved parts, and every such change shows in a snapshot diff.
 - **Do not touch the review rules' examples** (the Lego, Roman and "$120" examples in `script-review/rules.ts`, audit A5 and A6) or the dead score-cap text (B5): those are a separate task with its own before-and-after. If a consumer needs `rules.ts`, read it, do not edit it. Report anything you find.
 - **No new LLM calls, no new agent, no framework.** Plain code assembles the prompts. Existing registry purposes only.
 - **Channel-generic (Key Principle 11).** No channel name in code. The three channels are data in the database; this task sets their profile through R5.
 - **Stop rule.** A database migration, a new native dependency, or a change to an existing flow stops the task: ask the architect. (Profile data is JSON and `ChannelProfileDataSchema` is strict, so a new `direction` object is a schema change in code, not in the database; R0 confirms.)
 - **Layers (`decisions/PROMPT_LAYERS.md`).** A preset is layer 3. It holds only what every channel on that preset would keep (the preset test in the doc). Platform rules and task mechanics stay in code (layers 1 and 2), numbers and banned phrases stay in the content profile (layer 5), per-video facts and the exact first and last sentence stay in the brief (layer 6). Where a line in a consumer mixes layers (for example the long writer's "Tags" line: a count of 3 to 8 plus the word "historical"), split it: the mechanics stay in code, the channel word comes from the right layer.
-- **Preset parts:** `persona` (who the writer is), `domain` (what the channel covers, one line), `hookRule`, `endingRule`, `storyShape`, `chapterStyle`, `pacingCues`, `avoid`, `visualReviewTone`. Any part may be empty. `history` also carries the six one-phrase fragments that `PROMPT_LAYERS.md` records as its exceptions (Appendix A lists them with their lines); no other preset carries any, and for them the reviewer judges the hook against the preset's `hookRule`. (`storyShape` and `avoid` are new in r2; they hold the story mechanics and the shared "never do" list that the plan row folded into the other parts.) The reviewer's hook, ending and pacing criteria are derived from the same `hookRule`, `endingRule` and `pacingCues` text the writer gets, never written separately. Hashtag words stay in `packaging.hashtagsBase` where they already are; do not duplicate them.
+- **Preset parts:** `persona` (who the writer is), `domain` (what the channel covers, one line), `hookRule`, `endingRule`, `storyShape`, `chapterStyle`, `pacingCues`, `avoid`, `visualReviewTone`. Any part may be empty. Every preset, `history` included, is written fresh to the preset test in `PROMPT_LAYERS.md` and carries no wording copied from a consumer; the reviewer judges the hook against the preset's `hookRule`. (`storyShape` and `avoid` are new in r2; they hold the story mechanics and the shared "never do" list that the plan row folded into the other parts.) The reviewer's hook, ending and pacing criteria are derived from the same `hookRule`, `endingRule` and `pacingCues` text the writer gets, never written separately. Hashtag words stay in `packaging.hashtagsBase` where they already are; do not duplicate them.
 
 ## R0. Read the real code first and confirm
 
@@ -54,21 +56,21 @@ Move every piece of channel-specific creative direction out of shared prompts an
 
 **Where**: a new data file, for example `studio/src/channel-direction/presets.ts`, and `channel-profile/schema.ts`.
 
-**Fix**: each preset is `{ key, version, label, summary, parts }`. `summary` is one plain sentence for the picker. Keys: `history`, `story-first`, `explainer`, and `neutral` (all parts empty or generic; the fallback). `history.parts` is today's text, copied verbatim from the consumers (persona, rules, hook, outro, visual-review tone) with the line numbers recorded in the report. `story-first` and `explainer` are the founder-approved text in Appendix A, copied verbatim. Add to `ChannelProfileDataSchema`: `direction: z.object({ preset: z.enum(keys), note: z.string().max(300).optional() }).strict().optional()`. **Preset lint** (a test, PR A): every part is a plain sentence or two of at most 120 words; no digit (the recorded `history` exceptions in `PROMPT_LAYERS.md` apply to `history` only); no channel, brand or topic name; no banned-phrase list; the required parts are present for each preset (Appendix A lists them).
+**Fix**: each preset is `{ key, version, label, summary, parts }`. `summary` is one plain sentence for the picker. Keys: `history`, `story-first`, `explainer`, and `neutral` (the fallback; its parts are generic, and some are empty). All four are the founder-approved text in Appendix A, copied verbatim. `history` is not a copy of today's consumer text; the report still records the line numbers of the consumer text each preset replaces. Add to `ChannelProfileDataSchema`: `direction: z.object({ preset: z.enum(keys), note: z.string().max(300).optional() }).strict().optional()`. **Preset lint** (a test, PR A): every part is a plain sentence or two of at most 120 words; no digit, for any preset; no channel, brand or topic name (a preset may use the ordinary words of its own craft family, such as "historical" in `history`); no banned-phrase list; the required parts are present for each preset (Appendix A lists them).
 
-**Verify**: a profile with a valid `direction` saves; an unknown preset, a long note, or an extra field fails loudly; `history` parts equal the text on `main` (a test that compares them); the preset lint passes for `story-first`, `explainer` and `neutral`, fails on a deliberately bad fixture, and passes `history` only through its named exceptions.
+**Verify**: a profile with a valid `direction` saves; an unknown preset, a long note, or an extra field fails loudly; each preset's parts equal Appendix A character for character (a test); the preset lint passes for all four presets and fails on a deliberately bad fixture.
 
 ## R2. The resolver
 
-**Fix**: `resolveChannelConfig` returns `direction`: the chosen preset's parts, the note, and `presetKey` and `presetVersion`. A profile with no `direction` resolves to the **pre-flip fallback**, named in one constant (`FALLBACK_PRESET = 'history'`), so every channel with no direction behaves exactly as today. R7 flips that constant to `neutral`. The note is appended after the parts, never replacing them.
+**Fix**: `resolveChannelConfig` returns `direction`: the chosen preset's parts, the note, and `presetKey` and `presetVersion`. A profile with no `direction` resolves to the `neutral` preset, named in one constant (`FALLBACK_PRESET = 'neutral'`). The note is appended after the parts, never replacing them.
 
-**Verify**: with no `direction`, the resolved object equals today's behaviour; with `direction`, the parts and note appear; unknown keys cannot reach the resolver (schema rejects them).
+**Verify**: with no `direction`, the resolved object is the neutral preset's; with `direction`, the parts and note appear; unknown keys cannot reach the resolver (schema rejects them).
 
 ## R3. Shorts consumers
 
 **Fix**: make the consumers that touch Shorts read the resolved direction: the frame review (`video-intelligence`, "unrelated to the historical topic" and "dramatic tone", audit A7), the Short planner's niche examples and "historical event" wording (A8, D6; the audit's finding that a channel-fixed visual source already bypasses the forced rule is confirmed or corrected in R0), and any hook or ending rule in the Short writer and the Short review that is channel-specific (R0 lists them; the audit found none in the Short writer's persona). For each: the platform sentence stays in code; the channel-specific sentence comes from a part.
 
-**Verify**: for NIYT with `history`, every consumer's built prompt equals `main` exactly (snapshot, same inputs); for Cold Open and Start to Shelf the prompts differ only in the parts; a test shows the frame review for an `explainer` channel no longer says "historical".
+**Verify**: for each of the three channels, every consumer's built prompt differs from `main` only where a channel-specific sentence was replaced by the resolved parts (snapshot diff, same inputs); a test shows the frame review for an `explainer` channel and for a `story-first` channel no longer says "historical".
 
 ## R4. Long-form consumers
 
@@ -78,27 +80,27 @@ Move every piece of channel-specific creative direction out of shared prompts an
 
 ## R5. Set the three channels (data)
 
-**Fix**: set `direction` on each channel's active profile through a new profile version that **keeps every other field unchanged**: NIYT `history`, Cold Open `story-first`, Start to Shelf `explainer`. Provide one admin script (dry run by default, follows the `invite-tenant` script's pattern) that the founder runs once on the server, and say plainly in the first reply what the founder must run. If the Task 3 app picker has landed by then, the founder may use it instead; the script stays as the audited path.
+**Fix**: set `direction` on each channel's active profile through a new profile version that **keeps every other field unchanged**: NIYT `history`, Cold Open `story-first`, Start to Shelf `explainer`. Provide one admin script (dry run by default, follows the `invite-tenant` script's pattern) that the founder runs once on the server, and say plainly in the first reply what the founder must run. If the Task 3 app picker has landed by then, the founder may use it instead; the script stays as the audited path. **Order:** the script is built in PR A (it needs only the schema). PR A merges and deploys, the founder runs the script, and only then may PR B merge. Until PR B merges no consumer reads `direction`, so setting it early changes nothing. If a live channel has no profile at all, the script refuses and says so (the first profile is the founder's to create in the app); report it before PR B starts.
 
 **Verify**: reopen each profile after saving and compare field by field with the old version (only `direction` differs); the script refuses an unknown channel and never changes another field.
 
 ## R6. Preset text approval (before PR B starts)
 
-**Fix**: the founder approves each preset's text in the architect chat **before this task starts** (decision 7), and the architect adds it to this doc as Appendix A. You copy it verbatim; you never edit it. Put each preset's final parts, verbatim, in the PR description and the report so the founder can check them once more against what the code assembles. `history` is copied from the consumers (nothing to author; show it as "no change"). Sources of the other two, for your information only: `story-first` (Cold Open) from `COLD_OPEN_CHANNEL_CONFIG.md` v1.1 with its channel-specific rules left in its content profile (the truth layers, "popular version, then record", the sentence-length caps, the case-type rotation); `explainer` (Start to Shelf) from `START_TO_SHELF_CHANNEL_CONFIG.md` v0.2 and the saved Shorts scriptcraft notes, with its own rules left in its content profile. If the text you must copy fails the preset lint or the preset test in `PROMPT_LAYERS.md`, stop and tell the architect; do not fix the text yourself.
+**Fix**: the founder approves each preset's text in the architect chat **before this task starts** (decision 7), and the architect adds it to this doc as Appendix A. You copy it verbatim; you never edit it. Put each preset's final parts, verbatim, in the PR description and the report so the founder can check them once more against what the code assembles. Sources, for your information only: `story-first` (Cold Open) from `COLD_OPEN_CHANNEL_CONFIG.md` v1.1 with its channel-specific rules left in its content profile (the truth layers, "popular version, then record", the sentence-length caps, the case-type rotation); `explainer` (Start to Shelf) from `START_TO_SHELF_CHANNEL_CONFIG.md` v0.2, with its own rules left in its content profile; `history` is written fresh from the craft the old long-form prompts described (a documentary storyteller, a vivid opening, conflict and turning points, rhythmic sentences), without their wording. If the text you must copy fails the preset lint or the preset test in `PROMPT_LAYERS.md`, stop and tell the architect; do not fix the text yourself.
 
 **Verify**: each preset's parts in the code equal Appendix A character for character (a test); the founder's approval of Appendix A is recorded in this doc's revision log.
 
-## R7. The flip and the grep proof
+## R7. The grep proof
 
-**Fix**: after the three channels have direction and the evaluation (R8) is acceptable, change `FALLBACK_PRESET` to `neutral`, update the tests, and run the proof: `git diff origin/main...HEAD -- studio app | grep '^+' | grep -iE 'histor|heist|crime|textbook|cold open|niyt|lego|mary celeste|roman|shelf'` returns only lines inside the presets data file (list them) and test fixtures with neutral names. Also search the consumers for the words the audit listed.
+**Fix**: after the evaluation (R8) is acceptable, run the proof: `git diff origin/main...HEAD -- studio app | grep '^+' | grep -iE 'histor|heist|crime|textbook|cold open|niyt|lego|mary celeste|roman|shelf'` returns only lines inside the presets data file (list them) and test fixtures with neutral names. Also search the consumers for the words the audit listed.
 
-**Verify**: a channel with no direction gets the neutral prompt; the three real channels are unchanged from before the flip.
+**Verify**: a channel with no direction gets the neutral prompt (tested since PR A); the three real channels get their approved presets; no history, crime or niche word remains outside the presets data file except the debt list.
 
 ## R8. Evaluation (PR C), under the spend ceiling
 
 **Fix**: **before** PR B merges, capture baseline outputs from today's code for each of the three channels: one Short each, and one long video for NIYT and Cold Open (propose the exact set and its cost in your first reply; the founder confirms). After PR B, run the same briefs again. Report: the prompt diff for each channel, the output side by side, a **leak detector** (plain code: history words in a non-history channel's script, review notes and frame review), and, if Task 3's cold reader is on `main`, the same blind read on both versions (else the founder reads the pairs). Also two invented neutral briefs (no channel) as Shorts to prove the neutral fallback. Spend: **$6 ceiling**, hard; state the estimate first; stop and report at the ceiling. Everything else is offline with a mocked model.
 
-**Verify**: NIYT's before and after prompts are identical; Cold Open and Start to Shelf changes are exactly the approved preset parts; no history word in a non-history channel's output.
+**Verify**: for each of the three channels, the prompt diff is exactly the replaced channel sentences plus the approved preset parts; no history word in a non-history channel's output. All three channels change, so the founder reads each pair (NIYT's too, though it will be rewritten later).
 
 ## R9. Same-cause sweep (Hard rule 9)
 
@@ -140,7 +142,7 @@ The app shows labels, summaries and part texts exactly as given and never keeps 
 
 **C6. App: channel settings clean-up (same app task).** On `main` (1 Nov) the channel settings screen shows a "Style guide" box under the niche description and a "Default voice" row **only when the channel has no content profile**; with a profile it shows a note "Default voice and style guide now come from the content profile. Edit them there." (`app/app/(app)/channel/[id].tsx`, around lines 360 to 413). Those duplicates are removed: no style guide box and no default voice row on the settings screen at all. A channel with no profile shows a "Set up content profile" entry in their place. Captions, watermark and the other settings stay. If the founder still sees the duplicates on a channel that has a profile, report which channel and which build before changing anything.
 
-**C7. Tests for the contract.** A profile saves with each preset and with no `direction`; an unknown preset, a long note or an extra field is rejected; `directionPresets` returns the four presets with server wording; the resolver equals today's behaviour with no `direction` (pre-flip) and equals the neutral prompt after the flip; a run records its preset key and version; `createProfileVersion` returns `warnings` for a guide holding a limit in prose and for a guide that repeats a preset sentence, and none for a clean profile; tenant isolation holds on the profile calls.
+**C7. Tests for the contract.** A profile saves with each preset and with no `direction`; an unknown preset, a long note or an extra field is rejected; `directionPresets` returns the four presets with server wording; a profile with no `direction` resolves to the neutral preset; a run records its preset key and version; `createProfileVersion` returns `warnings` for a guide holding a limit in prose and for a guide that repeats a preset sentence, and none for a clean profile; tenant isolation holds on the profile calls.
 
 ## Schema Impact
 
@@ -156,13 +158,13 @@ Proposals, not verified against current prices; the founder confirms before work
 
 ## Testing
 
-Backend and app type check, lint, build and the focused tests R0 finds; the full suite with `--maxWorkers=4` (say so). Cover: the schema (valid and invalid `direction`); the preset data (a test that `history` equals the text on `main`); the resolver before and after the flip; **snapshot tests of every consumer's built prompt** for each preset, with NIYT-with-`history` identical to `main`; the D1 and D4 contradictions gone for every preset; the grep proof; tenant isolation on the profile calls; the admin script (dry run, refusal on an unknown channel, only `direction` changes).
+Backend and app type check, lint, build and the focused tests R0 finds; the full suite with `--maxWorkers=4` (say so). Cover: the schema (valid and invalid `direction`); the preset data (a test that each preset equals Appendix A); the resolver (no `direction` gives neutral); **snapshot tests of every consumer's built prompt** for each preset, so every prompt change is a visible diff; the D1 and D4 contradictions gone for every preset; the grep proof; tenant isolation on the profile calls; the admin script (dry run, refusal on an unknown channel, only `direction` changes).
 
 ## Delivery: three PRs
 
-- **PR A (`SPRINT6_TASK4A_BE`)**: R0, R1 (with the preset lint), R2, the contract's C1 to C4 and the `warnings` of C3, `history` snapshots proving no behaviour change, `directionPresets`, and R10 (a), (b), (e), (f). No consumer changes yet. Merge first so the app task can start in parallel.
-- **PR B (`SPRINT6_TASK4B_BE`)**: R3 (Shorts consumers), then R4 (long-form consumers), R5, R6, and R10 (c) and (d). The preset text is already approved (Appendix A); the baseline must be captured before it merges (R8).
-- **PR C (`SPRINT6_TASK4C_BE`)**: R7 (the flip), R8 (the evaluation), R9, and R10 (a) made a hard failure. Merge `main` into your branch first. Report after each PR; Hard rule 8 closing runs after PR C merges.
+- **PR A (`SPRINT6_TASK4A_BE`)**: R0, R1 (with the preset lint), R2, R5 (the admin script), the contract's C1 to C4 and the `warnings` of C3, snapshots of every consumer as it is on `main` (the baseline the later diffs are read against), `directionPresets`, and R10 (a), (b), (e), (f). No consumer changes yet, so no prompt changes. Merge first so the app task can start in parallel. After it deploys, the founder runs the R5 script.
+- **PR B (`SPRINT6_TASK4B_BE`)**: R3 (Shorts consumers), then R4 (long-form consumers), R6, and R10 (c) and (d). The preset text is already approved (Appendix A). Merge only after the founder has run the R5 script and the baseline outputs are captured (R8).
+- **PR C (`SPRINT6_TASK4C_BE`)**: R7 (the grep proof), R8 (the evaluation), R9, and R10 (a) made a hard failure. Merge `main` into your branch first. Report after each PR; Hard rule 8 closing runs after PR C merges.
 
 ## Report
 
@@ -170,7 +172,7 @@ Backend and app type check, lint, build and the focused tests R0 finds; the full
 
 ## Not verified by the architect
 
-Code (nothing in this doc was run; the line references come from the prompt audit at `9be48fb` and from reading `schema.ts`, `resolve.ts`, `channels.ts` and the channel settings screen on `main` on 1 Nov). Whether any database check touches the profile JSON. The current contents of the three channels' profiles (they live in the database). Whether Start to Shelf has a profile at all, and which fact policy each live channel sets. **Git and the Project differ:** the Cold Open and Start to Shelf channel docs (and `CHANNEL_MANAGER_ROLE.md`, `COLD_OPEN_CONTENT_PLAN.md`) are in the Project but were not on `main` on 1 Nov. Until the founder commits them, do not rely on them; the preset text you need is in Appendix A. What the debug bundle stores per call. Cold Open's current behaviour under the history persona (the founder's own reports say its videos were not watchable; whether the persona caused that is not established).
+Code (nothing in this doc was run; the line references come from the prompt audit at `9be48fb` and from reading `schema.ts`, `resolve.ts`, `channels.ts` and the channel settings screen on `main` on 1 Nov). Whether any database check touches the profile JSON. The current contents of the three channels' profiles (they live in the database). Whether Start to Shelf has a profile at all, and which fact policy each live channel sets. **Git and the Project differed:** the Cold Open and Start to Shelf channel docs (and `CHANNEL_MANAGER_ROLE.md`, `COLD_OPEN_CONTENT_PLAN.md`) were in the Project but not on `main` on 1 Nov. The doc pull request that adds this task adds them, copied from the Project (Start to Shelf without its line naming Clocked In as active). They are inputs, not rules for you: the preset text you need is in Appendix A. What the debug bundle stores per call. Cold Open's current behaviour under the history persona (the founder's own reports say its videos were not watchable; whether the persona caused that is not established).
 
 ## Links & References
 
@@ -179,3 +181,62 @@ Code (nothing in this doc was run; the line references come from the prompt audi
 ## Revision log
 - r1, 2026-11-01: first issue (architect). Cold Open is a real-crime story channel, not history, so the plan's "existing channels get history" is corrected; three presets plus neutral; the fallback flips inside this task; Shorts consumers first; the picker and the settings clean-up are in the Contract and built with the Task 3 app task.
 - r2, 2026-11-01: the prompt layers are locked (`decisions/PROMPT_LAYERS.md`, founder, 1 Nov). Added: the layers as the governing rule and constraint; two preset parts (`storyShape`, `avoid`); the preset lint; R0 items 9 and 10; the D1 resolution by layer (the format keeps structure, style words move to the preset); R10 (the checks that make the layers enforceable); `warnings` on `createProfileVersion` (C3, C5, C7); three live channels confirmed (Clocked In is not live); Start to Shelf's doc found (decision 8 closed); preset text is approved in the architect chat first and added as Appendix A before the task starts (decision 7 reworded).
+- r3, 2026-11-01: founder decisions of 1 Nov. NIYT is not carried forward (it will be rewritten as a channel), so `history` is written fresh like the others and there is no byte-identity: removed the byte-identical success criterion, the verbatim `history` test, the recorded `history` exceptions in the preset lint, the pre-flip fallback and the flip step. The fallback is `neutral` from PR A; the R5 script moves to PR A and runs before PR B merges. `story-first`, `explainer` and `neutral` approved as presented and added as Appendix A; `history` drafted there and awaits approval. The four channel docs are added by the same doc pull request.
+
+## Appendix A: Preset text (the agent copies it verbatim and never edits it)
+
+The parts are `persona`, `domain`, `hookRule`, `storyShape`, `endingRule`, `chapterStyle`, `pacingCues`, `avoid` and `visualReviewTone`. **Required in every preset:** `persona`, `hookRule`, `endingRule`, `pacingCues`, `avoid`, `visualReviewTone`. `domain`, `storyShape` and `chapterStyle` may be empty. No part holds a digit, a channel or brand name, a banned-phrase list or a fact. Each preset starts at `version` 1.
+
+### `story-first` (Cold Open). Approved by the founder, 1 Nov
+
+- **persona:** A storyteller who tells true stories as a film would. One plain, confident voice, curious about the case and a little amazed by it, that says plainly when something is not known.
+- **domain:** A real event told as a story around one central question, answered as far as the evidence allows.
+- **hookRule:** Open inside the strangest moment the brief gives, not before it. The first line must work with the sound off. Start in the moment, then step back to how it began. No greeting, no setup, no generic question.
+- **storyShape:** Tell it as a chain of "but" and "so": what someone wanted, what stood in the way, what happened because of it, and the turn. Put a turn near the middle that makes the next beat necessary. Plant one open question early and pay it off at the end, or say plainly that it cannot be answered. Let the shape of the story set the order of the beats; do not force one pattern on every video.
+- **endingRule:** End on the strongest fact in the story, or the plainest statement of what is not known, in one line shorter than the lines before it. Where it fits, echo a word from the opening. Then stop. No moral, no question to the viewer, no call to action, no promise of another video.
+- **chapterStyle:** Each chapter has one job. A chapter may open with the question it answers; otherwise it opens in the action. Never open with a recap.
+- **pacingCues:** Write for the ear: one idea per sentence, no semicolons. Mix very short lines with longer ones, and let a short line land after a long one. Use an ellipsis only for a real breath.
+- **avoid:** Hype words and exclamation marks. Suspense that promises the answer instead of withholding it. A moral. Mocking anyone in the story.
+- **visualReviewTone:** Judge pictures as frames from a serious film about this story. Each must fit the scene being narrated and its time and place.
+
+Stays in Cold Open's content profile, not in the preset: the truth layers, "popular version, then record", tense rules, sentence caps, the case-type rotation, third-person voice, and the graphic and accusation lines.
+
+### `explainer` (Start to Shelf). Approved by the founder, 1 Nov
+
+- **persona:** A friendly explainer who has just found out how this works and is a little amazed. Curious and lively, never stiff, never hype.
+- **domain:** How something works or is made, explained one step at a time.
+- **hookRule:** Open with the subject and the strangest true thing about it, in plain words. The first line must work with the sound off. No greeting, no generic question.
+- **storyShape:** Walk through it in order, one step at a time. Each step is one action and one concrete detail the viewer can picture. Point at the oddest step and say why it matters. Vary the shape of the opening from video to video.
+- **endingRule:** End on a line that echoes the opening. Then stop. No call to action, no question to the viewer, no moral.
+- **chapterStyle:** (empty)
+- **pacingCues:** Write for the ear: one idea per sentence, contractions are fine, commas where a voice should breathe, no semicolons. Let every step move the explanation forward.
+- **avoid:** Hype words and exclamation marks.
+- **visualReviewTone:** Judge the pictures by whether each one fits the step being narrated at that moment. The viewer should see the action or the thing the sentence names.
+
+### `neutral` (the fallback). Approved by the founder, 1 Nov
+
+- **persona:** A clear, engaging scriptwriter for online video.
+- **domain:** (empty)
+- **hookRule:** Open with the most interesting true thing the brief gives. No greeting, no generic question.
+- **storyShape:** (empty)
+- **endingRule:** End on the strongest point, then stop. No call to action, no question to the viewer.
+- **chapterStyle:** (empty)
+- **pacingCues:** Write for the ear: one idea per sentence.
+- **avoid:** Hype words and exclamation marks.
+- **visualReviewTone:** Judge whether each picture fits what is being said at that moment.
+
+### `history` (NIYT, and later the rewritten history channel). DRAFT, waits for the founder's approval
+
+Written fresh to the preset test, in the same style as the others. The agent does not start until this block is marked approved.
+
+- **persona:** A documentary storyteller who brings the past to life with a historian's care and a film's pull. One steady, atmospheric voice that never turns breathless and says plainly when the sources are silent.
+- **domain:** The past: events, people and everyday life, told from the sources.
+- **hookRule:** Open inside one vivid, documented moment from the brief, then step back to how it came about. Let the tension build before any context arrives. The first line must work with the sound off. No greeting, no setup, no generic question.
+- **storyShape:** Build the story around conflict and turning points. Set the time and place early, in plain words. Plant one or two open questions early and settle them later, as far as the sources allow. Let the shape of the story set the order of the beats; do not force one pattern on every video.
+- **endingRule:** Settle the open questions as far as the sources allow, then close on one lingering thought. No summary sign-off, no moral, no question to the viewer, no call to action, no promise of another video.
+- **chapterStyle:** Each chapter has one job. Open it in the action: a conflict, a turning point or a shift in perspective. Do not open with a question or a recap. Give each chapter a vivid title label.
+- **pacingCues:** Write for the ear: short, rhythmic sentences, no semicolons. Use an ellipsis for a real pause and a dash for a shift. Let a short line land after a long one.
+- **avoid:** Hype words and exclamation marks. Modern slang. Judging people of the past by today's standards. Suspense that promises more than the sources give.
+- **visualReviewTone:** Judge pictures as frames from a serious historical documentary. Each must fit the scene being narrated and its period and place; anything out of period is a defect.
+
+Changes from today's long-form prompts, for the founder's eye: the old outro asked for a cliffhanger that bridges to a future topic, and the draft drops it (it conflicts with "no promise of another video", which every other preset keeps); the comparison to named streaming productions is gone; the old rule of 50 to 100 words of tension before context is now "let the tension build" (the number belongs in a field, not in a preset); the old "never open a chapter with an explicit question" stays, as "do not open with a question or a recap".

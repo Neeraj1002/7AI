@@ -39,7 +39,7 @@ Reserved, not built: a tenant-wide layer between 4 and 5 (a house style shared b
 2. **Locks and defaults.** Layers 1 and 2 are locks: nothing below can override them, not even a brief. The channel *chooses* a fact policy from the allowed values (layer 5); the platform *defines* what each value means (layer 1). A lower layer may be stricter than a lock, never looser.
 3. **Tiebreak for defaults:** brief, then run options, then content profile, then preset, then the task prompt (which has no style). The format owns structure only: on structure the format wins over the content profile; on voice the content profile wins over the format.
 4. **Numbers and lists live in fields.** Anything a machine can check (sentence-length caps, banned phrases, target length, chapter counts) is a structured field. A prompt states it once, from the field. A guide or a preset does not repeat it in prose.
-5. **One bundle per run.** Every consumer (writer, reviewer, planner, frame review, still check, packaging) builds from the same resolved bundle. The reviewer's hook, ending and pacing criteria come from the same preset parts the writer was given (`history` is the one exception, below). No consumer reads a raw channel field or keeps its own copy of a channel rule.
+5. **One bundle per run.** Every consumer (writer, reviewer, planner, frame review, still check, packaging) builds from the same resolved bundle. The reviewer's hook, ending and pacing criteria come from the same preset parts the writer was given. No consumer reads a raw channel field or keeps its own copy of a channel rule.
 6. **No real-topic examples in layers 1, 2 or 4.** A model copies its examples. Use placeholders or none. Examples live in a preset or a profile.
 7. **Stage context is data.** It is passed in delimited blocks and never carries a new rule. The approved script is the source of truth for later stages. A founder's edit at a gate is data too.
 8. **Fix a symptom in the layer that owns it.** When an output is wrong, ask which layer owns the question (below) and change that layer. Do not add a sentence somewhere else to compensate.
@@ -52,7 +52,7 @@ Reserved, not built: a tenant-wide layer between 4 and 5 (a house style shared b
 - True only of this channel: layer 5.
 - True only of this video: layer 6.
 
-**The preset test:** would every other channel on this preset keep this line? If another plausible channel would override it, it belongs in that channel's content profile. A preset part is a plain sentence or two, with no channel, brand or topic name, no digits, no banned-phrase list and no facts. **Recorded exceptions (the `history` preset only).** `history` is copied verbatim from today's code so that NIYT's prompts stay byte-identical. It therefore (a) contains digits ("the first 50 to 100 words", `long-form.ts:128`), and (b) carries, unchanged, the channel words that sit inside mixed sentences today: the long review's hook question (`script-review/index.ts:138`), the frame review's "described historical topic and dramatic tone" (`video-intelligence/index.ts:281`), the planners' "a historical event" (`plan.ts:171`) and "inventing historical facts" (`plan-long.ts:159`), the still check's "a documentary video" (`still-check.ts:47`) and the tags line's "historical" (`long-form.ts:138`). Because its reviewer wording is stored as its own fragment, the reviewer for `history` is not derived from its hook part. No other preset may do any of this. Each exception is listed in Task 4 Appendix A and is removed only by a deliberate change with its own before and after.
+**The preset test:** would every other channel on this preset keep this line? If another plausible channel would override it, it belongs in that channel's content profile. A preset part is a plain sentence or two, with no digit, no channel, brand or topic name, no banned-phrase list and no facts. A preset may use the ordinary words of its own craft family (a history preset says "historical") and nothing more specific. There are no exceptions: every preset is written fresh to this test, and none carries wording copied out of a shared prompt.
 
 ## Where things sit today (to be moved)
 
@@ -60,7 +60,7 @@ From the prompt audit (line numbers from `9be48fb`; the lines marked "read 1 Nov
 
 | Today | Belongs in | Fixed by |
 |---|---|---|
-| Long writer persona, cold open, pacing, chapter openings, open loops, outro (`long-form.ts:120-132`, read 1 Nov) | Layer 3 (`history` parts); the mechanics around them stay in layer 2 | Task 4 |
+| Long writer persona, cold open, pacing, chapter openings, open loops, outro (`long-form.ts:120-132`, read 1 Nov) | Layer 3 (the `history` preset, written fresh to the preset test); the mechanics around them stay in layer 2 | Task 4 |
 | Tags line "relevant historical search terms" (`long-form.ts:138`) | Tag count in layer 2; the noun from the channel's hashtags (layer 5) | Task 4 |
 | Long review hook "historical moment" (`script-review/index.ts:138`); frame review "historical topic and dramatic tone" (`video-intelligence/index.ts:281`); Short planner "a historical event" (`plan.ts:171`); long planner "inventing historical facts" (`plan-long.ts:159`); still check "for a documentary video" (`still-check.ts:47`) | Layer 3, read from the same parts the writer uses | Task 4 |
 | Format hints: "each chapter opens with the question it answers", "a closing line that points forward" (`manifest.ts:103`); brief template "[Historical event/thing]" (`manifest.ts:33`) | Chapter structure stays in layer 4; opening and closing style move to layer 3; topic words leave | Task 4 (the report lists what is left) |
@@ -75,9 +75,9 @@ A rule that is not tested is not locked. The pattern already exists: `llm/no-out
 
 | Check | What it catches | Built by |
 |---|---|---|
-| **Prompt-neutrality scan** (source scan) | A channel, niche or brand word in the prompt files of layers 1, 2 and 4. Starts with a short written debt list (the review-rule examples); each Task 4 PR removes entries it fixes; after the flip the list holds only the neutral-examples debt | Task 4 PR A (list), PR C (hard fail) |
-| **Preset lint** | A digit (except the one `history` exception), a channel or topic name, a banned-phrase list, an over-long part (more than 120 words), a missing required part | Task 4 PR A |
-| **Prompt snapshots** | Any change to an assembled prompt, per live channel and purpose. NIYT with `history` is byte-identical to `main` | Task 4 (R3, R4) |
+| **Prompt-neutrality scan** (source scan) | A channel, niche or brand word in the prompt files of layers 1, 2 and 4. Starts with a short written debt list (the review-rule examples); each Task 4 PR removes entries it fixes; after PR C the list holds only the neutral-examples debt | Task 4 PR A (list), PR C (hard fail) |
+| **Preset lint** | A digit, a channel or topic name, a banned-phrase list, an over-long part (more than 120 words), a missing required part | Task 4 PR A |
+| **Prompt snapshots** | Any change to an assembled prompt, per live channel and purpose, so no prompt changes without a visible diff for the reviewer to read | Task 4 (R3, R4) |
 | **Writer and reviewer agree** | For every preset, the writer prompt and the reviewer prompt are built from the same hook, ending and pacing part text | Task 4 PR B |
 | **Bundle scan** | A consumer reading `Channel.styleGuide`, `Channel.defaultVoice` or profile JSON outside `channel-profile/` and the bundle builder (Task 4 R0 lists the exact fields) | Task 4 PR B |
 | **Profile-save warnings** | `channels.createProfileVersion` returns an optional `warnings: string[]` and still saves. It warns when the guide holds a number next to words, sentences or seconds (a limit that belongs in a field), or repeats a sentence of the chosen preset. The picker shows them | Task 4 PR A (server); the Task 3 app task shows them behind `creativeDirection` |
@@ -110,3 +110,4 @@ Code was read on `main` on 1 Nov: `script-generation/index.ts`, `long-form.ts` (
 ## Revision log
 
 - r1, 2026-11-01: first issue (architect), after the founder asked for the roles of the system prompts, presets, content profile and other inputs to be defined and locked before the preset text is approved.
+- r2, 2026-11-01: the `history` preset is written fresh, like the others (founder, 1 Nov: NIYT will be rewritten as a channel, so its prompts are not carried forward). Removed the recorded exceptions (digits and six carried phrases), the byte-identity check, and the digit exception in the preset lint. A preset may use the ordinary words of its own craft family and nothing else.
