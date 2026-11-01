@@ -1,7 +1,7 @@
 # Shorts audio holes: separate video and audio filter graphs, and an audio-gap guard
 
 **Date**: 2026-11-02 (IST)
-**Status**: PR open, not merged, not deployed
+**Status**: merged as PR #158 (`9f02bf6`); not yet deployed at the time of writing
 **Branch**: `BUGS_SHORTS_AUDIO_HOLES`
 **Follows**: PR #156 (`BUGS_SHORTS_DURATION`), which fixed the picture being cut short. This is a second, separate defect found while looking at the regenerated honey Short.
 
@@ -105,3 +105,37 @@ Local, on the final code (one commit on current `main` c6022d3), the full vitest
 - What the phone player did with the holed file (speech in about 25 s) is consistent with the holes but was not reproduced here. After this fix the file has no holes; whether the pace is then normal on the phone is unconfirmed until that regeneration.
 - Follow-up rows kept from earlier: no ffmpeg pin now; long-form final-length guard needs real-run data and a tolerance that scales with length.
 - After merge: sweep of other ffmpeg commands that put video and audio in one `-filter_complex` (long-form join, music mix, previews), reported, nothing fixed without a verdict.
+
+## Follow-up rows (recorded at close-out)
+
+| Follow-up | Recommendation | Reason or need |
+| --- | --- | --- |
+| Long-form final-length guard | Needs real-run data and a tolerance that scales with length. | A guard was written for PR #156 and removed: there is no real long-form data (narration length, end tail, final probed length, gap) behind a tolerance, and a false positive would throw after an expensive render. A fixed 1 s is unlikely to fit 2 to 15 minute videos. |
+| Pin ffmpeg on the production host (`8.0.1-3ubuntu2`) | **No pin now.** Revisit if a second version-dependent defect appears. | An apt hold blocks security fixes for a library that parses untrusted stock clips, and production would still differ from dev (9.0.1). The version log at pipeline start, the final-length guard and the audio-gap guard detect a regression. |
+
+## Still unproven
+
+Whether ffmpeg 8.0.1 drops audio inside a single filter graph is **still unproven as a general statement**. What is proven, by replay on the production host: with the real stock-footage picture, this graph shape loses about 3 s chunks of audio (timing-dependent), and the same filters as two separate graphs, an audio-only graph, or a synthetic picture do not. The underlying ffmpeg mechanism was not found, and it does not reproduce on ffmpeg 9.0.1. Whether the phone pace is normal after the fix is also unconfirmed until a regenerated Short is played on the phone.
+
+## Sibling sweep after merge (read-only; nothing changed)
+
+Question: does any other ffmpeg command in `studio/src` or `studio/scripts` put video and audio in one `-filter_complex`? Every `-filter_complex` use, read:
+
+| Where | What it does | Video and audio in one graph? |
+| --- | --- | --- |
+| `video-generation/index.ts` final mux (Shorts) | Video chain and audio chain | **Was yes; fixed by PR #158 (two graphs).** |
+| `video-generation/index.ts` `measureMixLoudness` | Audio-only loudnorm measuring pass, output discarded | No |
+| `video-generation/long-narration.ts` `joinAudio` | Audio-only concat of narration chunks | No |
+| `video-generation/long-render.ts` `buildBedAudio` | Audio-only music crossfade | No |
+| `video-generation/long-render.ts` `mixAudio` (measure and render) | Audio-only mix, built **before** the picture | No |
+| `video-generation/long-render.ts` `joinAndMux` (long-form) | Silent picture + finished audio file, `-map 0:v -map 1:a -c copy`, no filter graph | No (this is the "mix audio first, then copy" shape, which was clean in the replay) |
+| `scripts/generate-audio-beds.ts` | Synthesises music beds (audio only) | No |
+| `scripts/task8-acceptance.ts` | One-frame video thumbnails | No |
+
+Other ffmpeg commands read: Ken Burns and stock-segment encodes (`-vf` only, `-an` on stock segments), the Gate 2 preview copy (`long-form/preview.ts`, `-vf` and plain codec options), Video Review analysis (`-af ebur128`, scene detect, frame crops), still checks, stubs, cover-frame extraction. None combines the two streams in a graph. `-shortest` is used in exactly one place (the Shorts final mux).
+
+What the sweep did not find, and what stays open:
+
+- The audio-gap guard runs for Shorts only. Long-form builds its audio in its own audio-only command and copies it into the file, and no audio-hole check runs on a long-form file. No evidence it is affected; there is also no evidence it is not (no real long-form files were seen).
+- `stock-shotlist.ts:119-122` still uses `fps` then `setpts` per clip segment (reported in PR #156). It builds a file that decoded fully on ffmpeg 8.0.1, and the picture-length guard checks its container length.
+- Video Review already raised the symptom as a soft warning before this fix: audio bitrate of 129 and 115 kbps against a 160 kbps floor on the `f596f80c` files (recorded in the #139 report). It stayed a warning. The new guard is the hard check.
