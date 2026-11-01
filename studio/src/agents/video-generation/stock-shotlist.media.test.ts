@@ -7,7 +7,8 @@ import { promisify } from 'node:util';
 
 const mocks = vi.hoisted(() => ({ search: vi.fn() }));
 vi.mock('../../stock-footage', () => ({ searchStockFootage: mocks.search }));
-vi.mock('./quality-spec', () => ({
+vi.mock('./quality-spec', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   QUALITY_SPEC: { video: { width: 360, height: 640, fps: 30, trackTimescale: 15360, pixFmt: 'yuv420p' } },
 }));
 

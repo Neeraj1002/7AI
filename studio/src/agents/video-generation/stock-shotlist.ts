@@ -4,6 +4,8 @@ import { promisify } from 'node:util';
 import { searchStockFootage } from '../../stock-footage';
 import { env } from '../../config/env';
 import { QUALITY_SPEC } from './quality-spec';
+import { pictureLengthMismatch } from './duration-guards';
+import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
 
 // Sprint 4 Task 8 (R5) — the stock-footage path as a shot list: one clip per
 // story beat, trimmed to its window, normalised to 1080x1920@30 and
@@ -152,6 +154,8 @@ export async function buildStockShotList(params: {
     const list = segmentPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
     await fs.writeFile(concatListPath, list, 'utf-8');
     await execFileAsync(env.FFMPEG_PATH, ['-y', '-f', 'concat', '-safe', '0', '-i', concatListPath, '-c', 'copy', params.outputPath]);
+    const pictureMismatch = pictureLengthMismatch(await probeSeconds(params.outputPath), totalSeconds);
+    if (pictureMismatch) throw new NonTransientStageError(pictureMismatch);
     return { sourceIds: usedIds, queries, clipCount: usedIds.length };
   } finally {
     await Promise.all([...segmentPaths, concatListPath].map((p) => fs.unlink(p).catch(() => undefined)));

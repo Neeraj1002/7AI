@@ -16,6 +16,7 @@ import type { BrandAssets } from '../../types';
 import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type ProductionPlan } from './plan';
 import { DATA_DIR } from '../../config/paths';
 import { QUALITY_SPEC, END_TAIL_SECONDS } from './quality-spec';
+import { probeMediaSeconds, voiceLengthMismatch, finalLengthMismatch } from './duration-guards';
 import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
 import { HOOK_SECONDS } from '../../packaging/constants';
 import { applyFrameZero } from '../../packaging/opening';
@@ -457,6 +458,10 @@ export async function generateVideo(params: {
     params.spend.transcriptionSeconds = asr.audioDurationSeconds;
     params.spend.transcriptionCostUsd = Number(asr.costUsd);
   }
+  // The picture is built to the transcription's length, so the voice file's own length must agree with it before anything is rendered.
+  const voiceSeconds = await probeMediaSeconds(tts.audioPath);
+  const voiceMismatch = voiceLengthMismatch(voiceSeconds, asr.audioDurationSeconds);
+  if (voiceMismatch) throw new NonTransientStageError(voiceMismatch);
   // Bugs Closure 2 (P8): the short hold after the last spoken word.
   const tailSeconds = END_TAIL_SECONDS;
 
@@ -627,7 +632,9 @@ export async function generateVideo(params: {
   // referenced by its plain filename, avoiding FFmpeg's notoriously fiddly
   // colon/backslash escaping for the `ass` filter's path argument on
   // Windows.
-  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS},setpts=N/(${VIDEO_FPS}*TB)` +
+  // No setpts after fps: the stock shot list is already built at a constant frame rate, `-r`/`-fps_mode cfr` below pin the output, and
+  // on the production ffmpeg (8.0.1) any setpts here cut a 36 s picture to 13 s.
+  const scaleCropFilter = `[0:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},fps=${VIDEO_FPS}` +
     // P8: hold the last frame through the tail (generous pad; -shortest trims it to the audio).
     (tailSeconds > 0 ? `,tpad=stop_mode=clone:stop_duration=${(tailSeconds + 0.5).toFixed(2)}` : '');
   // fontsdir relative to the ffmpeg cwd (outputDir): no drive-letter colon to
@@ -730,6 +737,8 @@ export async function generateVideo(params: {
 
   const videoPath = path.join(outputDir, videoFilename);
   const durationSeconds = await probeDurationSeconds(videoPath);
+  const finalMismatch = finalLengthMismatch(durationSeconds, voiceSeconds, tailSeconds);
+  if (finalMismatch) throw new NonTransientStageError(finalMismatch);
 
   const ttsEntry = resolveMediaPurpose('tts', params.voice);
   const transcriptionEntry = resolveMediaPurpose('transcription');
@@ -740,6 +749,8 @@ export async function generateVideo(params: {
     output: {
       videoPath,
       durationSeconds,
+      // The voice's own length, so Video Review can reject a Short that is shorter than it.
+      narrationSeconds: Number(voiceSeconds.toFixed(2)),
       aspectRatio: '9:16',
       plan: params.plan,
     },
