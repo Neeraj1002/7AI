@@ -2,9 +2,9 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting, then `docs/decisions/PROMPT_LAYERS.md` in full.** The template defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. `PROMPT_LAYERS.md` (founder-decided 1 Nov) says which layer owns which question in an LLM call; every choice in this task follows it, and the task's job is to make the code obey it. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r3, 2026-11-01.
+**Revision**: r4, 2026-11-01.
 
-**Written**: 2026-11-01 by the architect chat (there is no task writer for this item), from `sprint6/PLAN.md` P16, the prompt audit of 1 Nov, `decisions/PROMPT_LAYERS.md` and the founder's answers of 1 Nov. **Status**: not started; starts when this doc is merged, the founder has approved the `history` text in Appendix A (decision 7) and answered decision 9. **Priority**: P2. **Branches**: `SPRINT6_TASK4A_BE`, `SPRINT6_TASK4B_BE`, `SPRINT6_TASK4C_BE`; worktrees `task4a`, `task4b`, `task4c` under `D:\Study Material\7AI-SPRINT6`. The app part (the preset picker and the channel settings clean-up) is **not** in this agent's work: it is built with the Task 3 app task (Contract C5 and C6 below). Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
+**Written**: 2026-11-01 by the architect chat (there is no task writer for this item), from `sprint6/PLAN.md` P16, the prompt audit of 1 Nov, `decisions/PROMPT_LAYERS.md` and the founder's answers of 1 Nov. **Status**: not started; starts when this doc is merged (every founder decision is answered and Appendix A is approved). **Priority**: P2. **Branches**: `SPRINT6_TASK4A_BE`, `SPRINT6_TASK4B_BE`, `SPRINT6_TASK4C_BE`; worktrees `task4a`, `task4b`, `task4c` under `D:\Study Material\7AI-SPRINT6`. The app part (the preset picker and the channel settings clean-up) is **not** in this agent's work: it is built with the Task 3 app task (Contract C5 and C6 below). Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
 ## Founder decisions
 
@@ -22,9 +22,10 @@ Also answered on 1 Nov:
 
 7a. **Preset text approved** (founder, 1 Nov): `story-first`, `explainer` and `neutral`, as written in Appendix A.
 
-Still open (the founder answers before the step named):
-7. **The `history` text.** Every preset is approved by the founder in the architect chat before this task starts; the approved text is in Appendix A and the agent copies it verbatim and never edits it. `history` is written fresh (it is not a copy of today's code), and it is drafted in Appendix A and waits for the founder's approval. One change from today needs his eye: the old outro bridged to a future topic with a cliffhanger; the draft drops that and ends on a lingering thought.
-9. **Note length.** Proposed 300 characters. Confirm.
+7b. **The `history` text approved** (founder, 1 Nov), as written in Appendix A. It is written fresh (not a copy of today's code), so NIYT's prompts change. He accepted the one change he was asked to look at: the old outro bridged to a future topic with a cliffhanger; the preset drops that and ends on a lingering thought.
+9. **Note length: 300 characters** (founder, 1 Nov).
+
+Nothing is open. The agent copies Appendix A verbatim and never edits it.
 
 ## Objective
 
@@ -86,7 +87,7 @@ Move every piece of channel-specific creative direction out of shared prompts an
 
 ## R6. Preset text approval (before PR B starts)
 
-**Fix**: the founder approves each preset's text in the architect chat **before this task starts** (decision 7), and the architect adds it to this doc as Appendix A. You copy it verbatim; you never edit it. Put each preset's final parts, verbatim, in the PR description and the report so the founder can check them once more against what the code assembles. Sources, for your information only: `story-first` (Cold Open) from `COLD_OPEN_CHANNEL_CONFIG.md` v1.1 with its channel-specific rules left in its content profile (the truth layers, "popular version, then record", the sentence-length caps, the case-type rotation); `explainer` (Start to Shelf) from `START_TO_SHELF_CHANNEL_CONFIG.md` v0.2, with its own rules left in its content profile; `history` is written fresh from the craft the old long-form prompts described (a documentary storyteller, a vivid opening, conflict and turning points, rhythmic sentences), without their wording. If the text you must copy fails the preset lint or the preset test in `PROMPT_LAYERS.md`, stop and tell the architect; do not fix the text yourself.
+**Fix**: the founder approved each preset's text in the architect chat (decisions 7a and 7b), and the architect added it to this doc as Appendix A. You copy it verbatim; you never edit it. Put each preset's final parts, verbatim, in the PR description and the report so the founder can check them once more against what the code assembles. Sources, for your information only: `story-first` (Cold Open) from `COLD_OPEN_CHANNEL_CONFIG.md` v1.1 with its channel-specific rules left in its content profile (the truth layers, "popular version, then record", the sentence-length caps, the case-type rotation); `explainer` (Start to Shelf) from `START_TO_SHELF_CHANNEL_CONFIG.md` v0.2, with its own rules left in its content profile; `history` is written fresh from the craft the old long-form prompts described (a documentary storyteller, a vivid opening, conflict and turning points, rhythmic sentences), without their wording. If the text you must copy fails the preset lint or the preset test in `PROMPT_LAYERS.md`, stop and tell the architect; do not fix the text yourself.
 
 **Verify**: each preset's parts in the code equal Appendix A character for character (a test); the founder's approval of Appendix A is recorded in this doc's revision log.
 
@@ -182,6 +183,7 @@ Code (nothing in this doc was run; the line references come from the prompt audi
 - r1, 2026-11-01: first issue (architect). Cold Open is a real-crime story channel, not history, so the plan's "existing channels get history" is corrected; three presets plus neutral; the fallback flips inside this task; Shorts consumers first; the picker and the settings clean-up are in the Contract and built with the Task 3 app task.
 - r2, 2026-11-01: the prompt layers are locked (`decisions/PROMPT_LAYERS.md`, founder, 1 Nov). Added: the layers as the governing rule and constraint; two preset parts (`storyShape`, `avoid`); the preset lint; R0 items 9 and 10; the D1 resolution by layer (the format keeps structure, style words move to the preset); R10 (the checks that make the layers enforceable); `warnings` on `createProfileVersion` (C3, C5, C7); three live channels confirmed (Clocked In is not live); Start to Shelf's doc found (decision 8 closed); preset text is approved in the architect chat first and added as Appendix A before the task starts (decision 7 reworded).
 - r3, 2026-11-01: founder decisions of 1 Nov. NIYT is not carried forward (it will be rewritten as a channel), so `history` is written fresh like the others and there is no byte-identity: removed the byte-identical success criterion, the verbatim `history` test, the recorded `history` exceptions in the preset lint, the pre-flip fallback and the flip step. The fallback is `neutral` from PR A; the R5 script moves to PR A and runs before PR B merges. `story-first`, `explainer` and `neutral` approved as presented and added as Appendix A; `history` drafted there and awaits approval. The four channel docs are added by the same doc pull request.
+- r4, 2026-11-01: the founder approved the `history` text and confirmed the note length at 300 characters (decisions 7 and 9 closed). Appendix A is final: all four presets approved. No other change.
 
 ## Appendix A: Preset text (the agent copies it verbatim and never edits it)
 
@@ -225,9 +227,9 @@ Stays in Cold Open's content profile, not in the preset: the truth layers, "popu
 - **avoid:** Hype words and exclamation marks.
 - **visualReviewTone:** Judge whether each picture fits what is being said at that moment.
 
-### `history` (NIYT, and later the rewritten history channel). DRAFT, waits for the founder's approval
+### `history` (NIYT, and later the rewritten history channel). Approved by the founder, 1 Nov
 
-Written fresh to the preset test, in the same style as the others. The agent does not start until this block is marked approved.
+Written fresh to the preset test, in the same style as the others.
 
 - **persona:** A documentary storyteller who brings the past to life with a historian's care and a film's pull. One steady, atmospheric voice that never turns breathless and says plainly when the sources are silent.
 - **domain:** The past: events, people and everyday life, told from the sources.
@@ -239,4 +241,4 @@ Written fresh to the preset test, in the same style as the others. The agent doe
 - **avoid:** Hype words and exclamation marks. Modern slang. Judging people of the past by today's standards. Suspense that promises more than the sources give.
 - **visualReviewTone:** Judge pictures as frames from a serious historical documentary. Each must fit the scene being narrated and its period and place; anything out of period is a defect.
 
-Changes from today's long-form prompts, for the founder's eye: the old outro asked for a cliffhanger that bridges to a future topic, and the draft drops it (it conflicts with "no promise of another video", which every other preset keeps); the comparison to named streaming productions is gone; the old rule of 50 to 100 words of tension before context is now "let the tension build" (the number belongs in a field, not in a preset); the old "never open a chapter with an explicit question" stays, as "do not open with a question or a recap".
+Changes from today's long-form prompts (approved with the text): the old outro asked for a cliffhanger that bridges to a future topic, and the draft drops it (it conflicts with "no promise of another video", which every other preset keeps); the comparison to named streaming productions is gone; the old rule of 50 to 100 words of tension before context is now "let the tension build" (the number belongs in a field, not in a preset); the old "never open a chapter with an explicit question" stays, as "do not open with a question or a recap".
