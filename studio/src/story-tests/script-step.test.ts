@@ -189,6 +189,18 @@ describe('runScriptStep', () => {
     expect(out).toMatchObject({ status: 'not_run', notRunReason: 'the budget for this step was reached', costUsd: 0 });
   });
 
+  it('three re-reviews on one run never spend more than the cap in total', async () => {
+    let total = 0;
+    for (let i = 0; i < 3; i++) {
+      // Each call costs 0.02, below its worst case (as a real call always is), against a cap of 0.05.
+      const { call } = scripted(reply(), yes, '0.02');
+      const out = await runScriptStep({ ...base, priorSpentUsd: total, deps: { ...noMeter, call, capUsd: 0.05 } });
+      total += out.costUsd;
+    }
+    expect(total).toBeLessThanOrEqual(0.05);
+    expect(total).toBeGreaterThan(0);
+  });
+
   it('a small earlier spend leaves room, and the stored cost is this execution only', async () => {
     const { call, seen } = scripted(reply());
     const out = await runScriptStep({ ...base, priorSpentUsd: 0.01, deps: { ...noMeter, call } });

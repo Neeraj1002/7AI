@@ -1,7 +1,7 @@
 import { env } from '../config/env';
 import type { Purpose } from '../llm';
 import { prisma } from '../models/prisma-client';
-import { insertUsageEvent, sumStoryScriptCostForRun } from '../models/repositories/usage-event.repository';
+import { insertUsageEvent, sumStoryAngleCostForRun, sumStoryScriptCostForRun } from '../models/repositories/usage-event.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { findLatestCompletedAttempt } from '../models/repositories/pipeline-stage.repository';
 import { applyAngleChoice } from '../story-tests/choice';
@@ -35,7 +35,10 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
     const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
     if (!budget.ok) return notRunStoryTests("the channel's spending limit is reached");
     const config = await loadResolvedConfig(run, channel);
+    // The $0.10 cap is per run: a second intake attempt starts from what Part A already spent.
+    const priorSpentUsd = await sumStoryAngleCostForRun(run.id);
     return await runAngleStep({
+      priorSpentUsd,
       topic: params.intake.topic,
       constraints: params.intake.constraints,
       sourceText: [run.briefText, params.intake.topic, ...params.intake.constraints].join('\n'),

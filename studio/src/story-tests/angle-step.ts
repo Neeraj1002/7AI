@@ -49,6 +49,8 @@ export async function runAngleStep(params: {
   sourceText: string;
   persona: string | null;
   format: VideoFormat;
+  // What Part A already cost on this run (an earlier intake attempt). The cap is per run, so it counts here.
+  priorSpentUsd?: number;
   deps: AngleStepDeps;
 }): Promise<StoredStoryTests> {
   const { deps } = params;
@@ -70,7 +72,8 @@ export async function runAngleStep(params: {
   };
 
   // Before each call: would its worst case still fit under the cap? One place, so no call skips it.
-  const withinCap = (purpose: Purpose, system: string, user: string) => spent + worstCaseCostUsd(purpose, system, user) <= cap;
+  const prior = params.priorSpentUsd ?? 0;
+  const withinCap = (purpose: Purpose, system: string, user: string) => prior + spent + worstCaseCostUsd(purpose, system, user) <= cap;
 
   const finish = (partial: Partial<StoredStoryTests['angleStep']>): StoredStoryTests => {
     const step: StoredStoryTests['angleStep'] = {

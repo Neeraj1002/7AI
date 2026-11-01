@@ -121,6 +121,14 @@ describe('runAngleStep', () => {
     expect(seen).toHaveLength(1);
   });
 
+  it('earlier Part A spend on the run counts against the per-run cap', async () => {
+    const { call, seen } = scripted([]);
+    const out = await runAngleStep({ ...base, priorSpentUsd: 0.0999, deps: { ...noMeter, call } });
+    expect(seen).toHaveLength(0);
+    expect(out.angleStep.notRunReason).toBe('the budget for this step was reached');
+    expect(out.costUsd).toBe(0);
+  });
+
   it('a tiny cap skips every call and says why', async () => {
     const { call, seen } = scripted([]);
     const out = await runAngleStep({ ...base, deps: { ...noMeter, call, capUsd: 0.001 } });

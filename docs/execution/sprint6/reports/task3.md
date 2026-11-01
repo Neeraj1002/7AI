@@ -190,3 +190,13 @@ My Part A change (reading the chosen angle with `findLatestCompletedAttempt` in 
 
 `tsc --noEmit` clean; eslint clean on `story-tests`, `run-pipeline`, `api/routers`, `llm`, `agents/script-generation` and `brief-checks.ts`. Full run, `--maxWorkers=4`: **1788 passed, 78 skipped, 9 failed**. The 9: 6 in `runs.cancel`, `runs.long-form-actions` and `runs.long-form` (they call the database; "Authentication failed", the same 6 as before Task 3) and 3 in `credential-crypto.test.ts` (my placeholder `CREDENTIAL_ENCRYPTION_KEY` for the test environment is not a valid key; environmental, not touched by this PR). Not compared against a clean `main` here, and the 13 + skipped database tests have not run: both still need a machine with a sandbox database.
 
+
+## Fixes before Part C (review round 2)
+
+- Baseline: on clean origin/main with the same environment the same 6 database tests (runs.cancel, runs.long-form-actions, runs.long-form) failed without a database; with a valid 32-byte CREDENTIAL_ENCRYPTION_KEY (and JWT_SECRET, API_AUTH_TOKEN) the 3 crypto tests pass. None of the failures was ours.
+- With a local sandbox database (migrations applied incl. paused_angle): branch full suite 1885 passed, 9 skipped, 0 failed (199 files passed, 1 skipped); clean main 1796 passed, 9 skipped, 0 failed. The 13 Part A database tests pass (the 3 pause tests needed their parse-brief mock to return a usage-shaped object). tsc: 0 errors. eslint (src): clean. The sandbox database was dropped.
+- Part B cap is now per run: earlier story-cold-reader / story-promise-match spend (incl. failed calls) is summed before each cap check. Same fix applied to Part A (story-angles / story-pair-reader), which had the same cause. Tests cover both.
+- The chosen-angle read in script generation is behind the switch; the 11 mock additions were reverted (one file keeps its mock for the new switch tests).
+- Swipe line matching now retries with whitespace collapsed and quotes/dashes normalised, mapped back to the original position; a line still absent stays not_run.
+- Main merged; prompt-index entries added for the four story purposes; prompt-index test passes.
+- Counts after the last two small edits (Part A cap, new tests) were checked on the story-tests/run-pipeline subsets only; the full run above pre-dates the final Part A cap edit.

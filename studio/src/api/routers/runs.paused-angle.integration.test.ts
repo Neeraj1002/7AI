@@ -16,9 +16,14 @@ vi.mock('../../run-pipeline/pipeline-runner', async (orig) => ({
   continuePipelineInBackground: (id: string) => void mocks.started.push(id),
   startPipelineInBackground: vi.fn(),
 }));
+// The same shape the real parser returns (zero usage), so the stage's metering path is the real one.
+const parsedWith = () => ({
+  output: mocks.parsed,
+  llm: { provider: 'anthropic', model: 'stub', text: '', stopReason: 'stub', usage: { inputTokens: 0, outputTokens: 0 }, costUsd: '0.000000', maxOutputTokens: 1, priorAttempts: [] },
+});
 vi.mock('../../run-pipeline/parse-brief', () => ({
-  parseBrief: async () => ({ output: mocks.parsed, llm: null }),
-  stubParseBrief: async () => ({ output: mocks.parsed, llm: null }),
+  parseBrief: async () => parsedWith(),
+  stubParseBrief: async () => parsedWith(),
 }));
 vi.mock('../../run-pipeline/preflight-gate', () => ({ preflightGate: async () => null }));
 vi.mock('../../run-pipeline/story-tests-stage', async (orig) => ({
