@@ -1,8 +1,10 @@
-# Sprint 6 Task 3 report: Story Tests (P19), PR A
+# Sprint 6 Task 3 report: Story Tests (P19), Parts A, B and C in one PR
 
-**Branch**: `SPRINT6_TASK3A_BE` · **Worktree**: `D:\Study Material\7AI-SPRINT6\task3a` · **PR**: not opened yet (draft once the founder has approved the prompts and the tests below pass).
+**Branch**: `SPRINT6_TASK3A_BE` · **Worktree**: `D:\Study Material\7AI-SPRINT6\task3a` · **PR**: [#143](https://github.com/Neeraj1002/7AI/pull/143), open, covers Parts A, B and C (founder scope change, 1 Nov). It merges after the app PR.
 
-**Status of this section (PR A)**: code written, offline tests written. **No live call has been made.** The Task 3 doc says the founder approves the four prompts before any live check; PR A has two of them (below), so the wiring check waits for that approval.
+**Status of this report**: Part A built and reviewed once (fixes below). Part B and Part C are not started; each follows in its own commit(s) and its own section. **Live calls so far**: one wiring check of Part A on 1 Nov, **$0.0215** of the $1.50 total, run **before** the founder approved the Part A prompt text. No other live call has been made, and none will be until the founder approves the prompts of the part being checked.
+
+**Rollout rule**: `STORY_TESTS_ENABLED` stays off until the app PR (angle card) and this PR are both live.
 
 ## PR A: Part A, angle pairing
 
@@ -19,12 +21,13 @@
 | 6 | Storage for the record | **Confirmed.** `pipeline_stages.output` is JSON; `patchStageOutput` and `completeStage` write it. Part A is written with the intake stage's completion (same transaction as the status change), so it survives a restart. Tenant: `runs.get` checks `run.tenantId === ctx.tenantId`; `chooseAngle` uses `assertGateOwnership`. | `pipeline-stage.repository.ts`, `runs.ts` |
 | 9 | Designer screens | **Unknown** (none seen in the repo). The app work is its own PR. | |
 | | Numeric check reuse (R1) | **Confirmed reusable as-is.** `normalizedNumbers` and `numericSourceText` are exported, so the figure flag calls them directly; no second checker. The comparison text is the brief plus the intake result. | `agents/script-review/brief-checks.ts`, `numbers.ts` |
-| | Where a run's other statuses are mapped | Backend: `inspect-run-client.ts` (status enum list), `channels.ts` (in-flight statuses on archive), `runs.cancel` (a run at `paused_angle` can now be cancelled). Not changed, with reasons below. | |
+| | Where a run's other statuses are mapped | Backend, changed: `inspect-run-client.ts` (status enum list), `channels.ts` (in-flight statuses on archive), `runs.cancel`, `run-settings.ts` (`SETTINGS_ALLOWED_STATUSES`), `admin.repository.ts` and `admin/overview.ts` (see review fixes). | |
+| 10 | How does an old app show an unknown status such as `paused_angle`? | **Badly, which is why the switch must wait for the app.** `runChip` (`app/lib/run-view.ts`) falls to its default and shows "In progress". `statusLabel` (`app/lib/run-labels.ts`) returns the raw string `paused_angle`. `lib/inbox.ts` lists only `paused_gate1` and `paused_gate2` as needing the founder, so the run would sit with no card and no button, looking busy. | `app/lib/run-view.ts`, `run-labels.ts`, `inbox.ts` |
 
 ### Not changed on purpose (for the architect)
 
-- `admin.repository.ts` and `admin/overview.ts` count gates only (`pausedGate1`, `pausedGate2` fields and a "waited N hours at Gate" item); a `paused_angle` run is not counted there. Left alone: it needs a new count field, which the app's admin screens would also have to read.
 - The app's status maps (`lib/run-view.ts` and the others the contract lists) are the app PR's work.
+- `inspect-run-client.ts` and `channels.ts`: only a `paused_angle` entry was added to their status lists (a run waiting for an angle is in flight); no behaviour changed there.
 
 ### Notice and reminder (added at the architect's request)
 
@@ -40,7 +43,7 @@ Built: `readerTags` per angle (server wording, e.g. "Reader would click · both 
 
 - `runs.get` now returns `storyTests` (contract C3). The Part B half, `scriptCheck`, is always `null` in PR A.
 - `runs.chooseAngle({ runId, angleId | null })` (contract C4): `BAD_REQUEST` for a foreign angle id, `CONFLICT` when the run is not at `paused_angle`, the same `assertGateOwnership` as Gate 1. The choice and the status change are one transaction, and the status change is conditional on `paused_angle`, so two answers cannot both win.
-- New run status `paused_angle`; migration `20261101000000_sprint6_task3_paused_angle` drops and re-adds `pipeline_runs_status_check` with the extra value. `foundation_schema` is not edited. **Rollout**: apply with `prisma migrate deploy` before the code that can write the status, as `sprint5/runbooks/task2-rollout.md` did.
+- New run status `paused_angle`; migration `20261101000000_sprint6_task3_paused_angle` drops and re-adds `pipeline_runs_status_check` with the extra value. `foundation_schema` is not edited. **Rollout**: (1) apply the migration with `prisma migrate deploy` before the code that can write the status, as `sprint5/runbooks/task2-rollout.md` did; (2) deploy the app PR, then this PR; (3) **do not turn `STORY_TESTS_ENABLED` on until the app PR (angle card) and this PR are both live**: an old app shows a waiting run as "In progress" with no way to answer (R0 item 10).
 - Switch: `STORY_TESTS_ENABLED=1` in the server environment. Off by default, so merging changes nothing until it is set.
 - If the angle step ends as "not run" (the reader or writer failed, the angles were unusable, the cap was reached), the run does **not** pause: the record says why and the script step follows. This differs from the doc's R1 wording ("the founder may continue without an angle"), which would need a card for a case with nothing to choose from; flagged for the architect.
 
@@ -88,18 +91,26 @@ Worst case per call is checked before it is made: input at about 4 characters a 
 
 `studio/src/story-tests/angle-step.test.ts` (mocked model): valid and invalid angle replies, the figure flag, clear winner and no clear winner, reversal, invented id, click equal to skip, no third call, the blind input, a thrown call not retried, a tiny cap skipping every call, a cap that skips only the readers, metering totals, the choice stored as the reader's pick / another / skip, a foreign id and a second choice rejected, and the view for old, running, waiting runs.
 
-### Not verified / still to do in PR A
+### Review fixes to Part A (founder review, 1 Nov)
 
-- Router and state-machine behaviour (`chooseAngle` tenant check and CONFLICT, the pause in `runIntakeStage`, `runs.cancel` at `paused_angle`, a restart at `paused_angle`) has **no test yet**: they need a database. The pure parts (choice rules, view, verdict) are tested.
-- Test run (no database available here): `tsc --noEmit` clean; eslint clean on touched folders; full suite with `--maxWorkers=4`: 1746 passed, 6 failed in `runs.cancel`, `runs.long-form-actions` and `runs.long-form` tests, which call `sumUsageCostForRun` on a real database ("Authentication failed ... credentials for `x`"). Not compared against a baseline run on `main`.
-- No live check has been run (waits for prompt approval).
-- Grep proof, the same-cause sweep (R9) and the Task 1 finding are PR C's sections.
+1. **The chosen angle steers the writer.** `constraintsWithAngle` (`agents/script-generation/index.ts`) adds one constraint line from a fixed template, `chosenAngleConstraint`: `Chosen angle (the way into the subject, given as data and not as a rule): title "<title>", promise "<promise>"`. Title and promise are JSON-quoted, so a quote, semicolon or newline in them cannot start a new field or line (rule 7). The template sits in the task prompt layer (layer 2): no channel name, no real-topic example. `runScriptGenerationStage` reads the choice with `chosenAngleOf`. With no chosen angle (switch off, skipped, not run, still waiting) `constraintsWithAngle` returns the very same array. Snapshot tests in `agents/script-generation/prompt.test.ts` (committed snapshot file) cover the assembled writer system prompt plus user message in both cases and assert the only difference is that one line. **Part B reads the same choice** from the same stored record: `chosenAngleOf(intakeOutput)` in `story-tests/view.ts` (intake stage `output.storyTests.angleStep`, the angle whose id is `chosenId`; its `promise` is the stored promise). Script Review is untouched and still sees the intake's own constraints.
+2. **Database-backed tests**, `api/routers/runs.paused-angle.integration.test.ts` (sandbox-only, like the admin integration tests): `chooseAngle` success, skip, other-tenant owner (FORBIDDEN), foreign angle id (BAD_REQUEST), wrong status (CONFLICT), a double click (CONFLICT, one driver), two simultaneous answers (one wins); the pause in `runIntakeStage` (status, stage, notice once); the driver stopping at `paused_angle`; a not-run step not pausing; the switch off leaving intake as before; cancel from `paused_angle`; `resumeOnStartup` leaving the run alone and the choice working afterwards. **They compile (tsc clean) but have not been run: this machine has no PostgreSQL** (no `psql`, no Docker, no service), so all 13 are skipped here. The with-database full-suite run and the baseline on a clean `main` still have to be done on a machine with a `*_sandbox` database (commands in the PR body). I am not claiming them green.
+3. **Prompt numbers from constants.** The 70 and 220 characters and the 20-word reason limit are built from `TITLE_MAX_CHARS`, `PROMISE_MAX_CHARS` and `REASON_MAX_WORDS` in `story-tests/constants.ts`, and a test asserts the prose carries them. ("Four or five angles" stays in words in the prompt; `ANGLES_MIN` and `ANGLES_MAX` hold the checked numbers.)
+4. **Missed statuses.** `SETTINGS_ALLOWED_STATUSES` includes `paused_angle` (nothing is made yet, so every setting can still change). The admin overview counts it: new `pausedAngle` field in `runsThisWeek` and `openNow` (additive; the admin app's tiles do not show it yet), and it joins the stale-wait list ("waited N hours at the angle choice"). This replaces my earlier "not changed" note.
+5. **Per-channel skip.** `angleStepSkipReason` (`story-tests/skip.ts`) skips the angle step, with a plain-words reason and no model call, when the channel has Gate 1 off or the brief fixes its structure. Definition used (tell me if you want it different): the brief gives an exact first or last sentence, chapter titles, a word budget per chapter, or a fact allocation per chapter; a length or chapter count alone does not skip. A skipped run is recorded `not_run` with the reason and does not pause. Tests in `story-tests/skip.test.ts`. The exact-sentence pattern is shared from `script-review/brief-checks.ts`, not copied.
+6. **Report** header, live-call statement and "Not changed" list corrected.
+
+### Not verified in Part A
+
+- The 13 database tests above, the with-database full suite, and the baseline on a clean `main`.
+- The notice and reminder (need the notification layer and a database).
+- Grep proof, the same-cause sweep (R9) and the Task 1 finding are Part C's sections.
 
 ### Plain statement
 
 The readers are text-only. They cannot judge voice, pacing or visuals, they are advisory, and they are not calibrated against any past or live video.
 
-### Live wiring check (1 Nov, `studio/scripts/story-angles-live-check.ts`)
+### Live wiring check (1 Nov, ran before the founder approved the Part A prompt text; `studio/scripts/story-angles-live-check.ts`)
 
 One Short and one long-form run on neutral subjects, with the founder-supplied prompts. Wiring only, not a judgment of the angles.
 

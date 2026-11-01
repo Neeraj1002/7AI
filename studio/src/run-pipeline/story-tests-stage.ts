@@ -6,6 +6,7 @@ import { findChannelById } from '../models/repositories/channel.repository';
 import { findLatestCompletedAttempt } from '../models/repositories/pipeline-stage.repository';
 import { applyAngleChoice } from '../story-tests/choice';
 import { notRunStoryTests, runAngleStep } from '../story-tests/angle-step';
+import { angleStepSkipReason } from '../story-tests/skip';
 import { readStoredStoryTests } from '../story-tests/view';
 import type { StoredStoryTests } from '../story-tests/schemas';
 import type { IntakeParsed, PipelineRun } from '../types';
@@ -28,6 +29,8 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
   try {
     const channel = await findChannelById(run.channelId);
     if (!channel) return notRunStoryTests('the channel could not be found');
+    const skipReason = angleStepSkipReason({ gate1Enabled: channel.approvalGateConfig.gate1Enabled !== false, briefText: run.briefText });
+    if (skipReason) return notRunStoryTests(skipReason);
     const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
     if (!budget.ok) return notRunStoryTests("the channel's spending limit is reached");
     const config = await loadResolvedConfig(run, channel);

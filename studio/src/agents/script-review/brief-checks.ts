@@ -7,6 +7,13 @@ const quoted = (text: string) => [...text.matchAll(/[\u201c\u201d"]([^\u201c\u20
 const sentences = (text: string) => sentenceSpans(text).map(s => s.text);
 const terms = (s: string) => new Set(s.toLowerCase().match(/[a-z]{4,}/g) ?? []);
 const hedges = ['about', 'around', 'largely', 'mostly', 'estimates', 'estimated', 'at most', 'only a handful', 'more than', 'over', 'did not fall as'];
+// A brief that fixes the first or last sentence word for word. Shared with the angle step, which has nothing to choose
+// when the brief already fixes how the video opens or ends.
+const EXACT_END_SENTENCE = /\b(first|last) sentence\s+(?:must be\s+)?exactly\s*:?\s*[\u201c\u201d"]([^\u201c\u201d"]+)[\u201c\u201d"]/gi;
+export function briefFixesEndSentence(brief: string): boolean {
+  return brief.search(EXACT_END_SENTENCE) >= 0;
+}
+
 export function checkBrief(brief: string, script: string): BriefChecks {
   const hints: BriefHint[] = [], exactViolations: string[] = [];
   const add = (kind: BriefHint['kind'], text: string, evidence?: string) => {
@@ -34,7 +41,7 @@ export function checkBrief(brief: string, script: string): BriefChecks {
       if (!new RegExp('\\b' + hedge + '\\b', 'i').test(candidate.s)) add('hedge', candidate.s.trim(), sentence.trim());
   }
   // Quoted passages can contain multiple sentences (including the founder's Appendix A opening).
-  for (const match of brief.matchAll(/\b(first|last) sentence\s+(?:must be\s+)?exactly\s*:?\s*[\u201c\u201d"]([^\u201c\u201d"]+)[\u201c\u201d"]/gi)) {
+  for (const match of brief.matchAll(EXACT_END_SENTENCE)) {
     const ok = match[1].toLowerCase() === 'first' ? script.trimStart().startsWith(match[2]) : script.trimEnd().endsWith(match[2]);
     if (!ok) exactViolations.push('SR-2: ' + match[1].toLowerCase() + ' sentence must be exactly ' + JSON.stringify(match[2]));
   }

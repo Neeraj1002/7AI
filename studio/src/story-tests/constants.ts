@@ -8,6 +8,8 @@ export const ANGLES_MIN = 4;
 export const ANGLES_MAX = 5;
 export const TITLE_MAX_CHARS = 70;
 export const PROMISE_MAX_CHARS = 220;
+// The pair reader's one-line reason for each choice.
+export const REASON_MAX_WORDS = 20;
 
 // R8: the hard spend cap for Part A on one run (the angle call and the two reader calls together).
 export const PART_A_CAP_USD = 0.1;

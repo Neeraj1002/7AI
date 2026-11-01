@@ -39,7 +39,8 @@ import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { makeLlmRetryGuard } from './llm-retry-guard';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failedCallMetadata, failureOutputFromError, failureUsageEvents, llmUsageRows, type FailureUsageFields } from './stage-failure';
-import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
+import { chosenAngleOf } from '../story-tests/view';
+import { generateScript, constraintsWithAngle, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { evidenceRef, factualBaseline, type EvidenceRef } from '../content-evidence/packet';
 import { generationEvidenceSnapshot, reviewEvidenceSnapshot } from '../content-evidence/stage-snapshot';
 import { joinChapterTexts, parseChapterSheet } from '../agents/script-generation/long-form';
@@ -343,9 +344,12 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   const evidenceSelection = generationEvidenceSnapshot({ previousInput: previousAttempt?.input,
     previousOutput: previousAttempt?.output, briefText: run.briefText, factPolicy: config.factPolicy,
     sources: run.creationOptions?.sources, videoKind: config.videoKind });
+  // Sprint 6 Task 3: a chosen angle adds one constraint line. No chosen angle (switch off, skipped, not run): the list is
+  // the intake's own, unchanged.
+  const chosenAngle = chosenAngleOf((await findLatestCompletedAttempt(runId, 'intake'))?.output);
   const stageInput = {
     topic: run.intakeParsed.topic,
-    constraints: run.intakeParsed.constraints,
+    constraints: constraintsWithAngle(run.intakeParsed.constraints, chosenAngle),
     styleGuide: config.scriptGuide,
     // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
     targetSeconds: config.targetSeconds,

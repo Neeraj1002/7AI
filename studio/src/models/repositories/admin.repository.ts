@@ -142,11 +142,12 @@ export type RunStatusCounts = {
   running: number;
   pausedGate1: number;
   pausedGate2: number;
+  pausedAngle: number;
   pending: number;
 };
 
 function emptyRunCounts(): RunStatusCounts {
-  return { total: 0, completed: 0, failed: 0, needsAttention: 0, running: 0, pausedGate1: 0, pausedGate2: 0, pending: 0 };
+  return { total: 0, completed: 0, failed: 0, needsAttention: 0, running: 0, pausedGate1: 0, pausedGate2: 0, pausedAngle: 0, pending: 0 };
 }
 
 function countRuns(rows: { status: string; _count: { _all: number } }[]): RunStatusCounts {
@@ -160,6 +161,7 @@ function countRuns(rows: { status: string; _count: { _all: number } }[]): RunSta
     else if (r.status === 'running') out.running += n;
     else if (r.status === 'paused_gate1') out.pausedGate1 += n;
     else if (r.status === 'paused_gate2') out.pausedGate2 += n;
+    else if (r.status === 'paused_angle') out.pausedAngle += n;
     else if (r.status === 'pending') out.pending += n;
   }
   return out;
@@ -169,7 +171,7 @@ export type OverviewData = {
   weekStartUtc: Date;
   totals: { tenants: number; users: number; activeChannels: number; inactiveChannels: number };
   runsThisWeek: RunStatusCounts;
-  openNow: { pausedGate1: number; pausedGate2: number; needsAttention: number; running: number };
+  openNow: { pausedGate1: number; pausedGate2: number; pausedAngle: number; needsAttention: number; running: number };
   spend: { thisWeekUsd: number; allTimeUsd: number };
   tenantNames: Map<string, string>;
   budgets: Map<string, TenantBudgetAnalysis>;
@@ -208,7 +210,7 @@ export async function loadOverviewData(
     prisma.usageEvent.aggregate({ where: { createdAt: { gte: weekStart } }, _sum: { costUsd: true } }),
     prisma.usageEvent.aggregate({ _sum: { costUsd: true } }),
     prisma.pipelineRun.findMany({
-      where: { status: { in: ['needs_attention', 'paused_gate1', 'paused_gate2'] } },
+      where: { status: { in: ['needs_attention', 'paused_gate1', 'paused_gate2', 'paused_angle'] } },
       select: { id: true, tenantId: true, channelId: true, status: true, updatedAt: true },
     }),
     // Explicit select: the refresh token column is never read.
@@ -237,6 +239,7 @@ export async function loadOverviewData(
     openNow: {
       pausedGate1: openAll.pausedGate1,
       pausedGate2: openAll.pausedGate2,
+      pausedAngle: openAll.pausedAngle,
       needsAttention: openAll.needsAttention,
       running: openAll.running,
     },

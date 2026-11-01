@@ -38,6 +38,15 @@ export function readStoredStoryTests(intakeOutput: unknown): StoredStoryTests | 
   return s && s.version === 1 && s.angleStep && Array.isArray(s.angleStep.angles) ? s : null;
 }
 
+// The angle the founder chose, as stored: the one place the script step (Part A) and the cold-reader's promise
+// check (Part B) both read it. Null when nothing was chosen (skipped, not run, still waiting, or the feature off).
+export function chosenAngleOf(intakeOutput: unknown): { id: string; title: string; promise: string } | null {
+  const step = readStoredStoryTests(intakeOutput)?.angleStep;
+  if (!step || step.status !== 'chosen' || !step.chosenId) return null;
+  const angle = step.angles.find((a) => a.id === step.chosenId);
+  return angle ? { id: angle.id, title: angle.title, promise: angle.promise } : null;
+}
+
 // `intakeOutput`: the latest completed intake stage's output. `running`: the switch is on, the run is at intake and
 // nothing is stored yet, so the card can say the angles are being written.
 export function buildStoryTestsView(params: { intakeOutput: unknown; runStatus: string; runStage: string | null; switchOn: boolean }): StoryTestsView | null {

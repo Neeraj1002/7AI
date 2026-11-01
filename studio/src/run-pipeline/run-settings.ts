@@ -9,7 +9,7 @@ import type { PrivacyStatus } from '../agents/publishing';
 // A change is allowed only when it cannot invalidate finished work. The one-line reason for a refusal says what to
 // do instead. Max spend reuses runs.retry's validation (validateMaxCostUsd in runs.ts); there is one way to change it.
 
-export const SETTINGS_ALLOWED_STATUSES = ['needs_attention', 'paused_gate1', 'paused_gate2'] as const;
+export const SETTINGS_ALLOWED_STATUSES = ['needs_attention', 'paused_gate1', 'paused_gate2', 'paused_angle'] as const;
 
 export class SettingsRejected extends Error {
   constructor(message: string) {

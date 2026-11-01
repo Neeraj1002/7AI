@@ -14,8 +14,8 @@ function emptyData(): OverviewData {
   return {
     weekStartUtc: new Date('2026-10-05T00:00:00.000Z'),
     totals: { tenants: 0, users: 0, activeChannels: 0, inactiveChannels: 0 },
-    runsThisWeek: { total: 0, completed: 0, failed: 0, needsAttention: 0, running: 0, pausedGate1: 0, pausedGate2: 0, pending: 0 },
-    openNow: { pausedGate1: 0, pausedGate2: 0, needsAttention: 0, running: 0 },
+    runsThisWeek: { total: 0, completed: 0, failed: 0, needsAttention: 0, running: 0, pausedGate1: 0, pausedGate2: 0, pausedAngle: 0, pending: 0 },
+    openNow: { pausedGate1: 0, pausedGate2: 0, pausedAngle: 0, needsAttention: 0, running: 0 },
     spend: { thisWeekUsd: 0, allTimeUsd: 0 },
     tenantNames: new Map(),
     budgets: new Map(),
@@ -113,7 +113,7 @@ describe.skipIf(!SANDBOX)('admin.overview against the sandbox database', () => {
     expect(o.totals.tenants).toBeGreaterThanOrEqual(0);
     expect(o.runsThisWeek.total).toBe(
       o.runsThisWeek.completed + o.runsThisWeek.failed + o.runsThisWeek.needsAttention + o.runsThisWeek.running +
-        o.runsThisWeek.pausedGate1 + o.runsThisWeek.pausedGate2 + o.runsThisWeek.pending,
+        o.runsThisWeek.pausedGate1 + o.runsThisWeek.pausedGate2 + o.runsThisWeek.pausedAngle + o.runsThisWeek.pending,
     );
     expect(Array.isArray(o.decisionQueue)).toBe(true);
     const owner = appRouter.createCaller({ tenantId: randomUUID(), userId: randomUUID(), role: 'owner', identityKind: 'session' });
