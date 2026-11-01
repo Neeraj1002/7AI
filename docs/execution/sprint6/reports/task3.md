@@ -185,3 +185,8 @@ Reply shapes are enforced by the structured-output schema: the six fields (`firs
 ### Regression found and fixed while doing this
 
 My Part A change (reading the chosen angle with `findLatestCompletedAttempt` in `runScriptGenerationStage`) broke 11 existing state-machine tests whose repository mock had no such function. I added the mock to `state-machine.script-generation.test.ts` and `state-machine.structured-usage.test.ts`. The earlier suite numbers I gave for Part A pre-date that change.
+
+### Full suite after Part B (no database on this machine)
+
+`tsc --noEmit` clean; eslint clean on `story-tests`, `run-pipeline`, `api/routers`, `llm`, `agents/script-generation` and `brief-checks.ts`. Full run, `--maxWorkers=4`: **1788 passed, 78 skipped, 9 failed**. The 9: 6 in `runs.cancel`, `runs.long-form-actions` and `runs.long-form` (they call the database; "Authentication failed", the same 6 as before Task 3) and 3 in `credential-crypto.test.ts` (my placeholder `CREDENTIAL_ENCRYPTION_KEY` for the test environment is not a valid key; environmental, not touched by this PR). Not compared against a clean `main` here, and the 13 + skipped database tests have not run: both still need a machine with a sandbox database.
+
