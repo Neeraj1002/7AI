@@ -233,7 +233,7 @@ export default function RunDetailScreen() {
   const [angleChoice, setAngleChoice] = useState<AngleChoice>(NO_CHOICE);
   const chooseAngleMutation = useMutation({
     mutationFn: (angleId: string | null) =>
-      (trpcClient.runs as unknown as { chooseAngle: { mutate: (input: { runId: string; angleId: string | null }) => Promise<{ resolved: true }> } }).chooseAngle.mutate({ runId: id!, angleId }),
+      trpcClient.runs.chooseAngle.mutate({ runId: id!, angleId }),
     onSuccess: () => invalidate(),
   });
   const [limitOpen, setLimitOpen] = useState(false);
