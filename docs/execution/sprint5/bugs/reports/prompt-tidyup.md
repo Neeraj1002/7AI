@@ -1,6 +1,6 @@
 # Prompt tidy-up (hot-fix)
 
-**Branch**: `BUGS_PROMPT_TIDYUP`, cut from `origin/main` at `4f6140f`. **Worktree**: `D:\Study Material\7AI\.worktrees\BUGS_PROMPT_TIDYUP`. **PR**: see the PR opened from this branch (number given in the first reply). No live LLM call, $0. `STATUS.md` and `PLAN.md` untouched.
+**Branch**: `BUGS_PROMPT_TIDYUP`, cut from `origin/main` at `4f6140f`. **Worktree**: `D:\Study Material\7AI\.worktrees\BUGS_PROMPT_TIDYUP`. **PR**: #145. No live LLM call, $0. `STATUS.md` and `PLAN.md` untouched.
 
 **Task doc**: none existed in the repo or the synced docs folder (`docs/execution/sprint5/bugs/tasks/` has no tidy-up file), so there was no task-doc commit (Hard rule 5). The founder's message was the brief. If the architect writes one, it still needs to be added.
 
@@ -39,5 +39,5 @@ Copied blocks found and **left alone** (all would change a prompt, or are not du
 ## Coordination and checks
 
 - `git fetch` showed no new commits on `origin/main` since the branch was cut (4f6140f) at the time of the last check; nothing rebased. Task 3 and Task 4 had not landed on `main`. If either adds purposes, `PROMPT_INDEX` (a `Record<Purpose, ...>`) fails to compile until the new purpose is listed, which is intended.
-- Full suite: `npx vitest run --maxWorkers=4`. Result: see the PR description. `tsc --noEmit` reports only `@napi-rs/canvas` missing (the shared `node_modules` junction lacks it; unrelated to this change).
+- Full suite: `npx vitest run --maxWorkers=4`. Result after a clean `npm ci` and `prisma generate`: 184 files passed, 12 skipped, 0 failed; 1740 tests passed, 65 skipped, 0 failed. No baseline failures, so no comparison run on origin/main was needed. Two earlier attempts were not clean and are not the result: the first (shared `node_modules` missing `@napi-rs/canvas`) and a second before `prisma generate`. A third hit the default timeout on `long-form.replay.test.ts` (an ffmpeg-heavy test, slow under 4 workers); with `--testTimeout=60000` it passes. `tsc --noEmit` was clean-checked only before the full install; the only error then was the missing `@napi-rs/canvas`, now installed.
 - Docs scope: this report is the only doc added.
