@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
-import { shouldOfferProfileSetup } from '../../../lib/profile-setup';
+import { ENTRY_LOAD_ERROR, profileEntryState, SETUP_ENTRY_SUBTITLE } from '../../../lib/profile-setup';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterInputs } from '@trpc/server';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
@@ -311,6 +311,40 @@ export default function ChannelSettingsScreen() {
         </View>
       </View>
 
+      {(() => {
+        const entry = profileEntryState(profile);
+        if (entry === 'loading') return null;
+        if (entry === 'error') {
+          return (
+            <View style={styles.entryError}>
+              <Text style={styles.entryErrorText}>{ENTRY_LOAD_ERROR}</Text>
+              <Pressable style={styles.entryRetry} onPress={() => void profile.refetch()} accessibilityRole="button">
+                <Text style={styles.entryRetryText}>Try again</Text>
+              </Pressable>
+            </View>
+          );
+        }
+        return (
+          <Pressable
+            onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
+            accessibilityRole="button"
+            accessibilityLabel={entry === 'none' ? 'Set up content profile' : 'Content profile'}
+          >
+            <Card style={styles.profileEntry}>
+              <View style={styles.rowText}>
+                <Text style={styles.cardTitle}>{entry === 'none' ? 'Set up content profile' : 'Content profile'}</Text>
+                <Text style={styles.meta}>
+                  {entry === 'none' || !profile.data
+                    ? SETUP_ENTRY_SUBTITLE
+                    : profileEntrySummary(profile.data.version, profile.data.data, profile.data.createdAt)}
+                </Text>
+              </View>
+              <Text style={styles.profileChevron}>›</Text>
+            </Card>
+          </Pressable>
+        );
+      })()}
+
       <Card>
         <Text style={styles.cardTitle}>Identity</Text>
         <Text style={styles.label}>Name</Text>
@@ -344,43 +378,9 @@ export default function ChannelSettingsScreen() {
         )}
       </Card>
 
-      <Pressable
-        onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
-        accessibilityRole="button"
-        accessibilityLabel="Content profile"
-      >
-        <Card style={styles.profileEntry}>
-          <View style={styles.rowText}>
-            <Text style={styles.cardTitle}>Content profile</Text>
-            <Text style={styles.meta}>
-              {profile.data
-                ? profileEntrySummary(profile.data.version, profile.data.data, profile.data.createdAt)
-                : profile.isLoading
-                  ? '…'
-                  : 'Not set up — uses channel defaults'}
-            </Text>
-          </View>
-          <Text style={styles.profileChevron}>›</Text>
-        </Card>
-      </Pressable>
-
       {showVoiceLook ? (
         <Card>
-          <Text style={styles.cardTitle}>Voice &amp; look</Text>
-          {shouldOfferProfileSetup(profile) ? (
-            <Pressable
-              style={styles.row}
-              onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
-              accessibilityRole="button"
-              accessibilityLabel="Set up content profile"
-            >
-              <Feather name="file-text" size={20} color={color.muted} />
-              <View style={styles.rowText}>
-                <Text style={styles.rowValue}>Set up content profile</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={color.muted} />
-            </Pressable>
-          ) : null}
+          <Text style={styles.cardTitle}>Look</Text>
           <View style={styles.switchRow}>
             <Text style={styles.rowValue}>Captions</Text>
             <Switch
@@ -610,7 +610,11 @@ const styles = StyleSheet.create({
   },
   inputInvalid: { borderColor: color.danger },
   multiline: { minHeight: 90, maxHeight: 200, textAlignVertical: 'top' },
-  profileEntry: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  profileEntry: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: 14 },
+  entryError: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: color.accentSoft, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14 },
+  entryErrorText: { flex: 1, fontFamily: font.black, fontSize: 13, lineHeight: 18, color: color.accentText },
+  entryRetry: { height: 36, minWidth: 44, paddingHorizontal: 12, borderRadius: 10, backgroundColor: color.bg, alignItems: 'center', justifyContent: 'center' },
+  entryRetryText: { fontFamily: font.black, fontSize: 13, color: color.ink },
   profileChevron: { fontSize: 20, color: color.muted },
   row: {
     flexDirection: 'row',

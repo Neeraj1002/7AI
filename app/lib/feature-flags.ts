@@ -15,4 +15,5 @@ export const flags = {
   briefLength: true, // B10 — runs.create target length
   gate2PackageScreens: true, // Sprint 6 Task 1 PR C (#130) merged and deployed: the Gate 2 package screens are on
   storyTestsCards: false, // Sprint 6 Task 3 (NEXT 5): angle card, script check card, "Waiting for your angle choice". Off until the Task 3 backend is live.
+  creativeDirection: false, // Sprint 6 Task 4 (NEXT 6): the Creative direction card on the Content profile. Off until the Task 4 backend is live and the three channels have presets.
 };
