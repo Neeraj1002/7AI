@@ -247,3 +247,15 @@ The new query was tested with mocked repositories (the tenant checks) and the in
 ### Counts (sandbox database, `--maxWorkers=4`)
 
 vitest: 201 files passed, 1 skipped; 1900 tests passed, 9 skipped, 0 failed. `tsc --noEmit`: 0 errors. `eslint src`: no errors, no warnings. The sandbox database was dropped afterwards.
+
+### Part C, small fixes (review round 3)
+
+- `partAOutcome` now returns `used` only for status `chosen`, and `null` for any status the record does not name (the view's `running`). A test covers each status value.
+- **Contract addition under R7 (read-only, no app change):** `runs.learningRecord`, input `{ runId: uuid }`, output `LearningRecord` (`story-tests/learning.ts`): `{version, runId, channelId, tenantId, tags: PipelineTags | null, partA, angleStep, scriptCheck, titleShape, calls, costUsd}`. Same tenant check as `runs.packagingRecord`.
+- `stockFootageFix` is `null` on every run: no identifier exists in the code. Before and after comparison of the stock-footage fix therefore uses the build commit (`tags.build`) against the fix's merge commit (9be48fb).
+- `build` is `null` when neither `GIT_COMMIT` nor `git rev-parse --short HEAD` yields a hash. **What the preview deploy provides:** `.github/workflows/deploy.yml` updates the checkout at `/var/www/7AI` on the server and checks `git rev-parse HEAD` equals the pushed SHA. It does not set `GIT_COMMIT` (nothing in the repo sets it). So on the preview the value comes from the git fallback, which needs `git` on the server and the process started inside that checkout. **I cannot tell from the workflow whether the running process meets that condition**, so check `admin.system.info` on the preview before relying on `build`. The value is read once per process and cached, so it is the commit at the process's first read; a pull without a restart leaves it stale.
+- Follow-up, not built here: comparing many runs needs a list query by channel and date (`learningRecord` reads one run at a time). For the architect.
+
+### Counts after the small fixes (sandbox database, `--maxWorkers=4`)
+
+vitest: 201 files passed, 1 skipped; 1901 tests passed, 9 skipped, 0 failed. `tsc --noEmit`: 0 errors. `eslint src`: no output (no errors, no warnings). The sandbox database was dropped afterwards.

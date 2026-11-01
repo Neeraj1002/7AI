@@ -65,6 +65,14 @@ describe('buildLearningRecord', () => {
     expect(of(stored('waiting'))).toBe('waiting');
     expect(partAOutcome(null)).toBeNull();
   });
+  it('partAOutcome maps each status value: only chosen is used, running is nothing', () => {
+    const at = (status: string) => partAOutcome(stored('chosen', 'used') && ({ ...stored('chosen'), angleStep: { ...stored('chosen').angleStep, status } } as never));
+    expect(at('chosen')).toBe('used');
+    expect(at('skipped')).toBe('skipped');
+    expect(at('not_run')).toBe('not_run');
+    expect(at('waiting')).toBe('waiting');
+    expect(at('running')).toBeNull();
+  });
   it('joins both parts: calls, cost, hook shape, and the title shape from the packaging record', () => {
     const rec = buildLearningRecord({
       run, intakeOutput: { storyTests: stored('chosen'), pipelineTags: buildPipelineTags({ storyTestsOn: true, buildCommit: 'b' }) },

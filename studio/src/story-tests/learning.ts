@@ -90,12 +90,15 @@ export type LearningRecord = {
   costUsd: number;
 };
 
+// 'used' only when an angle was chosen. A status the record does not name (the view's 'running') is not an outcome: null.
 export function partAOutcome(stored: StoredStoryTests | null): LearningRecord['partA'] {
-  if (!stored) return null;
-  const status = stored.angleStep.status;
-  if (status === 'waiting') return 'waiting';
-  if (status === 'not_run') return 'not_run';
-  return status === 'skipped' ? 'skipped' : 'used';
+  switch (stored?.angleStep.status) {
+    case 'chosen': return 'used';
+    case 'skipped': return 'skipped';
+    case 'not_run': return 'not_run';
+    case 'waiting': return 'waiting';
+    default: return null;
+  }
 }
 
 export function buildLearningRecord(params: {
