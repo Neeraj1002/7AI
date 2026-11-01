@@ -34,6 +34,8 @@ export async function runScriptStep(params: {
   persona: string | null;
   // The chosen angle, from Part A's record; null when none was chosen (skipped, not run, or the feature off at intake).
   angle: { title: string; promise: string } | null;
+  // What Part B has already cost on this run (earlier scripts that reached Gate 1). The cap is per run, so it counts here.
+  priorSpentUsd?: number;
   deps: ScriptStepDeps;
 }): Promise<StoredScriptCheck> {
   const { deps } = params;
@@ -47,7 +49,8 @@ export async function runScriptStep(params: {
     spent += cost;
     calls.push({ purpose, model: llm.model, inputTokens: llm.usage.inputTokens, outputTokens: llm.usage.outputTokens, costUsd: cost, durationMs: llm.evidence?.durationMs ?? null });
   };
-  const withinCap = (purpose: Purpose, system: string, user: string) => spent + worstCaseCostUsd(purpose, system, user) <= cap;
+  const prior = params.priorSpentUsd ?? 0;
+  const withinCap = (purpose: Purpose, system: string, user: string) => prior + spent + worstCaseCostUsd(purpose, system, user) <= cap;
 
   const base = { version: 1 as const, scriptHash: scriptHash(params.scriptText), format: params.format, promiseUsed: params.angle };
   const noMatch = (note: string) => ({ ran: false, note, about: null, remembered: null });

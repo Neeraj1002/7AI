@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { env } from '../config/env';
 
 const mocks = vi.hoisted(() => ({
   findPipelineRunById: vi.fn(),
@@ -91,6 +92,21 @@ beforeEach(() => {
   mocks.updatePipelineRun.mockResolvedValue({ id: RUN_ID });
   mocks.insertUsageEvent.mockResolvedValue({});
   mocks.listReviewLogsForRun.mockResolvedValue([]);
+});
+
+describe('chosen-angle lookup follows the switch (Sprint 6 Task 3)', () => {
+  const intakeReads = () => mocks.findLatestCompletedAttempt.mock.calls.filter((c) => c[1] === 'intake');
+  afterEach(() => { env.STORY_TESTS_ENABLED = ''; });
+  it('switch off: the intake stage is not read at all', async () => {
+    env.STORY_TESTS_ENABLED = '';
+    await runScriptGenerationStage(RUN_ID);
+    expect(intakeReads()).toHaveLength(0);
+  });
+  it('switch on: the intake stage is read for the chosen angle', async () => {
+    env.STORY_TESTS_ENABLED = '1';
+    await runScriptGenerationStage(RUN_ID);
+    expect(intakeReads()).toHaveLength(1);
+  });
 });
 
 describe('runScriptGenerationStage failure path (Bugs Task 11)', () => {

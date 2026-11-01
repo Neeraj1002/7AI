@@ -49,6 +49,18 @@ describe('locateSwipe', () => {
     expect(locateSwipe(SHORT, ' None. ', 'short')).toEqual({ kind: 'none' });
     expect(locateSwipe(SHORT, 'A line nobody wrote.', 'short')).toEqual({ kind: 'not_found' });
   });
+  it('finds a line quoted with straight quotes when the script has curly ones, and maps back to the script', () => {
+    const text = 'Hello there. “Don’t open it,” she said — too late. Then silence.';
+    const out = locateSwipe(text, `"Don't open it," she said - too late.`, 'short');
+    expect(out).toMatchObject({ kind: 'found', startIndex: text.indexOf('“Don'), early: true });
+  });
+  it('finds a line when the script breaks it across lines or double spaces', () => {
+    const text = 'First line here.\nThe key was\n  never found.\nLast bit.';
+    expect(locateSwipe(text, 'The key was never found.', 'short')).toMatchObject({ kind: 'found', startIndex: text.indexOf('The key') });
+  });
+  it('a line still absent after normalising stays not_found (a reader error)', () => {
+    expect(locateSwipe('Hello “there” friend.', 'Hello "nobody" friend.', 'short')).toEqual({ kind: 'not_found' });
+  });
   it('a Short: early inside the first two sentences, not in the third', () => {
     expect(locateSwipe(SHORT, 'It starts with a quiet door.', 'short')).toMatchObject({ kind: 'found', early: true });
     expect(locateSwipe(SHORT, 'Nobody knew who opened it.', 'short')).toMatchObject({ early: true });
@@ -168,6 +180,20 @@ describe('runScriptStep', () => {
     const out = await runScriptStep({ ...base, deps: { ...noMeter, call, capUsd: 0.0001 } });
     expect(seen).toHaveLength(0);
     expect(out).toMatchObject({ status: 'not_run', notRunReason: 'the budget for this step was reached', costUsd: 0 });
+  });
+
+  it('earlier Part B spend on the run counts against the per-run cap', async () => {
+    const { call, seen } = scripted(reply());
+    const out = await runScriptStep({ ...base, priorSpentUsd: 0.1499, deps: { ...noMeter, call } });
+    expect(seen).toHaveLength(0);
+    expect(out).toMatchObject({ status: 'not_run', notRunReason: 'the budget for this step was reached', costUsd: 0 });
+  });
+
+  it('a small earlier spend leaves room, and the stored cost is this execution only', async () => {
+    const { call, seen } = scripted(reply());
+    const out = await runScriptStep({ ...base, priorSpentUsd: 0.01, deps: { ...noMeter, call } });
+    expect(seen).toHaveLength(2);
+    expect(out.costUsd).toBeCloseTo(out.calls.reduce((s, c) => s + c.costUsd, 0), 10);
   });
 
   it('a cap that fits the reader but not the match check skips only the match', async () => {

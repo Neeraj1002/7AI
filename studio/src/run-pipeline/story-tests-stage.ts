@@ -1,7 +1,7 @@
 import { env } from '../config/env';
 import type { Purpose } from '../llm';
 import { prisma } from '../models/prisma-client';
-import { insertUsageEvent } from '../models/repositories/usage-event.repository';
+import { insertUsageEvent, sumStoryScriptCostForRun } from '../models/repositories/usage-event.repository';
 import { findChannelById } from '../models/repositories/channel.repository';
 import { findLatestCompletedAttempt } from '../models/repositories/pipeline-stage.repository';
 import { applyAngleChoice } from '../story-tests/choice';
@@ -74,7 +74,10 @@ export async function runScriptCheckForRun(params: { run: PipelineRun; stageId: 
     const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
     if (!budget.ok) return notRunScriptCheck({ reason: "the channel's spending limit is reached", scriptText: params.scriptText, format: params.format });
     const intake = await findLatestCompletedAttempt(run.id, 'intake');
+    // The $0.15 cap is per run: a revised script that reaches Gate 1 again starts from what Part B already spent.
+    const priorSpentUsd = await sumStoryScriptCostForRun(run.id);
     return await runScriptStep({
+      priorSpentUsd,
       scriptText: params.scriptText,
       format: params.format,
       persona: params.persona,

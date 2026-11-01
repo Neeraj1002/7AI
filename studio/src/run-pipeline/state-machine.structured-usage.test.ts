@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   updatePipelineRun: vi.fn(),
   findChannelById: vi.fn(),
   findLatestAttempt: vi.fn(),
-  findLatestCompletedAttempt: vi.fn(),
   createStageAttempt: vi.fn(),
   completeStage: vi.fn(),
   failStage: vi.fn(),
@@ -34,7 +33,6 @@ vi.mock('../models/repositories/channel.repository', async (orig) => ({
 vi.mock('../models/repositories/pipeline-stage.repository', async (orig) => ({
   ...(await orig<object>()),
   findLatestAttempt: mocks.findLatestAttempt,
-  findLatestCompletedAttempt: mocks.findLatestCompletedAttempt,
   createStageAttempt: mocks.createStageAttempt,
   completeStage: mocks.completeStage,
   failStage: mocks.failStage,
@@ -65,7 +63,6 @@ beforeEach(() => {
   });
   mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', styleGuide: null, isActive: true });
   mocks.findLatestAttempt.mockResolvedValue(null);
-  mocks.findLatestCompletedAttempt.mockResolvedValue(null);
   mocks.createStageAttempt.mockResolvedValue({ id: 'stage-1' });
   mocks.checkBudget.mockResolvedValue({ ok: true });
   mocks.updatePipelineRun.mockResolvedValue({ id: RUN_ID });

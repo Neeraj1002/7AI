@@ -17,10 +17,44 @@ export function saysCantTell(whyCare: string): boolean {
 
 // Finds the reader's swipe line in the script text by exact string match (code, not the reader's say-so), then places it:
 // early when it starts inside the Short's first sentences or the long script's first share by position.
+// Whitespace runs collapse to one space; curly quotes and the dash family become their plain forms. `starts[i]` is where
+// normalised character i begins in the original, so a match can be mapped back to the script as written.
+function normaliseWithMap(text: string): { norm: string; starts: number[] } {
+  let norm = '';
+  const starts: number[] = [];
+  let inSpace = false;
+  for (let i = 0; i < text.length; i++) {
+    let ch = text[i]!;
+    if (/\s/.test(ch)) {
+      if (!inSpace) { norm += ' '; starts.push(i); }
+      inSpace = true;
+      continue;
+    }
+    inSpace = false;
+    if (/[‘’‚‛]/.test(ch)) ch = "'";
+    else if (/[“”„‟]/.test(ch)) ch = '"';
+    else if (/[‐-―−]/.test(ch)) ch = '-';
+    norm += ch;
+    starts.push(i);
+  }
+  return { norm, starts };
+}
+
+// Exact match first; then the same search with spacing, quotes and dashes normalised on both sides. -1 when still absent.
+function findLine(scriptText: string, line: string): number {
+  const exact = scriptText.indexOf(line);
+  if (exact >= 0) return exact;
+  const needle = normaliseWithMap(line).norm.trim();
+  if (!needle) return -1;
+  const hay = normaliseWithMap(scriptText);
+  const at = hay.norm.indexOf(needle);
+  return at < 0 ? -1 : hay.starts[at]!;
+}
+
 export function locateSwipe(scriptText: string, swipeLine: string, format: 'short' | 'long'): SwipePosition {
   const line = swipeLine.trim();
   if (!line || /^["'\u201c]?none["'\u201d.]*$/i.test(line)) return { kind: 'none' };
-  const startIndex = scriptText.indexOf(line);
+  const startIndex = findLine(scriptText, line);
   if (startIndex < 0) return { kind: 'not_found' };
   const percent = scriptText.length > 0 ? (startIndex / scriptText.length) * 100 : 0;
   let early: boolean;

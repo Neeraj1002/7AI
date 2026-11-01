@@ -8,7 +8,7 @@ import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
   markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
-import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun } from './story-tests-stage';
+import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun, storyTestsEnabled } from './story-tests-stage';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -346,7 +346,8 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     sources: run.creationOptions?.sources, videoKind: config.videoKind });
   // Sprint 6 Task 3: a chosen angle adds one constraint line. No chosen angle (switch off, skipped, not run): the list is
   // the intake's own, unchanged.
-  const chosenAngle = chosenAngleOf((await findLatestCompletedAttempt(runId, 'intake'))?.output);
+  // The intake is read only with the switch on, so the old path does no new work.
+  const chosenAngle = storyTestsEnabled() ? chosenAngleOf((await findLatestCompletedAttempt(runId, 'intake'))?.output) : null;
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: constraintsWithAngle(run.intakeParsed.constraints, chosenAngle),

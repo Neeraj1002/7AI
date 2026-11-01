@@ -80,6 +80,16 @@ export async function sumPackagingCostForRun(pipelineRunId: string): Promise<num
   return result._sum.costUsd ? Math.round(Number(result._sum.costUsd) * 10000) / 10000 : 0;
 }
 
+// Sprint 6 Task 3 (Part B cap): what the script cold reader and promise match have cost this run so far, across every
+// script that reached Gate 1, failed calls included (agents `story-cold-reader...` and `story-promise-match...`).
+export async function sumStoryScriptCostForRun(pipelineRunId: string): Promise<number> {
+  const result = await prisma.usageEvent.aggregate({
+    where: { pipelineRunId, OR: [{ agent: { startsWith: 'story-cold-reader' } }, { agent: { startsWith: 'story-promise-match' } }] },
+    _sum: { costUsd: true },
+  });
+  return result._sum.costUsd ? Number(result._sum.costUsd) : 0;
+}
+
 // Backs the Script Generation cost gate (BUSINESS_LOGIC.md Section 2) — sums
 // spend for every channel on this (tenantId, platform), since UsageEvent
 // itself doesn't store platform directly (only channelId).
