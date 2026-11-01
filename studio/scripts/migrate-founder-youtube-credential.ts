@@ -4,7 +4,7 @@
 // the new browser OAuth flow once this task's client modules stop reading
 // the env var at all. Run once, by the founder (or on their behalf, with
 // their real env var already in .env.local). Same shape/convention as
-// scripts/set-channel-default-voice.ts.
+// scripts/set-channel-budget-override.ts.
 //
 // Usage:
 //   npx tsx scripts/migrate-founder-youtube-credential.ts <channelId>

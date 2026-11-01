@@ -6,11 +6,11 @@ import { LONG_DEFAULT_SEC, SHORT_DEFAULT_SEC, SHORT_MAX_SEC } from '../formats/v
 // Sprint 4 Task 1 (R3): the one shared resolver every later Sprint 4 task
 // reads. Pure and DB-free (same posture as media/registry.ts resolveVoice):
 // callers load the channel, profile version and run once and pass them in.
-// Precedence per field: run override -> profile -> legacy Channel field ->
-// platform default. It cannot throw: every field has a fallback.
+// Precedence per field: run override -> profile -> platform default. It cannot throw: every field has a fallback.
 //
-// A channel with no profile (profile: null) resolves exactly as before this
-// task existed: legacy styleGuide / defaultVoice, today's platform defaults.
+// A channel with no profile (profile: null) resolves to no script guide and
+// today's platform defaults (the old Channel.styleGuide / defaultVoice
+// fallback is retired; the profile owns both).
 
 export type ResolvedChannelConfig = {
   scriptGuide: string | null;
@@ -47,8 +47,6 @@ export type ResolvedChannelConfig = {
 
 export function resolveChannelConfig(params: {
   profile: ChannelProfileData | null; // the run's (or channel's active) profile version data
-  legacyStyleGuide: string | null; // Channel.styleGuide
-  legacyDefaultVoice: string | null; // Channel.defaultVoice
   runOverrideVoice?: string | null; // PipelineRun.creationOptions.voice
   runOverrideVisualSource?: string | null; // creationOptions.visualSource
   runOverrideAudioLayer?: string | null; // creationOptions.audioLayer
@@ -69,7 +67,7 @@ export function resolveChannelConfig(params: {
     profileSeconds ??
     (videoKind === 'long' ? LONG_DEFAULT_SEC : SHORT_DEFAULT_SEC);
   return {
-    scriptGuide: p.script?.guide ?? params.legacyStyleGuide ?? null,
+    scriptGuide: p.script?.guide ?? null,
     formatScriptStructure: format?.scriptStructure ?? null,
     videoKind,
     targetSeconds: videoKind === 'short' ? Math.min(rawSeconds, SHORT_MAX_SEC) : rawSeconds,
@@ -85,7 +83,7 @@ export function resolveChannelConfig(params: {
     visualNegativePrompt: p.visual?.negativePrompt ?? null,
     visualSecondsPerStill: p.visual?.secondsPerStill ?? null,
     audioDefaultVoice:
-      params.runOverrideVoice ?? p.audio?.defaultVoice ?? params.legacyDefaultVoice ?? DEFAULT_TTS_VOICE,
+      params.runOverrideVoice ?? p.audio?.defaultVoice ?? DEFAULT_TTS_VOICE,
     audioDefaultMoodTag: params.runOverrideAudioLayer ?? p.audio?.defaultMoodTag ?? null,
     titleGuidance: p.packaging?.titleGuidance ?? null,
     readerPersona: p.storyTests?.readerPersona?.trim() || null,

@@ -61,7 +61,7 @@ const createdOptions = () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.findChannelById.mockResolvedValue({
-    id: CHANNEL_ID, tenantId: 't1', name: 'Chan', isActive: true, platform: 'youtube', styleGuide: null, defaultVoice: null,
+    id: CHANNEL_ID, tenantId: 't1', name: 'Chan', isActive: true, platform: 'youtube',
   });
   mocks.findByChannel.mockResolvedValue({ id: 'cred' });
   mocks.findActiveProfileForChannel.mockResolvedValue(null);
@@ -272,9 +272,9 @@ describe('deriveChapters', () => {
   });
 });
 
-describe('runs.create: stale channel voice (review of #104)', () => {
-  it('refuses a channel default voice that is no longer offered, before any run exists', async () => {
-    mocks.findChannelById.mockResolvedValue({ ...(await mocks.findChannelById()), defaultVoice: 'retired-voice' });
+describe('runs.create: stale profile voice (review of #104)', () => {
+  it('refuses a profile default voice that is no longer offered, before any run exists', async () => {
+    mocks.findActiveProfileForChannel.mockResolvedValue({ data: { audio: { defaultVoice: 'retired-voice' } } });
     await expect(caller().create(base)).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringContaining('retired-voice') });
     expect(mocks.createRun).not.toHaveBeenCalled();
   });

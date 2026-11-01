@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildResolvedOptions } from './resolved-options';
 
-const base = { profile: null, legacyStyleGuide: null, legacyDefaultVoice: null };
+const base = { profile: null };
 
 describe('buildResolvedOptions', () => {
   it('all defaults: every entry comes from default and music is Auto', () => {
@@ -26,15 +26,13 @@ describe('buildResolvedOptions', () => {
     expect(r.targetSeconds).toEqual({ value: 30, from: 'run' });
   });
 
-  it('profile, channel and format sources', () => {
-    const profile = { audio: { defaultMoodTag: 'calm' }, visual: { defaultSource: 'ai-stills' } } as never;
+  it('profile and format sources', () => {
+    const profile = { audio: { defaultVoice: 'echo', defaultMoodTag: 'calm' }, visual: { defaultSource: 'ai-stills' } } as never;
     const r = buildResolvedOptions({
       picks: { formatKey: 'countdown' },
       profile,
-      legacyStyleGuide: null,
-      legacyDefaultVoice: 'echo',
     });
-    expect(r.voice.from).toBe('channel');
+    expect(r.voice.from).toBe('profile');
     expect(r.visualSource.from).toBe('profile');
     expect(r.music.from).toBe('profile');
     expect(r.targetSeconds).toEqual({ value: 45, from: 'format' });

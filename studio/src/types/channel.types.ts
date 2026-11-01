@@ -42,7 +42,6 @@ export type Channel = {
   externalChannelId: string | null;
 
   nicheDescription: string;
-  styleGuide: string | null;
 
   brandAssets: BrandAssets;
 
@@ -55,11 +54,6 @@ export type Channel = {
   // AgentQuota.budgetCeilingUsd"; a set value overrides that entirely. See
   // studio/src/run-pipeline/budget-gate.ts.
   budgetOverrideUsd: string | null;
-
-  // Sprint 2 Task 1 (D2) — one of media/registry.ts's TTS_VOICES keys, or
-  // null to use its DEFAULT_TTS_VOICE fallback. See
-  // studio/src/run-pipeline/state-machine.ts's voice-resolution order.
-  defaultVoice: string | null;
 
   // Sprint 4 Task 1: the channel active profile version; null = no profile.
   activeProfileVersionId: string | null;
@@ -84,7 +78,6 @@ export const CreateChannelInputSchema = z.object({
   platform: z.enum(CHANNEL_PLATFORMS).default('youtube'),
   name: z.string().min(1),
   nicheDescription: z.string().min(1),
-  styleGuide: z.string().optional(),
   postingCadence: z.string().optional(),
   priorsScope: z.enum(PRIORS_SCOPES).default('isolated'),
   // Sprint 3 Task 2 (K1) — the creating user, set by the caller

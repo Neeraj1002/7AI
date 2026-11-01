@@ -65,7 +65,7 @@ const gateStage = (id: string, stageName: 'gate1' | 'gate2', output: Record<stri
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.findChannelById.mockResolvedValue({
-    id: CHANNEL_ID, tenantId: 't1', name: 'Chan', isActive: true, platform: 'youtube', styleGuide: null, defaultVoice: null,
+    id: CHANNEL_ID, tenantId: 't1', name: 'Chan', isActive: true, platform: 'youtube',
   });
   mocks.findByChannel.mockResolvedValue({ id: 'cred' });
   mocks.findActiveProfileForChannel.mockResolvedValue(null);

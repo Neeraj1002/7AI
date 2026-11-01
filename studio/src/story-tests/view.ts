@@ -102,14 +102,13 @@ export function buildStoryTestsView(params: {
   intakeOutput: unknown;
   runStatus: string;
   runStage: string | null;
-  switchOn: boolean;
   // Part B: the latest completed script review stage's output, and the script text the founder sees now.
   scriptReviewOutput?: unknown;
   currentScriptText?: string | null;
 }): StoryTestsView | null {
   const stored = readStoredStoryTests(params.intakeOutput);
   if (!stored) {
-    if (params.switchOn && params.runStage === 'intake' && params.runStatus === 'running') {
+    if (params.runStage === 'intake' && params.runStatus === 'running') {
       return {
         enabled: true,
         angleStep: { status: 'running', notRunReason: null, angles: [], readerPicks: [], mark: null, markLabel: null, readerTopId: null, chosenId: null, choseReaderPick: null },

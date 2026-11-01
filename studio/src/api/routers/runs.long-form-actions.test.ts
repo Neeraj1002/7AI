@@ -60,7 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.findChannelById.mockResolvedValue({
     id: CHANNEL_ID, tenantId: 't1', ownerUserId: 'u1', name: 'Chan', isActive: true, platform: 'youtube',
-    defaultPrivacyStatus: 'private', styleGuide: null, defaultVoice: null,
+    defaultPrivacyStatus: 'private',
   });
   mocks.findByChannel.mockResolvedValue({ id: 'cred' });
   mocks.findActiveProfileForChannel.mockResolvedValue(null);

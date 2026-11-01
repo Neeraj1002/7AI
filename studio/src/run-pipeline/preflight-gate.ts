@@ -38,7 +38,7 @@ export async function preflightGate(
   if (disabled) return null;
   const channel = await findChannelById(run.channelId);
   if (!channel) return null; // the stage reports a missing channel itself
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   const credential = stage === 'intake' || stage === 'publishing' ? await findByChannel(channel.id) : null;
   const issues = await runPreflight(
     {
@@ -85,7 +85,7 @@ export async function settingsPreflightIssues(
   if (disabled || stages.length === 0) return [];
   const channel = await findChannelById(run.channelId);
   if (!channel) return [];
-  const config = await loadResolvedConfig({ ...run, creationOptions }, channel);
+  const config = await loadResolvedConfig({ ...run, creationOptions });
   const credential = stages.includes('intake') || stages.includes('publishing') ? await findByChannel(channel.id) : null;
   const issues: PreflightIssue[] = [];
   for (const stage of stages) {

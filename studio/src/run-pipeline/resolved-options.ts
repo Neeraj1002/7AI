@@ -34,15 +34,11 @@ export type RunPicks = {
 export function buildResolvedOptions(params: {
   picks: RunPicks;
   profile: ChannelProfileData | null;
-  legacyStyleGuide: string | null;
-  legacyDefaultVoice: string | null;
 }): ResolvedOptions {
   const { picks, profile } = params;
   const p = profile ?? {};
   const config = resolveChannelConfig({
     profile,
-    legacyStyleGuide: params.legacyStyleGuide,
-    legacyDefaultVoice: params.legacyDefaultVoice,
     runOverrideVoice: picks.voice,
     runOverrideVisualSource: picks.visualSource,
     runOverrideAudioLayer: picks.audioLayer,
@@ -57,9 +53,7 @@ export function buildResolvedOptions(params: {
     ? 'run'
     : p.audio?.defaultVoice
       ? 'profile'
-      : params.legacyDefaultVoice
-        ? 'channel'
-        : 'default';
+      : 'default';
 
   // A long video is AI stills only (runs.create refuses stock footage for it).
   const visualValue = config.videoKind === 'long' ? 'ai-stills' : (config.visualDefaultSource ?? 'auto');

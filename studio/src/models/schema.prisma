@@ -126,7 +126,6 @@ model Channel {
   externalChannelId String? @db.VarChar(255)
 
   nicheDescription String  @db.Text
-  styleGuide       String? @db.Text
 
   brandAssets Json @default("{}")
 
@@ -142,15 +141,6 @@ model Channel {
   // channel's ceiling is exactly this, regardless of channel count." See
   // studio/src/run-pipeline/budget-gate.ts's computeChannelBudgetCeilings.
   budgetOverrideUsd Decimal? @db.Decimal(10, 2)
-
-  // Sprint 2 Task 1 (D1/D2) — nullable, default null for every existing and
-  // newly-created channel: null means "use media/registry.ts's hardcoded
-  // DEFAULT_TTS_VOICE fallback"; a set value (one of media/registry.ts's
-  // TTS_VOICES keys) is this channel's own default, used whenever a run on
-  // it doesn't explicitly override the voice per-brief. See
-  // studio/src/run-pipeline/state-machine.ts's runVideoGenerationStage for
-  // the full three-step resolution order.
-  defaultVoice String? @db.VarChar(50)
 
   // Sprint 3 Task 2 (K1) — nullable FK to User, deliberately: a channel
   // created before this migration, or one whose owning user was since

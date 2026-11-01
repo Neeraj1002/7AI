@@ -33,6 +33,7 @@ vi.mock('../models/repositories/channel.repository', async (orig) => ({
 vi.mock('../models/repositories/pipeline-stage.repository', async (orig) => ({
   ...(await orig<object>()),
   findLatestAttempt: mocks.findLatestAttempt,
+  findLatestCompletedAttempt: vi.fn().mockResolvedValue(null),
   createStageAttempt: mocks.createStageAttempt,
   completeStage: mocks.completeStage,
   failStage: mocks.failStage,
@@ -61,7 +62,7 @@ beforeEach(() => {
     intakeParsed: { topic: 'topic', constraints: [] },
     creationOptions: null,
   });
-  mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', styleGuide: null, isActive: true });
+  mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', isActive: true });
   mocks.findLatestAttempt.mockResolvedValue(null);
   mocks.createStageAttempt.mockResolvedValue({ id: 'stage-1' });
   mocks.checkBudget.mockResolvedValue({ ok: true });

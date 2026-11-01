@@ -64,7 +64,7 @@ export default function AdminTenantDetail() {
                   <Chip label={c.isActive ? 'Active' : 'Archived'} tone={c.isActive ? 'ok' : 'neutral'} />
                 </View>
                 <Text style={styles.meta}>
-                  Voice: {c.defaultVoice ?? '—'} · Privacy default: {c.defaultPrivacyStatus ?? '—'}
+                  Voice: {c.defaultVoice} · Privacy default: {c.defaultPrivacyStatus ?? '—'}
                 </Text>
                 <View style={styles.chips}>
                   <Chip

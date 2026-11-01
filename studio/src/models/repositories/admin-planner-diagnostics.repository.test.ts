@@ -10,7 +10,7 @@ const runId = '11111111-1111-4111-8111-111111111111', stageId = '22222222-2222-4
 const now = new Date('2026-10-14T16:58:06.247Z');
 const stage = { id: stageId, pipelineRunId: runId, stageName: 'video_generation', status: 'failed', attemptNumber: 5, output: { recovery: { kind: 'spend_limit', providerResponseBody: 'SECRET' } }, error: null, startedAt: now, completedAt: now, updatedAt: now };
 beforeEach(() => {
-  vi.resetAllMocks(); m.run.mockResolvedValue({ id: runId, profileVersionId: profileId, creationOptions: { videoKind: 'long', manualRetries: { video_generation: 3 }, maxCostUsd: 1.5 }, channel: { styleGuide: null, defaultVoice: null } });
+  vi.resetAllMocks(); m.run.mockResolvedValue({ id: runId, profileVersionId: profileId, creationOptions: { videoKind: 'long', manualRetries: { video_generation: 3 }, maxCostUsd: 1.5 }});
   m.stage.mockResolvedValue(stage); m.system.mockResolvedValue({ commit: '5b04a7a', bootedAt: now.toISOString() }); m.candidate.mockReturnValue(false); m.usage.mockResolvedValue([]);
 });
 describe('one-attempt bounded Admin diagnostic repository', () => {

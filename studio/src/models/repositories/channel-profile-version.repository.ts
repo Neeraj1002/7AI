@@ -62,6 +62,18 @@ export async function findActiveProfileForChannel(channelId: string): Promise<Ch
   return channel?.activeProfileVersion ? toDomain(channel.activeProfileVersion) : null;
 }
 
+// One query for many channels (a channel list must not loop per channel). A channel with no profile is absent from the map.
+export async function findActiveProfileDataByChannelIds(channelIds: string[]): Promise<Map<string, ChannelProfileData>> {
+  if (channelIds.length === 0) return new Map();
+  const rows = await prisma.channel.findMany({
+    where: { id: { in: channelIds } },
+    select: { id: true, activeProfileVersion: { select: { data: true } } },
+  });
+  const out = new Map<string, ChannelProfileData>();
+  for (const row of rows) if (row.activeProfileVersion) out.set(row.id, row.activeProfileVersion.data as ChannelProfileData);
+  return out;
+}
+
 export async function listProfileVersionsForChannel(channelId: string): Promise<ChannelProfileVersion[]> {
   const rows = await prisma.channelProfileVersion.findMany({
     where: { channelId },

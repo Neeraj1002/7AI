@@ -10,7 +10,7 @@ import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
 import { buildPipelineTags } from '../story-tests/learning';
 import { resolveCommit } from '../api/system-info';
-import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun, storyTestsEnabled } from './story-tests-stage';
+import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun } from './story-tests-stage';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -270,7 +270,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     const storyTests = await runAngleStepForRun({ run, stageId: stage.id, intake: output });
     const pauseForAngle = storyTests?.angleStep.status === 'waiting';
     // Sprint 6 Task 3 (Part C): the pipeline-version tags, written now and never edited. Present with the feature on or off.
-    const pipelineTags = buildPipelineTags({ storyTestsOn: storyTestsEnabled(), buildCommit: await resolveCommit() });
+    const pipelineTags = buildPipelineTags({ storyTestsOn: true, buildCommit: await resolveCommit() });
 
     // Persist-before-advance: the stage's completion and the run's advance are
     // written together, in one transaction — this is what makes resumability
@@ -344,14 +344,14 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
 
   // Sprint 4 Task 2: guide, length, fact policy and banned lists come from the
   // resolved config of the profile this run was created against.
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   const evidenceSelection = generationEvidenceSnapshot({ previousInput: previousAttempt?.input,
     previousOutput: previousAttempt?.output, briefText: run.briefText, factPolicy: config.factPolicy,
     sources: run.creationOptions?.sources, videoKind: config.videoKind });
   // Sprint 6 Task 3: a chosen angle adds one constraint line. No chosen angle (switch off, skipped, not run): the list is
   // the intake's own, unchanged.
   // The intake is read only with the switch on, so the old path does no new work.
-  const chosenAngle = storyTestsEnabled() ? chosenAngleOf((await findLatestCompletedAttempt(runId, 'intake'))?.output) : null;
+  const chosenAngle = chosenAngleOf((await findLatestCompletedAttempt(runId, 'intake'))?.output);
   const stageInput = {
     topic: run.intakeParsed.topic,
     constraints: constraintsWithAngle(run.intakeParsed.constraints, chosenAngle),
@@ -524,7 +524,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
 
   const previousAttempt = await findLatestAttempt(runId, 'script_review');
   const attemptNumber = previousAttempt ? previousAttempt.attemptNumber + 1 : 1;
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   const stageInput = {
     scriptText: scriptOutput.scriptText,
     captions: scriptOutput.captions,
@@ -743,7 +743,7 @@ export async function runGate1Stage(runId: string): Promise<PipelineRun> {
     throw new Error(`Channel ${run.channelId} not found`);
   }
 
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   const scriptGenStage = await findLatestCompletedAttempt(runId, 'script_generation');
   if (!scriptGenStage || scriptGenStage.status !== 'completed' || !scriptGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed script_generation output — cannot open Gate 1`);
@@ -971,7 +971,7 @@ export async function runVideoGenerationStage(
   // Sprint 4 Task 3: the resolved config adds the profile level between the run
   // override and the channel default; a profile-less channel resolves exactly as
   // resolveVoice did before.
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   const resolvedVoice = config.audioDefaultVoice;
   // Sprint 4 Task 9: a long run narrates, plans and renders chapter by chapter, with its per-video spend
   // limit checked between paid calls. A Short takes none of these branches.
@@ -1588,7 +1588,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   });
 
   // Sprint 4 Task 10 (R2): long-form uses its own quality profile and chapter-based frame sampling.
-  const reviewConfig = await loadResolvedConfig(run, channel);
+  const reviewConfig = await loadResolvedConfig(run);
   const isLongForm = reviewConfig.videoKind === 'long';
   const chapterTimings = isLongForm ? readChapterTimings(videoGenStage.output) : undefined;
   const sceneMap = isLongForm && visualSource === 'ai-stills'
@@ -1852,7 +1852,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   // Sprint 4 Task 10 (R4.1): a long run whose chapters do not meet YouTube's rules is published
   // without the chapter list; the approver is told here, before approving.
   const gate2Warnings: string[] = [];
-  if ((await loadResolvedConfig(run, channel)).videoKind === 'long') {
+  if ((await loadResolvedConfig(run)).videoKind === 'long') {
     const list = buildChapterList(readChapterTimings(videoGenStage.output));
     if (!list.ok) gate2Warnings.push(list.warning);
   }
@@ -2173,7 +2173,7 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
 
   const attemptNumber = existingAttempt ? existingAttempt.attemptNumber + 1 : 1;
   // Sprint 4 Task 5: packaging from the run's own snapshotted profile.
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   const isLongForm = config.videoKind === 'long';
   const chapterTimings = isLongForm ? readChapterTimings(videoGenStage.output) : undefined;
   // {editor}: the real Gate 1 approver (Task 4), or null (ops path / lookup failure)
