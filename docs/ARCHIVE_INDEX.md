@@ -37,18 +37,28 @@ To only read a file without restoring it: `git show docs-archive-2026-10-26:<pat
 
 Total removed: 157 (group a 95, b 52, c 10).
 
+### Removed later (branch `DOCS_CLEANUP_P3`, 2026-11-01)
+
+Same tag, same restore command. Each file's links in live docs already carry the archived marker, or point at the `ui-ux` copy.
+
+| Group | What | Path | Tag | Restore |
+| ----- | ---- | ---- | --- | ------- |
+| a | Week 1 instructions | `docs/execution/week1/WEEK1_INSTRUCTIONS.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/week1/WEEK1_INSTRUCTIONS.md` |
+| a | Week 1 summary | `docs/execution/week1/reports/week1-summary.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/week1/reports/week1-summary.md` |
+| f | UI/UX protocol pointer (stub; the live copy is `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`) | `docs/execution/UI_UX_AGENT_PROTOCOL.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/UI_UX_AGENT_PROTOCOL.md` |
+
 ## Not removed
 
 These files were in the clean-up list but are still linked from a kept status, plan, template, protocol or channel bible, so they stay until those docs are updated. Restore is not needed for them.
 
 | Group | Path | Why it stays |
 | ----- | ---- | ------------ |
-| a | `docs/execution/week1/WEEK1_INSTRUCTIONS.md`, `docs/execution/week1/reports/week1-summary.md`, `docs/execution/frontend/STATUS.md` | linked from `TASK_TEMPLATE.md` |
+| a | `docs/execution/frontend/STATUS.md` | linked from `TASK_TEMPLATE.md` |
 | b | `docs/execution/sprint3/STATUS.md`, `docs/execution/sprint3/tasks/task9.md`, `docs/execution/bugs/Sprint3/closureTask.md`, `closureTask2.md`, `reports/closure.md`, `reports/closure2-phone-verification.md`, `reports/task1.md`, `tasks/task1.md`, `tasks/hardening-gpt-image-migration.md` | linked from `bugs/STATUS.md` (`closureTask.md` also from `admin/sprint1/STATUS.md`) |
 | b | `docs/execution/sprint3/tasks/hardening-tenant-check.md`, `docs/execution/sprint3/reports/hardening-tenant-check.md`, `docs/execution/bugs/Sprint3/tasks/task3.md` | linked from `HOTFIXER_AGENT_PROTOCOL.md` / `UI_UX_AGENT_PROTOCOL.md` |
 | c | `docs/execution/ui-ux/STATUS.md`, `docs/execution/ui-ux/tasks/task1.md` | linked from `TASK_TEMPLATE.md`, the UI/UX protocol and `bugs/STATUS.md` |
 | d | `docs/roadmap/SPRINT_ROADMAP.md`, `docs/roadmap/MVP_ROADMAP_OCT15.md` | linked from `TASK_TEMPLATE.md` |
-| f | `docs/execution/UI_UX_AGENT_PROTOCOL.md` (stub), `docs/execution/sprint4/STATUS.md` | linked from `TASK_TEMPLATE.md`, `docs/STATUS.md`, `sprint5/STATUS.md` and both protocols |
+| f | `docs/execution/sprint4/STATUS.md` | linked from `TASK_TEMPLATE.md`, `docs/STATUS.md`, `sprint5/STATUS.md` and both protocols |
 | g | `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` | named by `NIYT_CHANNEL_CONFIG.md`; its price-fact Gate 1 items and upload sequence are not in the new spec |
 
 Group e (old forecasting app) was not on `main`, so nothing was removed for it.
