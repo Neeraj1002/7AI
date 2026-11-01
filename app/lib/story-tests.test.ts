@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   angleCardKind,
+  checkKind,
   chooseBar,
   confirmAngleId,
   isAngleWait,
@@ -59,7 +60,7 @@ describe('select, clear, confirm', () => {
   });
 });
 
-describe('which card, and the flag', () => {
+describe('which card, and when nothing is drawn', () => {
   it('maps each angle status', () => {
     expect(angleCardKind(st('running'), 'running')).toBe('making');
     expect(angleCardKind(st('waiting'), 'paused_angle')).toBe('choose');
@@ -68,13 +69,20 @@ describe('which card, and the flag', () => {
     expect(angleCardKind(st('not_run'), 'running')).toBe('not_run');
     expect(angleCardKind(null, 'paused_angle')).toBe('none');
   });
-  it('shows nothing with the flag off, or with data that is off or missing', () => {
-    expect(storyTestsOf({ storyTests: st('waiting') }, false)).toBeNull();
-    expect(storyTestsOf({ storyTests: { ...st('waiting'), enabled: false } }, true)).toBeNull();
-    expect(storyTestsOf({ storyTests: null }, true)).toBeNull();
-    expect(storyTestsOf({}, true)).toBeNull();
-    expect(isAngleWait('paused_angle', false)).toBe(false);
-    expect(isAngleWait('paused_angle', true)).toBe(true);
+  it('draws nothing when storyTests is null, disabled or missing (a run looks exactly as before)', () => {
+    expect(storyTestsOf({ storyTests: { ...st('waiting'), enabled: false } })).toBeNull();
+    expect(storyTestsOf({ storyTests: null })).toBeNull();
+    expect(storyTestsOf({})).toBeNull();
+    expect(storyTestsOf(undefined)).toBeNull();
+    for (const status of ['running', 'paused_gate1', 'paused_gate2', 'completed']) {
+      expect(angleCardKind(storyTestsOf({ storyTests: null }), status)).toBe('none');
+    }
+    expect(checkKind(storyTestsOf({ storyTests: null }))).toBe('none');
+  });
+  it('draws the cards when the server sent an enabled storyTests', () => {
+    expect(storyTestsOf({ storyTests: st('waiting') })).not.toBeNull();
+    expect(isAngleWait('paused_angle')).toBe(true);
+    expect(isAngleWait('paused_gate1')).toBe(false);
   });
 });
 
@@ -108,16 +116,27 @@ describe('swipe strip', () => {
   });
 });
 
-// The flag defaults to false, so the wording shows nowhere by default.
-describe('status wording with the flag off', () => {
-  it('paused_angle gets no new wording', () => {
-    expect(statusLabel('paused_angle')).toBe('paused_angle');
-    expect(runChip({ status: 'paused_angle' }, null).label).toBe('In progress');
-    expect(queueChip('paused_angle')).toBe('paused_angle');
-    expect(statusChipKind('paused_angle')).toBe('neutral');
-    expect(reviewLabel(null)).toBe('Open run');
+// A run that is not waiting on an angle keeps every status word it had before.
+describe('status wording', () => {
+  it('paused_angle reads as the angle wait everywhere', () => {
+    expect(statusLabel('paused_angle')).toBe('Waiting for your angle choice');
+    expect(runChip({ status: 'paused_angle' }, null)).toEqual({ label: 'Waiting for your angle choice', kind: 'waiting' });
+    expect(queueChip('paused_angle')).toBe('Waiting for your angle choice');
+    expect(statusChipKind('paused_angle')).toBe('waiting');
     expect(reviewLabel('angle')).toBe('Choose an angle');
     const cards = buildInboxCards([], [{ id: 'r', channelId: 'c', status: 'paused_angle', currentStage: 'intake', lastError: null, briefText: 'b', completedAt: null }]);
+    expect(cards.needsYou).toHaveLength(1);
+    expect(cards.needsYou[0].gate).toBe('angle');
+    expect(cards.needsYou[0].steps?.[0]).toMatchObject({ key: 'angle', name: 'Angle' });
+  });
+  it('other statuses are unchanged', () => {
+    expect(statusLabel('paused_gate1')).toBe('Waiting on you · Gate 1 script review');
+    expect(runChip({ status: 'paused_gate1' }, null).label).toBe('Gate 1 · approve script');
+    expect(runChip({ status: 'running' }, null).label).toBe('In progress');
+    expect(queueChip('paused_gate2')).toBe('Gate 2 · Video');
+    expect(reviewLabel(null)).toBe('Open run');
+    const cards = buildInboxCards([], [{ id: 'r', channelId: 'c', status: 'running', currentStage: 'intake', lastError: null, briefText: 'b', completedAt: null }]);
     expect(cards.needsYou).toHaveLength(0);
+    expect(cards.earlier[0].steps?.some((x) => x.key === 'angle')).toBe(false);
   });
 });
