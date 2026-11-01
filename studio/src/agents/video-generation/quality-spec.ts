@@ -16,6 +16,7 @@ export const QUALITY_SPEC = {
     width: 1080,
     height: 1920,
     fps: 30,
+    trackTimescale: 15360,
     codec: 'h264',
     profile: 'High',
     pixFmt: 'yuv420p',
@@ -25,7 +26,9 @@ export const QUALITY_SPEC = {
   audio: {
     codec: 'aac',
     sampleRate: 48000,
-    bitrateKbps: 192,
+    // Native AAC undershoots the requested rate on sparse narration. Keep
+    // enough headroom for the measured stream to clear the 160 kbps floor.
+    bitrateKbps: 320,
     // Quality-spec floor for the measured output bitrate (recorded, not blocking).
     minBitrateKbps: 160,
   },

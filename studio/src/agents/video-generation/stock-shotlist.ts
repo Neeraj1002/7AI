@@ -13,7 +13,7 @@ import { QUALITY_SPEC } from './quality-spec';
 // silent switch to ai-stills (that would make containsSyntheticMedia wrong).
 
 const execFileAsync = promisify(execFile);
-const { width: W, height: H, fps: FPS } = QUALITY_SPEC.video;
+const { width: W, height: H, fps: FPS, trackTimescale: TRACK_TIMESCALE } = QUALITY_SPEC.video;
 // The final mux uses -shortest against the voiceover; the picture only needs to
 // be at least as long as the audio, so pad a hair past it.
 const TAIL_PAD_SECONDS = 0.25;
@@ -115,6 +115,9 @@ export async function buildStockShotList(params: {
         `scale=${W}:${H}:force_original_aspect_ratio=increase`,
         `crop=${W}:${H}`,
         `fps=${FPS}`,
+        // Every segment begins at frame zero on the same clock before the
+        // concat demuxer copies packets from independently encoded clips.
+        `setpts=N/(${FPS}*TB)`,
         'setsar=1',
         ...(seg.holdSeconds > 0 ? [`tpad=stop_mode=clone:stop_duration=${seg.holdSeconds.toFixed(3)}`] : []),
       ].join(',');
@@ -135,6 +138,12 @@ export async function buildStockShotList(params: {
         '18',
         '-pix_fmt',
         QUALITY_SPEC.video.pixFmt,
+        '-r',
+        String(FPS),
+        '-fps_mode',
+        'cfr',
+        '-video_track_timescale',
+        String(TRACK_TIMESCALE),
         segmentPath,
       ]);
       position += seg.useSeconds + seg.holdSeconds;
