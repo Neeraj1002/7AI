@@ -2,7 +2,7 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r8, 2026-11-01 (log at the end) (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
+**Revision**: r9, 2026-11-01 (log at the end) (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
 
 **Written**: 2026-11-01 by the task-writer chat, at the founder's request, from the founder-approved design (not redesigned here). Finalised by the architect the same day. **Status**: not started; all eight founder decisions and the spend ceilings are answered (1 Nov); starts when the architect hands it to the agent and this doc is merged. **Priority**: P2 (P19, the first slice of P12; P12 keeps the story writer, story editor and taste library). Note: P16 in `PLAN.md` is creative direction per channel, a different item. **Branches**: `SPRINT6_TASK3A_BE`, `SPRINT6_TASK3B_BE`, `SPRINT6_TASK3C_BE` (add `_FE` branches only if R0 shows the card is too big to share a PR); worktrees `task3a`, `task3b`, `task3c` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
@@ -28,7 +28,7 @@ Find out whether a story is worth watching **before** money is spent on it, then
 
 All of it is **advisory**. The readers never decide, never change a score, never trigger a writer retry.
 
-**Duration**: to estimate after R0 (three PRs, see Delivery).
+**Duration**: to estimate after R0 (one backend PR in three parts, see Delivery).
 **Depends On**: the intake and script steps, Gate 1, Script Review (Sprint 5 Task 6, merged per its doc; confirm on `main`), the LLM Registry (`sprint5/bugs/tasks/llm-registry.md`; confirm which of its parts are on `main`). **Does not depend on analytics**: Parts A, B and the record must not wait on it. Sprint 6 Task 1 (curiosity packaging) is not a dependency; see the finding in R9.
 **Owning Component**: intake-to-script step in `run-pipeline/`, a new story-tests module beside `agents/script-review/`, `llm/registry.ts` purposes, the Gate 1 API and card, the run record. Confirm exact owners in R0.
 **Success Criteria**: (1) with the feature on, a run proposes 4 to 5 angles, shows them with the reader's two picks, and the script step does not start until the founder chooses (or skips); (2) the chosen angle's promise is stored and is what Part B checks against; (3) a script reaching Gate 1 has a stored Part B result and, where Gate 1 is on, the founder sees the verdict, swipe line and weakest sentence; (4) every call is a registered purpose, capped, metered, and no call exceeds the part's cap; (5) every run stores the record in Part C including its pipeline-version tags; (6) no channel name or niche literal was added to code (grep proof); (7) the Part C analytics finding is in the report; (8) full tests, type check and lint pass; the existing Script Review score, threshold, retries and Gate 1 behaviour are unchanged.
@@ -222,12 +222,17 @@ All numbers below are the task writer's proposals, not verified against current 
 
 Backend and app type check, lint, build and the focused tests R0 finds; the full suite with `--maxWorkers=4` (say so). Cover: the request each call builds (blind inputs asserted); Part A mapping, reversal, clear winner and no clear winner, invalid replies; the choice persisted before the script step and surviving a restart; the Part B verdict with each FAIL reason, thresholds, quote not found, Part A skipped; Script Review unchanged on existing fixtures; per-part caps; the record read back with tags for a feature-on run, a feature-off run and a Part A skipped run; tenant isolation; two differently configured channels and one with no persona line. **Grep proof** in the report: the command and its (empty) result, for example `git diff origin/main...HEAD -- studio app | grep '^+' | grep -iE 'underdogs|not in your textbook|cold open|niyt|lego|mary celeste'`, plus every channel name on the test tenant. Fixtures use neutral names.
 
-## Delivery: three PRs so nothing waits
+## Delivery: one backend PR, built in sequence (changed r9, founder 1 Nov)
 
-- **PR A (`SPRINT6_TASK3A_BE`)**: R0, R1, R2, R3, R8 for Part A, the `paused_angle` migration (after the founder answers decision 8), `runs.chooseAngle` and the Part A half of `storyTests` in `runs.get` (contract C1 to C4). The pair-reader and the Part A card's data. Merge this contract's backend half first, so the app work can start in parallel.
-- **PR B (`SPRINT6_TASK3B_BE`)**: R4, R5, R6, R8 for Part B and the `scriptCheck` half of `storyTests`. Needs the stored promise from PR A, or null when skipped.
-- **App PR (`SPRINT6_TASK3_FE`)**: the two cards and the new status in the app, built from the designer's screens and the Contract above, behind `storyTestsCards`. The architect writes its own short task from the Contract once the designer's screens exist; it is not part of the backend agent's work.
-- **PR C (`SPRINT6_TASK3C_BE`)**: R7, R9 final, and the R0 item 8 finding written up. Merge `main` into your branch first. Report after each PR; the Hard rule 8 closing runs after PR C merges.
+- **Backend PR (`SPRINT6_TASK3A_BE`, #143)** covers Parts A, B and C, built in this order. Do not start a part until the previous part's commit is done and its tests pass. Each part is its own commit(s), with its own tests and its own section in the report, so the architect can review commit by commit. The founder merges once, at the end.
+  - **Part A**: R0, R1, R2, R3, R8 for Part A, the `paused_angle` migration, `runs.chooseAngle`, the Part A half of `storyTests` in `runs.get` (contract C1 to C4), the pair-reader, and the chosen angle passed to the script writer as one constraint line (fixed template, title and promise as data; the writer input is unchanged when the switch is off or no angle was chosen).
+  - **Part B**: R4, R5, R6, R8 for Part B and the `scriptCheck` half of `storyTests`. Reads the stored promise from Part A, or null when skipped.
+  - **Part C**: R7, R9 final, and the R0 item 8 finding written up.
+- **Contract first.** In the first commit, put the full contract (the `runs.get` `storyTests` shape, `runs.chooseAngle`, the `paused_angle` status, and every field Part B or C will add for the app) in the PR description. The app agent builds against it while the PR is open. Any later contract change: stop and tell the architect.
+- **App PR (`SPRINT6_TASK3_FE`)** is separate and **merges first**, then the backend PR. The two cards and the new status, built from the designer's screens and the Contract, behind `storyTestsCards`. The architect writes its own short task from the Contract.
+- **Rollout.** `STORY_TESTS_ENABLED` stays off until both PRs are live.
+- **Live checks.** The four new prompts need founder approval before any live call. The $1.50 ceiling covers the whole PR; report the running total.
+- Merge `main` into the branch before Part C. Report after each part; the Hard rule 8 closing runs after the PR merges.
 
 ## Report
 
@@ -250,3 +255,4 @@ The code (no file was read; every code fact above is marked "confirm" or comes f
 - r6, 2026-11-01 (architect): added the Contract (API and app), decision 8 (the `paused_angle` migration), the real Schema Impact and the app PR in Delivery.
 - r7, 2026-11-01 (architect): decision 8 answered yes (the `paused_angle` migration). All eight decisions are answered; the backend task is ready to hand to the agent once this doc is merged.
 - r8, 2026-11-01 (architect, after the designer's seven questions): a `not_run` angle step does not wait; reader-only failure waits with the angles shown; `readerTags` per angle; `verdictLabel`; `promiseMatch.note` always set; status label and Inbox "Angle" step; a notice and reminder for `paused_angle` added to PR A (the reminder code covered only the two gates); the app is light only today and no dark theme is planned (founder).
+- r9, 2026-11-01 (architect, founder decision): Parts A, B and C are now one backend PR built in sequence (A, then B, then C), replacing the three-PR split. The app PR merges first, then the backend PR. Added the chosen-angle constraint line to Part A, the contract-first rule and the rollout rule.
