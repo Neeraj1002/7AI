@@ -42,9 +42,9 @@ Same 8 scene prompts per channel, three models, `low`. Sheets: Not In Your Textb
 - **Founder to decide**: model and snapshot, and whether the style wording change is accepted. Then the one-line registry switch goes in as the last commit on this PR.
 
 ## R4: documents that quote the old numbers (listed, not edited)
-1. `docs/execution/bugs/Sprint3/closureTask.md` lines 156, 320, 328 and `closureTask2.md` lines 76, 160-178: SQL filters on `model = 'gpt-image-1.5'`. After the switch it must also match `gpt-image-2.5-flare%`.
+1. `docs/execution/bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) lines 156, 320, 328 and `closureTask2.md` (archived, see docs/ARCHIVE_INDEX.md) lines 76, 160-178: SQL filters on `model = 'gpt-image-1.5'`. After the switch it must also match `gpt-image-2.5-flare%`.
 2. `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` section 14, line 500: "about $1.30 of images (~100 stills)" becomes about $0.50 at $0.0049, and "about 20 minutes at the 5-per-minute rate limit" becomes about 5 minutes at 20 a minute.
-3. `closureTask.md` lines 166-167: about $0.20 per attempt and $20 a week per channel. Image cost per attempt drops from about $0.18 to about $0.07; the recommended ceiling can be lowered after one real week.
+3. `closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) lines 166-167: about $0.20 per attempt and $20 a week per channel. Image cost per attempt drops from about $0.18 to about $0.07; the recommended ceiling can be lowered after one real week.
 4. Sprint 4 Task 9 R7: the long-form cost estimate and its size constants (see 1920x1088 above).
 Test fixtures that name `gpt-image-1.5` (`closure2-render.test.ts`, admin tests) are plain strings and do not need to change.
 

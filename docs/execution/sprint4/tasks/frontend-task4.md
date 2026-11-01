@@ -2,11 +2,11 @@
 
 **Written**: 2026-10-11 by the architect chat, from the UI designer's hand-off of the same day. **Status**: not started. Picked up by the UI/UX code agent from this folder.
 
-**Read `docs/execution/templates/TASK_TEMPLATE.md`, `UI_UX_AGENT_PROTOCOL.md` and the Definition of Done first, then the "Design source (read-only)" and "Shared rules" sections of `frontend-task2.md`; they apply here unchanged.** Hard rules apply (never push or merge to `main`, one worktree per session, record every branch in `docs/execution/sprint4/STATUS.md` when created).
+**Read `docs/execution/templates/TASK_TEMPLATE.md`, `UI_UX_AGENT_PROTOCOL.md` and the Definition of Done first, then the "Design source (read-only)" and "Shared rules" sections of `frontend-task2.md`; they apply here unchanged.** Hard rules apply (never push or merge to `main`, one worktree per session, record every branch in `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) when created).
 
 **Objective**: let the founder create, review and publish a long-form video (16:9, 2 to 15 minutes) from the app: the Type field and cost controls on New brief, chapters at Gate 1, a landscape preview at Gate 2, progress while it renders, subtitles on the published screen, and long videos in Queue, Inbox and Compare.
 **Owning Component**: `app/` only. **Role**: `FE`, JS-only, OTA-eligible.
-**Depends On**: Frontend Task 3 merged (strict order) and **Sprint 4 Tasks 9 (PR A and PR B) and 10 merged on `main`**. Check `docs/execution/sprint4/STATUS.md`. Build against real responses only. A few optional fields (table below, from Sprint 4 Task 12) have fallbacks so a missing one never blocks.
+**Depends On**: Frontend Task 3 merged (strict order) and **Sprint 4 Tasks 9 (PR A and PR B) and 10 merged on `main`**. Check `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md). Build against real responses only. A few optional fields (table below, from Sprint 4 Task 12) have fallbacks so a missing one never blocks.
 **Branches** (independent, each cut from fresh `origin/main` in its own worktree): `SPRINT4_FE_N3_BRIEF` (R1), `SPRINT4_FE_N3_RUN` (R2, R5), `SPRINT4_FE_N3_LISTS` (R3, R4). One commit per requirement.
 **Duration**: 3 to 4 days.
 **Success Criteria**: (1) a phone screenshot beside every board below; (2) one real 2-minute long video created from the app reaches Gate 2 and plays its preview on the phone (the founder supplies the facts brief; report the cost shown before and the actual cost after); (3) a Shorts run is unchanged (same request body as before: no `videoKind`, no `maxCostUsd`); (4) `tsc`, `expo lint` and app tests pass; no `package.json`, lockfile, `app.json` or native change.

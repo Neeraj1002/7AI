@@ -42,7 +42,7 @@ Reports include actual tests, schema applications, source changes, deviations an
 
 ## Current-state reconciliation and audit addendum
 
-This section updates the decisions in the [October 14 audit](../../audits/2026-10-14/7AI-STUDIO-AUDIT.md). The audit is retained as its dated record; its lack of live deployment evidence is superseded only by the specific observations below. Older [global status](../../STATUS.md), [Sprint 4 status](../sprint4/STATUS.md) and [pending page](../sprint4/PENDING.md) are dated October 11 and contain stale “not started” rows. They are not deployment certificates.
+This section updates the decisions in the [October 14 audit](../../audits/2026-10-14/7AI-STUDIO-AUDIT.md). The audit is retained as its dated record; its lack of live deployment evidence is superseded only by the specific observations below. Older [global status](../../STATUS.md), [Sprint 4 status](../sprint4/STATUS.md) (archived, see docs/ARCHIVE_INDEX.md) and [pending page](../sprint4/PENDING.md) are dated October 11 and contain stale “not started” rows. They are not deployment certificates.
 
 | Work | Repository / external evidence | Deployment or remaining boundary | Sprint 5 decision |
 |---|---|---|---|

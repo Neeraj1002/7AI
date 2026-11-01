@@ -13,7 +13,7 @@ PR is merged** (see `ADMIN_TASK_TEMPLATE.md` section 2). Do not merge; never pus
 | FE 1 | FE | The Admin Section in the App: Overview (with System card), Tenants, Budget View, Usage, Bugs, Run Inspector, Audit Log (~17.5h) | Done — action needed | **Founder** | `admin_sprint1_fe` (cut from `origin/main` at 14e9f36, which contains BE PR #50; PR #51, ready for review) | Report: `../report/sprint1/fe/task1.md` (R1-R8 done; tsc and lint clean; verified against the sandbox fixture, no screenshots possible, so descriptions). Founder: review and merge PR #51, confirm the BE founder steps, `eas update --branch preview`, then the phone checks in the report. |
 
 ## Dependencies
-- **Closure PR #48 -> BE 1 -> FE 1.** BE 1 imports the week-start helper, `checkBudget`, `MIN_CHANNEL_SHARE_USD` and `computeChannelBudgetCeilings` from `run-pipeline/budget-gate.ts` and changes none of them. If #48 isn't merged when BE 1 is scheduled, the agent stops and tells the founder; it does not copy that code. Decision record: `bugs/Sprint3/closureTask.md` D4.
+- **Closure PR #48 -> BE 1 -> FE 1.** BE 1 imports the week-start helper, `checkBudget`, `MIN_CHANNEL_SHARE_USD` and `computeChannelBudgetCeilings` from `run-pipeline/budget-gate.ts` and changes none of them. If #48 isn't merged when BE 1 is scheduled, the agent stops and tells the founder; it does not copy that code. Decision record: `bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) D4.
 
 ## Scope boundary
 Read-only, except bug triage (status, area, priority, note) and the script that grants the platform-admin flag.

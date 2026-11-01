@@ -47,18 +47,36 @@ Same tag, same restore command. Each file's links in live docs already carry the
 | a | Week 1 summary | `docs/execution/week1/reports/week1-summary.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/week1/reports/week1-summary.md` |
 | f | UI/UX protocol pointer (stub; the live copy is `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`) | `docs/execution/UI_UX_AGENT_PROTOCOL.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/UI_UX_AGENT_PROTOCOL.md` |
 
+### Removed in the architect clean-up (2026-11-01)
+
+Same tag, same restore command. Every live link to these pages now carries the archived marker. The `STATUS.md` and protocol lines that pointed at `sprint3/STATUS.md`, `sprint4/STATUS.md` and the roadmaps were rewritten.
+
+| Group | Path | Tag | Restore |
+| ----- | ---- | --- | ------- |
+| b | `docs/execution/sprint3/STATUS.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/sprint3/STATUS.md` |
+| b | `docs/execution/sprint3/tasks/task9.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/sprint3/tasks/task9.md` |
+| b | `docs/execution/sprint3/tasks/hardening-tenant-check.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/sprint3/tasks/hardening-tenant-check.md` |
+| b | `docs/execution/sprint3/reports/hardening-tenant-check.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/sprint3/reports/hardening-tenant-check.md` |
+| b | `docs/execution/bugs/Sprint3/closureTask.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/closureTask.md` |
+| b | `docs/execution/bugs/Sprint3/closureTask2.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/closureTask2.md` |
+| b | `docs/execution/bugs/Sprint3/reports/closure.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/reports/closure.md` |
+| b | `docs/execution/bugs/Sprint3/reports/closure2-phone-verification.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/reports/closure2-phone-verification.md` |
+| b | `docs/execution/bugs/Sprint3/reports/task1.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/reports/task1.md` |
+| b | `docs/execution/bugs/Sprint3/tasks/task1.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/tasks/task1.md` |
+| b | `docs/execution/bugs/Sprint3/tasks/task3.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/tasks/task3.md` |
+| b | `docs/execution/bugs/Sprint3/tasks/hardening-gpt-image-migration.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/bugs/Sprint3/tasks/hardening-gpt-image-migration.md` |
+| a | `docs/execution/frontend/STATUS.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/frontend/STATUS.md` |
+| d | `docs/roadmap/SPRINT_ROADMAP.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/roadmap/SPRINT_ROADMAP.md` |
+| d | `docs/roadmap/MVP_ROADMAP_OCT15.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/roadmap/MVP_ROADMAP_OCT15.md` |
+| f | `docs/execution/sprint4/STATUS.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/sprint4/STATUS.md` |
+
 ## Not removed
 
-These files were in the clean-up list but are still linked from a kept status, plan, template, protocol or channel bible, so they stay until those docs are updated. Restore is not needed for them.
+These stay on purpose.
 
 | Group | Path | Why it stays |
 | ----- | ---- | ------------ |
-| a | `docs/execution/frontend/STATUS.md` | linked from `TASK_TEMPLATE.md` |
-| b | `docs/execution/sprint3/STATUS.md`, `docs/execution/sprint3/tasks/task9.md`, `docs/execution/bugs/Sprint3/closureTask.md`, `closureTask2.md`, `reports/closure.md`, `reports/closure2-phone-verification.md`, `reports/task1.md`, `tasks/task1.md`, `tasks/hardening-gpt-image-migration.md` | linked from `bugs/STATUS.md` (`closureTask.md` also from `admin/sprint1/STATUS.md`) |
-| b | `docs/execution/sprint3/tasks/hardening-tenant-check.md`, `docs/execution/sprint3/reports/hardening-tenant-check.md`, `docs/execution/bugs/Sprint3/tasks/task3.md` | linked from `HOTFIXER_AGENT_PROTOCOL.md` / `UI_UX_AGENT_PROTOCOL.md` |
-| c | `docs/execution/ui-ux/STATUS.md`, `docs/execution/ui-ux/tasks/task1.md` | linked from `TASK_TEMPLATE.md`, the UI/UX protocol and `bugs/STATUS.md` |
-| d | `docs/roadmap/SPRINT_ROADMAP.md`, `docs/roadmap/MVP_ROADMAP_OCT15.md` | linked from `TASK_TEMPLATE.md` |
-| f | `docs/execution/sprint4/STATUS.md` | linked from `TASK_TEMPLATE.md`, `docs/STATUS.md`, `sprint5/STATUS.md` and both protocols |
-| g | `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` | named by `NIYT_CHANNEL_CONFIG.md`; its price-fact Gate 1 items and upload sequence are not in the new spec |
+| c | `docs/execution/ui-ux/STATUS.md`, `docs/execution/ui-ux/tasks/task1.md` | the live UI/UX track uses them |
+| g | `docs/channel_bibles/NOT_IN_YOUR_TEXTBOOK.md` | named by `NIYT_CHANNEL_CONFIG.md`; its price-fact Gate 1 items and upload sequence are not in the new spec yet. It goes once the channel lead carries them over |
 
 Group e (old forecasting app) was not on `main`, so nothing was removed for it.

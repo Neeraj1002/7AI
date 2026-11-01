@@ -285,8 +285,7 @@ only on evidence from the deployed build, and nothing is built twice.
   be closed by the hot-fixer on its own evidence.
 - **Test first, code only if it still reproduces.** A report logged before a merged PR may already be
   fixed. Re-test it on the deployed build before writing any code.
-- **No duplicate work.** Before fixing anything, read `docs/execution/sprint4/STATUS.md` (and the current
-  sprint's STATUS), run `gh pr list`, and run `git log origin/main -- <file>` for every file you intend to
+- **No duplicate work.** Before fixing anything, read the current sprint's STATUS (`docs/execution/sprint5/STATUS.md`), run `gh pr list`, and run `git log origin/main -- <file>` for every file you intend to
   touch. If a merged PR already built it, call it and close the report against that PR. If an in-flight
   sprint task will build it, route the report to that task (note the task in the triage table) and do not
   fix it here. A genuine defect in code a merged PR owns gets a minimal fix with a test and a note saying

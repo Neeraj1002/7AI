@@ -13,7 +13,7 @@ cancel-run fix and the push-notification fix) merges before any item here. The c
 the bugs track. Task 10's R5 adds `google-services.json` and changes the native fingerprint, so build these
 items from a `main` that already contains it, and publish their OTA (`eas update --branch preview`) only after
 the founder has installed the new APK. Within this task, build each item
-**only after its backend task is merged on `main`** (check `docs/execution/sprint4/STATUS.md`), in the order
+**only after its backend task is merged on `main`** (check `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md)), in the order
 below, which follows Sprint 4's own build order. Never build against an unmerged backend branch and never
 fake the data.
 The old R21/R22/R27/R28 of this doc are now E4–E5 below.
@@ -22,7 +22,7 @@ comparison, the fuller Gate 1 review, content formats, and the per-channel conte
 **Owning Component**: `app/` only. **Role**: `FE`, JS-only, OTA-eligible (fingerprint must match `main`).
 **Branches**: one small branch + PR per item, cut from fresh `origin/main` when that item's backend has
 merged: `SPRINT4_FE_E<N>` (e.g. `SPRINT4_FE_E1`). Commits `SPRINT4_FE_E<N>: ...`. Record each branch in
-`docs/execution/sprint4/STATUS.md` (Frontend 1 row).
+`docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) (Frontend 1 row).
 **Design source**: locked canvas "7AI Studio — Visual Directions", **row 6 "Sprint 4"**. Build only the
 elements outlined in dashed blue with a "NEW · S4 …" tag; everything else on those boards already exists.
 

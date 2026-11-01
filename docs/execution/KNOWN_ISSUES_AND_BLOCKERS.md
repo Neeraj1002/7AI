@@ -5,7 +5,7 @@ Links to removed docs: see docs/ARCHIVE_INDEX.md (tag docs-archive-2026-10-26).
 **Purpose**: one place to check instead of re-reading every week's/sprint's reports/summaries. Covers everything flagged across Weeks 1–5 and Sprint 2 onward, as of this doc's last update.
 
 **Last updated**: 2026-10-11 (status block at the top of Section 1, new findings at the top of Section 4, the P5 item in Section 5, and the new Section 7). Before that: 2026-09-22, after the Sprint 3 Hardening fix (run creation-time tenant ownership
-check). See `docs/execution/sprint3/reports/hardening-tenant-check.md`. **Sprint 3 is being closed by one task, `docs/execution/bugs/Sprint3/tasks/task12.md` (Bugs Task 12); the "Task 12" notes below name the item that handles each entry.**
+check). See `docs/execution/sprint3/reports/hardening-tenant-check.md` (archived, see docs/ARCHIVE_INDEX.md). **Sprint 3 is being closed by one task, `docs/execution/bugs/Sprint3/tasks/task12.md` (Bugs Task 12); the "Task 12" notes below name the item that handles each entry.**
 
 **How to keep this current**: whenever a new week closes out, or an item below gets resolved, update this file — don't just fix the thing and let this doc go stale. Each item cites its source report so you can go deeper if needed.
 
@@ -24,8 +24,8 @@ check). See `docs/execution/sprint3/reports/hardening-tenant-check.md`. **Sprint
 | L2: Console quota numbers | **Open (small).** On 2026-10-11 the founder confirmed "100 accounts for testing", which is the Testing-mode test-user cap. The YouTube API quota page itself (`videos.insert` bucket, Data API units) has still not been read. | Founder F7 |
 | H1: custom-thumbnail permission (403) | **Moved to Sprint 4.** Needs YouTube phone verification of each channel (founder action outside the code); `Sprint4/tasks/hardening-thumbnail-phone-verification.md`. | Sprint 4; Section 7 |
 | G1: YouTube Analytics API (watch time, retention) | **Not built.** Needs the `yt-analytics.readonly` scope and a fresh consent. | Sprint 4 |
-| **New 2026-10-08: `gpt-image-1.5` shuts down 2026-12-01** | **Open.** The default `ai-stills` path calls it. Replacements: `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare`. Blockers: the new per-image price at 1024x1536 is not published (token billing), supported sizes and the `sunburst` / `flare` difference are undocumented, the OpenAI key's access is untested, and the stills will look different, so the founder must approve contact sheets for each channel. Plan and blocker table: `Sprint3/tasks/hardening-gpt-image-migration.md`. Target: deployed by 2026-11-15. Not part of Bugs Task 12. | Own task |
-| **New 2026-10-11: restart loop after Revise then Retry at Gate 2** | **Open.** A normal founder action (Revise, Retry, then `pm2 restart`) put the preview server into a restart loop with no stack trace in the error log; closed by hand in SQL. The Task 3 "resume-loop edge case" in `sprint3/STATUS.md` is the same failure class and has now recurred. | Bugs Task 12 R5 (first item) |
+| **New 2026-10-08: `gpt-image-1.5` shuts down 2026-12-01** | **Open.** The default `ai-stills` path calls it. Replacements: `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare`. Blockers: the new per-image price at 1024x1536 is not published (token billing), supported sizes and the `sunburst` / `flare` difference are undocumented, the OpenAI key's access is untested, and the stills will look different, so the founder must approve contact sheets for each channel. Plan and blocker table: `Sprint3/tasks/hardening-gpt-image-migration.md` (archived, see docs/ARCHIVE_INDEX.md). Target: deployed by 2026-11-15. Not part of Bugs Task 12. | Own task |
+| **New 2026-10-11: restart loop after Revise then Retry at Gate 2** | **Open.** A normal founder action (Revise, Retry, then `pm2 restart`) put the preview server into a restart loop with no stack trace in the error log; closed by hand in SQL. The Task 3 "resume-loop edge case" in `sprint3/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) is the same failure class and has now recurred. | Bugs Task 12 R5 (first item) |
 | `PUBLIC_API_BASE_URL` not set on the VPS | **Open (one line).** Production logs `[boot] PUBLIC_API_BASE_URL not set` on every start and magic-link text points at localhost. Set `PUBLIC_API_BASE_URL=https://7aistudio.tech` in `/var/www/7AI/studio/.env`, then restart. | Founder F1; R10.11 |
 
 ### Open — O1: confirm real push delivery on a real physical device (Sprint 3 Task 7)
@@ -303,7 +303,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   fixture run approved with a bare `"approve"` was confirmed to still publish `private`, proving the
   default didn't quietly change. This closes the last open item from the original Oct 15 MVP
   roadmap (§12's "a genuinely public test") — **Sprint 1 is now genuinely closed.**
-  — *`week5/reports/task5.md`, `docs/roadmap/SPRINT_ROADMAP.md`*
+  — *`week5/reports/task5.md`, `docs/roadmap/SPRINT_ROADMAP.md` (archived, see docs/ARCHIVE_INDEX.md)*
 
 ---
 
@@ -376,7 +376,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
   channel got a real `403 FORBIDDEN`, confirmed by a direct Postgres read that zero `PipelineRun` rows
   were created for that attempt; the same session's own channel, and the first tenant's own channel
   from its own session, both still succeeded normally (the regression check). See
-  `sprint3/reports/task1.md`, `sprint3/reports/task2.md`, `sprint3/reports/hardening-tenant-check.md`.
+  `sprint3/reports/task1.md`, `sprint3/reports/task2.md`, `sprint3/reports/hardening-tenant-check.md` (archived, see docs/ARCHIVE_INDEX.md).
 
 - **The API server's CORS registration stays permissive (`origin: true`) through Sprint 3 Task 1.**
   Real per-user sessions now exist (magic-link JWTs), but any origin can still send a request carrying
@@ -408,7 +408,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 ## 4. Real design findings worth a decision (not bugs — open questions surfaced by live testing)
 
-**Found 2026-10-10 and 2026-10-11 on the preview server and the phone** (evidence: `docs/execution/bugs/Sprint3/reports/closure2-phone-verification.md`; all handled by Bugs Task 12, `Sprint3/tasks/task12.md`):
+**Found 2026-10-10 and 2026-10-11 on the preview server and the phone** (evidence: `docs/execution/bugs/Sprint3/reports/closure2-phone-verification.md` (archived, see docs/ARCHIVE_INDEX.md); all handled by Bugs Task 12, `Sprint3/tasks/task12.md`):
 
 - **Stock footage cannot cover abstract topics, and the run just stops (F1).** A Lego brief on Underdogs (stock footage) had its middle frame rejected by video review on all three attempts as generic business footage; the regeneration cap (2) was reached and the run parked as "Video retry limit reached". **Decided**: one extra attempt with AI stills after the cap (Task 12 R1). Other directions (feed the reviewer's replacement text into the next search, concrete search terms for stock channels, plain-language reason on the Run screen) stay candidates. Whether the clips changed between attempts is answered from the Task 13 attempt bundle (F4, C2).
 - **Manual Retry has no cap (F2).** A cancelled 29 Sept run has 11 failed `video generation` attempts. **Decided**: cap manual Retry and Revise at 3 per stage per run (Task 12 R2).
@@ -446,7 +446,7 @@ scenarios, real planted-error script reviews, a real public YouTube upload) behi
 
 ---
 
-- **Failed-render usage booking (Bugs Closure part 2, P5)** — merged in PR #57 with mock tests (a failure after narration, one after image generation); never hit by a real render failure. When one happens, check `usage_events` for a `video-generation` row with the real provider, model and cost instead of `unknown`. — *`bugs/Sprint3/closureTask2.md`, `bugs/Sprint3/reports/closure2-phone-verification.md`* (Task 12 C4)
+- **Failed-render usage booking (Bugs Closure part 2, P5)** — merged in PR #57 with mock tests (a failure after narration, one after image generation); never hit by a real render failure. When one happens, check `usage_events` for a `video-generation` row with the real provider, model and cost instead of `unknown`. — *`bugs/Sprint3/closureTask2.md` (archived, see docs/ARCHIVE_INDEX.md), `bugs/Sprint3/reports/closure2-phone-verification.md` (archived, see docs/ARCHIVE_INDEX.md)* (Task 12 C4)
 
 ## 6. Not yet built
 

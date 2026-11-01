@@ -2,11 +2,11 @@
 
 **Written**: 2026-10-11 by the architect chat, from the UI designer's hand-off of the same day. **Status**: not started. Picked up by the UI/UX code agent from this folder.
 
-**Read `docs/execution/templates/TASK_TEMPLATE.md`, `UI_UX_AGENT_PROTOCOL.md` and the Definition of Done first, then the "Design source (read-only)" and "Shared rules" sections of `frontend-task2.md`; they apply here unchanged.** Hard rules apply (never push or merge to `main`, one worktree per session, record the branch in `docs/execution/sprint4/STATUS.md` when created).
+**Read `docs/execution/templates/TASK_TEMPLATE.md`, `UI_UX_AGENT_PROTOCOL.md` and the Definition of Done first, then the "Design source (read-only)" and "Shared rules" sections of `frontend-task2.md`; they apply here unchanged.** Hard rules apply (never push or merge to `main`, one worktree per session, record the branch in `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) when created).
 
 **Objective**: each channel lists the content formats it uses (any mix of Shorts and Video formats). The Content profile gets a Formats section, Channel settings shows it, and New brief offers only that channel's formats plus Freeform.
 **Owning Component**: `app/` only. **Role**: `FE`, JS-only, OTA-eligible.
-**Depends On**: Frontend Task 2 merged (strict order, see Shared rules) and **Sprint 4 Task 9 PR A** (it contains R1b: `offeredFormatKeys` and `channels.listFormats({ channelId, videoKind })`) on `main`. Check `docs/execution/sprint4/STATUS.md`. PR A is small and ships first, so this will already be true when Task 2 is done. No backend task is needed beyond Task 9 R1b.
+**Depends On**: Frontend Task 2 merged (strict order, see Shared rules) and **Sprint 4 Task 9 PR A** (it contains R1b: `offeredFormatKeys` and `channels.listFormats({ channelId, videoKind })`) on `main`. Check `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md). PR A is small and ships first, so this will already be true when Task 2 is done. No backend task is needed beyond Task 9 R1b.
 **Branch**: `SPRINT4_FE_N2`, fresh `origin/main`, own worktree. One commit per requirement.
 **Duration**: 2 days.
 **Success Criteria**: (1) a phone screenshot beside every board below; (2) a real profile saved with 2 formats appears in New brief as exactly those chips plus Freeform; (3) a Freeform submit sends no `formatKey`; (4) a channel with no formats shows Freeform only; (5) `tsc`, `expo lint` and app tests pass; no `package.json`, lockfile, `app.json` or native change.

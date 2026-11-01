@@ -160,7 +160,7 @@ etc.) is a genuinely different *content-generation path* — today Video Generat
 thing: search real Pexels stock footage. That's not a parameter to add, it's a second (or third)
 backend to build.
 
-Worth knowing this was always the plan, not scope creep: `MVP_ROADMAP_OCT15.md`'s own risk list
+Worth knowing this was always the plan, not scope creep: `MVP_ROADMAP_OCT15.md` (archived, see docs/ARCHIVE_INDEX.md)'s own risk list
 (Section 14) deliberately chose "TTS + captions + template/stock visuals" as the *simplest viable*
 starting point specifically so the loop could be proven fast, with an explicit note to "upgrade the
 visuals later once the pipeline itself is proven." This request is that later moment arriving on

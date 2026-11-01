@@ -330,7 +330,7 @@ npx vitest run channel-profile
 
 ## Report Template
 `docs/execution/sprint4/reports/task1.md`, standard shape (see `TASK_TEMPLATE.md`). Since this is
-Sprint 4's first task, also create `docs/execution/sprint4/STATUS.md` (upsert this task's row),
+Sprint 4's first task, also create `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) (upsert this task's row),
 `docs/execution/sprint4/SCHEMA.md`, and `docs/execution/sprint4/BUSINESS_LOGIC.md` per the template's
 "created by whichever task is first" convention — a skeleton for all six tasks already exists in
 `STATUS.md`; update this task's row in place rather than rewriting the file.
@@ -338,7 +338,7 @@ Sprint 4's first task, also create `docs/execution/sprint4/STATUS.md` (upsert th
 ## Links & References
 - The channel-agnostic content & setup proposal this sprint implements (kept in the `7AI` Claude
   Project — ask the founder if you need the source doc reproduced locally).
-- [SPRINT_ROADMAP.md](../../roadmap/SPRINT_ROADMAP.md) — Sprint 4's place in the plan.
+- [SPRINT_ROADMAP.md](../../roadmap/SPRINT_ROADMAP.md) (archived, see docs/ARCHIVE_INDEX.md) — Sprint 4's place in the plan.
 - `sprint2/BUSINESS_LOGIC.md` Task 1 — the three-step resolution-order precedent this task's resolver
   extends to a fourth (profile) level.
 - `sprint4/tasks/task5.md` (R18) — the real consumer of `selfDeclaredMadeForKids`/`categoryId`/

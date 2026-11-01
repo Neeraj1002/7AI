@@ -32,7 +32,7 @@ Task 4's fields are populated (blocked on the founder OAuth re-consent).
 - Modified: `studio/src/models/repositories/dashboard.repository.ts` (`buildChannelComparison`,
   `getChannelComparisonDashboard`), `studio/src/api/routers/dashboard.ts` (`comparison`),
   `studio/src/types/dashboard.types.ts` (`ChannelComparisonDashboard`, `ComparisonFormatRow`,
-  `ComparisonTotals`), `docs/execution/sprint4/STATUS.md`, `docs/execution/sprint4/tasks/task7.md`
+  `ComparisonTotals`), `docs/execution/sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md), `docs/execution/sprint4/tasks/task7.md`
 
 ## Schema Changes Applied
 
@@ -66,7 +66,7 @@ Not exercised through HTTP/tRPC with a real session (the router line is a one-li
 
 ## Overlap check with Sprint3_CLOSURE (PR #48), as requested
 
-Read from `docs/execution/bugs/Sprint3/closureTask.md` (which exists only on `origin/SPRINT4_TASK8_BE`
+Read from `docs/execution/bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) (which exists only on `origin/SPRINT4_TASK8_BE`
 commit `9cf2f5e`, not in the `Sprint3_CLOSURE` worktree or `main`).
 - **R6 clip-skip**: Task 8 R5 (on `main`) already skips clip IDs already used within one render
   (`stock-shotlist.ts` `excludeSourceIds`, `client.ts` `pickUnusedVideo`). Closure R6 (commit `c7b5c07`)

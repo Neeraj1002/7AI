@@ -1,7 +1,7 @@
 # Sprint 4 Hardening: Thumbnail 403 — Link to Phone Verification
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** Not a numbered Sprint 4
-task (same posture as `sprint3/tasks/hardening-tenant-check.md`) — a direct follow-on investigation
+task (same posture as `sprint3/tasks/hardening-tenant-check.md` (archived, see docs/ARCHIVE_INDEX.md)) — a direct follow-on investigation
 closing a real, already-tracked known issue, not new feature scope. Branch: continue on `SPRINT4_BE` if
 still open, otherwise a small standalone branch off `main`.
 
