@@ -174,6 +174,44 @@ export const LLM_REGISTRY: Record<Purpose, RegistryEntry> = {
     maxOutputTokens: 2_000,
     reasoning: "off",
   },
+
+  // Sprint 6 Task 3 (Part A). The reader must be at least as strong as the writer (Task 6 showed Haiku fails rule
+  // checks), so both take Sonnet 5.5, the script writer's model. The registry has one provider (Anthropic), so a
+  // different model family is not available; the report says so. Real replies: five angles about 400 output tokens,
+  // a pick about 150.
+  "story-angles": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Story angles",
+    maxOutputTokens: 3_000,
+    reasoning: "off",
+  },
+
+  "story-pair-reader": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Story pair reader",
+    maxOutputTokens: 1_500,
+    reasoning: "off",
+  },
+
+  // Sprint 6 Task 3 (Part B). The cold reader answers six short fields about a whole script, so it gets more room than
+  // a pair pick; the match check reads a few lines.
+  "story-cold-reader": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Story cold reader",
+    maxOutputTokens: 2_000,
+    reasoning: "off",
+  },
+
+  "story-promise-match": {
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    label: "Story promise match",
+    maxOutputTokens: 600,
+    reasoning: "off",
+  },
 };
 
 export function resolvePurpose(purpose: Purpose): RegistryEntry {

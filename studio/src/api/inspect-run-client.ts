@@ -105,7 +105,7 @@ export function sanitizeStructure(value: unknown, runId: string) {
   const stages = array(s.stages), usage = array(s.usage);
   return {
     publishingSummary: sanitizePublishingSummary(s.publishingSummary),
-    run: { id: runId, status: enumValue(r.status, ['pending', 'running', 'paused_gate1', 'paused_gate2', 'completed', 'failed', 'needs_attention']), currentStage: diagnosticLabel(r.currentStage), profileVersionId: diagnosticId(r.profileVersionId), createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) },
+    run: { id: runId, status: enumValue(r.status, ['pending', 'running', 'paused_angle', 'paused_gate1', 'paused_gate2', 'completed', 'failed', 'needs_attention']), currentStage: diagnosticLabel(r.currentStage), profileVersionId: diagnosticId(r.profileVersionId), createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) },
     stages: stages.slice(0, 200).map(v => { const t = asRecord(v); return { stageName: diagnosticLabel(t.stageName), attemptNumber: uint(t.attemptNumber), status: enumValue(t.status, ['pending', 'running', 'completed', 'failed', 'skipped']), startedAt: iso(t.startedAt), finishedAt: iso(t.finishedAt), failureSummary: t.reason ? safeValidationError(t.reason) : null }; }),
     usage: usage.slice(0, 200).map(v => { const u = asRecord(v); return { at: iso(u.at), agent: diagnosticLabel(u.agent), provider: diagnosticLabel(u.provider), model: diagnosticLabel(u.model), costUsd: finiteNumber(u.costUsd) }; }),
     totals: { costUsd: finiteNumber(asRecord(s.totals).costUsd), events: uint(asRecord(s.totals).events), zeroCostEvents: uint(asRecord(s.totals).zeroCostEvents) },

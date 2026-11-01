@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { env } from '../config/env';
 
 const mocks = vi.hoisted(() => ({
   findPipelineRunById: vi.fn(),
   updatePipelineRun: vi.fn(),
   findChannelById: vi.fn(),
   findLatestAttempt: vi.fn(),
+  findLatestCompletedAttempt: vi.fn(),
   createStageAttempt: vi.fn(),
   completeStage: vi.fn(),
   failStage: vi.fn(),
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   listReviewLogsForRun: vi.fn(),
   insertReviewLog: vi.fn(),
   reviewScript: vi.fn(),
+  runScriptCheckForRun: vi.fn(),
 }));
 
 vi.mock('../models/prisma-client', () => ({
@@ -31,6 +34,7 @@ vi.mock('../models/repositories/channel.repository', async (orig) => ({
 vi.mock('../models/repositories/pipeline-stage.repository', async (orig) => ({
   ...(await orig<object>()),
   findLatestAttempt: mocks.findLatestAttempt,
+  findLatestCompletedAttempt: mocks.findLatestCompletedAttempt,
   createStageAttempt: mocks.createStageAttempt,
   completeStage: mocks.completeStage,
   failStage: mocks.failStage,
@@ -39,6 +43,7 @@ vi.mock('../models/repositories/usage-event.repository', async (orig) => ({
   ...(await orig<object>()),
   insertUsageEvent: mocks.insertUsageEvent,
 }));
+vi.mock('./story-tests-stage', async (orig) => ({ ...(await orig<object>()), runScriptCheckForRun: mocks.runScriptCheckForRun }));
 vi.mock('./budget-gate', async (orig) => ({ ...(await orig<object>()), checkBudget: mocks.checkBudget }));
 vi.mock('../agents/script-generation', async (orig) => ({ ...(await orig<object>()), generateScript: mocks.generateScript }));
 vi.mock('../agents/script-review', async orig => ({ ...await orig<object>(), reviewScript: mocks.reviewScript }));
@@ -80,11 +85,28 @@ beforeEach(() => {
   });
   mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', styleGuide: null, isActive: true });
   mocks.findLatestAttempt.mockResolvedValue(null);
+  mocks.findLatestCompletedAttempt.mockResolvedValue(null);
+  mocks.runScriptCheckForRun.mockResolvedValue(null);
   mocks.createStageAttempt.mockResolvedValue({ id: 'stage-1' });
   mocks.checkBudget.mockResolvedValue({ ok: true });
   mocks.updatePipelineRun.mockResolvedValue({ id: RUN_ID });
   mocks.insertUsageEvent.mockResolvedValue({});
   mocks.listReviewLogsForRun.mockResolvedValue([]);
+});
+
+describe('chosen-angle lookup follows the switch (Sprint 6 Task 3)', () => {
+  const intakeReads = () => mocks.findLatestCompletedAttempt.mock.calls.filter((c) => c[1] === 'intake');
+  afterEach(() => { env.STORY_TESTS_ENABLED = ''; });
+  it('switch off: the intake stage is not read at all', async () => {
+    env.STORY_TESTS_ENABLED = '';
+    await runScriptGenerationStage(RUN_ID);
+    expect(intakeReads()).toHaveLength(0);
+  });
+  it('switch on: the intake stage is read for the chosen angle', async () => {
+    env.STORY_TESTS_ENABLED = '1';
+    await runScriptGenerationStage(RUN_ID);
+    expect(intakeReads()).toHaveLength(1);
+  });
 });
 
 describe('runScriptGenerationStage failure path (Bugs Task 11)', () => {
@@ -239,6 +261,39 @@ describe('SR retry concern handoff and existing Gate 1 transitions', () => {
     setup(1, 7, false); await runScriptReviewStage(RUN_ID);
     expect(mocks.insertReviewLog.mock.calls.some(c => c[0].verdict === 'auto-reject')).toBe(false);
     expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'video_generation' }, expect.anything());
+  });
+  describe('Part B: the cold reader on the script that goes to Gate 1 (Sprint 6 Task 3)', () => {
+    const stored = { version: 1, status: 'ran', verdict: 'fail' };
+    it('stores the check on the review output and still sends the run to Gate 1, even on a FAIL', async () => {
+      setup(1, 8); mocks.runScriptCheckForRun.mockResolvedValue(stored);
+      await runScriptReviewStage(RUN_ID);
+      expect(mocks.runScriptCheckForRun).toHaveBeenCalledTimes(1);
+      expect(mocks.completeStage).toHaveBeenCalledWith('stage-1', expect.objectContaining({ score: 8, storyTest: stored }), expect.anything());
+      expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'paused_gate1', currentStage: 'gate1' }, expect.anything());
+    });
+    it('does not run on a script that is about to be rewritten (auto-reject and retry)', async () => {
+      setup(1, 5); mocks.runScriptCheckForRun.mockResolvedValue(stored);
+      await runScriptReviewStage(RUN_ID);
+      expect(mocks.runScriptCheckForRun).not.toHaveBeenCalled();
+      expect(mocks.completeStage.mock.calls[0][1]).not.toHaveProperty('storyTest');
+      expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'script_generation' }, expect.anything());
+    });
+    it('with Gate 1 off, a passing script is still auto-approved and the result is stored', async () => {
+      setup(1, 7, false); mocks.runScriptCheckForRun.mockResolvedValue(stored);
+      await runScriptReviewStage(RUN_ID);
+      expect(mocks.completeStage).toHaveBeenCalledWith('stage-1', expect.objectContaining({ storyTest: stored }), expect.anything());
+      expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'video_generation' }, expect.anything());
+    });
+    it('with the feature off the stage output is exactly the review output', async () => {
+      setup(1, 8);
+      await runScriptReviewStage(RUN_ID);
+      expect(mocks.completeStage.mock.calls[0][1]).not.toHaveProperty('storyTest');
+    });
+    it('the score, the review log and the retry cap do not depend on the check', async () => {
+      setup(1, 8); mocks.runScriptCheckForRun.mockResolvedValue(stored);
+      await runScriptReviewStage(RUN_ID);
+      expect(mocks.insertReviewLog.mock.calls.map((c) => c[0].verdict)).toEqual(['8']);
+    });
   });
   it('meters both format calls on a successful review and on a failed parse retry', async()=>{
     setup(1,7);const first=llm({text:'invalid',costUsd:'0.001000'}),second=llm({costUsd:'0.002000'});

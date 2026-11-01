@@ -104,7 +104,7 @@ export function buildDecisionQueue(data: OverviewData, now: Date): DecisionItem[
         message: `A run has needed attention for ${Math.floor(waitedMs / HOUR_MS)} hours.`,
         since: r.updatedAt.toISOString(),
       });
-    } else if ((r.status === 'paused_gate1' || r.status === 'paused_gate2') && waitedMs > GATE_PENDING_STALE_HOURS * HOUR_MS) {
+    } else if ((r.status === 'paused_gate1' || r.status === 'paused_gate2' || r.status === 'paused_angle') && waitedMs > GATE_PENDING_STALE_HOURS * HOUR_MS) {
       items.push({
         kind: 'gate_pending_stale',
         severity: 'medium',
@@ -112,7 +112,7 @@ export function buildDecisionQueue(data: OverviewData, now: Date): DecisionItem[
         tenantName: tenantName(r.tenantId),
         channelId: r.channelId,
         runId: r.id,
-        message: `A run has waited ${Math.floor(waitedMs / HOUR_MS)} hours at ${r.status === 'paused_gate1' ? 'Gate 1' : 'Gate 2'}.`,
+        message: `A run has waited ${Math.floor(waitedMs / HOUR_MS)} hours at ${r.status === 'paused_gate1' ? 'Gate 1' : r.status === 'paused_gate2' ? 'Gate 2' : 'the angle choice'}.`,
         since: r.updatedAt.toISOString(),
       });
     }

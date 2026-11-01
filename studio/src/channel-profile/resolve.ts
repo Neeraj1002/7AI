@@ -34,6 +34,8 @@ export type ResolvedChannelConfig = {
   audioDefaultVoice: string; // always concrete, like resolveVoice
   audioDefaultMoodTag: string | null;
   titleGuidance: string | null;
+  // Sprint 6 Task 3: the optional line describing the story tests' cold reader; null means the platform's neutral reader.
+  readerPersona: string | null;
   descriptionTemplate: string | null;
   hashtagsBase: string[];
   editorCredit: boolean;
@@ -86,6 +88,7 @@ export function resolveChannelConfig(params: {
       params.runOverrideVoice ?? p.audio?.defaultVoice ?? params.legacyDefaultVoice ?? DEFAULT_TTS_VOICE,
     audioDefaultMoodTag: params.runOverrideAudioLayer ?? p.audio?.defaultMoodTag ?? null,
     titleGuidance: p.packaging?.titleGuidance ?? null,
+    readerPersona: p.storyTests?.readerPersona?.trim() || null,
     descriptionTemplate: p.packaging?.descriptionTemplate ?? null,
     hashtagsBase: p.packaging?.hashtagsBase ?? [],
     editorCredit: p.packaging?.editorCredit ?? false,

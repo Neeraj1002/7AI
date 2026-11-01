@@ -19,4 +19,8 @@ export const PROMPT_INDEX: Record<Purpose, string[]> = {
   'packaging-payoff': ['packaging/prompts-vision.ts', 'packaging/vision.ts'],
   'packaging-defect-check': ['packaging/prompts-vision.ts', 'packaging/vision.ts'],
   'packaging-compare': ['packaging/prompts-vision.ts', 'packaging/vision.ts'],
+  'story-angles': ['story-tests/prompts.ts', 'story-tests/angle-step.ts'],
+  'story-pair-reader': ['story-tests/prompts.ts', 'story-tests/angle-step.ts'],
+  'story-cold-reader': ['story-tests/prompts.ts', 'story-tests/script-step.ts'],
+  'story-promise-match': ['story-tests/prompts.ts', 'story-tests/script-step.ts'],
 };

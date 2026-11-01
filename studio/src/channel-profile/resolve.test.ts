@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 import { resolveChannelConfig } from './resolve';
 import { ChannelProfileDataSchema } from './schema';
 import type { ChannelProfileData } from './schema';
@@ -24,6 +24,7 @@ describe('resolveChannelConfig', () => {
       audioDefaultVoice: DEFAULT_TTS_VOICE,
       audioDefaultMoodTag: null,
       titleGuidance: null,
+      readerPersona: null,
       descriptionTemplate: null,
       hashtagsBase: [],
       editorCredit: false,
@@ -182,3 +183,4 @@ describe('ChannelProfileDataSchema offeredFormatKeys (Sprint 4 Task 9, R1b)', ()
     expect(resolveChannelConfig({ ...none, profile: parsed }).offeredFormatKeys).toEqual([]);
   });
 });
+

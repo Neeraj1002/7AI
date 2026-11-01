@@ -18,6 +18,9 @@ import { findByChannel } from '../../models/repositories/agent-credential.reposi
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { requestCancellation, isCancellationRequested, isActivelyDriven } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
+import { persistAngleChoice, AngleChoiceError, storyTestsEnabled } from '../../run-pipeline/story-tests-stage';
+import { buildStoryTestsView } from '../../story-tests/view';
+import { buildLearningRecord } from '../../story-tests/learning';
 import {
   checkBudget,
   describeBudgetRefusal,
@@ -413,8 +416,18 @@ async function getRunDetail(id: string, ctx: Context) {
         : `/runs/${id}/thumbnail/${packageId}/full`,
   });
 
+  // Sprint 6 Task 3 (contract C3): the angle step's record, from the latest completed intake attempt. null for an old run
+  // and for a run made with the feature off.
+  const latestIntake = stages.filter((s) => s.stageName === 'intake' && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const latestScriptReview = stages.filter((s) => s.stageName === 'script_review' && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const storyTests = buildStoryTestsView({
+    intakeOutput: latestIntake?.output, runStatus: run.status, runStage: run.currentStage, switchOn: storyTestsEnabled(),
+    scriptReviewOutput: latestScriptReview?.output, currentScriptText: forecastText ?? null,
+  });
+
   return {
     thumbnail,
+    storyTests,
     run,
     channel,
     stages,
@@ -1083,6 +1096,22 @@ export const runsRouter = router({
       return { resolved: true };
     }),
 
+  // POST /runs/:id/choose-angle — Sprint 6 Task 3 (contract C4). Records the founder's choice of angle (null = write from the
+  // brief) on the intake stage, then moves the run from 'paused_angle' to the script step. Same ownership check as gate1.
+  chooseAngle: publicProcedure
+    .input(z.object({ runId: z.string().uuid(), angleId: z.string().min(1).nullable() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertGateOwnership(input.runId, ctx);
+      try {
+        await persistAngleChoice(input.runId, input.angleId);
+      } catch (error) {
+        if (error instanceof AngleChoiceError) throw new TRPCError({ code: error.code, message: error.message });
+        throw error;
+      }
+      continuePipelineInBackground(input.runId);
+      return { resolved: true as const };
+    }),
+
   // POST /runs/:id/gate2 — same pattern as gate1, against
   // agents/gate2/index.ts's parseGate2Reply grammar (approve / "reject
   // <reason>" / free text = revision notes).
@@ -1214,6 +1243,27 @@ export const runsRouter = router({
     return buildPackagingRecord({
       packaging: gate ? readPackaging(gate.output) : null,
       opening: (run.creationOptions?.opening as Parameters<typeof buildPackagingRecord>[0]['opening']) ?? null,
+    });
+  }),
+
+  // Sprint 6 Task 3 (Part C, R7): the learning record Compare can group by: pipeline-version tags, the angle step, the script
+  // check, shapes from code and per-call usage, read back from what is stored. Same tenant scoping as `packagingRecord`.
+  // An old run has no tags and reads as untagged (tags: null), never as off.
+  learningRecord: publicProcedure.input(z.object({ runId: z.string().uuid() })).query(async ({ input, ctx }) => {
+    const run = await findPipelineRunById(input.runId);
+    if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
+    if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
+    const stages = await listStagesForRun(input.runId);
+    const latest = (name: string) => stages.filter((st) => st.stageName === name && st.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+    const gate = [...stages].reverse().find((st) => st.stageName === 'gate2' && readPackaging(st.output));
+    return buildLearningRecord({
+      run,
+      intakeOutput: latest('intake')?.output,
+      scriptReviewOutput: latest('script_review')?.output,
+      packaging: buildPackagingRecord({
+        packaging: gate ? readPackaging(gate.output) : null,
+        opening: (run.creationOptions?.opening as Parameters<typeof buildPackagingRecord>[0]['opening']) ?? null,
+      }),
     });
   }),
 
@@ -1474,7 +1524,7 @@ export const runsRouter = router({
       if (isActivelyDriven(run.id, lastProgressAt(run, stages))) {
         return { cancelled: true, immediate: false, alreadyEnded: false };
       }
-    } else if (run.status !== 'needs_attention') {
+    } else if (run.status !== 'needs_attention' && run.status !== 'paused_angle') {
       throw new TRPCError({
         code: 'CONFLICT',
         message: `Run ${input.runId} can't be cancelled while '${run.status}'`,

@@ -8,6 +8,9 @@ import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
   markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
+import { buildPipelineTags } from '../story-tests/learning';
+import { resolveCommit } from '../api/system-info';
+import { runAngleStepForRun, notifyAngleWaiting, runScriptCheckForRun, storyTestsEnabled } from './story-tests-stage';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -38,7 +41,8 @@ import { checkBudget, describeBudgetRefusal } from './budget-gate';
 import { makeLlmRetryGuard } from './llm-retry-guard';
 import { isInvalidGrant, noteYoutubeAuthFailure, YOUTUBE_RECONNECT_MESSAGE } from '../manage-channels/youtube-auth-health';
 import { failedCallMetadata, failureOutputFromError, failureUsageEvents, llmUsageRows, type FailureUsageFields } from './stage-failure';
-import { generateScript, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
+import { chosenAngleOf } from '../story-tests/view';
+import { generateScript, constraintsWithAngle, ScriptGenerationStoredSchema, type ScriptGenerationOutput } from '../agents/script-generation';
 import { evidenceRef, factualBaseline, type EvidenceRef } from '../content-evidence/packet';
 import { generationEvidenceSnapshot, reviewEvidenceSnapshot } from '../content-evidence/stage-snapshot';
 import { joinChapterTexts, parseChapterSheet } from '../agents/script-generation/long-form';
@@ -260,23 +264,33 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
   try {
     const output = await withRetryAndCircuitBreaker(attemptOnce);
 
+    // Sprint 6 Task 3 (Part A): with the switch on, four or five angles are proposed and read blind before the script
+    // is written. Never throws; null when the feature is off. A usable set pauses the run at `paused_angle` (the
+    // founder chooses or skips, runs.chooseAngle); anything else is recorded as "not run" and the script follows.
+    const storyTests = await runAngleStepForRun({ run, stageId: stage.id, intake: output });
+    const pauseForAngle = storyTests?.angleStep.status === 'waiting';
+    // Sprint 6 Task 3 (Part C): the pipeline-version tags, written now and never edited. Present with the feature on or off.
+    const pipelineTags = buildPipelineTags({ storyTestsOn: storyTestsEnabled(), buildCommit: await resolveCommit() });
+
     // Persist-before-advance: the stage's completion and the run's advance are
     // written together, in one transaction — this is what makes resumability
     // possible after a restart, without a window where currentStage lags what
     // pipeline_stages actually shows (B1 fix).
     const advanced = await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, output, tx);
+      await completeStage(stage.id, { ...output, ...(storyTests && { storyTests }), pipelineTags }, tx);
       return await updatePipelineRun(
         runId,
         {
           intakeParsed: output,
           // Advances to the next stage in sequence even though no processor exists
           // for it yet this week — a Week 1 test run stops here deliberately.
-          currentStage: nextStageAfter('intake'),
+          // Waiting for an angle: currentStage stays 'intake' (contract C2) and the choice moves it on.
+          ...(pauseForAngle ? { status: 'paused_angle' as const, currentStage: 'intake' as const } : { currentStage: nextStageAfter('intake') }),
         },
         tx,
       );
     });
+    if (pauseForAngle) await notifyAngleWaiting(advanced);
     // Sprint 4 Task 5 (R20/B16): best-effort, after the stage is already durable.
     await recordRepeatTopicWarning(runId, run.channelId, stage.id, output.topic);
     return advanced;
@@ -334,9 +348,13 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
   const evidenceSelection = generationEvidenceSnapshot({ previousInput: previousAttempt?.input,
     previousOutput: previousAttempt?.output, briefText: run.briefText, factPolicy: config.factPolicy,
     sources: run.creationOptions?.sources, videoKind: config.videoKind });
+  // Sprint 6 Task 3: a chosen angle adds one constraint line. No chosen angle (switch off, skipped, not run): the list is
+  // the intake's own, unchanged.
+  // The intake is read only with the switch on, so the old path does no new work.
+  const chosenAngle = storyTestsEnabled() ? chosenAngleOf((await findLatestCompletedAttempt(runId, 'intake'))?.output) : null;
   const stageInput = {
     topic: run.intakeParsed.topic,
-    constraints: run.intakeParsed.constraints,
+    constraints: constraintsWithAngle(run.intakeParsed.constraints, chosenAngle),
     styleGuide: config.scriptGuide,
     // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
     targetSeconds: config.targetSeconds,
@@ -578,6 +596,11 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     // fix.
     const belowThreshold = output.score < SCRIPT_REVIEW_AUTO_REJECT_THRESHOLD;
     const autoRejectAndRetry = belowThreshold && attemptNumber <= MAX_SCRIPT_REVIEW_AUTO_RETRY_ATTEMPTS;
+    // Sprint 6 Task 3 (Part B): the cold reader reads the script that is going to Gate 1 (not one about to be rewritten),
+    // after Script Review has finished. Advisory and separate from the score; null when the feature is off.
+    const storyTest = autoRejectAndRetry
+      ? null
+      : await runScriptCheckForRun({ run, stageId: stage.id, scriptText: scriptOutput.scriptText, format: config.videoKind, persona: config.readerPersona });
     const autoRetryCapReached = belowThreshold && !autoRejectAndRetry;
 
     // Sprint 3 Task 9 (R2) — only the passing-score outcome is affected by
@@ -614,7 +637,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     // between them used to risk a completed stage with no ReviewLog row,
     // which gate1 depends on to find the review score/notes.
     return await prisma.$transaction(async (tx) => {
-      await completeStage(stage.id, output, tx);
+      await completeStage(stage.id, storyTest ? { ...output, storyTest } : output, tx);
 
       const flagsNote =
         output.videoGenFit.flags.length > 0
