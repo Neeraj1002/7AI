@@ -1,7 +1,8 @@
 // READ-ONLY diagnostic: why is a render shorter than its script or its voiceover, and are the brief's fixed sentences in it?
 //   npx tsx scripts/diagnose-run-duration.ts <runId> [--attempt N] [--voice <voice.mp3>] [--replay-mux]
 //   npx tsx scripts/diagnose-run-duration.ts --brief-contains "text" [--attempt N] [--voice <voice.mp3>] [--replay-mux]
-//   npx tsx scripts/diagnose-run-duration.ts --frame-table --dir <studio/data/videos/runId> [--attempt N]   (no database needed)
+//   npx tsx scripts/diagnose-run-duration.ts --frame-table --dir <studio/data/videos/runId> [--attempt N] [--repeat N]   (no database needed)
+//   npx tsx scripts/diagnose-run-duration.ts --audio-guard-recent [N]   (the audio guard on the newest N finished files)
 //   npx tsx scripts/diagnose-run-duration.ts --recent-runs [N]
 // Reads the database (SELECT only) and the files in the data directory, and runs ffprobe. No paid calls.
 // --replay-mux re-runs the saved ffmpeg command with its output discarded. --frame-table re-renders the saved command into
@@ -15,6 +16,7 @@ import { prisma } from '../src/models/prisma-client';
 import { DATA_DIR } from '../src/config/paths';
 import { env } from '../src/config/env';
 import { END_TAIL_SECONDS } from '../src/agents/video-generation/quality-spec';
+import { AUDIO_MAX_GAP_SECONDS, AUDIO_MIN_PACKET_FRACTION, audioTimelineProblem, probeAudioTimeline } from '../src/agents/video-generation/audio-guards';
 
 // The same limits as src/agents/video-generation/duration-guards.ts and quality-spec.ts, repeated here on purpose: this script
 // must run on a server that does not have those guards yet, to show what they would have said about its real renders.
@@ -75,7 +77,7 @@ async function decodeCheck(p: string): Promise<string> {
 // Shows how long the mixed audio really is, and how long each input is.
 async function replayAudio(ff: Record<string, unknown>, cwd: string): Promise<void> {
   const args = (ff.args as string[] | undefined) ?? [];
-  const graph = String(ff.filterComplex ?? '');
+  const graph = singleGraph(ff);
   const cut = graph.indexOf(';[1:a]');
   const inputs: Array<{ path: string; looped: boolean }> = [];
   args.forEach((a, i) => {
@@ -181,34 +183,92 @@ function printFrameRow(label: string, s: FrameStats | null): void {
   console.log(`  ${label.padEnd(40)} ${cols}`);
 }
 
-// Frame timing of the saved final file, of the saved mux re-rendered unchanged, and re-rendered with the setpts step
-// removed (the fix). The two re-renders are written to a temporary directory under the system temp dir and deleted
-// afterwards; nothing in the data directory or database is touched, and nothing is paid for.
-async function frameTable(dir: string, n: number): Promise<void> {
+// The saved mux as one filter graph (the shape before the audio-holes fix) or as two (the current shape).
+function savedGraphs(ff: Record<string, unknown>): { video: string; audio: string } {
+  const graphs = asObject(ff.filterGraphs);
+  if (typeof graphs.video === 'string' && typeof graphs.audio === 'string') return { video: graphs.video, audio: graphs.audio };
+  const whole = String(ff.filterComplex ?? '');
+  const cut = whole.indexOf(';[1:a]');
+  if (cut < 0) throw new Error('cannot split the saved filter graph into video and audio');
+  return { video: whole.slice(0, cut), audio: whole.slice(cut + 1) };
+}
+
+function singleGraph(ff: Record<string, unknown>): string {
+  const { video, audio } = savedGraphs(ff);
+  return `${video};${audio}`;
+}
+
+async function printAudioRow(label: string, p: string): Promise<void> {
+  const timeline = await probeAudioTimeline(p);
+  let largestGap = 0;
+  for (let i = 1; i < timeline.packetTimes.length; i += 1) largestGap = Math.max(largestGap, timeline.packetTimes[i] - timeline.packetTimes[i - 1]);
+  const needed = Math.round((timeline.durationSeconds * timeline.sampleRate) / 1024);
+  const verdict = audioTimelineProblem(timeline);
+  console.log(`  ${label.padEnd(40)} audio: ${String(timeline.packetTimes.length).padStart(5)} packets (needs ${needed}), largest gap ${largestGap.toFixed(2)}s, ${timeline.durationSeconds.toFixed(2)}s, guard: ${verdict ? `FAIL (${verdict})` : 'pass'}`);
+}
+
+// Frame timing and audio packets of the saved final file, and of the saved mux re-rendered with the filters in one graph (the old
+// command) and in two graphs (the new command), each `repeat` times because the fault depends on timing. The re-renders go to a
+// temporary directory under the system temp dir and are deleted afterwards; nothing in the data directory or database is
+// touched, and nothing is paid for. setpts is removed from both re-renders, as in the shipped command.
+async function frameTable(dir: string, n: number, repeat: number): Promise<void> {
   const ff = asObject(JSON.parse(await fs.readFile(path.join(dir, `${n}.ffmpeg-args.json`), 'utf8')));
   const args = (ff.args as string[] | undefined) ?? [];
-  const at = args.indexOf('-filter_complex');
-  if (at < 0) throw new Error('the saved ffmpeg args have no -filter_complex');
+  const graphs = savedGraphs(ff);
+  const video = graphs.video.replace(/,setpts=[^,;[]+/, '');
   const cwd = typeof ff.cwd === 'string' && (await exists(ff.cwd)) ? ff.cwd : dir;
+  const firstFilter = args.indexOf('-filter_complex');
+  const inputs = args.slice(0, firstFilter);
+  const rest: string[] = [];
+  for (let i = firstFilter; i < args.length - 1; i += 1) {
+    if (args[i] === '-filter_complex') i += 1;
+    else rest.push(args[i]);
+  }
+  const fast = (list: string[]): string[] => list.map((t) => (['veryfast', 'fast', 'medium', 'slow'].includes(t) ? 'ultrafast' : t));
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'diagnose-frames-'));
-  console.log(`\n-- Frame timing (${dir}, attempt ${n}) --`);
+  console.log(`\n-- Frame timing and audio (${dir}, attempt ${n}, ${repeat} repeat${repeat === 1 ? '' : 's'}) --`);
   console.log(`  ${'render'.padEnd(40)} ${['frames'.padStart(7), 'first..last (s)'.padStart(17), 'min gap ms'.padStart(10), 'max gap ms'.padStart(10), 'dupl.'.padStart(6), 'dropped'.padStart(8)].join(' ')}`);
   try {
     printFrameRow('picture fed to the mux (input 0)', await frameStats(path.resolve(cwd, args[args.indexOf('-i') + 1])));
     printFrameRow(`saved final file (${n}.mp4)`, await frameStats(path.join(dir, `${n}.mp4`)));
-    for (const [label, fixed] of [['replay, as saved', false], ['replay, setpts removed (the fix)', true]] as const) {
-      const out = path.join(tmp, fixed ? 'fixed.mp4' : 'as-saved.mp4');
-      const replay = [...args.slice(0, -1), out];
-      replay[at + 1] = fixed ? String(args[at + 1]).replace(/,setpts=[^,;[]+/, '') : String(args[at + 1]);
-      try {
-        await execFileAsync(env.FFMPEG_PATH, ['-v', 'error', '-nostats', ...replay], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: 900000 });
-        printFrameRow(label, await frameStats(out));
-      } catch (error) {
-        console.log(`  ${label.padEnd(40)} failed: ${error instanceof Error ? error.message.slice(-200) : String(error)}`);
+    await printAudioRow(`saved final file (${n}.mp4)`, path.join(dir, `${n}.mp4`));
+    const variants: Array<[string, string[]]> = [
+      ['current command, one graph', ['-filter_complex', `${video};${graphs.audio}`]],
+      ['new command, two graphs', ['-filter_complex', video, '-filter_complex', graphs.audio]],
+    ];
+    for (const [label, filters] of variants) {
+      for (let k = 1; k <= repeat; k += 1) {
+        const out = path.join(tmp, `${label.includes('two') ? 'two' : 'one'}-${k}.mp4`);
+        const name = `${label} #${k}`;
+        try {
+          await execFileAsync(env.FFMPEG_PATH, ['-v', 'error', '-nostats', ...fast([...inputs, ...filters, ...rest]), out], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: 900000 });
+          printFrameRow(name, await frameStats(out));
+          await printAudioRow(name, out);
+        } catch (error) {
+          console.log(`  ${name.padEnd(40)} failed: ${error instanceof Error ? error.message.slice(-200) : String(error)}`);
+        }
       }
     }
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
+  }
+}
+
+// The audio guard run on finished files: the newest `limit` final Short files in the data directory.
+async function audioGuardRecent(limit: number): Promise<void> {
+  const root = path.join(DATA_DIR, 'videos');
+  const found: Array<{ file: string; mtime: number }> = [];
+  for (const run of await fs.readdir(root).catch(() => [] as string[])) {
+    for (const f of await fs.readdir(path.join(root, run)).catch(() => [] as string[])) {
+      if (/^\d+\.mp4$/.test(f)) found.push({ file: path.join(root, run, f), mtime: (await fs.stat(path.join(root, run, f))).mtimeMs });
+    }
+  }
+  found.sort((a, b) => b.mtime - a.mtime);
+  console.log(`\n-- Audio guard on the newest ${limit} finished files (largest gap limit ${AUDIO_MAX_GAP_SECONDS}s, packets at least ${AUDIO_MIN_PACKET_FRACTION} of the length's need) --`);
+  for (const { file } of found.slice(0, limit)) {
+    const plan = path.join(path.dirname(file), `${path.basename(file, '.mp4')}.plan.json`);
+    const source = (await exists(plan)) ? String(asObject(JSON.parse(await fs.readFile(plan, 'utf8'))).visualSource) : 'unknown';
+    await printAudioRow(`${path.basename(path.dirname(file)).slice(0, 8)}/${path.basename(file)} (${source})`, file);
   }
 }
 
@@ -280,7 +340,12 @@ async function pickRun(): Promise<string> {
 
 async function main(): Promise<void> {
   if (process.argv.includes('--frame-table') && arg('--dir')) {
-    await frameTable(path.resolve(arg('--dir') as string), Number(arg('--attempt') ?? 1));
+    await frameTable(path.resolve(arg('--dir') as string), Number(arg('--attempt') ?? 1), Math.max(1, Number(arg('--repeat') ?? 1)));
+    return;
+  }
+  if (process.argv.includes('--audio-guard-recent')) {
+    const asked = Number(arg('--audio-guard-recent'));
+    await audioGuardRecent(Number.isInteger(asked) && asked > 0 ? asked : 6);
     return;
   }
   if (process.argv.includes('--recent-runs')) {
@@ -357,7 +422,7 @@ async function main(): Promise<void> {
   if (await exists(ffArgsPath)) {
     const ff = asObject(JSON.parse(await fs.readFile(ffArgsPath, 'utf8')));
     line('-shortest in ffmpeg args', String((ff.args as string[] | undefined)?.includes('-shortest')));
-    line('filter_complex', String(ff.filterComplex));
+    line('filter graphs (video | audio)', `${savedGraphs(ff).video}  |  ${savedGraphs(ff).audio}`);
     await replayAudio(ff, dir);
     if (process.argv.includes('--replay-mux')) await replayMux(ff, dir);
   }
