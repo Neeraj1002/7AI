@@ -1,7 +1,7 @@
 # Decision: Prompt layers (who owns what in an LLM call)
 
 **Date**: 2026-11-01
-**Status**: Decided (founder, 1 Nov 2026). The enforcement lands in Sprint 6 Task 4; two follow-ups are in `sprint6/PLAN.md` (P22, P23).
+**Status**: Decided (founder, 1 Nov 2026). The enforcement lands in Sprint 6 Task 4; two follow-ups are in `sprint6/PLAN.md` (P22, P23). Readers: architects and agents read all of it; channel owners start at "For channel owners".
 **Related**: Key Principle 11 in `execution/templates/TASK_TEMPLATE.md` and STATUS rule 4 (nothing channel-specific is hardcoded); `decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md` (the registry owns the model and limits per purpose); `execution/sprint6/tasks/task4.md` (P16, creative direction); the prompt audit of 1 Nov (branch `PROMPT_AUDIT`, line numbers from `9be48fb`).
 
 ## Why
@@ -54,6 +54,111 @@ Reserved, not built: a tenant-wide layer between 4 and 5 (a house style shared b
 
 **The preset test:** would every other channel on this preset keep this line? If another plausible channel would override it, it belongs in that channel's content profile. A preset part is a plain sentence or two, with no digit, no channel, brand or topic name, no banned-phrase list and no facts. A preset may use the ordinary words of its own craft family (a history preset says "historical") and nothing more specific. There are no exceptions: every preset is written fresh to this test, and none carries wording copied out of a shared prompt.
 
+## For channel owners
+
+Read this before you write or change a content profile. You own layer 5, and the note on layer 3. Everything above those is already decided, and your profile must not repeat it or fight it.
+
+**What you set, and what stays out of each field**
+
+| You set | It is for | Keep out of it |
+|---|---|---|
+| `direction.preset` | The craft family: one of the four presets in the Presets section below | Nothing to keep out. You choose a preset; you do not edit one |
+| `direction.note` (up to 300 characters) | One line that bends the preset for this channel | A copy of a preset sentence; numbers; a banned-phrase list |
+| `script.guide` | What is true of this channel only: truth layers, tense and person, rotation, sensitivity rules, the narrator's attitude where it differs from the preset | Hook, ending, chapter and pacing rules the preset already holds; numbers a field holds; one video's facts |
+| The fields: banned openers and endings, fact policy, target length, look (`stylePrompt`, `negativePrompt`), voice, mood, packaging (title guidance, description template, hashtags), formats | Every number and list a machine can check | Prose that restates them |
+| The brief | One video: facts, sources, exact first and last sentence, constraint lines | Channel-wide rules |
+
+**Before you save a profile**, take every sentence in the guide and ask:
+1. Does the platform or the preset already say this? Delete it. (Read the Presets section.)
+2. Is it a number or a list that a field holds? Move it to the field.
+3. Is it about one video? Move it to the brief.
+4. Does it argue with the preset? Do not fight the preset in the guide. If the preset is wrong for the channel, ask the architect for another preset or a change (the founder approves the text). The note can tilt a preset slightly, no more.
+5. After saving, reopen the new version and read the `warnings` the save returns. A warning does not block the save. It means a sentence probably belongs somewhere else.
+
+**Known limits today (1 Nov)**
+- Sentence-length caps (for example "at most 12 words") are still prose in the guide, because there is no field for them yet (P23). The save warning will flag them. That is expected: keep the caps, in one sentence, until the field exists.
+- The safety lines (nothing graphic, no accusing the living, no villain the record does not name) are **not** platform rules yet (P22). Each channel guide must carry its own.
+- `brief-only` does not mean the same thing in the Short writer and the long writer (P22). Where the sources hedge, put the hedge word in the brief ("usually", "according to"), and check hedges at Gate 1.
+- Until Task 4 is built, the 1 Nov audit found a history voice in the long-form prompts and in the format hints. The presets below are the target, not what runs today.
+
+**Asking for a change.** A new preset, or a change to one, goes to the architect. The founder approves the text, a pull request bumps the preset's version, and an evaluation runs (Change procedure below). A change to a platform rule or a task prompt goes the same way. Do not work around either in your profile.
+
+## What each call takes from the channel
+
+Plain words, not the prompt text. The text holds output shapes and mechanics and changes with the code, so a copy here would go stale. When you need the exact wording, read the prompt files listed in `execution/sprint6/tasks/task4.md` (R0). This table is the contract once Task 4 is built. It was written from the 1 Nov audit and Task 4's file list, and was not re-read in code.
+
+| Call | Its job | What it takes from the channel |
+|---|---|---|
+| Script writer (Short and long) | Writes the script from the brief | Preset parts (persona, domain, hook, story shape, ending, chapters, pacing, avoid); the guide; banned openers and endings; fact policy; target length; the format's skeleton |
+| Script reviewer | Checks the script against the brief and the channel | The same hook, ending and pacing text the writer got; the guide; banned lists; fact policy |
+| Picture planner (Short and long) | Plans what each beat shows | Preset domain; the look (`stylePrompt`, `negativePrompt`); visual source |
+| Frame review and still check | Judge the pictures | Preset picture-review tone; the look |
+| Packaging | Titles, description, hashtags | The packaging fields (title guidance, description template, hashtags); never the preset |
+
+## Presets
+
+Data, not prose. A test in `studio` reads this section and fails if the code's presets differ from it character for character. So edit it only through the Change procedure, keep the block format (`### preset: <key>`, then one `- **part:** text` bullet per line), and never reformat it. Each preset has a `version` (a text change bumps it), a `label` and `summary` (shown in the app's picker), and nine parts. **Required in every preset:** `persona`, `hookRule`, `endingRule`, `pacingCues`, `avoid`, `visualReviewTone`. `domain`, `storyShape` and `chapterStyle` may be `(empty)`. No part holds a digit, a channel or brand name, a banned-phrase list or a fact. The ordinary words of a craft family are allowed (the history preset says "historical").
+
+The founder approved all four texts on 1 Nov 2026. The labels and summaries were added the same day as proposed picker wording and are not part of the approved prompt text.
+
+Planned assignment (set by Task 4, R5): NIYT `history`, Cold Open `story-first`, Start to Shelf `explainer`. A channel with no preset gets `neutral`. A channel's own rules stay in its content profile. For Cold Open that means the truth layers, "popular version, then record", the tense rules, the sentence caps, the case-type rotation, third-person voice, and the graphic and accusation lines.
+
+### preset: history
+- **version:** 1
+- **label:** History documentary
+- **summary:** A documentary storyteller for stories from the past, built on conflict and turning points.
+- **persona:** A documentary storyteller who brings the past to life with a historian's care and a film's pull. One steady, atmospheric voice that never turns breathless and says plainly when the sources are silent.
+- **domain:** The past: events, people and everyday life, told from the sources.
+- **hookRule:** Open inside one vivid, documented moment from the brief, then step back to how it came about. Let the tension build before any context arrives. The first line must work with the sound off. No greeting, no setup, no generic question.
+- **storyShape:** Build the story around conflict and turning points. Set the time and place early, in plain words. Plant one or two open questions early and settle them later, as far as the sources allow. Let the shape of the story set the order of the beats; do not force one pattern on every video.
+- **endingRule:** Settle the open questions as far as the sources allow, then close on one lingering thought. No summary sign-off, no moral, no question to the viewer, no call to action, no promise of another video.
+- **chapterStyle:** Each chapter has one job. Open it in the action: a conflict, a turning point or a shift in perspective. Do not open with a question or a recap. Give each chapter a vivid title label.
+- **pacingCues:** Write for the ear: short, rhythmic sentences, no semicolons. Use an ellipsis for a real pause and a dash for a shift. Let a short line land after a long one.
+- **avoid:** Hype words and exclamation marks. Modern slang. Judging people of the past by today's standards. Suspense that promises more than the sources give.
+- **visualReviewTone:** Judge pictures as frames from a serious historical documentary. Each must fit the scene being narrated and its period and place; anything out of period is a defect.
+
+### preset: story-first
+- **version:** 1
+- **label:** Story first
+- **summary:** True stories told like a film: one central question, a chain of "but" and "so", and a quiet last line.
+- **persona:** A storyteller who tells true stories as a film would. One plain, confident voice, curious about the case and a little amazed by it, that says plainly when something is not known.
+- **domain:** A real event told as a story around one central question, answered as far as the evidence allows.
+- **hookRule:** Open inside the strangest moment the brief gives, not before it. The first line must work with the sound off. Start in the moment, then step back to how it began. No greeting, no setup, no generic question.
+- **storyShape:** Tell it as a chain of "but" and "so": what someone wanted, what stood in the way, what happened because of it, and the turn. Put a turn near the middle that makes the next beat necessary. Plant one open question early and pay it off at the end, or say plainly that it cannot be answered. Let the shape of the story set the order of the beats; do not force one pattern on every video.
+- **endingRule:** End on the strongest fact in the story, or the plainest statement of what is not known, in one line shorter than the lines before it. Where it fits, echo a word from the opening. Then stop. No moral, no question to the viewer, no call to action, no promise of another video.
+- **chapterStyle:** Each chapter has one job. A chapter may open with the question it answers; otherwise it opens in the action. Never open with a recap.
+- **pacingCues:** Write for the ear: one idea per sentence, no semicolons. Mix very short lines with longer ones, and let a short line land after a long one. Use an ellipsis only for a real breath.
+- **avoid:** Hype words and exclamation marks. Suspense that promises the answer instead of withholding it. A moral. Mocking anyone in the story.
+- **visualReviewTone:** Judge pictures as frames from a serious film about this story. Each must fit the scene being narrated and its time and place.
+
+### preset: explainer
+- **version:** 1
+- **label:** Explainer
+- **summary:** A friendly, step-by-step explanation of how something works or is made.
+- **persona:** A friendly explainer who has just found out how this works and is a little amazed. Curious and lively, never stiff, never hype.
+- **domain:** How something works or is made, explained one step at a time.
+- **hookRule:** Open with the subject and the strangest true thing about it, in plain words. The first line must work with the sound off. No greeting, no generic question.
+- **storyShape:** Walk through it in order, one step at a time. Each step is one action and one concrete detail the viewer can picture. Point at the oddest step and say why it matters. Vary the shape of the opening from video to video.
+- **endingRule:** End on a line that echoes the opening. Then stop. No call to action, no question to the viewer, no moral.
+- **chapterStyle:** (empty)
+- **pacingCues:** Write for the ear: one idea per sentence, contractions are fine, commas where a voice should breathe, no semicolons. Let every step move the explanation forward.
+- **avoid:** Hype words and exclamation marks.
+- **visualReviewTone:** Judge the pictures by whether each one fits the step being narrated at that moment. The viewer should see the action or the thing the sentence names.
+
+### preset: neutral
+- **version:** 1
+- **label:** Neutral
+- **summary:** A clear, engaging default with no particular style.
+- **persona:** A clear, engaging scriptwriter for online video.
+- **domain:** (empty)
+- **hookRule:** Open with the most interesting true thing the brief gives. No greeting, no generic question.
+- **storyShape:** (empty)
+- **endingRule:** End on the strongest point, then stop. No call to action, no question to the viewer.
+- **chapterStyle:** (empty)
+- **pacingCues:** Write for the ear: one idea per sentence.
+- **avoid:** Hype words and exclamation marks.
+- **visualReviewTone:** Judge whether each picture fits what is being said at that moment.
+
 ## Where things sit today (to be moved)
 
 From the prompt audit (line numbers from `9be48fb`; the lines marked "read 1 Nov" were read on `main` that day).
@@ -68,6 +173,7 @@ From the prompt audit (line numbers from `9be48fb`; the lines marked "read 1 Nov
 | `brief-only` defined twice with different strength | Layer 1, one definition | P22 |
 | Safety lines (nothing graphic, no accusing the living, no villain the record does not name) exist only in channel guides, not as a platform rule | Layer 1. Adding them is a behaviour change for every channel, so it needs a before and after | P22 |
 | Sentence-length caps and similar limits written as prose in channel guides | Layer 5 fields | P23 |
+| Reviewer notes, fix notes and the founder's gate edits entering the next call (how each call passes them today is not verified) | Layer 8: delimited data, never phrased as a rule (rule 7) | P22 reads each call first, then fixes and tests it |
 
 ## Enforcement
 
@@ -83,6 +189,7 @@ A rule that is not tested is not locked. The pattern already exists: `llm/no-out
 | **Profile-save warnings** | `channels.createProfileVersion` returns an optional `warnings: string[]` and still saves. It warns when the guide holds a number next to words, sentences or seconds (a limit that belongs in a field), or repeats a sentence of the chosen preset. The picker shows them | Task 4 PR A (server); the Task 3 app task shows them behind `creativeDirection` |
 | **Layer versions on every run** | A prompt that cannot be traced to its inputs. A run records `profileVersionId` (exists), `presetKey` and `presetVersion` (Task 4 C1) and the pipeline-version tag (Task 3) | Task 4, Task 3 |
 | **Brief check at intake** (plain code) | A fixed first or last sentence that the channel's own banned lists forbid; straight quotes; missing required constraint lines | P23 |
+| **Stage context is data** (test) | A reviewer note, fix note or founder edit that reaches a prompt outside a delimited data block, or phrased as a rule | P22 |
 
 ## Dirty data
 
@@ -93,7 +200,7 @@ A rule that is not tested is not locked. The pattern already exists: `llm/no-out
 ## Change procedure
 
 - **Layers 1 and 2:** the architect, by pull request, with the snapshot diff. A claim that a change improves quality needs a real-run comparison (build principle).
-- **Layer 3:** a pull request that bumps the preset version, the snapshot diff for every channel on that preset, the founder's approval of the text, and an evaluation under a stated spend ceiling.
+- **Layer 3:** one pull request that edits the Presets section of this doc and the presets data file together (a test fails if they differ), bumps the preset version, shows the snapshot diff for every channel on that preset, carries the founder's approval of the text, and runs an evaluation under a stated spend ceiling.
 - **Layer 5:** the founder in the app; a new profile version; running runs keep theirs.
 - **Layers 6 and 7:** per video.
 - Every task that touches a prompt names the layer it changes (Key Principle 12, `TASK_TEMPLATE.md`).
@@ -105,9 +212,10 @@ A rule that is not tested is not locked. The pattern already exists: `llm/no-out
 
 ## Not verified
 
-Code was read on `main` on 1 Nov: `script-generation/index.ts`, `long-form.ts` (lines 100 to 175), `channel-profile/schema.ts` and `resolve.ts`, `run-pipeline/resolved-config.ts`, and the lines named above. Audit lines not marked "read 1 Nov" come from the audit report at `9be48fb` and were not re-read. Not checked: what the debug bundle stores per call; which channels have a content profile; whether `brief-only` is set on each live channel.
+Code was read on `main` on 1 Nov: `script-generation/index.ts`, `long-form.ts` (lines 100 to 175), `channel-profile/schema.ts` and `resolve.ts`, `run-pipeline/resolved-config.ts`, and the lines named above. Audit lines not marked "read 1 Nov" come from the audit report at `9be48fb` and were not re-read. The call table ("What each call takes from the channel") comes from the audit and Task 4's file list and was not re-read in code. Not checked: what the debug bundle stores per call; which channels have a content profile; whether `brief-only` is set on each live channel.
 
 ## Revision log
 
 - r1, 2026-11-01: first issue (architect), after the founder asked for the roles of the system prompts, presets, content profile and other inputs to be defined and locked before the preset text is approved.
 - r2, 2026-11-01: the `history` preset is written fresh, like the others (founder, 1 Nov: NIYT will be rewritten as a channel, so its prompts are not carried forward). Removed the recorded exceptions (digits and six carried phrases), the byte-identity check, and the digit exception in the preset lint. A preset may use the ordinary words of its own craft family and nothing else.
+- r3, 2026-11-01: added the channel-owner guide, the plain-words table of what each call takes from the channel, and the Presets section (the four approved texts moved here from Task 4 Appendix A, so they do not go stale when the task closes; a test keeps the code equal to them). Rule 7 (stage context is data) now has a check, owned by P22. Founder: "go", 1 Nov.

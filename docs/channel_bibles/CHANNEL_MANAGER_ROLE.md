@@ -1,6 +1,6 @@
 # Channel Manager Role
 
-Version 1.0, 2026-10-25. Owner: Neeraj. Written from the Cold Open channel-owner session.
+Version 1.1, 2026-11-01 (session start now reads `PROMPT_LAYERS.md`). Owner: Neeraj. Written from the Cold Open channel-owner session.
 
 Read this first if you are a Claude session assigned to run one YouTube channel on the 7AI pipeline. Each channel has its own manager session. This doc is the same for all of them.
 
@@ -96,7 +96,7 @@ Log a gap only when it blocks or distorts the channel work. Give: what happened,
 
 ## 9. Start of every session
 
-1. Read this doc, then your channel guide and the Known Issues and Blockers doc.
+1. Read this doc, then `docs/decisions/PROMPT_LAYERS.md` (the "For channel owners" guide and the Presets: what the platform and your preset already say, so your content profile does not repeat it or fight it), then your channel guide and the Known Issues and Blockers doc.
 2. State in one line which channel you manage and your working name.
 3. Ask the founder for anything you need and cannot find (results, the current open actions).
 
