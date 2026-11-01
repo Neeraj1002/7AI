@@ -63,6 +63,7 @@ Every item has a plain name first and its code in brackets, for example "Check T
 | 28 | Say "merged" to the hot-fixer for #156 and #158 | Its closing sweeps for sibling bugs with the same cause (other `setpts` after `fps`, other `-shortest` muxes, other durations measured from one source; other commands that put video and audio in one filter graph). Its report is owed to the architect. | Now |
 | 29 | Sprint 6 Task 4 backend: GitHub login on the agent's machine | The Task 4 backend agent built PR A on `SPRINT6_TASK4A_BE` but could not push (the GitHub login there is invalid and the push needs your authorization). In its terminal run `gh auth status`, and `gh auth login` if it says the token is invalid, then tell it "GitHub is signed in again". | Now |
 | 30 | Phone check of the honey Short | Done on 2 Nov (length and speed confirmed fixed). If the honey Short (run `e8df00af…`) is still waiting at Gate 2, approve or reject it as usual. | When you want |
+| 31 | Talking Host spike (P28): vendor keys and one rating sheet | When the spike agent asks, create one API key per vendor (it tells you the exact screen), keep it only in the agent's local settings (never paste it in chat or a doc), and set a spend limit on each vendor account if it offers one. The whole spike has a $15 ceiling (about $11 without the self-hosted model). Later you rate one blind sheet of clips (about 10 minutes). Task doc: `execution/sprint6/tasks/task5-host-spike.md` | After the spike task is merged and handed to an agent |
 
 ## In review
 
