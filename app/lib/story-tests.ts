@@ -1,54 +1,30 @@
-// Hand-written from the Task 3/4 contract; replace with the router types when the backend merges.
 // Sprint 6 Task 3 (NEXT 5, FE): the pure logic behind the angle card and the script check card, kept free of React so it can be tested.
 // The server writes every word, tag, mark and verdict (Task 3 contract C3); this file only shows, hides and places them.
-// The types are hand-written from the contract because the AppRouter on main does not carry `storyTests` or `runs.chooseAngle`
-// yet. When the Task 3 backend merges, replace them with the inferred router types in the same commit as the flag flip.
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
 import type { StatusChipKind } from '../components/StatusChip';
-import { flags } from './feature-flags';
 
-export type ReaderTag = { kind: 'click' | 'skip'; label: string };
-export type Angle = { id: string; title: string; promise: string; figureFlag: string | null; readerTags: ReaderTag[] };
-export type ReaderPick = { run: 1 | 2; clickId: string; clickWhy: string; skipId: string; skipWhy: string };
-export type AngleMark = 'clear_winner' | 'no_clear_winner' | 'no_clear_winner_reader_error';
-export type AngleStep = {
-  status: 'running' | 'waiting' | 'chosen' | 'skipped' | 'not_run';
-  notRunReason: string | null;
-  angles: Angle[];
-  readerPicks: ReaderPick[];
-  mark: AngleMark | null;
-  markLabel: string | null;
-  readerTopId: string | null;
-  chosenId: string | null;
-  choseReaderPick: boolean | null;
-};
-export type ScriptCheck = {
-  status: 'ran' | 'not_run';
-  notRunReason: string | null;
-  verdict: 'pass' | 'fail' | null;
-  verdictLabel: string | null;
-  reasons: { code: string; label: string }[];
-  about: string | null;
-  whyCare: string | null;
-  swipeLine: string | null;
-  swipeAtPercent: number | null;
-  remembered: string | null;
-  firstSentence: { keeps: boolean; why: string } | null;
-  weakestSentence: { quote: string; why: string } | null;
-  promiseMatch: { ran: boolean; note: string };
-  scriptChanged: boolean;
-  advisoryNote: string;
-};
-export type StoryTests = { enabled: boolean; angleStep: AngleStep; scriptCheck: ScriptCheck | null };
+// Types come from the real AppRouter (Task 3 backend, #143), like the rest of the app.
+type RunGet = inferRouterOutputs<AppRouter>['runs']['get'];
+export type StoryTests = NonNullable<RunGet['storyTests']>;
+export type AngleStep = StoryTests['angleStep'];
+export type Angle = AngleStep['angles'][number];
+export type ReaderTag = Angle['readerTags'][number];
+export type ReaderPick = AngleStep['readerPicks'][number];
+export type AngleMark = NonNullable<AngleStep['mark']>;
+export type ScriptCheck = NonNullable<StoryTests['scriptCheck']>;
 
-/** `runs.get.storyTests` when the flag is on and the server sent data; null otherwise (old run, feature off, flag off). */
-export function storyTestsOf(data: unknown, flagOn: boolean = flags.storyTestsCards): StoryTests | null {
-  if (!flagOn) return null;
-  const st = (data as { storyTests?: StoryTests | null } | null | undefined)?.storyTests;
+/**
+ * `runs.get.storyTests` when the server sent it and it is enabled; null otherwise (an old run, or a run made with the feature off).
+ * The server decides; there is no app switch. With null, no angle card, check card or angle wording is drawn.
+ */
+export function storyTestsOf(data: { storyTests?: StoryTests | null } | null | undefined): StoryTests | null {
+  const st = data?.storyTests;
   return st && st.enabled ? st : null;
 }
 
-/** True only for a run waiting on the angle choice, and only with the flag on (so a flag-off app shows nothing new). */
-export const isAngleWait = (status: string, flagOn: boolean = flags.storyTestsCards): boolean => flagOn && status === 'paused_angle';
+/** True for a run waiting on the angle choice. The server only sets this status for a run that has story tests. */
+export const isAngleWait = (status: string): boolean => status === 'paused_angle';
 
 export const ANGLE_STATUS_WORDING = 'Waiting for your angle choice';
 
