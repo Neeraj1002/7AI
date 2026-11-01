@@ -2,11 +2,11 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r2, 2026-11-01 (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
+**Revision**: r6, 2026-11-01 (log at the end) (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
 
 **Written**: 2026-11-01 by the task-writer chat, at the founder's request, from the founder-approved design (not redesigned here). Finalised by the architect the same day. **Status**: not started; all founder decisions and spend ceilings are answered (1 Nov); starts when the architect hands it to the agent and this doc is merged. **Priority**: P2 (P19, the first slice of P12; P12 keeps the story writer, story editor and taste library). Note: P16 in `PLAN.md` is creative direction per channel, a different item. **Branches**: `SPRINT6_TASK3A_BE`, `SPRINT6_TASK3B_BE`, `SPRINT6_TASK3C_BE` (add `_FE` branches only if R0 shows the card is too big to share a PR); worktrees `task3a`, `task3b`, `task3c` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
-## Founder decisions (all seven answered 1 Nov; kept here as the record)
+## Founder decisions (1 to 7 answered 1 Nov and kept here as the record; 8 is open and blocks PR A)
 
 1. **DECIDED 1 Nov (founder): Part B swipe-away threshold** is the first two sentences for Shorts and the first ~15% of the script for long-form.
 2. **DECIDED 1 Nov (founder): one neutral reader persona for every channel**: "a stranger scrolling their feed, no prior interest in this subject, ready to swipe if bored." No per-channel line is written now. Code still reads one optional per-channel string (empty by default) so a line can be added later without a code change; it must never name a channel or niche.
@@ -15,6 +15,8 @@
 5. **DECIDED 1 Nov (founder): yes.** One server-side switch for the whole feature (a deploy-time flag, not a channel setting), and a "write from the brief" (skip) choice on the Part A card.
 6. **DECIDED 1 Nov (founder): when Part A is skipped, nothing is inferred.** The promise-match step records "not run: no chosen angle" and cannot cause a FAIL.
 7. **DECIDED 1 Nov (founder): spend ceilings confirmed** as proposed in the Spend section ($0.10 per run for Part A, $0.15 per run for Part B, $1.50 ceiling for all live checks; the live checks include one Short and one long-form run).
+
+8. **OPEN (founder): one small migration for Part A's wait.** `pipeline_runs.status` is locked by a database check that allows only `pending, running, paused_gate1, paused_gate2, completed, failed, needs_attention` (migration `20260907122134_foundation_schema`, `pipeline_runs_status_check`; no later migration changes it), and `pipeline_stages.stageName` is locked the same way. Part A's "waiting for the founder's angle choice" needs a status of its own. Recommended: add `paused_angle` to the status check (one line of SQL, no new table or column); the angle data itself needs no migration (it lives in the intake stage's JSON output, the same way Task 1 keeps `output.packaging` on the Gate 2 row). The only alternative is to reuse `paused_gate1`, which would show Gate 1 buttons on a run that has no script: rejected. Without this answer PR A cannot start.
 
 ## Objective
 
@@ -135,9 +137,71 @@ Causes: (a) a channel name or niche in code, prompts or fixtures; (b) an output 
 
 A search-demand or trend check (needs API access and cost not verified). A synthetic audience panel (rejected: it mirrors the model's taste). The story writer and story editor roles of P12. Any change to Script Review rules, score, threshold or retries. Calibration against past or live videos and any tuning loop: the architect does that later on the live daily videos using the tags from R7. Building any retention or analytics route (R0 item 8 is a finding only). Changing Task 1. (Task 2 is cancelled.)
 
+## Contract (API and app)
+
+**Status**: proposed by the architect on 1 Nov from reading `main` (`api/routers/runs.ts`, `run-pipeline/state-machine.ts`, `run-pipeline/packaging-stage.ts`, `types/pipeline.types.ts`, the app files that read `paused_gate1`). R0 confirms every name; if `main` disagrees, the agent reports the difference to the architect before building, and the frontend never builds ahead of this contract. The designer's screens decide only the look, never these fields. Precedent: `sprint6/contracts/task1-gate2-packaging.md`.
+
+**C1. Where the data lives (no schema change beyond decision 8).**
+- Part A and the tags: the `intake` stage's `output.storyTests` (written with `patchStageOutput`, the way Task 1 writes `output.packaging` on the Gate 2 row). It survives a restart.
+- Part B: the latest completed `script_review` stage's `output.storyTest` (the check reads the script version that review judged, and is not part of its score).
+- Each object carries `version: 1`. Old runs have neither and read as `null`, never as "off".
+
+**C2. A new run status: `paused_angle`** (decision 8). The run sits there from the end of intake until the founder chooses or skips; `currentStage` stays `intake`. The choice is persisted **before** the script step starts. On a server restart the wait is re-opened the way a Gate 1 and Gate 2 wait are (the `state-machine.ts` re-open paths), so a restart never leaves the run stuck at `paused_angle` with nothing waiting. Add the status to `PIPELINE_RUN_STATUSES` and to every place that maps statuses (backend: any `switch` or table on status; app: `lib/run-view.ts`, `lib/inbox.ts`, `lib/run-settings.ts`, `components/admin/status.ts`, `(tabs)/_layout.tsx`, `(tabs)/index.tsx`, `channel/[id].tsx`, `run/[id].tsx`; R0 lists the real ones). An old app build that does not know the status must not crash: R0 reports how `run-view.ts` treats an unknown status today.
+
+**C3. Read: one new field on `runs.get`, `storyTests`** (the same tenant check as the rest of `runs.get`; `null` when the feature was off or the run is old). The server writes every label in plain words; the app never recomputes a verdict, a mark or a reason.
+```
+storyTests: null | {
+  enabled: boolean,                         // the server switch was on for this run
+  angleStep: {
+    status: 'running' | 'waiting' | 'chosen' | 'skipped' | 'not_run',
+    notRunReason: string | null,            // plain words, e.g. "the reader returned an unreadable reply", "the budget for this step was reached"
+    angles: { id: string, title: string, promise: string, figureFlag: string | null }[],   // 4 or 5, in the writer's order (never the shuffled order)
+    readerPicks: { run: 1 | 2, clickId: string, clickWhy: string, skipId: string, skipWhy: string }[],   // empty until both reader runs finish; ids are angle ids
+    mark: 'clear_winner' | 'no_clear_winner' | 'no_clear_winner_reader_error' | null,
+    markLabel: string | null,               // server wording, e.g. "Both reads picked the same angle"
+    readerTopId: string | null,             // set only when mark is clear_winner
+    chosenId: string | null,                // null when waiting or skipped
+    choseReaderPick: boolean | null
+  },
+  scriptCheck: null | {                     // null until the check has run or been skipped
+    status: 'ran' | 'not_run',
+    notRunReason: string | null,            // plain words, e.g. "the reader returned an unreadable reply" or "the budget for this step was reached"; a skipped Part A is not a not_run (see promiseMatch)
+    verdict: 'pass' | 'fail' | null,
+    reasons: { code: 'cant_tell' | 'swipe_early' | 'first_sentence_no' | 'promise_mismatch', label: string }[],   // every reason that fired; empty on pass
+    about: string | null,                   // field 1
+    whyCare: string | null,                 // field 2 ("can't tell" allowed)
+    swipeLine: string | null,               // the exact quoted line, or null for "none"
+    swipeAtPercent: number | null,          // where it sits in the script, 0 to 100
+    remembered: string | null,              // field 4
+    firstSentence: { keeps: boolean, why: string } | null,   // field 5
+    weakestSentence: { quote: string, why: string } | null,  // field 6
+    promiseMatch: { ran: boolean, note: string | null },     // ran false when Part A was skipped or not run; never causes a fail then
+    scriptChanged: boolean,                 // the script at Gate 1 is not the one this check read
+    advisoryNote: string                    // fixed server text: a text-only read, it cannot judge voice, pacing or visuals
+  }
+}
+```
+Nothing numeric is shown to the founder as a score. `swipeAtPercent` is for placing the quote, not a rating.
+
+**C4. Write: one new mutation, `runs.chooseAngle`.**
+```
+runs.chooseAngle({ runId: uuid, angleId: string | null }) -> { resolved: true }
+```
+`angleId: null` means "write from the brief" (skip). The same tenant and ownership check as `runs.gate1` (`assertGateOwnership`). `BAD_REQUEST` if `angleId` is not one of this run's angles. `CONFLICT` if the run is not at `paused_angle` (already chosen or skipped, or not open yet), with the same wording style as Gate 1. The server persists `chosenId` and `choseReaderPick` first, then resumes the script step. There is no "regenerate angles" mutation (no retry; R1) and no "run the check again" mutation (R5).
+
+**C5. Where each card shows (the designer draws them).**
+- **Angle card**: the run screen while `status === 'paused_angle'`, plus a read-only summary afterwards (`chosen`, `skipped`, `not_run` with its reason). Inbox and Queue show the run as needing the founder's angle choice. Whether the existing gate reminder and push cover the new status is an R0 finding (a flow change beyond a card stops the task).
+- **Script check card**: the Gate 1 screen's Script tab, near the existing review concerns. A `fail` never disables Approve, Edit or Reject. `not_run` is shown as "not checked" with the reason and never looks like a pass. `scriptChanged` shows "script changed since this check".
+- With `enabled: false`, `storyTests: null` or the feature off, **no card and no empty state** appear and nothing else changes.
+- The Part A card is also needed for a long video and a Short; they differ only in the angles and the check's threshold, which the server applies.
+
+**C6. Rules for the app.** Read `runs.get` only; one new write (`runs.chooseAngle`). No verdict, reason, mark or label is computed in the app. Behind an app flag `storyTestsCards` in `app/lib/feature-flags.ts` (default false, as `gate2PackageScreens` was) until the designer's screens are built and the phone checks pass; the server switch alone decides whether the data exists. Every server string is shown as given.
+
+**C7. Tests for the contract.** `runs.get` returns `storyTests: null` for an old run and a feature-off run; returns the angle step at each of its five statuses and the script check at pass, fail, not_run, and scriptChanged; `chooseAngle` accepts a valid id, accepts null, rejects a foreign id, returns CONFLICT twice in a row, and fails the tenant check for another tenant; a restart at `paused_angle` re-opens the wait; the app's status maps cover `paused_angle`.
+
 ## Schema Impact
 
-Unknown until R0. Prefer existing run JSON columns and the existing profile JSON (one optional string for the reader persona) if their contracts and persistence fit. **Any table, column or migration is described to the architect first; none is assumed. Stop and ask.**
+Checked on `main` 1 Nov: **one migration**, adding `paused_angle` to `pipeline_runs_status_check` (decision 8). No new table, column or stage name: Part A's data goes on the intake stage's JSON output, Part B's on the script review stage's JSON output, and the tags with Part A's data (see the Contract). The reader persona is one optional string in the existing profile JSON. Any other table, column or migration is described to the architect first; none is assumed. Stop and ask.
 
 ## Business Logic / State Transition
 
@@ -156,8 +220,9 @@ Backend and app type check, lint, build and the focused tests R0 finds; the full
 
 ## Delivery: three PRs so nothing waits
 
-- **PR A (`SPRINT6_TASK3A_BE`)**: R0, R1, R2, R3, R8 for Part A. The pair-reader and the Part A card.
-- **PR B (`SPRINT6_TASK3B_BE`)**: R4, R5, R6, R8 for Part B. Needs the stored promise from PR A, or null when skipped.
+- **PR A (`SPRINT6_TASK3A_BE`)**: R0, R1, R2, R3, R8 for Part A, the `paused_angle` migration (after the founder answers decision 8), `runs.chooseAngle` and the Part A half of `storyTests` in `runs.get` (contract C1 to C4). The pair-reader and the Part A card's data. Merge this contract's backend half first, so the app work can start in parallel.
+- **PR B (`SPRINT6_TASK3B_BE`)**: R4, R5, R6, R8 for Part B and the `scriptCheck` half of `storyTests`. Needs the stored promise from PR A, or null when skipped.
+- **App PR (`SPRINT6_TASK3_FE`)**: the two cards and the new status in the app, built from the designer's screens and the Contract above, behind `storyTestsCards`. The architect writes its own short task from the Contract once the designer's screens exist; it is not part of the backend agent's work.
 - **PR C (`SPRINT6_TASK3C_BE`)**: R7, R9 final, and the R0 item 8 finding written up. Merge `main` into your branch first. Report after each PR; the Hard rule 8 closing runs after PR C merges.
 
 ## Report
@@ -178,3 +243,4 @@ The code (no file was read; every code fact above is marked "confirm" or comes f
 - r3, 2026-11-01 (architect): decision 4 recorded as decided (Shorts first, long-form in this task).
 - r4, 2026-11-01 (architect): decisions 2 (neutral persona for all) and 5 (switch and skip) recorded as decided.
 - r5, 2026-11-01 (architect): decisions 1, 3, 6 and 7 recorded as decided; all seven are answered. Revision line at the top says r2; this log is the record (r2 to r5).
+- r6, 2026-11-01 (architect): added the Contract (API and app), decision 8 (the `paused_angle` migration, open), the real Schema Impact and the app PR in Delivery.
