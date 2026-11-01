@@ -32,6 +32,10 @@
 - **Reminder**: `gate-reminder.ts` now includes `paused_angle` runs. They are timed from when intake completed and use the same threshold and the same once-per-wait nudge as the gates ("... has been waiting at the angle choice for about Nh."). The founder digest also lists them under "waiting on you".
 - Not tested (needs the notification layer and a database); the message formatter and the status lists are the only new logic.
 
+### Contract r8 (architect, after the designer's questions)
+
+Built: `readerTags` per angle (server wording, e.g. "Reader would click · both reads"); `readerPicks` holds only the valid reads (possibly none) and the angles stay choosable; a `not_run` angle step does not wait. `verdictLabel` and `promiseMatch.note` belong to Part B (PR B).
+
 ### Contracts as built
 
 - `runs.get` now returns `storyTests` (contract C3). The Part B half, `scriptCheck`, is always `null` in PR A.

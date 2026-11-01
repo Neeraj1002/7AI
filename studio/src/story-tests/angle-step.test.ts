@@ -203,6 +203,8 @@ describe('applyAngleChoice and the view', () => {
     expect(v.angleStep.readerPicks).toHaveLength(2);
     expect(v.angleStep.angles.map((a) => a.id)).toEqual(['a1', 'a2', 'a3', 'a4', 'a5']);
     expect(v.scriptCheck).toBeNull();
+    expect(v.angleStep.angles.find((a) => a.id === 'a2')!.readerTags).toEqual([{ kind: 'click', label: 'Reader would click · both reads' }]);
+    expect(v.angleStep.angles.find((a) => a.id === 'a1')!.readerTags).toEqual([]);
   });
 });
 

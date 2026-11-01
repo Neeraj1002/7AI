@@ -9,7 +9,7 @@ export type StoryTestsView = {
   angleStep: {
     status: 'running' | 'waiting' | 'chosen' | 'skipped' | 'not_run';
     notRunReason: string | null;
-    angles: { id: string; title: string; promise: string; figureFlag: string | null }[];
+    angles: { id: string; title: string; promise: string; figureFlag: string | null; readerTags: { kind: 'click' | 'skip'; label: string }[] }[];
     readerPicks: { run: 1 | 2; clickId: string; clickWhy: string; skipId: string; skipWhy: string }[];
     mark: 'clear_winner' | 'no_clear_winner' | 'no_clear_winner_reader_error' | null;
     markLabel: string | null;
@@ -20,6 +20,18 @@ export type StoryTestsView = {
   // Part B (PR B) fills this. Null until the check has run or been skipped.
   scriptCheck: null;
 };
+
+// Contract r8: per angle, which valid reads would click or skip it, in server wording.
+function readerTagsFor(angleId: string, picks: Array<{ run: 1 | 2; clickId: string; skipId: string }>): { kind: 'click' | 'skip'; label: string }[] {
+  const tags: { kind: 'click' | 'skip'; label: string }[] = [];
+  for (const kind of ['click', 'skip'] as const) {
+    const runs = picks.filter((p) => (kind === 'click' ? p.clickId : p.skipId) === angleId).map((p) => p.run);
+    if (runs.length === 0) continue;
+    const verb = kind === 'click' ? 'click' : 'skip';
+    tags.push({ kind, label: `Reader would ${verb} · ${runs.length === 2 ? 'both reads' : `read ${runs[0]}`}` });
+  }
+  return tags;
+}
 
 export function readStoredStoryTests(intakeOutput: unknown): StoredStoryTests | null {
   const s = (intakeOutput as { storyTests?: StoredStoryTests } | null | undefined)?.storyTests;
@@ -49,8 +61,9 @@ export function buildStoryTestsView(params: { intakeOutput: unknown; runStatus: 
     angleStep: {
       status: step.status,
       notRunReason: step.notRunReason,
-      angles: step.angles,
-      readerPicks: readerPicks.length === 2 ? readerPicks : [],
+      angles: step.angles.map((a) => ({ ...a, readerTags: readerTagsFor(a.id, readerPicks) })),
+      // Only the reads that were valid (possibly none); the angles stay choosable either way.
+      readerPicks,
       mark: step.mark,
       markLabel: step.mark ? markLabel(step.mark) : null,
       readerTopId: step.mark === 'clear_winner' ? step.readerTopId : null,
