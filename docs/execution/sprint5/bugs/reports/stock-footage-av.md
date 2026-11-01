@@ -4,7 +4,7 @@
 **Status**: PR ready; preview retest pending
 **Branch**: `BUGS_STOCK_FOOTAGE_AV`  
 **Worktree**: `D:\Study Material\7AI\.worktrees\BUGS_STOCK_FOOTAGE_AV`  
-**Draft PR**: [#139](https://github.com/Neeraj1002/7AI/pull/139)  
+**PR**: [#139](https://github.com/Neeraj1002/7AI/pull/139) (ready, unmerged)
 **Task doc first commit**: `7325031`  
 **Preview run**: `f596f80c-c804-4e20-ab0b-50cfae3bacd7` (founder-supplied terminal output)
 
@@ -43,9 +43,9 @@ To remove the demonstrated timing variation, every stock segment now gets `fps=3
 
 No-cost local verification: a mixed 24/29.97/60 fps stock fixture, including a clip starting at a nonzero timestamp, joined at declared/average 30 fps with timebase `1/15360` and no frame gap over 0.034 s. The local stock intermediate had only 0.033333 s video packet durations. The stock and AI-stills Shorts integration renders each probed at exactly 30 fps and `1/15360`, with matching 7.300 s audio/video durations, no frame gap over 0.05 s, and AAC 48 kHz at 210,977 bps. The stock fixture video was still about 7.16 Mbps; the preview's 6.4–8.3 Mbps video streams and potential player buffering have not been ruled out as a separate cause of the reported fast-forward. A local two-attempt stock revision test confirmed distinct fresh MP3 paths, no reference to the prior final MP4, and `320k` in both mux commands. Tests use provider stubs; no LLM/API spend occurred. Build, lint and typecheck passed after generating the local Prisma client.
 
-Preview budget, founder estimate, one same-brief live run, packet probes and audible/visual comparison remain pending. These are required before claiming the reported experience is fixed.
+The founder reported a $10 remaining preview budget and a $1 estimate for one same-brief stock-footage run on 2026-11-01. No paid run has started. The preview deployment workflow runs only on pushes to `main`; PR #139 is ready but unmerged, so a run now would exercise the old renderer. One same-brief live run, packet probes and audible/visual comparison remain pending until the fix is deployed. These are required before claiming the reported experience is fixed.
 
-CI: the first PR run's studio job passed, but the app job stopped at `npm ci` because its existing lockfile lacked two transitive `@emnapi` peer packages. Adding those exact dev dependencies and their lock entries made a Linux `npm ci --dry-run` pass. Subsequent PR runs passed both jobs, including GitHub Actions run `41209385623` on commit `b2a0460`. Afterward, `git fetch origin` and `git pull origin main` reported the branch already up to date; the docs scope diff lists only this task doc and report, with no conflicts. PR #139 was marked ready after CI passed; preview playback verification is still a post-merge founder retest.
+CI: the first PR run's studio job passed, but the app job stopped at `npm ci` because its existing lockfile lacked two transitive `@emnapi` peer packages. Adding those exact dev dependencies and their lock entries made a Linux `npm ci --dry-run` pass. Subsequent PR runs passed both jobs, including GitHub Actions run `41209555950` on commit `9096d0b`. Afterward, `git fetch origin` and `git pull origin main` reported the branch already up to date; the docs scope diff lists only this task doc and report, with no conflicts. PR #139 was marked ready after CI passed; preview playback verification is still a post-merge founder retest.
 
 ## Same-cause sweep
 
