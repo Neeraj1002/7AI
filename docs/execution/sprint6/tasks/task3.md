@@ -2,7 +2,7 @@
 
 **Read `docs/execution/templates/TASK_TEMPLATE.md` in full before starting.** It defines the Git Workflow, the Hard rules (5 to 9: task doc sync, pull `main` before ready, who owns which doc, close after merge, same-cause sweep), the `STATUS.md` rule and the report shape. This file states only this task's specifics. Keep every reply to the founder to 3 lines; only the report is long. Do not edit `STATUS.md`, `PLAN.md` or any doc except your own report and the docs named in the Report section.
 
-**Revision**: r7, 2026-11-01 (log at the end) (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
+**Revision**: r8, 2026-11-01 (log at the end) (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
 
 **Written**: 2026-11-01 by the task-writer chat, at the founder's request, from the founder-approved design (not redesigned here). Finalised by the architect the same day. **Status**: not started; all eight founder decisions and the spend ceilings are answered (1 Nov); starts when the architect hands it to the agent and this doc is merged. **Priority**: P2 (P19, the first slice of P12; P12 keeps the story writer, story editor and taste library). Note: P16 in `PLAN.md` is creative direction per channel, a different item. **Branches**: `SPRINT6_TASK3A_BE`, `SPRINT6_TASK3B_BE`, `SPRINT6_TASK3C_BE` (add `_FE` branches only if R0 shows the card is too big to share a PR); worktrees `task3a`, `task3b`, `task3c` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
@@ -66,7 +66,7 @@ All of it is **advisory**. The readers never decide, never change a score, never
 
 **Where**: between intake and the script step (as R0 item 1 confirms).
 
-**Fix**: one registered call takes the intake result (topic and constraints) and returns 4 to 5 candidate angles, each only `{title, promise}` where the promise is one line. No script, no outline. Code validates: 4 or 5 angles, both fields present, length limits, no duplicate titles. If the figures in a promise can be checked with the existing Script Review numeric check (`brief-checks.ts`, R0 confirms it can be called as-is), flag any figure not present in the intake text and show the flag on the card; if it cannot be reused as-is, report that and skip it (do not write a second checker). If validation fails the part is recorded as "not run: reason" and the founder may continue without an angle (the same as skipping); there is no retry.
+**Fix**: one registered call takes the intake result (topic and constraints) and returns 4 to 5 candidate angles, each only `{title, promise}` where the promise is one line. No script, no outline. Code validates: 4 or 5 angles, both fields present, length limits, no duplicate titles. If the figures in a promise can be checked with the existing Script Review numeric check (`brief-checks.ts`, R0 confirms it can be called as-is), flag any figure not present in the intake text and show the flag on the card; if it cannot be reused as-is, report that and skip it (do not write a second checker). If validation fails, or the budget for the step is reached before angles exist, the part is recorded as "not run: reason" and the run **continues straight to the script from the brief** (the same as skipping, with no wait and no card to answer; the founder sees a read-only line saying why, see C5); there is no retry. A failure of the **reader** only (angles exist, but a pick is unreadable) is different: the run still waits and the angles are shown without reader advice (C3).
 
 Whether channel guidance would improve the angles is a finding for the report, not something to build: this call sees the intake result only.
 
@@ -146,7 +146,7 @@ A search-demand or trend check (needs API access and cost not verified). A synth
 - Part B: the latest completed `script_review` stage's `output.storyTest` (the check reads the script version that review judged, and is not part of its score).
 - Each object carries `version: 1`. Old runs have neither and read as `null`, never as "off".
 
-**C2. A new run status: `paused_angle`** (decision 8). The run sits there from the end of intake until the founder chooses or skips; `currentStage` stays `intake`. The choice is persisted **before** the script step starts. On a server restart the wait is re-opened the way a Gate 1 and Gate 2 wait are (the `state-machine.ts` re-open paths), so a restart never leaves the run stuck at `paused_angle` with nothing waiting. Add the status to `PIPELINE_RUN_STATUSES` and to every place that maps statuses (backend: any `switch` or table on status; app: `lib/run-view.ts`, `lib/inbox.ts`, `lib/run-settings.ts`, `components/admin/status.ts`, `(tabs)/_layout.tsx`, `(tabs)/index.tsx`, `channel/[id].tsx`, `run/[id].tsx`; R0 lists the real ones). An old app build that does not know the status must not crash: R0 reports how `run-view.ts` treats an unknown status today.
+**C2. A new run status: `paused_angle`** (decision 8). The run sits there from the end of intake until the founder chooses or skips; `currentStage` stays `intake`. The choice is persisted **before** the script step starts. On a server restart the wait is re-opened the way a Gate 1 and Gate 2 wait are (the `state-machine.ts` re-open paths), so a restart never leaves the run stuck at `paused_angle` with nothing waiting. Add the status to `PIPELINE_RUN_STATUSES` and to every place that maps statuses (backend: any `switch` or table on status; app: `lib/run-view.ts`, `lib/inbox.ts`, `lib/run-settings.ts`, `components/admin/status.ts`, `(tabs)/_layout.tsx`, `(tabs)/index.tsx`, `channel/[id].tsx`, `run/[id].tsx`; R0 lists the real ones). The status label everywhere (Inbox, Queue, run chip) is "Waiting for your angle choice"; the Inbox card's step row for this status reads "Angle" (the step comes from the status, because `currentStage` stays `intake`). **Notice and reminder (R0 checked `run-pipeline/gate-reminder.ts` on 1 Nov: it lists only `paused_gate1` and `paused_gate2`, so a run at `paused_angle` would wait with no nudge):** PR A sends one notification when the wait opens ("Angles ready to choose", through the existing `NotificationChannel`, naming the channel and the brief's first line, never the run id) and the reminder check also covers `paused_angle` with the label "your angle choice". No new state, no new screen: say so in the report. An old app build that does not know the status must not crash: R0 reports how `run-view.ts` treats an unknown status today.
 
 **C3. Read: one new field on `runs.get`, `storyTests`** (the same tenant check as the rest of `runs.get`; `null` when the feature was off or the run is old). The server writes every label in plain words; the app never recomputes a verdict, a mark or a reason.
 ```
@@ -155,7 +155,8 @@ storyTests: null | {
   angleStep: {
     status: 'running' | 'waiting' | 'chosen' | 'skipped' | 'not_run',
     notRunReason: string | null,            // plain words, e.g. "the reader returned an unreadable reply", "the budget for this step was reached"
-    angles: { id: string, title: string, promise: string, figureFlag: string | null }[],   // 4 or 5, in the writer's order (never the shuffled order)
+    angles: { id: string, title: string, promise: string, figureFlag: string | null,
+              readerTags: { kind: 'click' | 'skip', label: string }[] }[],   // 4 or 5, in the writer's order (never the shuffled order); readerTags is empty when no read picked this angle; label is server wording, e.g. "Reader would click · both reads" or "Reader would skip · read 2"
     readerPicks: { run: 1 | 2, clickId: string, clickWhy: string, skipId: string, skipWhy: string }[],   // empty until both reader runs finish; ids are angle ids
     mark: 'clear_winner' | 'no_clear_winner' | 'no_clear_winner_reader_error' | null,
     markLabel: string | null,               // server wording, e.g. "Both reads picked the same angle"
@@ -167,6 +168,7 @@ storyTests: null | {
     status: 'ran' | 'not_run',
     notRunReason: string | null,            // plain words, e.g. "the reader returned an unreadable reply" or "the budget for this step was reached"; a skipped Part A is not a not_run (see promiseMatch)
     verdict: 'pass' | 'fail' | null,
+    verdictLabel: string | null,            // server wording for the chip, set whenever verdict is set (the architect proposes "Reads well to a stranger" and "A stranger may swipe away"; the app shows it as given)
     reasons: { code: 'cant_tell' | 'swipe_early' | 'first_sentence_no' | 'promise_mismatch', label: string }[],   // every reason that fired; empty on pass
     about: string | null,                   // field 1
     whyCare: string | null,                 // field 2 ("can't tell" allowed)
@@ -175,13 +177,13 @@ storyTests: null | {
     remembered: string | null,              // field 4
     firstSentence: { keeps: boolean, why: string } | null,   // field 5
     weakestSentence: { quote: string, why: string } | null,  // field 6
-    promiseMatch: { ran: boolean, note: string | null },     // ran false when Part A was skipped or not run; never causes a fail then
+    promiseMatch: { ran: boolean, note: string },            // note is never empty: when ran is false it says why in plain words ("Not compared: no angle was chosen", "Not compared: the check could not run"); when ran is true it is the match check's one short line. ran false never causes a fail
     scriptChanged: boolean,                 // the script at Gate 1 is not the one this check read
     advisoryNote: string                    // fixed server text: a text-only read, it cannot judge voice, pacing or visuals
   }
 }
 ```
-Nothing numeric is shown to the founder as a score. `swipeAtPercent` is for placing the quote, not a rating.
+**Reader error (confirmed):** when `mark` is `no_clear_winner_reader_error`, `readerPicks` holds only the reads that were valid (possibly none), the angles are all still choosable, and `markLabel` says the reader could not give a clear read. The run waits as normal. **`notRunReason` and the run:** `angleStep.status: 'not_run'` means the run did **not** wait (C5). Nothing numeric is shown to the founder as a score. `swipeAtPercent` is for placing the quote, not a rating.
 
 **C4. Write: one new mutation, `runs.chooseAngle`.**
 ```
@@ -190,10 +192,12 @@ runs.chooseAngle({ runId: uuid, angleId: string | null }) -> { resolved: true }
 `angleId: null` means "write from the brief" (skip). The same tenant and ownership check as `runs.gate1` (`assertGateOwnership`). `BAD_REQUEST` if `angleId` is not one of this run's angles. `CONFLICT` if the run is not at `paused_angle` (already chosen or skipped, or not open yet), with the same wording style as Gate 1. The server persists `chosenId` and `choseReaderPick` first, then resumes the script step. There is no "regenerate angles" mutation (no retry; R1) and no "run the check again" mutation (R5).
 
 **C5. Where each card shows (the designer draws them).**
-- **Angle card**: the run screen while `status === 'paused_angle'`, plus a read-only summary afterwards (`chosen`, `skipped`, `not_run` with its reason). Inbox and Queue show the run as needing the founder's angle choice. Whether the existing gate reminder and push cover the new status is an R0 finding (a flow change beyond a card stops the task).
+- **Angle card**: the run screen while `status === 'paused_angle'` (only then is there anything to answer), plus a read-only summary afterwards (`chosen`, `skipped`). `not_run` is a read-only line with its reason ("Angles were not made: <reason>. The script was written from the brief."); there is no "still waiting" state and no button for it. Inbox and Queue show the run as needing the founder's angle choice. Whether the existing gate reminder and push cover the new status is an R0 finding (a flow change beyond a card stops the task).
 - **Script check card**: the Gate 1 screen's Script tab, near the existing review concerns. A `fail` never disables Approve, Edit or Reject. `not_run` is shown as "not checked" with the reason and never looks like a pass. `scriptChanged` shows "script changed since this check".
 - With `enabled: false`, `storyTests: null` or the feature off, **no card and no empty state** appear and nothing else changes.
 - The Part A card is also needed for a long video and a Short; they differ only in the angles and the check's threshold, which the server applies.
+
+**C5a. The app theme.** On 1 Nov the app is light only (`app/app.json` sets `userInterfaceStyle: light`; no colour-scheme code was found under `app/lib`, `components`, `constants` or `hooks`). The app task builds light first; the designer's dark tokens are the spec for later and are not built in this task.
 
 **C6. Rules for the app.** Read `runs.get` only; one new write (`runs.chooseAngle`). No verdict, reason, mark or label is computed in the app. Behind an app flag `storyTestsCards` in `app/lib/feature-flags.ts` (default false, as `gate2PackageScreens` was) until the designer's screens are built and the phone checks pass; the server switch alone decides whether the data exists. Every server string is shown as given.
 
@@ -245,3 +249,4 @@ The code (no file was read; every code fact above is marked "confirm" or comes f
 - r5, 2026-11-01 (architect): decisions 1, 3, 6 and 7 recorded as decided; all seven are answered. Revision line at the top says r2; this log is the record (r2 to r5).
 - r6, 2026-11-01 (architect): added the Contract (API and app), decision 8 (the `paused_angle` migration), the real Schema Impact and the app PR in Delivery.
 - r7, 2026-11-01 (architect): decision 8 answered yes (the `paused_angle` migration). All eight decisions are answered; the backend task is ready to hand to the agent once this doc is merged.
+- r8, 2026-11-01 (architect, after the designer's seven questions): a `not_run` angle step does not wait; reader-only failure waits with the angles shown; `readerTags` per angle; `verdictLabel`; `promiseMatch.note` always set; status label and Inbox "Angle" step; a notice and reminder for `paused_angle` added to PR A (the reminder code covered only the two gates); the app is light only today.
