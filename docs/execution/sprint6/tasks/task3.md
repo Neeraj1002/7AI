@@ -197,7 +197,7 @@ runs.chooseAngle({ runId: uuid, angleId: string | null }) -> { resolved: true }
 - With `enabled: false`, `storyTests: null` or the feature off, **no card and no empty state** appear and nothing else changes.
 - The Part A card is also needed for a long video and a Short; they differ only in the angles and the check's threshold, which the server applies.
 
-**C5a. The app theme.** On 1 Nov the app is light only (`app/app.json` sets `userInterfaceStyle: light`; no colour-scheme code was found under `app/lib`, `components`, `constants` or `hooks`). The app task builds light first; the designer's dark tokens are the spec for later and are not built in this task.
+**C5a. The app theme.** On 1 Nov the app is light only (`app/app.json` sets `userInterfaceStyle: light`; no colour-scheme code was found under `app/lib`, `components`, `constants` or `hooks`). **Founder decision 1 Nov: no dark theme is planned.** The app task builds the light screens only and ignores any dark boards or dark tokens the designer drew.
 
 **C6. Rules for the app.** Read `runs.get` only; one new write (`runs.chooseAngle`). No verdict, reason, mark or label is computed in the app. Behind an app flag `storyTestsCards` in `app/lib/feature-flags.ts` (default false, as `gate2PackageScreens` was) until the designer's screens are built and the phone checks pass; the server switch alone decides whether the data exists. Every server string is shown as given.
 
@@ -249,4 +249,4 @@ The code (no file was read; every code fact above is marked "confirm" or comes f
 - r5, 2026-11-01 (architect): decisions 1, 3, 6 and 7 recorded as decided; all seven are answered. Revision line at the top says r2; this log is the record (r2 to r5).
 - r6, 2026-11-01 (architect): added the Contract (API and app), decision 8 (the `paused_angle` migration), the real Schema Impact and the app PR in Delivery.
 - r7, 2026-11-01 (architect): decision 8 answered yes (the `paused_angle` migration). All eight decisions are answered; the backend task is ready to hand to the agent once this doc is merged.
-- r8, 2026-11-01 (architect, after the designer's seven questions): a `not_run` angle step does not wait; reader-only failure waits with the angles shown; `readerTags` per angle; `verdictLabel`; `promiseMatch.note` always set; status label and Inbox "Angle" step; a notice and reminder for `paused_angle` added to PR A (the reminder code covered only the two gates); the app is light only today.
+- r8, 2026-11-01 (architect, after the designer's seven questions): a `not_run` angle step does not wait; reader-only failure waits with the angles shown; `readerTags` per angle; `verdictLabel`; `promiseMatch.note` always set; status label and Inbox "Angle" step; a notice and reminder for `paused_angle` added to PR A (the reminder code covered only the two gates); the app is light only today and no dark theme is planned (founder).
