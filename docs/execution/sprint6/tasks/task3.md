@@ -4,17 +4,17 @@
 
 **Revision**: r2, 2026-11-01 (architect finalised r1: P19 naming, Task 2 and Task 1 references brought up to date, a prompt-review step, a P16 overlap check).
 
-**Written**: 2026-11-01 by the task-writer chat, at the founder's request, from the founder-approved design (not redesigned here). Finalised by the architect the same day. **Status**: not started; starts only after the founder confirms the open decisions and spend ceilings below. **Priority**: P2 (P19, the first slice of P12; P12 keeps the story writer, story editor and taste library). Note: P16 in `PLAN.md` is creative direction per channel, a different item. **Branches**: `SPRINT6_TASK3A_BE`, `SPRINT6_TASK3B_BE`, `SPRINT6_TASK3C_BE` (add `_FE` branches only if R0 shows the card is too big to share a PR); worktrees `task3a`, `task3b`, `task3c` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
+**Written**: 2026-11-01 by the task-writer chat, at the founder's request, from the founder-approved design (not redesigned here). Finalised by the architect the same day. **Status**: not started; all founder decisions and spend ceilings are answered (1 Nov); starts when the architect hands it to the agent and this doc is merged. **Priority**: P2 (P19, the first slice of P12; P12 keeps the story writer, story editor and taste library). Note: P16 in `PLAN.md` is creative direction per channel, a different item. **Branches**: `SPRINT6_TASK3A_BE`, `SPRINT6_TASK3B_BE`, `SPRINT6_TASK3C_BE` (add `_FE` branches only if R0 shows the card is too big to share a PR); worktrees `task3a`, `task3b`, `task3c` under `D:\Study Material\7AI-SPRINT6`. Give branch, worktree and PR in your first reply and at the top of the report (Hard rule 7).
 
-## Open founder decisions (answer these before work starts)
+## Founder decisions (all seven answered 1 Nov; kept here as the record)
 
-1. **Shorts swipe-away threshold** for Part B: the swipe line sits in the first two sentences, or in the first ~15% of the script. Proposed: Shorts = first two sentences; long-form = first 15%. Confirm.
+1. **DECIDED 1 Nov (founder): Part B swipe-away threshold** is the first two sentences for Shorts and the first ~15% of the script for long-form.
 2. **DECIDED 1 Nov (founder): one neutral reader persona for every channel**: "a stranger scrolling their feed, no prior interest in this subject, ready to swipe if bored." No per-channel line is written now. Code still reads one optional per-channel string (empty by default) so a line can be added later without a code change; it must never name a channel or niche.
-3. **Part B card at Gate 2 as well as Gate 1?** Proposed: Gate 1 only (the check reads the script, and Gate 2 has no new information for it). Confirm.
+3. **DECIDED 1 Nov (founder): the Part B card shows at Gate 1 only.** Gate 2 has no new information for it.
 4. **DECIDED 1 Nov (founder): Part A covers Shorts and long-form in this task.** Build and live-check Shorts first (the kind that ships daily), then long-form in the same task and PRs. Long-form is not deferred to a new task. R0 reports any difference between the two kinds at the intake-to-script step; the live checks include one Short and one long-form run.
 5. **DECIDED 1 Nov (founder): yes.** One server-side switch for the whole feature (a deploy-time flag, not a channel setting), and a "write from the brief" (skip) choice on the Part A card.
-6. **When Part A is skipped, what does Part B check against?** Proposed: nothing is inferred; the promise-match step records "not run: no chosen angle" and cannot cause a FAIL. Inferring a promise from the script would let the script grade itself.
-7. **Spend ceilings** (proposed in the Spend section; the founder confirms before work starts).
+6. **DECIDED 1 Nov (founder): when Part A is skipped, nothing is inferred.** The promise-match step records "not run: no chosen angle" and cannot cause a FAIL.
+7. **DECIDED 1 Nov (founder): spend ceilings confirmed** as proposed in the Spend section ($0.10 per run for Part A, $0.15 per run for Part B, $1.50 ceiling for all live checks; the live checks include one Short and one long-form run).
 
 ## Objective
 
@@ -176,4 +176,5 @@ The code (no file was read; every code fact above is marked "confirm" or comes f
 - r1, 2026-11-01: first issue. Calibration on past videos removed by the founder (to be done later by the architect on live daily videos); Part C tags runs by pipeline version; Part C analytics is a read-only finding.
 - r2, 2026-11-01 (architect): item named P19 (P16 is creative direction); Task 2 references removed (cancelled 29 Oct); Task 1 and #139 recorded as merged; added the prompt-review step and the P16 overlap check. The seven open founder decisions are unchanged and still need answers before work starts.
 - r3, 2026-11-01 (architect): decision 4 recorded as decided (Shorts first, long-form in this task).
-- r4, 2026-11-01 (architect): decisions 2 (neutral persona for all) and 5 (switch and skip) recorded as decided. Open: 1, 3, 6, 7.
+- r4, 2026-11-01 (architect): decisions 2 (neutral persona for all) and 5 (switch and skip) recorded as decided.
+- r5, 2026-11-01 (architect): decisions 1, 3, 6 and 7 recorded as decided; all seven are answered. Revision line at the top says r2; this log is the record (r2 to r5).
