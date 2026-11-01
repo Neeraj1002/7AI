@@ -108,6 +108,9 @@ export function hardFailureReason(
       return `Duration ${video.toFixed(1)}s is over the ${profile.maxDurationSec}s maximum`;
     }
     const narration = durations?.narrationSeconds;
+    if (profile.minNarrationFraction !== null && narration && narration > 0 && video < narration * profile.minNarrationFraction) {
+      return `Duration ${video.toFixed(1)}s is under the ${(narration * profile.minNarrationFraction).toFixed(1)}s minimum for a ${narration.toFixed(1)}s narration: the video is cut off before the voiceover ends`;
+    }
     if (profile.narrationToleranceFraction !== null && narration && narration > 0) {
       const gap = Math.abs(video - narration) / narration;
       if (gap > profile.narrationToleranceFraction) {

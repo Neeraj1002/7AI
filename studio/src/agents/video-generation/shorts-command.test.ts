@@ -46,6 +46,8 @@ describe('Shorts render command', () => {
       },
     });
     const notes = JSON.parse(await fs.readFile(result.artifacts.ffmpegArgsJsonPath, 'utf-8')) as { args: string[]; cwd: string; filterComplex: string };
+    // setpts after fps cut a 36 s stock picture to 13 s on the production ffmpeg: it must not come back.
+    expect(notes.filterComplex).not.toContain('setpts');
     const normalised = normalise(notes.args, notes.cwd, result.artifacts.ttsAudioPath);
     expect(normalised).toMatchInlineSnapshot(`
       [
@@ -55,7 +57,7 @@ describe('Shorts render command', () => {
         "-i",
         "<tts>",
         "-filter_complex",
-        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,setpts=N/(30*TB),tpad=stop_mode=clone:stop_duration=1.20,ass=1.ass:fontsdir=../../fonts[outv];[1:a]aformat=channel_layouts=stereo,apad=pad_dur=0.700,loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=<n>:measured_TP=<n>:measured_LRA=<n>:measured_thresh=<n>:offset=<n>:linear=true,aresample=48000[outa]",
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,tpad=stop_mode=clone:stop_duration=1.20,ass=1.ass:fontsdir=../../fonts[outv];[1:a]aformat=channel_layouts=stereo,apad=pad_dur=0.700,loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=<n>:measured_TP=<n>:measured_LRA=<n>:measured_thresh=<n>:offset=<n>:linear=true,aresample=48000[outa]",
         "-map",
         "[outv]",
         "-map",

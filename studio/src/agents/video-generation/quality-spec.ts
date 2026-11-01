@@ -100,7 +100,17 @@ export type QualityProfile = {
   maxDurationSec: number;
   // Allowed gap between the video and the narration, as a fraction of the narration. null = unchecked.
   narrationToleranceFraction: number | null;
+  // Shorts: the video must be at least this fraction of the voice's own length (derived per video, not a fixed number of
+  // seconds), so a cut-off render is rejected. null = unchecked.
+  minNarrationFraction: number | null;
 };
+
+// Two measurements of the same voice (the file's own length and the transcription's) may differ by at most this.
+export const VOICE_LENGTH_TOLERANCE_SECONDS = 1;
+// The mux must land within this of voice length + END_TAIL_SECONDS.
+export const FINAL_LENGTH_TOLERANCE_SECONDS = 1;
+// A Short may be shorter than its voice by at most this fraction before Video Review rejects it (the tail adds, never subtracts).
+export const SHORT_MIN_NARRATION_FRACTION = 0.97;
 
 export const LONG_FORM_SPEC = {
   width: 1920,
@@ -112,6 +122,7 @@ export const LONG_FORM_SPEC = {
   // 15 minutes plus the same 2% slack the narration match allows (the end tail sits on top of it).
   maxDurationSec: 918,
   narrationToleranceFraction: 0.02,
+  minNarrationFraction: null,
   // A still may be held up to this many times its planned length before the shot row warns.
   maxShotFactor: 1.5,
   defaultSecondsPerStill: 5,
@@ -127,6 +138,7 @@ export const SHORT_PROFILE: QualityProfile = {
   minDurationSec: null,
   maxDurationSec: 60,
   narrationToleranceFraction: null,
+  minNarrationFraction: SHORT_MIN_NARRATION_FRACTION,
 };
 
 export function qualityProfileFor(videoKind: 'short' | 'long' | undefined, secondsPerStill?: number | null): QualityProfile {
@@ -142,6 +154,7 @@ export function qualityProfileFor(videoKind: 'short' | 'long' | undefined, secon
     minDurationSec: LONG_FORM_SPEC.minDurationSec,
     maxDurationSec: LONG_FORM_SPEC.maxDurationSec,
     narrationToleranceFraction: LONG_FORM_SPEC.narrationToleranceFraction,
+    minNarrationFraction: null,
   };
 }
 

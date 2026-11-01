@@ -67,6 +67,7 @@ import { resolveVoicePace } from './length-forecast';
 import { sumUsageCostForRun } from '../models/repositories/usage-event.repository';
 import type { ScriptChapter } from '../agents/script-generation/long-form';
 import { createStillsProgressReporter } from './stills-progress';
+import { logFfmpegVersion } from '../media/ffmpeg-version';
 import { generateVideo, type VideoArtifacts, type VideoGenerationOutput, type VideoGenerationUsage } from '../agents/video-generation';
 import { planVideoProduction, computeDesiredStillCount, AUDIO_LAYERS, type AudioLayer, type ProductionPlan, type VisualSource } from '../agents/video-generation/plan';
 import { reviewVideo, MAX_VIDEO_REGEN_ATTEMPTS } from '../agents/video-intelligence';
@@ -202,6 +203,7 @@ async function recordRepeatTopicWarning(
 }
 
 export async function runIntakeStage(runId: string): Promise<PipelineRun> {
+  await logFfmpegVersion(`pipeline start, run ${runId}`);
   const run = await findPipelineRunById(runId);
   if (!run) {
     throw new Error(`PipelineRun ${runId} not found`);
@@ -1556,7 +1558,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   if (!videoGenStage || videoGenStage.status !== 'completed' || !videoGenStage.output) {
     throw new Error(`PipelineRun ${runId} has no completed video_generation output — cannot run video_review`);
   }
-  const videoOutput = videoGenStage.output as { videoPath?: string; plan?: { visualSource?: string } };
+  const videoOutput = videoGenStage.output as { videoPath?: string; plan?: { visualSource?: string }; narrationSeconds?: number };
   if (!videoOutput.videoPath) {
     throw new Error(`PipelineRun ${runId}'s video_generation output has no videoPath`);
   }
@@ -1620,6 +1622,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
       captionsEnabled: isLongForm ? false : channel.brandAssets.captionsEnabled !== false,
       safetyChecks: env.AI_VISUALS_SAFETY_NEGATIVES_ENABLED === '1',
       ...(isLongForm && longFormReview),
+      // A Short is checked against the length of its own voiceover (Video Review rejects a cut-off render).
+      ...(!isLongForm && typeof videoOutput.narrationSeconds === 'number' && { narrationSeconds: videoOutput.narrationSeconds }),
       ...(sceneMap && { sceneMap }),
       ...(flaggedStills && flaggedStills.length > 0 && { flaggedStills }),
     });

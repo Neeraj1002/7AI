@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterAll } from 'vitest';
+import { describe, it, expect, vi, afterAll, beforeEach } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
   synthesizeSpeech: vi.fn(),
   transcribe: vi.fn(),
   generateStills: vi.fn(),
+  probeMediaSeconds: vi.fn(),
 }));
+vi.mock('./duration-guards', async (orig) => ({ ...(await orig<object>()), probeMediaSeconds: mocks.probeMediaSeconds }));
 vi.mock('../../media', async (orig) => ({
   ...(await orig<object>()),
   synthesizeSpeech: mocks.synthesizeSpeech,
@@ -63,6 +65,8 @@ const base = (runId: string, spend: ReturnType<typeof emptyVideoSpend>) => {
 };
 
 describe('generateVideo records spend before a failure', () => {
+  beforeEach(() => mocks.probeMediaSeconds.mockResolvedValue(2));
+
   it('keeps the TTS cost when transcription fails', async () => {
     mocks.synthesizeSpeech.mockResolvedValue({ audioPath: '/tmp/x.mp3', characterCount: 18, costUsd: '0.000540' });
     mocks.transcribe.mockRejectedValue(new Error('whisper down'));
@@ -86,6 +90,20 @@ describe('generateVideo records spend before a failure', () => {
     expect(spend.stillsModel).toBe('gpt-image-1.5');
     const usage = failedRenderUsage(spend, new Error('x'))!;
     expect(Number(usage.costUsd)).toBeCloseTo(0.00054 + 0.0002 + 0.026, 6);
+  });
+});
+
+describe('voice length guard', () => {
+  it('fails before any picture is built when the voice file and the transcription disagree, and keeps the spend', async () => {
+    mocks.synthesizeSpeech.mockResolvedValue({ audioPath: '/tmp/x.mp3', characterCount: 18, costUsd: '0.000540' });
+    mocks.transcribe.mockResolvedValue({ segments: [{ text: 'Hello', startMs: 0, endMs: 500 }], audioDurationSeconds: 2, costUsd: '0.000200' });
+    mocks.probeMediaSeconds.mockResolvedValue(35.4);
+    mocks.generateStills.mockClear();
+    const spend = emptyVideoSpend(STUBS);
+    await expect(generateVideo(base('closure2-voice-guard', spend))).rejects.toThrow(/voiceover file is 35\.4s but the transcription heard 2\.0s/);
+    expect(mocks.generateStills).not.toHaveBeenCalled();
+    expect(spend.ttsCostUsd).toBeCloseTo(0.00054, 6);
+    expect(spend.transcriptionCostUsd).toBeCloseTo(0.0002, 6);
   });
 });
 

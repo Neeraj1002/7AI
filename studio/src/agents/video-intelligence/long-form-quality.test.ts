@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateQualityRows, hardFailureReason, collectSoftWarnings } from './quality-metrics';
+import { evaluateQualityRows, hardFailureReason, collectSoftWarnings, classifyHardFailure } from './quality-metrics';
 import { qualityProfileFor, SHORT_PROFILE, QUALITY_SPEC } from '../video-generation/quality-spec';
 import { buildSystemPrompt, chapterSampleTimestamps, locatedVisualDefects, MAX_REVIEW_FRAMES } from './index';
 import { buildUserMessage, LONG_FORM_SYSTEM_PROMPT, SYSTEM_PROMPT, ScriptReviewOutputSchema } from '../script-review';
@@ -106,10 +106,11 @@ describe('long-form hard failures', () => {
     )).toBeNull();
   });
 
-  it('a Short ignores the long-form duration rules and still wants 1080x1920', () => {
+  it('a Short ignores the long-form length rules (96 s minimum, 2% tolerance) and still wants 1080x1920', () => {
     const short = metrics({ width: 1080, height: 1920 });
     expect(hardFailureReason(short)).toBeNull();
-    expect(hardFailureReason(short, SHORT_PROFILE, { videoSeconds: 30, narrationSeconds: 50 })).toBeNull();
+    expect(hardFailureReason(short, SHORT_PROFILE, { videoSeconds: 30, narrationSeconds: 30 })).toBeNull();
+    expect(hardFailureReason(short, SHORT_PROFILE, { videoSeconds: 30.7, narrationSeconds: 30 })).toBeNull();
     expect(hardFailureReason(metrics())).toMatch(/Wrong resolution/);
   });
 });
@@ -195,5 +196,29 @@ describe('script review rubric selection', () => {
     expect(ScriptReviewOutputSchema.parse(out).chapterNotes).toBeUndefined();
     const withNotes = ScriptReviewOutputSchema.parse({ ...out, chapterNotes: [{ chapterTitle: 'a', note: 'b' }] });
     expect(withNotes.chapterNotes).toEqual([{ chapterTitle: 'a', note: 'b' }]);
+  });
+});
+
+describe('Short minimum derived from the voiceover', () => {
+  const shortMetrics = () => metrics({ width: 1080, height: 1920 });
+
+  it('rejects a Short far shorter than its own voiceover, with the duration code', () => {
+    const reason = hardFailureReason(shortMetrics(), SHORT_PROFILE, { videoSeconds: 13.33, narrationSeconds: 35.4 });
+    expect(reason).toMatch(/Duration 13\.3s is under the .*minimum for a 35\.4s narration/);
+    expect(reason).toMatch(/cut off/);
+    expect(classifyHardFailure(reason!)).toBe('duration');
+  });
+
+  it('passes a Short that holds the voiceover plus its end tail, whatever its length', () => {
+    expect(hardFailureReason(shortMetrics(), SHORT_PROFILE, { videoSeconds: 36.1, narrationSeconds: 35.4 })).toBeNull();
+    expect(hardFailureReason(shortMetrics(), SHORT_PROFILE, { videoSeconds: 15.7, narrationSeconds: 15 })).toBeNull();
+  });
+
+  it('does not apply without a narration length (older stage rows)', () => {
+    expect(hardFailureReason(shortMetrics(), SHORT_PROFILE, { videoSeconds: 13.33 })).toBeNull();
+  });
+
+  it('is not set for long-form, which has its own tolerance', () => {
+    expect(longProfile.minNarrationFraction).toBeNull();
   });
 });

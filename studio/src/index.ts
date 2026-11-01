@@ -1,5 +1,6 @@
 import { env } from './config/env';
 import { resumeOnStartup } from './run-pipeline/resume-on-startup';
+import { logFfmpegVersion } from './media/ffmpeg-version';
 import { runGateReminderCheck } from './run-pipeline/gate-reminder';
 import { runFounderDigestCheck } from './run-pipeline/founder-digest';
 import { startApiServer } from './api/server';
@@ -130,6 +131,7 @@ async function main(): Promise<void> {
     console.warn('[boot] R2 not configured — drafts/final/bundles will NOT be uploaded');
   }
 
+  await logFfmpegVersion('server start');
   await resumeOnStartup();
 
   startPerformanceAnalyticsPoller();
