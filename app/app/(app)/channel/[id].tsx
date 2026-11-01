@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
+import { shouldOfferProfileSetup } from '../../../lib/profile-setup';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { inferRouterInputs } from '@trpc/server';
 import { useTRPC, useTRPCClient } from '../../../lib/trpc';
@@ -50,9 +51,8 @@ export default function ChannelSettingsScreen() {
 
   const operational = useQuery(trpc.dashboard.operational.queryOptions({ channelId: id }));
   const cost = useQuery(trpc.dashboard.cost.queryOptions({ channelId: id }));
-  // Sprint 4 FE E5 — a profile owns the default voice and style guide once it exists.
+  // A profile owns the default voice and script guide; the screen only links to it.
   const profile = useQuery(trpc.channels.getActiveProfile.queryOptions({ channelId: id }));
-  const hasProfile = Boolean(profile.data);
 
   // U16: the delete warning lists only what really applies to this channel.
   const activeRuns = useQuery(
@@ -367,7 +367,7 @@ export default function ChannelSettingsScreen() {
       {showVoiceLook ? (
         <Card>
           <Text style={styles.cardTitle}>Voice &amp; look</Text>
-          {!hasProfile && !profile.isLoading ? (
+          {shouldOfferProfileSetup(profile) ? (
             <Pressable
               style={styles.row}
               onPress={() => router.push({ pathname: '/channel/[id]/profile', params: { id: channel.id } })}
