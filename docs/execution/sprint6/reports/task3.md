@@ -259,3 +259,34 @@ vitest: 201 files passed, 1 skipped; 1900 tests passed, 9 skipped, 0 failed. `ts
 ### Counts after the small fixes (sandbox database, `--maxWorkers=4`)
 
 vitest: 201 files passed, 1 skipped; 1901 tests passed, 9 skipped, 0 failed. `tsc --noEmit`: 0 errors. `eslint src`: no output (no errors, no warnings). The sandbox database was dropped afterwards.
+
+## Live check: Part B prompts (1 Nov, after the merge of #143)
+
+**What was run.** `studio/scripts/story-script-live-check.ts`: the approved cold-reader and promise-match prompts (exactly as merged), through `runScriptStep` and the registry (Sonnet 5.5, `callJson`, no retry), on three real saved scripts. No database, `STORY_TESTS_ENABLED` not set anywhere. The scripts are read from files, not written for this check: `docs/execution/sprint6/reports/task1-spike-assets/after-rating/scripts/` (`eiffel.txt`, `lego.txt`, `mary-celeste.txt`, header lines dropped).
+
+| Case | Words | Source | Format used |
+|---|---|---|---|
+| eiffel | 276 | Gate-1-approved dev run (Task 1 spike copy) | short (a 2-minute video) |
+| lego | 324 | real `generateScript()` output from a fixture brief, **not approved** | short (a 2-minute video) |
+| mary-celeste | 1662 | real `generateScript()` output from a fixture brief, **not approved** | long |
+
+**Two honest limits on the inputs.** Both "Shorts" are 2-minute videos (276 and 324 words), not 45-second Shorts; I found no shorter saved script. And no Part A run exists for these scripts, so the promise given to the match check is each brief's own subject line (a stand-in for a chosen angle's promise). That means the match check was exercised, but not on a real chosen angle.
+
+| Case | Cost vs $0.15 cap | Calls | Parsed first time | Swipe line found | Needed quote/space matching | Verdict | Reasons |
+|---|---|---|---|---|---|---|---|
+| eiffel | $0.00948 | 2 | yes | yes, exact, at 39.7% | no | pass | none |
+| lego | $0.00929 | 2 | yes | reader said `none` | n/a | pass | none |
+| mary-celeste | $0.01609 | 2 | yes | yes, exact, at 49.9% | no | pass | none |
+
+"Parsed first time" is shown by the call count: the guard refuses any extra provider call, so two calls per case means no retry happened. The weakest-sentence quote was also an exact string in the script in all three. Promise match: `yes` on both answers in all three.
+
+**Cost.** This step: **$0.03487**. Running total for the PR: $0.0215 + $0.03487 = **$0.05637 of the $1.50 ceiling** (step approval was up to $0.50). The most expensive run used about 11% of the Part B cap.
+
+**Behaviour, with the evidence kept honest.** Nothing behaved badly: every reply parsed, every quoted line was found without normalisation, no verdict looked wrong on reading. Things worth the architect's eye, not defects:
+- All three came back **pass**. With three samples this says the prompts are wired and well-formed; it says nothing about whether the check would catch a weak script. We did not test a deliberately weak script, and I did not invent one.
+- In the Eiffel case the swipe line is a mid-script sentence (an iron-and-rivets fact), not a clear drop-off; the reader's `why_care` was positive. The reader names a swipe line even when it is content, so the swipe position (39.7%) is the only thing separating "would swipe" from "least engaging line". The verdict logic reads position only; the cases above would not fail it.
+- The Mary Celeste swipe quote is two sentences long and matched exactly; the quote-and-space matching added in the review round was therefore not exercised live (it is covered by unit tests).
+
+**What a text-only reader cannot judge, and calibration.** The reader sees only the words. It cannot judge voice, delivery, pacing, music, the first frame, thumbnail or title, captions, or what the pictures show, and it cannot tell whether a fact is true. For a Short, the hook a viewer feels in the first second is often visual. The readers are a model imitating a stranger; they have **not been calibrated** against real viewers or real retention, so a pass is not evidence a video will hold attention and a fail is not evidence it will lose it. They are advisory only and should be read that way (the card says so).
+
+**Not verified.** No weak or short (under 60 seconds) script was tried; no real chosen-angle promise; one run per script (no repeat to see variance); no run through the full pipeline with the switch on.
