@@ -56,3 +56,17 @@ Worst case per call is checked before it is made: input at about 4 characters a 
 ### Plain statement
 
 The readers are text-only. They cannot judge voice, pacing or visuals, they are advisory, and they are not calibrated against any past or live video.
+
+### Live wiring check (1 Nov, `studio/scripts/story-angles-live-check.ts`)
+
+One Short and one long-form run on neutral subjects, with the founder-supplied prompts. Wiring only, not a judgment of the angles.
+
+| | Short | Long |
+|---|---|---|
+| Result | 5 valid angles, clear winner (a2, both reads) | 5 valid angles, no clear winner (a2 then a5) |
+| Calls | angles 368 out, $0.0048; readers $0.0028 each | angles 402 out, $0.0052; readers $0.0029 each |
+| Run total | $0.0104 | $0.0111 |
+
+Total $0.0215 against the $1.50 ceiling; each run is about a tenth of the $0.10 cap. Model for writer and both readers: `claude-sonnet-5-5` (one family only). Replies parsed first time, no cut-offs, no retries, titles within 70 characters, the second read was the first reversed, and the readers' reasons were one line each.
+
+**Finding: the figure flag is noisy.** Script Review's number reader counts number words, so "two basic forces" and "if you can't answer one" were flagged as figures the brief does not give, and "3" and "5" were flagged correctly. 4 of 5 flags in the check were number words used as plain words. Reused as-is per R1; for the architect: keep, or ignore spelled-out numbers for this flag.
