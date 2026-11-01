@@ -17,6 +17,7 @@ import { ProductionPlanSchema, type AudioLayer, type CaptionStyle, type Producti
 import { DATA_DIR } from '../../config/paths';
 import { QUALITY_SPEC, END_TAIL_SECONDS } from './quality-spec';
 import { probeMediaSeconds, voiceLengthMismatch, finalLengthMismatch } from './duration-guards';
+import { audioTimelineProblem, probeAudioTimeline } from './audio-guards';
 import { alignScriptToWhisper, assertCaptionFontPresent, buildAss, groupCaptionCues, FONTS_DIR, type TimedWord } from './captions-ass';
 import { HOOK_SECONDS } from '../../packaging/constants';
 import { applyFrameZero } from '../../packaging/opening';
@@ -669,15 +670,14 @@ export async function generateVideo(params: {
     tailSeconds,
     voiceDurationSeconds: asr.audioDurationSeconds,
   });
-  const audioFilterChain = `;${buildAudioFilterGraph({
+  const audioFilterChain = buildAudioFilterGraph({
     voiceInputIndex: 1,
     bedInputIndex: audioBedTrack ? audioBedInputIndex : undefined,
     bedGainDb,
     measured,
     tailSeconds,
     voiceDurationSeconds: asr.audioDurationSeconds,
-  })}`;
-  const filterComplex = `${videoFilterChain}${audioFilterChain}`;
+  });
 
   const ffmpegArgs = [
     '-y',
@@ -691,8 +691,12 @@ export async function generateVideo(params: {
     tts.audioPath,
     ...(hasLocalWatermark ? ['-i', watermarkPath as string] : []),
     ...(audioBedTrack ? ['-stream_loop', '-1', '-i', audioBedTrack.filePath] : []),
+    // Two graphs, not one: on the production ffmpeg (8.0.1) a single graph holding both chains dropped about 3 s chunks of
+    // audio whenever the picture was a real stock file (the AI-stills picture was unaffected). The filters are unchanged.
     '-filter_complex',
-    filterComplex,
+    videoFilterChain,
+    '-filter_complex',
+    audioFilterChain,
     '-map',
     '[outv]',
     '-map',
@@ -729,7 +733,7 @@ export async function generateVideo(params: {
   const ffmpegArgsJsonPath = path.join(outputDir, `${params.attemptNumber}.ffmpeg-args.json`);
   await fs.writeFile(
     ffmpegArgsJsonPath,
-    JSON.stringify({ ffmpegPath: env.FFMPEG_PATH, cwd: outputDir, args: ffmpegArgs, filterComplex }, null, 2),
+    JSON.stringify({ ffmpegPath: env.FFMPEG_PATH, cwd: outputDir, args: ffmpegArgs, filterGraphs: { video: videoFilterChain, audio: audioFilterChain } }, null, 2),
     'utf-8',
   );
 
@@ -739,6 +743,9 @@ export async function generateVideo(params: {
   const durationSeconds = await probeDurationSeconds(videoPath);
   const finalMismatch = finalLengthMismatch(durationSeconds, voiceSeconds, tailSeconds);
   if (finalMismatch) throw new NonTransientStageError(finalMismatch);
+  // The audio must be all there: packet timestamps with no hole, and the packet count the audio's length needs.
+  const audioProblem = audioTimelineProblem(await probeAudioTimeline(videoPath));
+  if (audioProblem) throw new NonTransientStageError(audioProblem);
 
   const ttsEntry = resolveMediaPurpose('tts', params.voice);
   const transcriptionEntry = resolveMediaPurpose('transcription');
