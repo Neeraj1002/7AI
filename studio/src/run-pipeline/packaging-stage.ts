@@ -84,7 +84,7 @@ export async function ensurePackagingForGate2(params: {
   videoGenOutput: unknown;
 }): Promise<PackagingOutput | null> {
   const { run, channel, gateRow } = params;
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   // PR A covers the long video. A Short's package is its title, hook and first frame (Task 1 PR C).
   if (config.videoKind !== 'long') return null;
 
@@ -203,7 +203,7 @@ export async function ensureShortOpening(params: {
   stageId: string;
 }): Promise<{ hookLine: string | null; firstStillPrompt: string | null } | undefined> {
   const { run, channel } = params;
-  const config = await loadResolvedConfig(run, channel);
+  const config = await loadResolvedConfig(run);
   if (config.videoKind !== 'short') return undefined;
   const look = { stylePrompt: config.visualStylePrompt, titleGuidance: config.titleGuidance };
   const hash = scriptHashOf(params.scriptText, look);

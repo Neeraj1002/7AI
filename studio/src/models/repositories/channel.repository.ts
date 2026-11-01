@@ -10,13 +10,11 @@ function toDomainChannel(row: PrismaChannel): Channel {
     name: row.name,
     externalChannelId: row.externalChannelId,
     nicheDescription: row.nicheDescription,
-    styleGuide: row.styleGuide,
     brandAssets: (row.brandAssets ?? {}) as Channel['brandAssets'],
     postingCadence: row.postingCadence,
     approvalGateConfig: row.approvalGateConfig as Channel['approvalGateConfig'],
     priorsScope: row.priorsScope as PriorsScope,
     budgetOverrideUsd: row.budgetOverrideUsd ? row.budgetOverrideUsd.toString() : null,
-    defaultVoice: row.defaultVoice,
     activeProfileVersionId: row.activeProfileVersionId,
     defaultPrivacyStatus: row.defaultPrivacyStatus as Channel['defaultPrivacyStatus'],
     ownerUserId: row.ownerUserId,
@@ -73,7 +71,6 @@ export async function insertChannel(input: CreateChannelInput): Promise<Channel>
       platform: input.platform,
       name: input.name,
       nicheDescription: input.nicheDescription,
-      styleGuide: input.styleGuide,
       postingCadence: input.postingCadence,
       priorsScope: input.priorsScope,
       ownerUserId: input.ownerUserId,
@@ -88,9 +85,7 @@ export async function insertChannel(input: CreateChannelInput): Promise<Channel>
 export type ChannelPatch = {
   name?: string;
   nicheDescription?: string;
-  styleGuide?: string | null;
   defaultPrivacyStatus?: Channel['defaultPrivacyStatus'];
-  defaultVoice?: string | null;
   budgetOverrideUsd?: string | null;
   isActive?: boolean;
 };
@@ -152,9 +147,7 @@ export async function updateChannel(id: string, patch: ChannelPatch): Promise<Ch
   const data: ChannelPatch = {};
   if (patch.name !== undefined) data.name = patch.name;
   if (patch.nicheDescription !== undefined) data.nicheDescription = patch.nicheDescription;
-  if (patch.styleGuide !== undefined) data.styleGuide = patch.styleGuide;
   if (patch.defaultPrivacyStatus !== undefined) data.defaultPrivacyStatus = patch.defaultPrivacyStatus;
-  if (patch.defaultVoice !== undefined) data.defaultVoice = patch.defaultVoice;
   if (patch.budgetOverrideUsd !== undefined) data.budgetOverrideUsd = patch.budgetOverrideUsd;
   if (patch.isActive !== undefined) data.isActive = patch.isActive;
   const row = await prisma.channel.update({ where: { id }, data });

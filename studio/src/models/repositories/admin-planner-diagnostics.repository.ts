@@ -10,7 +10,7 @@ import type { PipelineRun, PipelineStage } from '../../types';
 // usage rows, no mutation/SQL interface, no provider calls or eligibility consumption.
 export async function readPlannerDiagnostics(runId: string, attemptNumber?: number): Promise<PlannerDiagnostics | null> {
   const [row, stage, system] = await Promise.all([
-    prisma.pipelineRun.findUnique({ where: { id: runId }, include: { channel: { select: { styleGuide: true, defaultVoice: true } } } }),
+    prisma.pipelineRun.findUnique({ where: { id: runId } }),
     prisma.pipelineStage.findFirst({ where: { pipelineRunId: runId, stageName: 'video_generation', ...(attemptNumber === undefined ? {} : { attemptNumber }) }, orderBy: { attemptNumber: 'desc' } }),
     getSystemInfo(),
   ]);
@@ -36,7 +36,7 @@ export async function readPlannerDiagnostics(runId: string, attemptNumber?: numb
           prisma.pipelineStage.findFirst({ where: { pipelineRunId: runId, stageName: 'video_generation' }, orderBy: { attemptNumber: 'desc' }, select: { id: true } }),
           prisma.pipelineStage.findFirst({ where: { pipelineRunId: runId, stageName: 'gate1' }, orderBy: { attemptNumber: 'desc' } }),
           prisma.reviewLog.findFirst({ where: { pipelineRunId: runId, OR: [{ agent: 'video-intelligence-own-draft', verdict: 'fail' }, { agent: 'human', verdict: 'revise' }] }, orderBy: [{ timestamp: 'desc' }, { id: 'desc' }], select: { rationale: true } }),
-          loadResolvedConfig(run, row.channel),
+          loadResolvedConfig(run),
         ]);
         recovery.legacyEligible = latest?.id === stage.id
           ? Boolean(legacyPlannerRecoveryCheckpoint(run, selected, gate as unknown as PipelineStage | null, config, note?.rationale)) : false;

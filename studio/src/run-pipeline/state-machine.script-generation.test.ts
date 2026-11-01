@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { env } from '../config/env';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   findPipelineRunById: vi.fn(),
@@ -83,7 +82,7 @@ beforeEach(() => {
     intakeParsed: { topic: 'topic', constraints: [] },
     creationOptions: null,
   });
-  mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', styleGuide: null, isActive: true });
+  mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', isActive: true });
   mocks.findLatestAttempt.mockResolvedValue(null);
   mocks.findLatestCompletedAttempt.mockResolvedValue(null);
   mocks.runScriptCheckForRun.mockResolvedValue(null);
@@ -94,16 +93,9 @@ beforeEach(() => {
   mocks.listReviewLogsForRun.mockResolvedValue([]);
 });
 
-describe('chosen-angle lookup follows the switch (Sprint 6 Task 3)', () => {
+describe('chosen-angle lookup (Sprint 6 Task 3)', () => {
   const intakeReads = () => mocks.findLatestCompletedAttempt.mock.calls.filter((c) => c[1] === 'intake');
-  afterEach(() => { env.STORY_TESTS_ENABLED = ''; });
-  it('switch off: the intake stage is not read at all', async () => {
-    env.STORY_TESTS_ENABLED = '';
-    await runScriptGenerationStage(RUN_ID);
-    expect(intakeReads()).toHaveLength(0);
-  });
-  it('switch on: the intake stage is read for the chosen angle', async () => {
-    env.STORY_TESTS_ENABLED = '1';
+  it('the intake stage is read for the chosen angle', async () => {
     await runScriptGenerationStage(RUN_ID);
     expect(intakeReads()).toHaveLength(1);
   });
@@ -229,7 +221,7 @@ describe('SR retry concern handoff and existing Gate 1 transitions', () => {
   const violations = ['SR-2: restore "full day" exactly.'];
   const reviewOutput = (score: number) => ({ score, notes: 'Review notes.', hookScore: 8, hookNotes: 'Hook.', videoGenFit: { fitsLengthLimit: true, pacingRealistic: true, visualsProducible: true, flags: [] }, factualConcerns: concerns, styleGuideViolations: violations });
   function setup(attempt: number, score: number, gate1Enabled = true) {
-    mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', styleGuide: null, isActive: true, approvalGateConfig: { gate1Enabled } });
+    mocks.findChannelById.mockResolvedValue({ id: 'c1', platform: 'youtube', isActive: true, approvalGateConfig: { gate1Enabled } });
     mocks.findLatestAttempt.mockImplementation(async (_id, name) => name === 'script_generation'
       ? { status: 'completed', attemptNumber: attempt, input: { briefText: 'Stored founder brief' }, output: OUTPUT }
       : attempt > 1 ? { attemptNumber: attempt - 1 } : null);
@@ -284,7 +276,7 @@ describe('SR retry concern handoff and existing Gate 1 transitions', () => {
       expect(mocks.completeStage).toHaveBeenCalledWith('stage-1', expect.objectContaining({ storyTest: stored }), expect.anything());
       expect(mocks.updatePipelineRun).toHaveBeenCalledWith(RUN_ID, { status: 'running', currentStage: 'video_generation' }, expect.anything());
     });
-    it('with the feature off the stage output is exactly the review output', async () => {
+    it('a script check that returns no record leaves the stage output exactly the review output', async () => {
       setup(1, 8);
       await runScriptReviewStage(RUN_ID);
       expect(mocks.completeStage.mock.calls[0][1]).not.toHaveProperty('storyTest');

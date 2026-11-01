@@ -1,4 +1,3 @@
-import { env } from '../config/env';
 import type { Purpose } from '../llm';
 import { prisma } from '../models/prisma-client';
 import { insertUsageEvent, sumStoryAngleCostForRun, sumStoryScriptCostForRun } from '../models/repositories/usage-event.repository';
@@ -16,16 +15,10 @@ import { checkBudget } from './budget-gate';
 import { loadResolvedConfig } from './resolved-config';
 import { failureUsageEvents, llmUsageRows } from './stage-failure';
 
-// Sprint 6 Task 3, Part A, at the run level: the switch, the usage booking, and the founder's choice.
+// Sprint 6 Task 3, Part A, at the run level: the usage booking and the founder's choice. The feature is always on.
 
-export function storyTestsEnabled(): boolean {
-  return env.STORY_TESTS_ENABLED === '1';
-}
-
-// Runs inside intake, after its work and before it completes. Returns null when the feature is off (the run is exactly
-// as before). Never throws: a failure is recorded as "not run" and the script step follows.
+// Runs inside intake, after its work and before it completes. Never throws: a failure is recorded as "not run" and the script step follows.
 export async function runAngleStepForRun(params: { run: PipelineRun; stageId: string; intake: IntakeParsed }): Promise<StoredStoryTests | null> {
-  if (!storyTestsEnabled()) return null;
   const { run } = params;
   try {
     const channel = await findChannelById(run.channelId);
@@ -34,7 +27,7 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
     if (skipReason) return notRunStoryTests(skipReason);
     const budget = await checkBudget(run.tenantId, channel.id, channel.platform);
     if (!budget.ok) return notRunStoryTests("the channel's spending limit is reached");
-    const config = await loadResolvedConfig(run, channel);
+    const config = await loadResolvedConfig(run);
     // The $0.10 cap is per run: a second intake attempt starts from what Part A already spent.
     const priorSpentUsd = await sumStoryAngleCostForRun(run.id);
     return await runAngleStep({
@@ -65,11 +58,9 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
   }
 }
 
-// Part B, at the run level: runs inside the script review stage, once, for the script that is going to Gate 1. Returns null
-// when the feature is off (the stage output is exactly as before). Never throws: a failure is recorded as "not run" and the
+// Part B, at the run level: runs inside the script review stage, once, for the script that is going to Gate 1. Never throws: a failure is recorded as "not run" and the
 // run goes on. It never enters Script Review's score or retry loop, and it cannot change a run's outcome.
 export async function runScriptCheckForRun(params: { run: PipelineRun; stageId: string; scriptText: string; format: 'short' | 'long'; persona: string | null }): Promise<StoredScriptCheck | null> {
-  if (!storyTestsEnabled()) return null;
   const { run } = params;
   try {
     const channel = await findChannelById(run.channelId);

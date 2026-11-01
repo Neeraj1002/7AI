@@ -13,7 +13,6 @@ import { listRuns, updatePipelineRun } from '../../models/repositories/pipeline-
 import { hasPendingApproval, resolvePendingApproval } from '../../notifications';
 import type { Context } from '../trpc';
 import { PrivacyStatusSchema } from '../../agents/publishing';
-import { TTS_VOICE_KEYS } from '../../media';
 import { deleteForChannel, findByChannel } from '../../models/repositories/agent-credential.repository';
 import { buildYoutubeConnectUrl } from '../../manage-channels/youtube-oauth-connect';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
@@ -21,11 +20,12 @@ import { loadChannelBudgetView, validateBudgetOverride, budgetDilutionWarning, N
 import { createChannelWithCapCheck, ChannelCapExceededError } from '../../manage-channels/channel-cap';
 import { CreateChannelInputSchema } from '../../types';
 import type { Channel } from '../../types';
-import { ChannelProfileDataSchema } from '../../channel-profile';
+import { ChannelProfileDataSchema, resolveChannelConfig, type ChannelProfileData } from '../../channel-profile';
 import { CONTENT_FORMATS, findFormat, type ContentFormat } from '../../formats/manifest';
 import {
   insertProfileVersion,
   findActiveProfileForChannel,
+  findActiveProfileDataByChannelIds,
   listProfileVersionsForChannel,
 } from '../../models/repositories/channel-profile-version.repository';
 
@@ -44,12 +44,16 @@ async function loadReadableChannel(channelId: string, ctx: Context): Promise<Cha
 // token is Task 5's own failure-handling concern, surfaced at publish/poll
 // time, not here). Shared by list/get/create so all three report the exact
 // same derived field the same way.
+// `defaultVoice` keeps its old name so installed app builds keep working, but its value comes from the
+// channel's active profile (audio.defaultVoice, else the platform default), never from a Channel column.
 async function withHasYoutubeCredential(
   channel: Channel,
-): Promise<Channel & { hasYoutubeCredential: boolean; youtubeNeedsReconnect: boolean }> {
+  profile: ChannelProfileData | null,
+): Promise<Channel & { hasYoutubeCredential: boolean; youtubeNeedsReconnect: boolean; defaultVoice: string }> {
   const credential = await findByChannel(channel.id);
   return {
     ...channel,
+    defaultVoice: resolveChannelConfig({ profile }).audioDefaultVoice,
     hasYoutubeCredential: credential !== null,
     // Bugs Task 12 (R13): the credential exists but Google rejected it (invalid_grant) - show "Reconnect needed".
     youtubeNeedsReconnect: credential !== null && Boolean(channel.brandAssets.youtubeAuthError),
@@ -84,7 +88,8 @@ export const channelsRouter = router({
   // MVP_TENANT_ID.
   list: publicProcedure.query(async ({ ctx }) => {
     const channels = await listActiveChannelsByTenant(ctx.tenantId);
-    return Promise.all(channels.map(withHasYoutubeCredential));
+    const profiles = await findActiveProfileDataByChannelIds(channels.map((c) => c.id));
+    return Promise.all(channels.map((c) => withHasYoutubeCredential(c, profiles.get(c.id) ?? null)));
   }),
 
   // GET /channels/:id — Sprint 3 Task 6 (N2). Same tenant-scoping as list —
@@ -99,7 +104,8 @@ export const channelsRouter = router({
       if (!channel || channel.tenantId !== ctx.tenantId) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Channel ${input.channelId} not found` });
       }
-      return withHasYoutubeCredential(channel);
+      const profiles = await findActiveProfileDataByChannelIds([channel.id]);
+      return withHasYoutubeCredential(channel, profiles.get(channel.id) ?? null);
     }),
 
   // Sprint 4 Task 6: the static format list for the brief form's picker. Plain
@@ -188,7 +194,7 @@ export const channelsRouter = router({
           .then(budgetDilutionWarning)
           .catch(() => null);
         if (budgetWarning) console.warn(`[channels.create] tenant ${ctx.tenantId}: ${budgetWarning}`);
-        return { ...withHasYoutubeCredential(channel), budgetWarning };
+        return { ...(await withHasYoutubeCredential(channel, null)), budgetWarning };
       } catch (error) {
         if (error instanceof ChannelCapExceededError) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: error.message, cause: error });
@@ -258,12 +264,6 @@ export const channelsRouter = router({
         name: z.string().min(1).optional(),
         nicheDescription: z.string().min(1).optional(),
         defaultPrivacyStatus: PrivacyStatusSchema.optional(),
-        // Sprint 3 Task 9 (R1) — null clears the override (falls back to the
-        // channel's/pipeline's own existing default), omitted leaves it
-        // unchanged; same optional-vs-null distinction Task 8/R2 already
-        // established for this mutation.
-        styleGuide: z.string().nullable().optional(),
-        defaultVoice: z.enum(TTS_VOICE_KEYS).nullable().optional(),
         captionsEnabled: z.boolean().optional(),
         budgetOverrideUsd: z.number().positive().multipleOf(0.01).nullable().optional(),
         // Sprint 3 Task 9 (R2) — Gate 1/Gate 2 toggles. Gate 1 has no
@@ -316,8 +316,6 @@ export const channelsRouter = router({
         name: input.name,
         nicheDescription: input.nicheDescription,
         defaultPrivacyStatus: input.defaultPrivacyStatus,
-        styleGuide: input.styleGuide,
-        defaultVoice: input.defaultVoice,
         budgetOverrideUsd: input.budgetOverrideUsd !== undefined ? input.budgetOverrideUsd?.toString() ?? null : undefined,
       });
       // brandAssets is a shared JSON column (R3 also writes watermarkUrl into
@@ -332,7 +330,8 @@ export const channelsRouter = router({
         if (input.gate2Enabled !== undefined) gatePatch.gate2Enabled = input.gate2Enabled;
         updated = await updateChannelApprovalGateConfig(channel.id, gatePatch);
       }
-      return withHasYoutubeCredential(updated);
+      const profiles = await findActiveProfileDataByChannelIds([updated.id]);
+      return withHasYoutubeCredential(updated, profiles.get(updated.id) ?? null);
     }),
   // POST /channels.archive — Sprint 3 Task 8 (R3). One-way soft delete: no
   // restore path by design. Steps run in order, each independently safe to

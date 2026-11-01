@@ -4,10 +4,10 @@ import { ChannelProfileDataSchema } from './schema';
 import type { ChannelProfileData } from './schema';
 import { DEFAULT_TTS_VOICE } from '../media';
 
-const none = { profile: null, legacyStyleGuide: null, legacyDefaultVoice: null };
+const none = { profile: null };
 
 describe('resolveChannelConfig', () => {
-  it('(a) no profile, no overrides, no legacy fields gives every platform default', () => {
+  it('(a) no profile, no overrides gives every platform default', () => {
     expect(resolveChannelConfig(none)).toEqual({
       scriptGuide: null,
       formatScriptStructure: null,
@@ -38,21 +38,32 @@ describe('resolveChannelConfig', () => {
     expect(resolveChannelConfig({ ...none, profile: {} })).toEqual(resolveChannelConfig(none));
   });
 
-  it('(b) a legacy-only channel keeps its styleGuide and defaultVoice, everything else default', () => {
-    const out = resolveChannelConfig({ profile: null, legacyStyleGuide: 'be punchy', legacyDefaultVoice: 'onyx' });
-    expect(out).toEqual({
+  it('(b) a channel with no profile resolves to no script guide and the platform default voice', () => {
+    const out = resolveChannelConfig({ profile: null });
+    expect(out.scriptGuide).toBeNull();
+    expect(out.audioDefaultVoice).toBe(DEFAULT_TTS_VOICE);
+  });
+
+  it('(b) a profile with a guide and a voice resolves to them, everything else default', () => {
+    const profile: ChannelProfileData = { script: { guide: 'be punchy' }, audio: { defaultVoice: 'onyx' } };
+    expect(resolveChannelConfig({ profile })).toEqual({
       ...resolveChannelConfig(none),
       scriptGuide: 'be punchy',
       audioDefaultVoice: 'onyx',
     });
   });
 
-  it('(c) voice: run override > profile > legacy > platform default', () => {
+  it('(b) a profile without a voice resolves to the platform default voice', () => {
+    const out = resolveChannelConfig({ profile: { script: { guide: 'g' } } });
+    expect(out.scriptGuide).toBe('g');
+    expect(out.audioDefaultVoice).toBe(DEFAULT_TTS_VOICE);
+  });
+
+  it('(c) voice: run override > profile > platform default', () => {
     const profile: ChannelProfileData = { audio: { defaultVoice: 'nova' } };
-    const base = { profile, legacyStyleGuide: null, legacyDefaultVoice: 'onyx' };
+    const base = { profile };
     expect(resolveChannelConfig({ ...base, runOverrideVoice: 'cedar' }).audioDefaultVoice).toBe('cedar');
     expect(resolveChannelConfig(base).audioDefaultVoice).toBe('nova');
-    expect(resolveChannelConfig({ ...base, profile: null }).audioDefaultVoice).toBe('onyx');
     expect(resolveChannelConfig(none).audioDefaultVoice).toBe(DEFAULT_TTS_VOICE);
   });
 
@@ -63,15 +74,6 @@ describe('resolveChannelConfig', () => {
     ).toBe('stock-footage');
     expect(resolveChannelConfig({ ...none, profile }).visualDefaultSource).toBe('ai-stills');
     expect(resolveChannelConfig(none).visualDefaultSource).toBeNull();
-  });
-
-  it('script guide: profile wins over the legacy styleGuide', () => {
-    const out = resolveChannelConfig({
-      profile: { script: { guide: 'new' } },
-      legacyStyleGuide: 'old',
-      legacyDefaultVoice: null,
-    });
-    expect(out.scriptGuide).toBe('new');
   });
 
   it('audio layer: run override wins over the profile mood tag', () => {

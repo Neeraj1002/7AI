@@ -274,8 +274,8 @@ describe('scriptCheck view', () => {
     const { call } = scripted(reply());
     const stored = await runScriptStep({ ...base, deps: { ...noMeter, call } });
     const intake = { topic: 't', constraints: [], storyTests: notRunStoryTests('Gate 1 is off for this channel') };
-    const without = buildStoryTestsView({ intakeOutput: intake, runStatus: 'paused_gate1', runStage: 'gate1', switchOn: true, scriptReviewOutput: { score: 8 }, currentScriptText: SHORT });
-    const withCheck = buildStoryTestsView({ intakeOutput: intake, runStatus: 'paused_gate1', runStage: 'gate1', switchOn: true, scriptReviewOutput: { score: 8, storyTest: stored }, currentScriptText: SHORT });
+    const without = buildStoryTestsView({ intakeOutput: intake, runStatus: 'paused_gate1', runStage: 'gate1', scriptReviewOutput: { score: 8 }, currentScriptText: SHORT });
+    const withCheck = buildStoryTestsView({ intakeOutput: intake, runStatus: 'paused_gate1', runStage: 'gate1', scriptReviewOutput: { score: 8, storyTest: stored }, currentScriptText: SHORT });
     expect(without?.scriptCheck).toBeNull();
     expect(withCheck?.scriptCheck?.verdict).toBe('pass');
   });

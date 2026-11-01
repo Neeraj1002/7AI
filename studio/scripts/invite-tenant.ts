@@ -6,7 +6,7 @@
 // 2 Task 4). Not a public signup form — Task 1's own note explicitly defers
 // self-serve account creation, matching MVP_PART2 §0's "~10 testers,
 // founder-controlled" framing. Same shape/convention as
-// scripts/set-channel-default-voice.ts.
+// scripts/set-channel-budget-override.ts.
 //
 // Usage:
 //   npx tsx scripts/invite-tenant.ts "<tenant name>" <ownerEmail> "<owner name>" [--weekly-budget <usd>]

@@ -18,7 +18,7 @@ import { findByChannel } from '../../models/repositories/agent-credential.reposi
 import { startPipelineInBackground, continuePipelineInBackground } from '../../run-pipeline/pipeline-runner';
 import { requestCancellation, isCancellationRequested, isActivelyDriven } from '../../run-pipeline/cancellation-registry';
 import { canResolveGate } from '../../run-pipeline/gate-ownership';
-import { persistAngleChoice, AngleChoiceError, storyTestsEnabled } from '../../run-pipeline/story-tests-stage';
+import { persistAngleChoice, AngleChoiceError } from '../../run-pipeline/story-tests-stage';
 import { buildStoryTestsView } from '../../story-tests/view';
 import { buildLearningRecord } from '../../story-tests/learning';
 import {
@@ -313,8 +313,6 @@ async function resolveVideoRequest(
   const profile = (await findActiveProfileForChannel(channel.id))?.data ?? null;
   const config = resolveChannelConfig({
     profile,
-    legacyStyleGuide: channel.styleGuide,
-    legacyDefaultVoice: channel.defaultVoice,
     runOverrideTargetSeconds: input.targetDurationSec,
     runOverrideVideoKind: videoKind,
     formatKey: input.formatKey,
@@ -374,7 +372,7 @@ async function getRunDetail(id: string, ctx: Context) {
   // since minting one on every `runs.get` poll would be wasteful).
   // Sprint 4 Task 9 (R1): the run's own snapshotted profile, so the chip "Video · 10 min" reads
   // the same values the pipeline does.
-  const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
+  const resolved = await loadResolvedConfig(run);
   // Sprint 5 Task 8 (R11.1): the Script tab shows the approved (possibly edited) script once there is one.
   const scriptVersions = deriveScriptVersions(stages);
   const scriptChapters = deriveDisplayChapters(stages);
@@ -421,7 +419,7 @@ async function getRunDetail(id: string, ctx: Context) {
   const latestIntake = stages.filter((s) => s.stageName === 'intake' && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
   const latestScriptReview = stages.filter((s) => s.stageName === 'script_review' && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
   const storyTests = buildStoryTestsView({
-    intakeOutput: latestIntake?.output, runStatus: run.status, runStage: run.currentStage, switchOn: storyTestsEnabled(),
+    intakeOutput: latestIntake?.output, runStatus: run.status, runStage: run.currentStage,
     scriptReviewOutput: latestScriptReview?.output, currentScriptText: forecastText ?? null,
   });
 
@@ -602,7 +600,7 @@ async function prepareRetry(run: PipelineRun, channel: Channel, maxCostUsd: numb
   const eligibleRecovery = isEligibleRecovery(failedTarget) || Boolean(run.creationOptions?.preflightBlock);
   let legacyRecovery = false;
   if (isLegacyPlannerRecoveryCandidate(run, failedTarget)) {
-    const [gate, config, logs] = await Promise.all([findLatestAttempt(run.id, 'gate1'), loadResolvedConfig(run, channel), listReviewLogsForRun(run.id)]);
+    const [gate, config, logs] = await Promise.all([findLatestAttempt(run.id, 'gate1'), loadResolvedConfig(run), listReviewLogsForRun(run.id)]);
     legacyRecovery = Boolean(legacyPlannerRecoveryCheckpoint(run, failedTarget, gate, config, latestPlanningFixNotes(logs)));
   }
   if (isRetryBlockedByCap(run, target, failedTarget, legacyRecovery)) {
@@ -775,8 +773,6 @@ export const runsRouter = router({
       const resolvedOptions = buildResolvedOptions({
         picks: { ...input, videoKind: request.videoKind },
         profile: request.profile,
-        legacyStyleGuide: channel.styleGuide,
-        legacyDefaultVoice: channel.defaultVoice,
       });
       // The voice this run will actually use, from any level (a stale channel default included), is
       // checked now so the user hears about it before the run exists, not at the Video step.
@@ -858,8 +854,7 @@ export const runsRouter = router({
       const run = await findPipelineRunById(input.runId);
       if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `PipelineRun ${input.runId} not found` });
       if (run.tenantId !== ctx.tenantId) throw new TRPCError({ code: 'FORBIDDEN', message: `You are not allowed to view run ${input.runId}` });
-      const channel = await findChannelById(run.channelId);
-      const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
+      const resolved = await loadResolvedConfig(run);
       const pace = await resolveVoicePace(run.tenantId, resolved.audioDefaultVoice);
       return forecastLength({ text: input.scriptText, targetSeconds: resolved.targetSeconds, wordsPerMinute: pace.wordsPerMinute, paceSource: pace.source });
     }),
@@ -1185,8 +1180,7 @@ export const runsRouter = router({
     const video = [...stages].reverse().find((st) => st.stageName === 'video_generation' && st.status === 'completed');
     const videoOut = video?.output as { durationSeconds?: number } | null | undefined;
     const videoSeconds = typeof videoOut?.durationSeconds === 'number' ? videoOut.durationSeconds : null;
-    const channel = await findChannelById(run.channelId);
-    const resolved = await loadResolvedConfig(run, channel ?? { styleGuide: null, defaultVoice: null });
+    const resolved = await loadResolvedConfig(run);
     const isLong = resolved.videoKind === 'long';
     const packagingCostUsd = await sumPackagingCostForRun(input.runId);
     // A one-hour link per picture, so the app and the system browser can fetch it without a header.
@@ -1373,7 +1367,7 @@ export const runsRouter = router({
       if (input.maxCostUsd !== undefined) validateMaxCostUsd(run, input.maxCostUsd);
 
       const [config, stages, user, receipt] = await Promise.all([
-        loadResolvedConfig(run, channel),
+        loadResolvedConfig(run),
         listStagesForRun(run.id),
         // The name on the history line is a nicety: a failed lookup must not stop a settings change (userId is kept).
         ctx.userId ? findUserById(ctx.userId).catch(() => null) : Promise.resolve(null),
@@ -1459,8 +1453,6 @@ export const runsRouter = router({
     const resolvedOptions = buildResolvedOptions({
       picks: { ...picks, targetDurationSec: lengthWasPicked ? picks?.targetDurationSec : undefined },
       profile,
-      legacyStyleGuide: channel.styleGuide,
-      legacyDefaultVoice: channel.defaultVoice,
     });
     // Bugs (chapter bounds): the same brief check `create` applies, against the length this run will use.
     let intakeWarnings: string[] = [];

@@ -201,11 +201,10 @@ describe('applyAngleChoice and the view', () => {
     expect(first.ok && applyAngleChoice(first.next, 'a2', new Date())).toEqual({ ok: false, error: 'not_waiting' });
   });
   it('the view is null for an old run, "running" while angles are written, and carries plain labels', async () => {
-    expect(buildStoryTestsView({ intakeOutput: { topic: 't' }, runStatus: 'paused_gate1', runStage: 'gate1', switchOn: true })).toBeNull();
-    expect(buildStoryTestsView({ intakeOutput: null, runStatus: 'running', runStage: 'intake', switchOn: false })).toBeNull();
-    expect(buildStoryTestsView({ intakeOutput: null, runStatus: 'running', runStage: 'intake', switchOn: true })?.angleStep.status).toBe('running');
+    expect(buildStoryTestsView({ intakeOutput: { topic: 't' }, runStatus: 'paused_gate1', runStage: 'gate1' })).toBeNull();
+    expect(buildStoryTestsView({ intakeOutput: null, runStatus: 'running', runStage: 'intake' })?.angleStep.status).toBe('running');
     const w = await waiting();
-    const v = buildStoryTestsView({ intakeOutput: { storyTests: w }, runStatus: 'paused_angle', runStage: 'intake', switchOn: true })!;
+    const v = buildStoryTestsView({ intakeOutput: { storyTests: w }, runStatus: 'paused_angle', runStage: 'intake' })!;
     expect(v.angleStep.status).toBe('waiting');
     expect(v.angleStep.markLabel).toBe('Both reads picked the same angle');
     expect(v.angleStep.readerPicks).toHaveLength(2);

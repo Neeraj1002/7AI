@@ -1,6 +1,7 @@
 import { prisma } from '../prisma-client';
 import { currentBudgetWindowStart } from '../../run-pipeline/budget-gate';
 import { analyzeAllTenantBudgets } from './admin.repository';
+import { resolveChannelConfig, type ChannelProfileData } from '../../channel-profile';
 
 // Admin Sprint 1 (R5) - cross-tenant tenant views for the admin screens.
 // Structure only: no brief, no intakeParsed, no stage input/output, no
@@ -98,7 +99,7 @@ export async function getTenantForAdmin(tenantId: string) {
         platform: true,
         isActive: true,
         ownerUserId: true,
-        defaultVoice: true,
+        activeProfileVersion: { select: { data: true } },
         defaultPrivacyStatus: true,
         budgetOverrideUsd: true,
         agentCredential: { select: { updatedAt: true } },
@@ -158,7 +159,8 @@ export async function getTenantForAdmin(tenantId: string) {
         platform: c.platform,
         isActive: c.isActive,
         ownerUserId: c.ownerUserId,
-        defaultVoice: c.defaultVoice,
+        // Same value the channel reads send: the active profile's voice, else the platform default.
+        defaultVoice: resolveChannelConfig({ profile: (c.activeProfileVersion?.data as ChannelProfileData | undefined) ?? null }).audioDefaultVoice,
         defaultPrivacyStatus: c.defaultPrivacyStatus,
         budgetOverrideUsd: c.budgetOverrideUsd !== null ? Number(c.budgetOverrideUsd) : null,
         hasYoutubeCredential: credUpdated !== null,
