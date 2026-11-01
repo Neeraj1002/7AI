@@ -2,7 +2,7 @@
 
 **Date**: 2026-09-07 (registry shape, fallback, and library-boundary mechanics resolved same day, in a follow-up pass — see "Decision" below)
 **Status**: Design decided, including implementation mechanics. Implementation pending — Week 1's `parse-brief.ts` still calls `@anthropic-ai/sdk` directly, as a known, deliberate temporary coupling (see "Current state" below), not an oversight.
-**Related**: `AGENT_FLEET_DESIGN.md` Section 5.1 (this decision, summarized) and Section 8.1 (model tiering); `docs/execution/week1/BUSINESS_LOGIC.md` Section 2 (Intake Parsing)
+**Related**: `AGENT_FLEET_DESIGN.md` Section 5.1 (this decision, summarized) and Section 8.1 (model tiering); `docs/execution/week1/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Section 2 (Intake Parsing)
 
 ## Why
 

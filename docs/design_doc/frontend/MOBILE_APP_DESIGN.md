@@ -1,3 +1,5 @@
+Links to removed docs: see docs/ARCHIVE_INDEX.md (tag docs-archive-2026-10-26).
+
 # 7AI Mobile App: Design Direction
 
 **Status**: Proposed — framework and v1 scope below reflect founder confirmation (2026-09-09). Not yet broken into buildable tasks; see "Next step" at the bottom.

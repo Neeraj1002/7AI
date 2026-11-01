@@ -7,7 +7,7 @@ before Channel settings existed). Picked up by the UI/UX code agent from this fo
 `tasks/task5.md` before starting.** Hard rules apply (never push/merge to `main`, only commit to a branch you
 created, record every branch in `STATUS.md` the moment it exists).
 
-**Order — strict**: **Bugs Task 10** (`docs/execution/bugs/Sprint3/tasks/task10.md`, branch `BUGS_TASK10_CANCEL_PUSH`, PR #52: the
+**Order — strict**: **Bugs Task 10** (`docs/execution/bugs/Sprint3/tasks/task10.md` (archived, see docs/ARCHIVE_INDEX.md), branch `BUGS_TASK10_CANCEL_PUSH`, PR #52: the
 cancel-run fix and the push-notification fix) merges before any item here. The cancel fix was once reserved as
 "UI/UX task 7"; that task no longer exists, because the fix needs backend and app changes together and moved to
 the bugs track. Task 10's R5 adds `google-services.json` and changes the native fingerprint, so build these

@@ -192,6 +192,6 @@ npx vitest run script-generation script-review gate1
 `factualConcerns`-at-Gate-1 fix, named plainly as closing a pre-existing gap, not a new capability).
 
 ## Links & References
-- `sprint2/BUSINESS_LOGIC.md` Task 4 (G3) — where `factualConcerns` was added but never wired to
+- `sprint2/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Task 4 (G3) — where `factualConcerns` was added but never wired to
   Gate 1's message; this task closes that.
 - `sprint4/tasks/task1.md` — `resolveChannelConfig`, the shared resolver this task consumes.

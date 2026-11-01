@@ -1,3 +1,5 @@
+Links to removed docs: see docs/ARCHIVE_INDEX.md (tag docs-archive-2026-10-26).
+
 # MVP Part 2 — Multi-User Layer & Flexible Video Creation (Design Capture)
 
 **Status**: Not in scope yet. This is a thinking-ahead capture, written so that when Week 5 Task 2's

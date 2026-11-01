@@ -275,7 +275,7 @@ and frame-count numbers against the Sprint 2 baseline, the real per-attempt cost
 - An R2 lifecycle rule and temp-folder cleanup remain open (see Sprint 3 Task 13).
 
 ## Links & References
-- `docs/execution/sprint3/tasks/task13.md`: debug bundles (recommended before this task)
-- `docs/execution/sprint2/BUSINESS_LOGIC.md` Task 2: Ken Burns double-multiplication bug (R6's regression check)
-- `docs/execution/sprint2/tasks/task3.md`: audio-bed manifest and licence gate (R1, founder action)
+- `docs/execution/sprint3/tasks/task13.md` (archived, see docs/ARCHIVE_INDEX.md): debug bundles (recommended before this task)
+- `docs/execution/sprint2/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Task 2: Ken Burns double-multiplication bug (R6's regression check)
+- `docs/execution/sprint2/tasks/task3.md` (archived, see docs/ARCHIVE_INDEX.md): audio-bed manifest and licence gate (R1, founder action)
 - `docs/execution/sprint4/tasks/task3.md`: per-profile style/still count, built on top of this task

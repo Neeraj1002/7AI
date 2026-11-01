@@ -1,3 +1,5 @@
+Links to removed docs: see docs/ARCHIVE_INDEX.md (tag docs-archive-2026-10-26).
+
 # Bugs Status: Founder/Device-Tested Production Issues
 
 **Purpose**: not a sprint. This folder tracks real, founder-found bugs surfaced by actually running a

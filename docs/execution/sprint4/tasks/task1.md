@@ -339,7 +339,7 @@ Sprint 4's first task, also create `docs/execution/sprint4/STATUS.md` (archived,
 - The channel-agnostic content & setup proposal this sprint implements (kept in the `7AI` Claude
   Project — ask the founder if you need the source doc reproduced locally).
 - [SPRINT_ROADMAP.md](../../roadmap/SPRINT_ROADMAP.md) (archived, see docs/ARCHIVE_INDEX.md) — Sprint 4's place in the plan.
-- `sprint2/BUSINESS_LOGIC.md` Task 1 — the three-step resolution-order precedent this task's resolver
+- `sprint2/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Task 1 — the three-step resolution-order precedent this task's resolver
   extends to a fourth (profile) level.
 - `sprint4/tasks/task5.md` (R18) — the real consumer of `selfDeclaredMadeForKids`/`categoryId`/
   `defaultLanguage`, sent explicitly on upload instead of left to YouTube/channel defaults.

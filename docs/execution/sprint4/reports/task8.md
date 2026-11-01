@@ -75,7 +75,7 @@ Because the generic brief also went to `ai-stills`, the stock verification run u
 
 ### R6 — Ken Burns regression check (mandatory)
 
-Sprint 2 baseline (from `sprint2/BUSINESS_LOGIC.md` Task 2): ~17 s for 3 stills / ~10.5 s of video ≈ **1.6 s of render per output second**.
+Sprint 2 baseline (from `sprint2/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) Task 2): ~17 s for 3 stills / ~10.5 s of video ≈ **1.6 s of render per output second**.
 
 | Run | Stills | Output video | Ken Burns time | s per output second | Intermediate | Intermediate frames |
 |---|---|---|---|---|---|---|
@@ -115,7 +115,7 @@ For a similar ~40–45 s script the ai-stills attempt is roughly **5×** more ex
 
 ## Files Created/Modified
 
-- Created: `studio/src/agents/video-generation/{quality-spec,audio-mix,captions-ass,stock-shotlist}.ts`, `studio/src/agents/video-intelligence/quality-metrics.ts`, `studio/data/fonts/{Montserrat-ExtraBold.ttf,OFL.txt}`, `studio/scripts/measure-render.ts`, tests: `audio-mix.test.ts`, `captions-ass.test.ts`, `plan.test.ts`, `stock-shotlist.test.ts`, `quality-metrics.test.ts`, `stock-footage/client.test.ts`; docs `sprint3/tasks/task13.md`, `sprint4/tasks/task8.md` (synced), this report.
+- Created: `studio/src/agents/video-generation/{quality-spec,audio-mix,captions-ass,stock-shotlist}.ts`, `studio/src/agents/video-intelligence/quality-metrics.ts`, `studio/data/fonts/{Montserrat-ExtraBold.ttf,OFL.txt}`, `studio/scripts/measure-render.ts`, tests: `audio-mix.test.ts`, `captions-ass.test.ts`, `plan.test.ts`, `stock-shotlist.test.ts`, `quality-metrics.test.ts`, `stock-footage/client.test.ts`; docs `sprint3/tasks/task13.md` (archived, see docs/ARCHIVE_INDEX.md), `sprint4/tasks/task8.md` (synced), this report.
 - Modified: `.gitignore` (carve-out so `data/fonts/` is committed, same pattern as `audio-beds/`), `agents/video-generation/{index,plan}.ts` + `index.test.ts`, `agents/video-intelligence/index.ts`, `agents/gate2/index.ts`, `run-pipeline/state-machine.ts`, `ai-visuals/{client,types}.ts` + `client.test.ts`, `stock-footage/{client,stub,types}.ts`, `sprint4/STATUS.md` (archived, see docs/ARCHIVE_INDEX.md) (Task 8 row + Branch column), `sprint4/tasks/task3.md` (wording; see below).
 
 ## Schema Changes Applied

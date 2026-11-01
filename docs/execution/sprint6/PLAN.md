@@ -103,7 +103,7 @@ Sprint 7 overflow: anything not `Ready` by the time Sprint 6 is full, lowest pri
 - The YouTube AI-use declaration stays separate and content-derived.
 
 ## 4. Decisions made
-- 2026-10-19: P7 and P2 are one task in Sprint 5's bug folder: `docs/execution/sprint5/bugs/tasks/llm-registry.md` (Parts A and B for P7, Part C for P2). The old copy in `bugs/Sprint3/tasks/` is retired. Part C defers to Sprint 5 Task 8 R11.5 if that is already done or in progress.
+- 2026-10-19: P7 and P2 are one task in Sprint 5's bug folder: `docs/execution/sprint5/bugs/tasks/llm-registry.md` (Parts A and B for P7, Part C for P2). The old copy in `bugs/Sprint3/tasks/` (archived, see docs/ARCHIVE_INDEX.md) is retired. Part C defers to Sprint 5 Task 8 R11.5 if that is already done or in progress.
 - 2026-10-19: The visible "Imagined" tag from frame 0 is accepted for Shorts. (Spoken hook-versus-disclaimer order is still open.)
 - 2026-10-19: Every plan item carries a priority 1 to 4.
 - 2026-10-19: Brief and sources are entered in one box (P10), not separate fields.

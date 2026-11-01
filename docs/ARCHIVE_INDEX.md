@@ -47,7 +47,7 @@ Same tag, same restore command. Each file's links in live docs already carry the
 | a | Week 1 summary | `docs/execution/week1/reports/week1-summary.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/week1/reports/week1-summary.md` |
 | f | UI/UX protocol pointer (stub; the live copy is `docs/execution/ui-ux/UI_UX_AGENT_PROTOCOL.md`) | `docs/execution/UI_UX_AGENT_PROTOCOL.md` | `docs-archive-2026-10-26` | `git checkout docs-archive-2026-10-26 -- docs/execution/UI_UX_AGENT_PROTOCOL.md` |
 
-### Removed in the architect clean-up (2026-11-01)
+### Removed later, part 2 (same PR, 2026-11-01)
 
 Same tag, same restore command. Every live link to these pages now carries the archived marker. The `STATUS.md` and protocol lines that pointed at `sprint3/STATUS.md`, `sprint4/STATUS.md` and the roadmaps were rewritten.
 

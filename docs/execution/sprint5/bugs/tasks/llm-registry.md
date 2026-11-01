@@ -8,13 +8,13 @@
 
 **Git rules for this task**: template Hard rules 5 to 7 (task doc sync, pull `main` and docs-scope check before ready, who owns which doc) apply in full. The latest version of this file is in `D:\Study Material\7AI\docs\execution\sprint5\bugs\tasks\llm-registry.md`.
 
-**Where this task lives (founder decision, 19 Oct)**: bug work belongs to the active sprint. This task and its report sit in Sprint 5's bug folders. The hot-fixer protocol still names `docs/execution/bugs/Sprint3/tasks/` and `reports/`; for this task use `docs/execution/sprint5/bugs/tasks/` and `docs/execution/sprint5/bugs/reports/` instead. The protocol amendment is pending (Sprint 6 plan item P8); do not edit the protocol.
+**Where this task lives (founder decision, 19 Oct)**: bug work belongs to the active sprint. This task and its report sit in Sprint 5's bug folders. The hot-fixer protocol still names `docs/execution/bugs/Sprint3/tasks/` (archived, see docs/ARCHIVE_INDEX.md) and `reports/`; for this task use `docs/execution/sprint5/bugs/tasks/` and `docs/execution/sprint5/bugs/reports/` instead. The protocol amendment is pending (Sprint 6 plan item P8); do not edit the protocol.
 
 **Objective**: stop "reply was cut off at the output cap" failures for good. Today each LLM stage sets its own output cap, hidden reasoning can spend that cap before any answer is written, and a cut-off fails the stage at once with advice ("shorten the brief") that is wrong for an empty reply. After this task the registry owns every stage's model, output limit and reasoning setting; a cut-off recovers by itself once; the failure text names the real cause and carries the evidence; and tests plus a canary command keep it from coming back.
 
 **Duration** (estimate, report real hours): Part A about 4 hours, Part B about 1 day, Part C about 1 to 2 hours.
 
-**Depends On**: Bugs Task 11 (structured output and failure-path usage booking, R4 and R5 in `Sprint3/reports/task11.md`); Sprint 5 Task 8 R8.2, R8.6 and R9 (budget check before a paid call, a pricing row for every model, stages move to `claude-sonnet-5-5`); Sprint 5 Task 6 round 2 (PR #105, draft: reviewer on Sonnet 5.5 with structured output). Work on whatever is on `main` when you start. If one of them is still open, keep its registry entries and add the new fields beside them; do not wait for it and do not redo its work.
+**Depends On**: Bugs Task 11 (structured output and failure-path usage booking, R4 and R5 in `Sprint3/reports/task11.md` (archived, see docs/ARCHIVE_INDEX.md)); Sprint 5 Task 8 R8.2, R8.6 and R9 (budget check before a paid call, a pricing row for every model, stages move to `claude-sonnet-5-5`); Sprint 5 Task 6 round 2 (PR #105, draft: reviewer on Sonnet 5.5 with structured output). Work on whatever is on `main` when you start. If one of them is still open, keep its registry entries and add the new fields beside them; do not wait for it and do not redo its work.
 
 **Owning Component**: `studio/src/llm/` (`index.ts`, `client.ts`, `registry.ts`, `types.ts`, and the new files named below) and the agents that define their own output caps.
 
@@ -207,8 +207,8 @@ Verification bar (protocol): real calls, not "should work". For this task that m
 
 ## Links & References
 - `docs/execution/bugs/HOTFIXER_AGENT_PROTOCOL.md`, `docs/execution/templates/TASK_TEMPLATE.md`
-- `docs/execution/bugs/Sprint3/reports/task11.md` (R4 cap and cut-off rule, R5 repair and retry, structured output)
-- `docs/execution/week2/tasks/task1.md`, `docs/execution/week2/reports/task1.md` (`callLLM`, registry); `docs/execution/week5/reports/task4.md` (model tiers)
+- `docs/execution/bugs/Sprint3/reports/task11.md` (archived, see docs/ARCHIVE_INDEX.md) (R4 cap and cut-off rule, R5 repair and retry, structured output)
+- `docs/execution/week2/tasks/task1.md`, `docs/execution/week2/reports/task1.md` (archived, see docs/ARCHIVE_INDEX.md) (`callLLM`, registry); `docs/execution/week5/reports/task4.md` (archived, see docs/ARCHIVE_INDEX.md) (model tiers)
 - `docs/execution/sprint5/tasks/task8.md` (R8.2, R8.6, R9, R11.5), `task6.md` (D3, round 2), `task7.md` (R5 failure card)
 - Part C: `docs/execution/sprint4/tasks/hardening-thumbnail-phone-verification.md`, the Sprint 2 Task 5 task and report
 - `docs/decisions/LLM_AND_NOTIFICATION_CAPABILITY_LAYERS.md`

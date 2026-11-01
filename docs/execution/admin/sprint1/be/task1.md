@@ -593,7 +593,7 @@ founder merges the PR:
 ## Links & References
 - `docs/execution/admin/ADMIN_MODULE_DESIGN.md`, `ADMIN_TASK_TEMPLATE.md`
 - `docs/execution/bugs/Sprint3/closureTask.md` (archived, see docs/ARCHIVE_INDEX.md) (F9/F10 findings that motivate R6/R7)
-- `docs/execution/sprint3/BUSINESS_LOGIC.md` (J1/K1 auth and gate-ownership rules)
+- `docs/execution/sprint3/BUSINESS_LOGIC.md` (archived, see docs/ARCHIVE_INDEX.md) (J1/K1 auth and gate-ownership rules)
 - `docs/server/deployment/preview/detail.md`, `docs/server/usefulcmds.md` (VPS paths and `psql`)
 
 ## Git Workflow
