@@ -31,7 +31,9 @@ export function validateAngles(reply: AngleReply): { ok: true; angles: Array<{ i
 // gives is shown on the card; it is a flag, never a block.
 export function figureFlagFor(promise: string, sourceText: string): string | null {
   const known = new Set(normalizedNumbers(numericSourceText(sourceText)));
-  const missing = [...new Set(normalizedNumbers(promise))].filter((n) => !known.has(n));
+  // Digit figures only ("3", "40%", "1998"): the number reader also counts spelled-out words such as "two" or "one", which in a promise are plain words.
+  const digitTokens = promise.match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
+  const missing = [...new Set(digitTokens.flatMap((t) => normalizedNumbers(t)))].filter((n) => !known.has(n));
   if (missing.length === 0) return null;
   return `This promise uses ${missing.length === 1 ? 'a figure' : 'figures'} (${missing.join(', ')}) that your brief does not give.`;
 }

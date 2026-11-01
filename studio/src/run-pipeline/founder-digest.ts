@@ -127,7 +127,7 @@ export async function runFounderDigestCheck(): Promise<{ sent: boolean }> {
           orderBy: { updatedAt: 'desc' },
         }),
         prisma.pipelineRun.findMany({
-          where: { channelId: channel.id, status: { in: ['paused_gate1', 'paused_gate2'] } },
+          where: { channelId: channel.id, status: { in: ['paused_angle', 'paused_gate1', 'paused_gate2'] } },
           select: { id: true, briefText: true, status: true },
           orderBy: { updatedAt: 'desc' },
         }),

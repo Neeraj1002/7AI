@@ -58,6 +58,8 @@ describe('figure flag', () => {
     expect(figureFlagFor('Learn the 7 causes', 'a video about causes')).toContain('7');
     expect(figureFlagFor('Learn the 7 causes', 'cover the 7 causes')).toBeNull();
     expect(figureFlagFor('No numbers here', 'anything')).toBeNull();
+    expect(figureFlagFor('The two forces, answer one', 'a bridge video')).toBeNull();
+    expect(figureFlagFor('Back in 1998, 40% of them', 'a bridge video')).toContain('1998');
   });
 });
 

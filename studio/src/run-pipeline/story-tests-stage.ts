@@ -9,6 +9,7 @@ import { notRunStoryTests, runAngleStep } from '../story-tests/angle-step';
 import { readStoredStoryTests } from '../story-tests/view';
 import type { StoredStoryTests } from '../story-tests/schemas';
 import type { IntakeParsed, PipelineRun } from '../types';
+import { composeNotificationChannel, resolveNotificationRecipients } from '../notifications';
 import { checkBudget } from './budget-gate';
 import { loadResolvedConfig } from './resolved-config';
 import { failureUsageEvents, llmUsageRows } from './stage-failure';
@@ -55,6 +56,27 @@ export async function runAngleStepForRun(params: { run: PipelineRun; stageId: st
     console.error(`[story-tests] run ${run.id}: angle step failed, the script follows without it - ${error instanceof Error ? error.message : String(error)}`);
     return notRunStoryTests('the angle step stopped unexpectedly');
   }
+}
+
+// The notice: a short message to the channel's recipients when the run starts waiting for an angle, the way Gate 1 sends its
+// prompt. Best effort; the run is paused and the app shows it whether or not this reaches anyone (the reminder follows later).
+export async function notifyAngleWaiting(run: Pick<PipelineRun, 'id' | 'briefText' | 'channelId'>): Promise<void> {
+  try {
+    const channel = await findChannelById(run.channelId);
+    if (!channel) return;
+    const recipients = await resolveNotificationRecipients(channel);
+    const notifier = await composeNotificationChannel({ tenantId: channel.tenantId, channelId: channel.id, userIds: recipients.map((u) => u.id) });
+    await notifier.notify(formatAngleWaitingNotice({ channelName: channel.name, briefText: run.briefText }), { threadKey: run.id });
+  } catch (error) {
+    console.error(`[story-tests] run ${run.id}: could not send the angle notice - ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+export function formatAngleWaitingNotice(params: { channelName: string; briefText: string }): string {
+  const firstLine = (params.briefText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() ?? '').replace(/^topic:\s*/i, '');
+  const brief = firstLine.length > 80 ? firstLine.slice(0, 77) + '...' : firstLine;
+  const what = brief ? '"' + brief + '" on ' + params.channelName : params.channelName;
+  return 'Pick an angle: ' + what + ' has angles ready. Open the app to choose one before the script is written.';
 }
 
 export class AngleChoiceError extends Error {

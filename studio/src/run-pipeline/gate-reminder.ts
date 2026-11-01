@@ -23,12 +23,15 @@ const remindedRunIds = new Set<string>();
 
 let reminderCheckInFlight = false;
 
-function gateStageNameFor(status: 'paused_gate1' | 'paused_gate2'): StageName {
-  return status === 'paused_gate1' ? 'gate1' : 'gate2';
+type WaitingStatus = 'paused_angle' | 'paused_gate1' | 'paused_gate2';
+
+// Sprint 6 Task 3: a run waiting for an angle choice sits at the intake stage, so that is the row that says when it began waiting.
+function gateStageNameFor(status: WaitingStatus): StageName {
+  return status === 'paused_angle' ? 'intake' : status === 'paused_gate1' ? 'gate1' : 'gate2';
 }
 
-function gateLabelFor(status: 'paused_gate1' | 'paused_gate2'): string {
-  return status === 'paused_gate1' ? 'Gate 1' : 'Gate 2';
+function gateLabelFor(status: WaitingStatus): string {
+  return status === 'paused_angle' ? 'the angle choice' : status === 'paused_gate1' ? 'Gate 1' : 'Gate 2';
 }
 
 // Bugs Closure follow-up - a reminder names the channel and the brief's first line,
@@ -54,7 +57,7 @@ export async function runGateReminderCheck(): Promise<{ reminded: number }> {
   reminderCheckInFlight = true;
 
   try {
-    const pendingRuns = await listRuns({ statuses: ['paused_gate1', 'paused_gate2'] });
+    const pendingRuns = await listRuns({ statuses: ['paused_angle', 'paused_gate1', 'paused_gate2'] });
     const pendingIds = new Set(pendingRuns.map((run) => run.id));
     for (const id of remindedRunIds) {
       if (!pendingIds.has(id)) remindedRunIds.delete(id);
@@ -63,9 +66,9 @@ export async function runGateReminderCheck(): Promise<{ reminded: number }> {
     let reminded = 0;
     for (const run of pendingRuns) {
       if (remindedRunIds.has(run.id)) continue;
-      const status = run.status as 'paused_gate1' | 'paused_gate2';
+      const status = run.status as WaitingStatus;
       const gateStage = await findLatestAttempt(run.id, gateStageNameFor(status));
-      const openedAt = gateStage?.startedAt ?? gateStage?.createdAt;
+      const openedAt = status === 'paused_angle' ? (gateStage?.completedAt ?? gateStage?.updatedAt) : (gateStage?.startedAt ?? gateStage?.createdAt);
       if (!openedAt) continue;
 
       const openMs = Date.now() - openedAt.getTime();

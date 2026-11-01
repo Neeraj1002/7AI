@@ -8,7 +8,7 @@ import { claimPublishing, mutatePublishingReceipt, observePublishingSuccess,
   markFollowup, readPublishingReceipt, completePublishingReceipt, renewPublishing, savePublishingSession, parkPublishingAmbiguous } from '../models/repositories/publishing-recovery.repository';
 import { planCheckpointHash, reusableLongPlan } from './long-plan-checkpoint';
 import { prisma } from '../models/prisma-client';
-import { runAngleStepForRun } from './story-tests-stage';
+import { runAngleStepForRun, notifyAngleWaiting } from './story-tests-stage';
 import {
   createPipelineRun,
   findPipelineRunById,
@@ -285,6 +285,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
         tx,
       );
     });
+    if (pauseForAngle) await notifyAngleWaiting(advanced);
     // Sprint 4 Task 5 (R20/B16): best-effort, after the stage is already durable.
     await recordRepeatTopicWarning(runId, run.channelId, stage.id, output.topic);
     return advanced;
