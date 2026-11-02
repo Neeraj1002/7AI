@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted(() => ({
   findChannelById: vi.fn(),
   findActiveProfileForChannel: vi.fn(),
+  insertProfileVersion: vi.fn(),
 }));
 
 vi.mock('../../models/repositories/channel.repository', () => ({
@@ -15,7 +16,7 @@ vi.mock('../../models/repositories/channel.repository', () => ({
 }));
 vi.mock('../../models/repositories/channel-profile-version.repository', () => ({
   findActiveProfileForChannel: mocks.findActiveProfileForChannel,
-  insertProfileVersion: vi.fn(),
+  insertProfileVersion: mocks.insertProfileVersion,
   listProfileVersionsForChannel: vi.fn(),
 }));
 
@@ -28,7 +29,7 @@ const offered = (keys?: string[]) => mocks.findActiveProfileForChannel.mockResol
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.findChannelById.mockResolvedValue({ id: CHANNEL_ID, tenantId: 't1' });
+  mocks.findChannelById.mockResolvedValue({ id: CHANNEL_ID, tenantId: 't1', isActive: true });
   mocks.findActiveProfileForChannel.mockResolvedValue(null);
 });
 
@@ -73,5 +74,38 @@ describe('channels.listFormats', () => {
   it("another tenant's channel reads as not found", async () => {
     mocks.findChannelById.mockResolvedValue({ id: CHANNEL_ID, tenantId: 'other' });
     await expect(caller().listFormats({ channelId: CHANNEL_ID })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('channels.directionPresets and profile contract', () => {
+  it('returns server wording and the four approved presets', async () => {
+    const presets = await caller().directionPresets();
+    expect(presets.map((p) => p.key)).toEqual(['history', 'story-first', 'explainer', 'neutral']);
+    expect(presets[0]).toMatchObject({ version: 1, label: 'History documentary' });
+    expect(presets[0]?.parts.find((part) => part.key === 'persona')?.text).toContain('documentary storyteller');
+  });
+
+  it('rejects invalid direction data before saving', async () => {
+    for (const direction of [{ preset: 'unknown' }, { preset: 'history', note: 'x'.repeat(301) }, { preset: 'history', extra: true }]) {
+      await expect(caller().createProfileVersion({ channelId: CHANNEL_ID, data: { direction } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    }
+    expect(mocks.insertProfileVersion).not.toHaveBeenCalled();
+  });
+
+  it('saves a valid direction and returns advisory warnings', async () => {
+    mocks.insertProfileVersion.mockImplementation(async ({ data }) => ({ id: 'saved', data }));
+    const result = await caller().createProfileVersion({
+      channelId: CHANNEL_ID,
+      data: { direction: { preset: 'explainer' }, script: { guide: 'Use 12 words per sentence.' } },
+    });
+    expect(result).toMatchObject({ id: 'saved', warnings: [expect.stringContaining('numeric')] });
+    expect(mocks.insertProfileVersion).toHaveBeenCalledOnce();
+  });
+
+  it('does not read or write another tenant\'s profile', async () => {
+    mocks.findChannelById.mockResolvedValue({ id: CHANNEL_ID, tenantId: 'other' });
+    await expect(caller().getActiveProfile({ channelId: CHANNEL_ID })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(caller().createProfileVersion({ channelId: CHANNEL_ID, data: { direction: { preset: 'history' } } })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(mocks.insertProfileVersion).not.toHaveBeenCalled();
   });
 });

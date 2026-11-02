@@ -21,6 +21,8 @@ import { createChannelWithCapCheck, ChannelCapExceededError } from '../../manage
 import { CreateChannelInputSchema } from '../../types';
 import type { Channel } from '../../types';
 import { ChannelProfileDataSchema, resolveChannelConfig, type ChannelProfileData } from '../../channel-profile';
+import { DIRECTION_PRESETS, DIRECTION_PART_KEYS, DIRECTION_PART_LABELS } from '../../channel-direction/presets';
+import { profileDirectionWarnings } from '../../channel-direction/warnings';
 import { CONTENT_FORMATS, findFormat, type ContentFormat } from '../../formats/manifest';
 import {
   insertProfileVersion,
@@ -82,6 +84,17 @@ async function loadManageableChannel(
 }
 
 export const channelsRouter = router({
+  directionPresets: publicProcedure.query(() =>
+    DIRECTION_PRESETS.map((preset) => ({
+      key: preset.key,
+      version: preset.version,
+      label: preset.label,
+      summary: preset.summary,
+      parts: DIRECTION_PART_KEYS.flatMap((key) =>
+        preset.parts[key] ? [{ key, label: DIRECTION_PART_LABELS[key], text: preset.parts[key] }] : [],
+      ),
+    })),
+  ),
   // GET /channels — Channel switcher (Task 2), wired from day one even with
   // a single channel active (MOBILE_APP_DESIGN.md Section 4).
   // Sprint 3 Task 1 (J3) — the real signed-in session's tenant, never
@@ -149,11 +162,12 @@ export const channelsRouter = router({
           .join('; ');
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Invalid channel profile: ${detail}` });
       }
-      return insertProfileVersion({
+      const saved = await insertProfileVersion({
         channelId: channel.id,
         data: parsed.data,
         createdByUserId: ctx.userId ?? null,
       });
+      return { ...saved, warnings: profileDirectionWarnings(parsed.data) };
     }),
 
   // null when the channel has never had a profile: a valid, expected state.

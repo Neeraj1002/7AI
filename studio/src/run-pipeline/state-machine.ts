@@ -54,6 +54,8 @@ import {
 } from '../agents/script-review';
 import { requestGate1Decision } from '../agents/gate1';
 import { loadResolvedConfig } from './resolved-config';
+import { resolveChannelConfig } from '../channel-profile';
+import { findProfileVersionById } from '../models/repositories/channel-profile-version.repository';
 import { findLikelyRepeatTopic } from './repeat-topic';
 import { listRecentRunTopicsForChannel } from '../models/repositories/pipeline-run.repository';
 import { findGate1ApproverForRun } from '../models/repositories/review-log.repository';
@@ -122,7 +124,15 @@ export async function createRun(input: CreatePipelineRunInput): Promise<Pipeline
   // Sprint 4 Task 1: snapshot the channel active profile version onto the run;
   // it is never re-read from the channel later in the run life.
   const channel = await findChannelById(input.channelId);
-  return createPipelineRun(input, channel?.activeProfileVersionId ?? null);
+  const profileVersionId = channel?.activeProfileVersionId ?? null;
+  const version = profileVersionId ? await findProfileVersionById(profileVersionId) : null;
+  const { presetKey, presetVersion } = resolveChannelConfig({
+    profile: version?.data ?? null,
+  }).direction;
+  return createPipelineRun({
+    ...input,
+    creationOptions: { ...input.creationOptions, presetKey, presetVersion },
+  }, profileVersionId);
 }
 
 function nextStageAfter(stage: StageName): StageName | null {

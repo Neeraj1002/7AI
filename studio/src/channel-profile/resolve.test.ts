@@ -3,12 +3,19 @@ import { resolveChannelConfig } from './resolve';
 import { ChannelProfileDataSchema } from './schema';
 import type { ChannelProfileData } from './schema';
 import { DEFAULT_TTS_VOICE } from '../media';
+import { directionPreset } from '../channel-direction/presets';
 
 const none = { profile: null };
 
 describe('resolveChannelConfig', () => {
   it('(a) no profile, no overrides gives every platform default', () => {
     expect(resolveChannelConfig(none)).toEqual({
+      direction: {
+        presetKey: 'neutral',
+        presetVersion: 1,
+        parts: directionPreset('neutral').parts,
+        note: null,
+      },
       scriptGuide: null,
       formatScriptStructure: null,
       videoKind: 'short',
@@ -85,6 +92,14 @@ describe('resolveChannelConfig', () => {
 });
 
 describe('ChannelProfileDataSchema', () => {
+  it('accepts each direction and rejects unknown keys, long notes and extra fields', () => {
+    for (const preset of ['history', 'story-first', 'explainer', 'neutral']) {
+      expect(ChannelProfileDataSchema.safeParse({ direction: { preset } }).success).toBe(true);
+    }
+    expect(ChannelProfileDataSchema.safeParse({ direction: { preset: 'other' } }).success).toBe(false);
+    expect(ChannelProfileDataSchema.safeParse({ direction: { preset: 'history', note: 'x'.repeat(301) } }).success).toBe(false);
+    expect(ChannelProfileDataSchema.safeParse({ direction: { preset: 'history', typo: true } }).success).toBe(false);
+  });
   it('accepts {} and a normal profile', () => {
     expect(ChannelProfileDataSchema.safeParse({}).success).toBe(true);
     expect(ChannelProfileDataSchema.safeParse({ script: { guide: 'x', targetSeconds: 30 } }).success).toBe(true);

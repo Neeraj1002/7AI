@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TTS_VOICE_KEYS } from '../media';
 import { VISUAL_SOURCES, AUDIO_LAYERS } from '../agents/video-generation/plan';
 import { findFormat } from '../formats/manifest';
+import { DIRECTION_PRESET_KEYS } from '../channel-direction/presets';
 
 // Sprint 4 Task 1 (R1): the data a ChannelProfileVersion row holds. Only what
 // Sprint 4 Tasks 2-6 read; later sprints extend these same objects rather than
@@ -68,6 +69,10 @@ export const OfferedFormatKeysSchema = z
 export const ChannelProfileDataSchema = z
   .object({
     offeredFormatKeys: OfferedFormatKeysSchema.optional(),
+    direction: z.object({
+      preset: z.enum(DIRECTION_PRESET_KEYS),
+      note: z.string().max(300).optional(),
+    }).strict().optional(),
     script: ChannelProfileScriptSchema.optional(),
     visual: ChannelProfileVisualSchema.optional(),
     audio: ChannelProfileAudioSchema.optional(),

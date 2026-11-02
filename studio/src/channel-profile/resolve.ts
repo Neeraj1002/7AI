@@ -2,6 +2,15 @@ import type { ChannelProfileData } from './schema';
 import { DEFAULT_TTS_VOICE } from '../media';
 import { findFormat, type VideoKind } from '../formats/manifest';
 import { LONG_DEFAULT_SEC, SHORT_DEFAULT_SEC, SHORT_MAX_SEC } from '../formats/video-kind';
+import { directionPreset, type DirectionParts, type DirectionPresetKey } from '../channel-direction/presets';
+
+export const FALLBACK_PRESET: DirectionPresetKey = 'neutral';
+export type ResolvedDirection = {
+  presetKey: DirectionPresetKey;
+  presetVersion: number;
+  parts: DirectionParts;
+  note: string | null;
+};
 
 // Sprint 4 Task 1 (R3): the one shared resolver every later Sprint 4 task
 // reads. Pure and DB-free (same posture as media/registry.ts resolveVoice):
@@ -13,6 +22,7 @@ import { LONG_DEFAULT_SEC, SHORT_DEFAULT_SEC, SHORT_MAX_SEC } from '../formats/v
 // fallback is retired; the profile owns both).
 
 export type ResolvedChannelConfig = {
+  direction: ResolvedDirection;
   scriptGuide: string | null;
   // Sprint 4 Task 6: the chosen format's structural hint, null when no valid format.
   formatScriptStructure: string | null;
@@ -67,6 +77,15 @@ export function resolveChannelConfig(params: {
     profileSeconds ??
     (videoKind === 'long' ? LONG_DEFAULT_SEC : SHORT_DEFAULT_SEC);
   return {
+    direction: (() => {
+      const preset = directionPreset(p.direction?.preset ?? FALLBACK_PRESET);
+      return {
+        presetKey: preset.key,
+        presetVersion: preset.version,
+        parts: preset.parts,
+        note: p.direction?.note ?? null,
+      };
+    })(),
     scriptGuide: p.script?.guide ?? null,
     formatScriptStructure: format?.scriptStructure ?? null,
     videoKind,

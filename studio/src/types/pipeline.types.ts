@@ -39,6 +39,9 @@ export type PipelineRunStatus = (typeof PIPELINE_RUN_STATUSES)[number];
 // now so Sprint 2 Task 2/3 extend this one object instead of adding
 // parallel PipelineRun columns each time.
 export const CreationOptionsSchema = z.object({
+  // Server-owned direction version captured when the run pins its profile.
+  presetKey: z.enum(['history', 'story-first', 'explainer', 'neutral']).optional(),
+  presetVersion: z.number().int().positive().optional(),
   voice: z.string().optional(),
   visualSource: z.string().optional(),
   audioLayer: z.string().optional(),
