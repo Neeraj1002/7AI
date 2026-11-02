@@ -24,6 +24,15 @@ import { generatePublishingMetadata } from './publishing';
 import { buildSystemPrompt as buildShortPlanPrompt } from './video-generation/plan';
 import { buildSystemPrompt as buildLongPlanPrompt } from './video-generation/plan-long';
 import { buildSystemPrompt as buildFrameReviewPrompt } from './video-intelligence';
+import {
+  BRIEF_SYSTEM, CONCEPTS_SYSTEM, COLD_READER_SYSTEM,
+  briefUser, conceptsUser, coldReaderUser, thumbnailPrompt, renderScript,
+} from '../packaging/prompts';
+import {
+  DEFECT_SYSTEM, CRITIC_SYSTEM, PAYOFF_SYSTEM, COMPARE_SYSTEM,
+  defectUser, criticUser, payoffUser, compareUser,
+} from '../packaging/prompts-vision';
+import type { Concept } from '../packaging/schemas';
 
 const FILE = join(__dirname, 'prompt-goldens.json');
 
@@ -48,6 +57,26 @@ async function capture(): Promise<Record<string, string>> {
     'frame-short/stills': buildFrameReviewPrompt('ai-stills', true),
     'frame-short/stock': buildFrameReviewPrompt('stock-footage', false),
     'frame-long/stills': buildFrameReviewPrompt('ai-stills', true, { frameCount: 4 }),
+    'packaging/brief-system': BRIEF_SYSTEM,
+    'packaging/concepts-system': CONCEPTS_SYSTEM,
+    'packaging/cold-reader-system': COLD_READER_SYSTEM,
+    'packaging/brief-user': briefUser('A test script.', { titleGuidance: 'Plain titles' }),
+    'packaging/concepts-user': conceptsUser('A test script.', { question: 'How?' }, { titleGuidance: 'Plain titles', stylePrompt: 'Watercolour' }, 80, 'figure', ['no clear subject']),
+    'packaging/cold-reader-user': coldReaderUser([{ index: 1, title: 'A test title', lettering: 'ONE WORD' }]),
+    'packaging/thumbnail-prompt': thumbnailPrompt({ thumbnail: {
+      subject: 'a workshop', gazeOrGesture: 'seen from above', scale: 'room-sized',
+      threatOrMystery: 'one closed door', light: 'morning', composition: 'door on the left',
+      lettering: { zone: 'right' },
+    } } as Concept, { stylePrompt: 'Watercolour' }, 'figure'),
+    'packaging/render-script': renderScript('', [{ title: 'First', text: 'A test script.' }]),
+    'packaging/defect-system': DEFECT_SYSTEM,
+    'packaging/critic-system': CRITIC_SYSTEM,
+    'packaging/payoff-system': PAYOFF_SYSTEM,
+    'packaging/compare-system': COMPARE_SYSTEM,
+    'packaging/defect-user': defectUser(),
+    'packaging/critic-user': criticUser('A test title'),
+    'packaging/payoff-user': payoffUser({ renderedScript: 'A test script.', title: 'A test title', lettering: 'ONE WORD', question: 'How?', answeredAtQuote: 'A test script.' }),
+    'packaging/compare-user': compareUser('Title A', 'Title B'),
   };
   for (const videoKind of ['short', 'long'] as const) {
     llm.calls.length = 0;

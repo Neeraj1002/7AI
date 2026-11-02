@@ -1,8 +1,8 @@
 ﻿# Sprint 6 Task 4: Creative direction per channel
 
-**Branch / worktree / PR A:** `SPRINT6_TASK4A_BE` / `D:\Study Material\7AI-SPRINT6\task4a` / pending
+**Branch / worktree / PR A:** `SPRINT6_TASK4A_BE` / `D:\Study Material\7AI-SPRINT6\task4a` / #161
 **Task doc:** r6 on `origin/main` (founder selected r6; the base checkout's r1 copy is stale).
-**Status:** PR A implementation complete as one local commit; founder will push and open the PR; merged: no; deployed: no.
+**Status:** PR A is open. Architect review follow-up is prepared as a second local commit for the founder to push; merged: no; deployed: no.
 
 ## PR A — R0 confirmed / wrong / unknown (recorded before implementation choices)
 
@@ -47,9 +47,9 @@ npx tsx scripts/set-channel-directions.ts --tenant <tenant-uuid> --channel "Not 
 
 **Enforcement debt at PR A.** The prompt-neutrality source scan covers script writer/reviewer, frame review, planners, still check, metadata, packaging and format hints. Its explicit existing debt is the old history persona/rules in long writer, long reviewer, frame review, planners and format hints; the review-rule examples; the `historic` typeface mood. Any new unmatched niche line fails. PR B/C must shrink this list. The separate-task review-rule examples and dead score-cap text remain untouched.
 
-**Verification, 1–2 Nov:** on final base `4222a53`, focused suite **48/48**, backend and app typechecks, backend build, backend lint and direct app ESLint passed. App ESLint has two pre-existing warnings in untouched `app/lib/gate2-packaging.ts`. On earlier base `4efc56d`, the full backend suite was run once alone with one worker: **191 passed, 3 failed, 13 skipped files; 1,843 passed, 3 failed, 79 skipped tests**. Failures are named below; this full-suite count predates final main sync. Before that rebase, a full backend suite with `--maxWorkers=4` passed: 1,755 passed, 65 skipped. The app web build passed on `4efc56d` and has not been rerun on `4222a53`. `expo lint` fails because its wrapper splits the worktree path at the space. No model calls or paid evaluation; spend $0.
+**Verification, 1–2 Nov:** on final base `4222a53`, focused suite **48/48**, backend and app typechecks, backend build, backend lint and direct app ESLint passed. App ESLint has two pre-existing warnings in untouched `app/lib/gate2-packaging.ts`. On earlier base `4efc56d`, the full backend suite was run once alone with one worker: **191 passed, 3 failed, 13 skipped files; 1,843 passed, 3 failed, 79 skipped tests**. Failures are named below; this full-suite count predates final main sync and is superseded by the architect review follow-up result below. Before that rebase, a full backend suite with `--maxWorkers=4` passed: 1,755 passed, 65 skipped. `expo lint` fails because its wrapper splits the worktree path at the space. No model calls or paid evaluation; spend $0.
 
-**Delivery handoff:** automatic approval review initially rejected a push because it could not establish that the configured GitHub remote (`github.com/Neeraj1002/7AI`) was authorized. The founder then explicitly authorized it, but `gh auth status` still reported an invalid `Neeraj1002` token. He has now chosen to push the completed local branch himself. No retry or alternative push was attempted; no PR exists yet.
+**Delivery handoff:** PR #161 is open. The founder will push the architect review follow-up commit. This follow-up was not pushed or deployed locally.
 
 **Contract difference to resolve with the app task:** C2 says the neutral picker entry has no parts, but the approved neutral preset has generic nonempty parts. This API returns the approved generic parts so the picker can show what it sets. The architect should clarify C2 wording.
 
@@ -57,15 +57,39 @@ npx tsx scripts/set-channel-directions.ts --tenant <tenant-uuid> --channel "Not 
 
 **Named media test follow-up.** The earlier four-worker full suite timed out at 120 seconds in `src/agents/video-generation/long-narration.test.ts` ("chunks the long chapter, joins with the gaps, and times each chapter") and `src/agents/video-generation/shorts-command.test.ts` ("uses a constant frame clock and the shared AAC target"). On PR A, each file passed alone with one worker: 3/3 in 24.86 seconds and 1/1 in 26.75 seconds. On isolated clean `origin/main` (`4efc56d`), each passed alone: 3/3 in 33.33 seconds and 1/1 in 18.17 seconds. Thus neither fails on clean main in isolation. The final one-worker full suite still timed out in the long narration case (120 seconds); it did not report a Shorts render failure. It also timed out in `src/agents/video-generation/long-form.replay.test.ts` ("a chapter with too few scenes gets exactly the missing scenes", 300 seconds) with an `EBUSY` cleanup error, and `src/storage/attempt-bundle.test.ts` ("a stock revision muxes a fresh original voice file", 240 seconds). Those two files then passed alone on PR A: 2/2 in 97.98 seconds and 3/3 in 92.19 seconds. Clean-main isolated checks were run for the original two timeouts only. This evidence establishes suite-only timeouts here; it does not establish their root cause.
 
-**CI scope:** `.github/workflows/deploy.yml` runs on PRs into `main`. Its backend job runs studio typecheck, ESLint and build; its app job runs app typecheck, ESLint and app Vitest. **CI does not run the studio Vitest suite**; the local counts above are the only backend test evidence. PR check results are pending creation of the PR.
+**CI scope:** `.github/workflows/deploy.yml` runs on PRs into `main`. Its backend job runs studio typecheck, ESLint and build; its app job runs app typecheck, ESLint and app Vitest. **CI does not run the studio Vitest suite**; the local counts above are the only backend test evidence. The founder's push is needed before CI can validate this follow-up commit.
 
 **Hard rules:** 5 — r6 was already on `origin/main`; the founder selected it over the base checkout's stale r1, so no task-doc rewrite was made. 6 — rebased onto current main `4222a53`; docs diff contains only this report. 7 — this report is the only doc written; no `STATUS.md` or `PLAN.md` edit. 8 — do not close until founder confirms merge. 9 — initial same-cause debt is tracked by the source scan; full sweep is PR C.
 
-**Architect PLAN.md status:** Task 4 PR A code complete as one local commit, pending founder push and PR; production profile data, PR B baseline and PR B/C delivery remain pending.
+**Architect PLAN.md status:** Task 4 PR A is in review on PR #161; production profile data, PR B baseline and PR B/C delivery remain pending.
+
+### PR A architect review follow-up (second commit)
+
+The admin script now calls `setChannelDirections({ tenantId, assignments, live, repository, log })` in `channel-direction/admin-run.ts`; parsing, dry-run output, prechecks, version writes, recheck and post-save verification retain the prior behavior. Six integration tests ran against the dedicated local `sevenai_sprint6_task4_test` database, after applying the repository migrations and regenerating the Prisma client: **6 passed**. They prove dry-run output and no writes; unknown, duplicate and profile-less channel refusal without writes to the other channels; three live direction-only versions with the existing note retained; idempotent rerun; and a concurrent profile edit causing refusal before this script writes a version for that channel. The concurrent edit itself accounts for the one extra version in that fixture. The test skips against an ordinary development database.
+
+The packaging baseline adds 16 golden entries to `prompt-goldens.json` for the system and user prompt builders in `packaging/prompts.ts` and `packaging/prompts-vision.ts`, including thumbnail and render-script builders. Both packaging source files are byte-identical to `main`; all 21 prior golden entries remain byte-identical. The builders were already exported, so no prompt source edit was needed.
+
+| R0 audited consumer | Golden entry or entries |
+|---|---|
+| `agents/script-generation/index.ts` | `script-short/base`, `script-short/brief-only`, `script-short/packet-default`, `script-short/packet-brief-only` |
+| `agents/script-generation/long-form.ts` | `script-long/source`, `script-long/packet` |
+| `agents/script-review/index.ts` | `review-short/prompt`, `review-long/prompt`, `review-short/assembled`, `review-long/assembled`; `hard-cap-confirmation` covers its separate confirmation prompt |
+| `agents/video-intelligence/index.ts` | `frame-short/stills`, `frame-short/stock`, `frame-long/stills` |
+| `agents/video-generation/plan.ts` | `plan-short/free`, `plan-short/fixed` |
+| `agents/video-generation/plan-long.ts` | `plan-long/free`, `plan-long/fixed` |
+| `agents/video-generation/still-check.ts` | `still-check` |
+| `formats/manifest.ts` | **No direct golden** for its format brief templates and chapter hints. |
+| `agents/publishing/index.ts` | `metadata-short`, `metadata-long` |
+| `packaging/prompts.ts` | `packaging/brief-system`, `packaging/concepts-system`, `packaging/cold-reader-system`, `packaging/brief-user`, `packaging/concepts-user`, `packaging/cold-reader-user`, `packaging/thumbnail-prompt`, `packaging/render-script` |
+| `packaging/prompts-vision.ts` | `packaging/defect-system`, `packaging/critic-system`, `packaging/payoff-system`, `packaging/compare-system`, `packaging/defect-user`, `packaging/critic-user`, `packaging/payoff-user`, `packaging/compare-user` |
+
+**Final-head verification for this follow-up:** studio typecheck and ESLint passed; app web build passed on base `4222a53` (Expo web export, 1,274 modules). Before the suite, `Get-Process` showed only three pre-existing Node processes (PIDs 9988, 12372, 13912, all started 1 Nov), with no Vitest, FFmpeg, npm, ESLint, tsc or build process. The first Vitest command failed during config startup with `EPERM` creating a Vite temp file in the linked `node_modules`; it loaded no tests. With the required filesystem access, the one full studio run used `npm test -- --maxWorkers=1`, alone: **200 passed, 14 skipped files; 1,872 passed, 85 skipped tests; zero failures** (631.85 seconds). There are therefore no final-head failure names or isolated branch/clean-main comparisons to report. The earlier media timeouts described above are historical, not failures on this final head. **CI does not run the studio Vitest suite**, so these local counts are the only backend test evidence for this commit; the founder's push must trigger CI for the second commit.
 
 ### PR B
 
 Pending founder-run profile script and baseline evaluation.
+
+PR B adds `presetKey` and `presetVersion` to the Task 3 learning tags (`pipelineTags`), per architect ruling.
 
 ### PR C
 
