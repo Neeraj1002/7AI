@@ -76,6 +76,11 @@ export function describeStageOutcome(stage: StageInfoInput): StageOutcomeInfo {
       return { outcome: 'failed_error', errorClass: errorClassFromText(message), reason: message };
     }
     case 'completed': {
+      // Sprint 6 Task 1: a review that did not run is not a failed review and not a pass. It stays 'completed' (the
+      // shipped app only knows the words above) and carries the reason; runs.get sends the marker as reviewNotRun.
+      if (stage.stageName === 'video_review' && output.verdict === 'not_run') {
+        return { outcome: 'completed', reason: typeof output.rationale === 'string' ? output.rationale : 'Automated review did not run' };
+      }
       if (stage.stageName === 'video_review' && output.verdict === 'fail') {
         return {
           outcome: 'failed_review',

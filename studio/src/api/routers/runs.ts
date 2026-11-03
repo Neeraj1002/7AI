@@ -66,6 +66,7 @@ import { readPackaging } from '../../run-pipeline/packaging-stage';
 import { buildPackagingView } from '../../packaging/view';
 import { resolveChoice } from '../../packaging/choice';
 import { buildPackagingRecord } from '../../packaging/record';
+import { RERUN_REVIEW_COMMAND, reviewNotRunBanner } from '../../agents/gate2';
 import { checkPackageTitle as checkPackageTitleFor, packagingState, thumbnailResult } from '../../packaging/gate2-contract';
 import { buildShortView, OPENING_FRAME_FILE } from '../../packaging/view';
 import { thumbnailsDir } from '../../packaging/build';
@@ -218,6 +219,27 @@ export function deriveQualityMetrics(
   const withRows = withQualityRows(metrics, source === 'ai-stills' || source === 'stock-footage' ? source : undefined, profile);
   // Sprint 4 Task 12 (R6): the numbers the checks used, and the Length row of a long video.
   return withQualitySpec(withRows, profile ?? SHORT_PROFILE, targetSeconds);
+}
+
+// Sprint 6 Task 1: set when the latest completed video_review could not run (never a pass, never a fail). The run
+// view shows `banner` in the same words as Gate 2; `canRerun` is true while Gate 2 is waiting to take "Run review
+// again". null for every other run.
+export function deriveReviewNotRun(
+  run: Pick<PipelineRun, 'status'>,
+  stages: Pick<PipelineStage, 'stageName' | 'status' | 'attemptNumber' | 'output'>[],
+): { banner: string; reason: string; repaired: boolean; canRerun: boolean } | null {
+  const latest = (name: string) =>
+    stages.filter((s) => s.stageName === name && s.status === 'completed').sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+  const review = latest('video_review');
+  const out = review?.output as { verdict?: string; rationale?: string } | null | undefined;
+  if (out?.verdict !== 'not_run') return null;
+  const repaired = Boolean((latest('video_generation')?.output as { visualRepairReceipt?: unknown } | null | undefined)?.visualRepairReceipt);
+  return {
+    banner: reviewNotRunBanner(repaired),
+    reason: out.rationale ?? '',
+    repaired,
+    canRerun: run.status === 'paused_gate2',
+  };
 }
 
 // Sprint 4 Task 2: the latest completed script_review attempt's concerns and
@@ -480,6 +502,8 @@ async function getRunDetail(id: string, ctx: Context) {
       resolved.videoKind === 'long' ? qualityProfileFor('long', resolved.visualSecondsPerStill) : undefined,
       resolved.targetSeconds,
     ),
+    // Sprint 6 Task 1: "Automated review did not run" marker for the run view; null when the review ran.
+    reviewNotRun: deriveReviewNotRun(run, stages),
     endReason: deriveEndReason(run),
     cancelRequested: deriveCancelRequested(run),
     // Bugs Task 12 (R1) - the app adds a Details line ("Switched to AI stills after stock footage failed review").
@@ -1122,6 +1146,8 @@ export const runsRouter = router({
         }),
         z.object({ runId: z.string().uuid(), action: z.literal('reject'), reason: z.string().min(1) }),
         z.object({ runId: z.string().uuid(), action: z.literal('revise'), notes: z.string().min(1) }),
+        // Sprint 6 Task 1: only accepted while the latest video review shows 'not_run'.
+        z.object({ runId: z.string().uuid(), action: z.literal('rereview') }),
       ]),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1137,12 +1163,22 @@ export const runsRouter = router({
           ? `approve ${input.privacyStatus ?? overrideRun?.creationOptions?.privacyStatus ?? channel.defaultPrivacyStatus}`
           : input.action === 'reject'
             ? `reject ${input.reason}`
-            : input.notes;
+            : input.action === 'rereview'
+              ? RERUN_REVIEW_COMMAND
+              : input.notes;
 
       // Bugs Task 12 (R2/R5a) - a Revise starts a new video attempt: it is counted by the manual cap
       // (not the automatic regeneration cap) and refused up front, with the reason, at that cap or
       // when the budget gate would refuse the render. A refused Revise creates no attempt and does
       // not count.
+      if (input.action === 'rereview') {
+        const runNow = await findPipelineRunById(input.runId);
+        if (!runNow || !deriveReviewNotRun(runNow, await listStagesForRun(input.runId))) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'The automated review did run for this video, so there is nothing to run again.' });
+        }
+        const budget = await checkBudget(channel.tenantId, channel.id, channel.platform);
+        if (!budget.ok) throw new TRPCError({ code: 'CONFLICT', message: describeBudgetRefusal(budget) });
+      }
       let reviseRun: PipelineRun | null = null;
       if (input.action === 'revise') {
         reviseRun = await findPipelineRunById(input.runId);

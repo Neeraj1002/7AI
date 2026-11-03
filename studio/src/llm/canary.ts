@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import '../config/env'; // loads .env.local before anything reads the environment
-import { callLLM, extractJsonObjectText, type LLMCallEvidence, type LLMResponse } from './index';
+import { extractJsonObjectText, type LLMCallEvidence, type LLMResponse } from './index';
 import { getStageErrorContext } from '../run-pipeline/retry-with-backoff';
 import { LLM_REGISTRY } from './registry';
 import {
@@ -35,7 +35,8 @@ import { generatePublishingMetadata } from '../agents/publishing';
 import { coldRead, generateBrief, generateConcepts } from '../packaging/generate';
 import { faceModeFor } from '../packaging/prompts';
 import { compareHeadToHead, criticRead, defectCheck, payoffCheck } from '../packaging/vision';
-import { buildSystemPrompt as buildVideoReviewPrompt } from '../agents/video-intelligence';
+import { buildSystemPrompt as buildVideoReviewPrompt, MultimodalVerdictSchema } from '../agents/video-intelligence';
+import { callLLMJson } from './json';
 import type { IntakeParsed } from '../types';
 
 const DOC = path.join(__dirname, '..', '..', '..', 'docs', 'channel_bibles', 'NIYT_CHANNEL_CONFIG.md');
@@ -326,8 +327,10 @@ async function main() {
   // ---- video-intelligence-own-draft: the real review prompt with one attached frame ----
   if (scripts['S-1'] && intake['S-1']) {
     await step('video-intelligence-own-draft S-1', async () => {
-      const llm = await callLLM({
+      // The same call the review makes: the verdict schema, one re-ask on an unusable reply.
+      const json = await callLLMJson({
         purpose: 'video-intelligence-own-draft',
+        schema: MultimodalVerdictSchema,
         system: buildVideoReviewPrompt('ai-stills', true),
         messages: [
           {
@@ -338,7 +341,8 @@ async function main() {
         ],
         retryGuard,
       });
-      record('video-intelligence-own-draft', 'S-1 (one plain frame)', llm);
+      for (const call of json.calls) record('video-intelligence-own-draft', 'S-1 (one plain frame)', call);
+      if (!json.ok) throw new Error(`video review reply unusable after the re-ask: ${json.reason}`);
     });
   }
 }
