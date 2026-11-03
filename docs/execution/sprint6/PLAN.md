@@ -1,6 +1,6 @@
 # Sprint 6 (and 7 if needed): Planning Doc
 
-**Living doc.** The founder brainstorms with the architect chat; each decision is added here. Task docs are written FROM this doc by a separate task-writer chat (prompt at the bottom), so the architect chat stays short and cheap. Only the architect edits this file. Started 2026-10-19. Last updated 2026-11-02 (backlog regrouped into six named tracks, names added, P-numbers kept; Task 3 merged and its switch removed, #157, #156 and #158 merged, P24 and P25 added; prompt layers locked, P22 and P23 added, Task 4 r5; Task 3 written as P19, P20 and P21 added, Task 1 flip, acceptance hot-fix and stock-footage fix merged). Earlier: first acceptance run results in `execution/sprint5/testing/ACCEPTANCE_RESULTS_2026-10-26.md`, spike closed GO, Task 1 r7, Plain Prompt gaps P16 to P18, disclaimer direction.
+**Living doc.** The founder brainstorms with the architect chat; each decision is added here. Task docs are written FROM this doc by a separate task-writer chat (prompt at the bottom), so the architect chat stays short and cheap. Only the architect edits this file. Started 2026-10-19. Last updated 2026-11-03 (next sprint proposed, quality-first; backlog regrouped into six named tracks, names added, P-numbers kept; Task 3 merged and its switch removed, #157, #156 and #158 merged, P24 and P25 added; prompt layers locked, P22 and P23 added, Task 4 r5; Task 3 written as P19, P20 and P21 added, Task 1 flip, acceptance hot-fix and stock-footage fix merged). Earlier: first acceptance run results in `execution/sprint5/testing/ACCEPTANCE_RESULTS_2026-10-26.md`, spike closed GO, Task 1 r7, Plain Prompt gaps P16 to P18, disclaimer direction.
 
 ## 1. How we work (token rule)
 - The founder's goal: save tokens to work the whole week. Brainstorm here in short turns; do not paste task text into chat.
@@ -89,6 +89,18 @@ What the viewer sees and hears in the video itself: a talking host, music, and l
 | P18 | Brief Builder | 3 | Brief builder (topic in, brief out): typed per-format slots, evidence modes (researched, provided material, none), a compiler for the brief lines | Briefs are too long to write by hand; nothing researches or compiles. Folded into P12 so there are not two brief generators | Plain Prompt brief 25 Oct; P10; P12 | Folded into P12 |
 
 Sprint 7 overflow: anything not `Ready` by the time Sprint 6 is full, lowest priority first.
+
+### Next sprint (proposed, quality-first)
+
+**Proposed 3 Nov. Not decided until the founder confirms; no task is written from it yet.** It sits after the open reliability tasks (the shared JSON helper and video review, the other LLM callers, the guard). No new agents or frameworks. Ideas from the youtube-agent-skill repo are tracked in `docs/audits/YAS_REPO_TRACKING.md`.
+
+| Order | Item | Why | Source | Status |
+|---|---|---|---|---|
+| 1 | Narration and voice migration, before the OpenAI shutdowns of `tts-1-hd` (6 Jan 2027) and `whisper-1` (26 Feb 2027) | Narration is the one part of the pipeline with a hard date; the voice list is also wider than the model supports | Audit 14 Oct (R7, E25, model table). The dates are the audit's reading of OpenAI's deprecation notice; **not re-checked on 3 Nov, verify before the task is written** | Proposed |
+| 2 | Visual and character continuity | A recurring subject changes look between shots; scenes can be well timed but show the wrong event | Audit 14 Oct, R4 | Proposed |
+| 3 | Script reviewer gap: a script scored 10/10 while a required fact was dropped | The reviewer is meant to fail a dropped fact (SR-2); a pass with a dropped fact means the check is not reliable | Founder, 3 Nov; `review_tuning/SCRIPT_REVIEW_MISSES.md`. The 10/10 case is not yet traced in the docs | Proposed |
+| 4 | Retention report in TypeScript (advisory), with the view count beside each curve; act only on patterns across videos | Today 34 videos have curves and the top one has 1,637 views, too thin to act on one video | `audits/YAS_REPO_TRACKING.md` (`retention.py` row, reported 3 Nov); related to P21 | Proposed. Starts once more videos pass about 1,000 views |
+| 5 | Title display checks (advisory): 40-character phone head, caps, vague words; no "no number" fail | Cheap checks on what the viewer sees; cannot fail a run | `audits/YAS_REPO_TRACKING.md` (`title.py` row) | Proposed. Only if there is room |
 
 ## 3. Brainstorm log (add decisions here)
 
