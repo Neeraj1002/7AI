@@ -19,7 +19,9 @@ import { formatQualityMetrics } from '../video-intelligence/quality-metrics';
 export type Gate2Decision =
   | { type: 'approve'; privacyStatus?: PrivacyStatus }
   | { type: 'reject'; reason: string }
-  | { type: 'revise'; notes: string };
+  | { type: 'revise'; notes: string }
+  // Sprint 6 Task 1: only meaningful when the automated review did not run; the run goes back to Video Review.
+  | { type: 'rereview' };
 // Sprint 4 Task 4: plus the real user who resolved it (null for the ops/script path).
 export type Gate2Outcome = Gate2Decision & { approvedByUserId: string | null };
 
@@ -38,6 +40,8 @@ export type Gate2Outcome = Gate2Decision & { approvedByUserId: string | null };
 // failure mode than requiring the founder to reply again.
 const APPROVE_WITH_PRIVACY = /^approve\s+(public|unlisted|private)$/i;
 
+export const RERUN_REVIEW_COMMAND = 'run review again';
+
 export function parseGate2Reply(reply: string): Gate2Decision {
   const trimmed = reply.trim();
 
@@ -50,6 +54,8 @@ export function parseGate2Reply(reply: string): Gate2Decision {
     return { type: 'approve', privacyStatus: privacyMatch[1].toLowerCase() as PrivacyStatus };
   }
 
+  if (trimmed.toLowerCase() === RERUN_REVIEW_COMMAND) return { type: 'rereview' };
+
   const rejectMatch = trimmed.match(/^reject\b\s*(.*)$/is);
   if (rejectMatch) {
     return { type: 'reject', reason: rejectMatch[1].trim() };
@@ -58,10 +64,21 @@ export function parseGate2Reply(reply: string): Gate2Decision {
   return { type: 'revise', notes: trimmed };
 }
 
+// Sprint 6 Task 1 (PR 2), founder decision: Gate 2 opens when the automated review did not run, and says so
+// loudly. The repaired wording is fixed text; it is also what the run view shows.
+export const REVIEW_NOT_RUN_BANNER = 'Automated review did not run: this video was not checked automatically.';
+export const REPAIR_NOT_VERIFIED_BANNER = 'Automated review did not run: the repair is not verified';
+
+export function reviewNotRunBanner(repaired: boolean): string {
+  return repaired ? REPAIR_NOT_VERIFIED_BANNER : REVIEW_NOT_RUN_BANNER;
+}
+
 export function formatGate2Message(params: {
   channelName: string;
   verdict: string;
   rationale: string;
+  // The video was repaired (a visual repair receipt exists); only changes the 'not_run' banner.
+  repaired?: boolean;
   // Sprint 4 Task 8 (R7) — measured render quality, shown so the approver sees
   // the numbers. Absent on review rows that predate it.
   qualityMetrics?: QualityMetrics;
@@ -76,6 +93,7 @@ export function formatGate2Message(params: {
       ? ['(Re-sending after a restart — this gate was already open, waiting on your reply.)']
       : []),
     ``,
+    ...(params.verdict === 'not_run' ? [`!!! ${reviewNotRunBanner(params.repaired === true).toUpperCase()} !!!`, ``] : []),
     `Video Intelligence verdict: ${params.verdict}`,
     `Notes: ${params.rationale}`,
     ...(params.qualityMetrics ? [formatQualityMetrics(params.qualityMetrics)] : []),
@@ -84,7 +102,7 @@ export function formatGate2Message(params: {
     // Sprint 3 Task 7 (O2) — no channel left in this system attaches the
     // real video file to a gate message; the dashboard/app always reads it
     // via GET /runs/:id/video.
-    `Watch the video in the app, then reply "approve" (private by default), "approve public", "approve unlisted", "reject <reason>", or send revision notes.`,
+    `Watch the video in the app, then reply "approve" (private by default), "approve public", "approve unlisted", "reject <reason>", or send revision notes.${params.verdict === 'not_run' ? ` Reply "${RERUN_REVIEW_COMMAND}" to try the automated review again.` : ''}`,
   ];
   return lines.join('\n');
 }
@@ -95,6 +113,7 @@ export async function requestGate2Decision(params: {
   channelName: string;
   verdict: string;
   rationale: string;
+  repaired?: boolean;
   qualityMetrics?: QualityMetrics;
   restarted?: boolean;
   warnings?: string[];
@@ -103,6 +122,7 @@ export async function requestGate2Decision(params: {
     channelName: params.channelName,
     verdict: params.verdict,
     rationale: params.rationale,
+    repaired: params.repaired,
     qualityMetrics: params.qualityMetrics,
     restarted: params.restarted,
     warnings: params.warnings,
