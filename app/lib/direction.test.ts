@@ -91,6 +91,25 @@ describe('the payload', () => {
   });
 });
 
+describe('saving keeps the rest of the profile', () => {
+  it('carries every key the app has no field for, deep and untouched, when only the form changed', () => {
+    const extra = { a: { b: [1, 2, { c: 3 }] }, flag: false, n: null };
+    const loaded = { offeredFormatKeys: ['x'], visual: { look: 'old' }, ...extra, direction: { preset: 'a', note: 'keep' } };
+    const built = { offeredFormatKeys: ['x', 'y'], visual: { look: 'new' } };
+    const out = withDirection(built, loaded, null);
+    expect(out).toEqual({ ...built, ...extra, direction: { preset: 'a', note: 'keep' } });
+    expect(out.a).toBe(loaded.a);
+  });
+  it('sends the changed direction (note only on Neutral too) and still keeps the other keys', () => {
+    const loaded = { offeredFormatKeys: ['x'], extra: 1 };
+    expect(withDirection({ offeredFormatKeys: ['x'] }, loaded, { preset: 'neutral', note: ' hi ' })).toEqual({
+      offeredFormatKeys: ['x'],
+      extra: 1,
+      direction: { preset: 'neutral', note: 'hi' },
+    });
+  });
+});
+
 describe('settings entry states', () => {
   it('loading draws nothing, error and null and profile each have their own state', () => {
     expect(profileEntryState({ isLoading: true, isError: false, isSuccess: false, data: undefined })).toBe('loading');
@@ -101,7 +120,7 @@ describe('settings entry states', () => {
 });
 
 describe('the flag', () => {
-  it('defaults to off', () => {
-    expect(flags.creativeDirection).toBe(false);
+  it('is on', () => {
+    expect(flags.creativeDirection).toBe(true);
   });
 });

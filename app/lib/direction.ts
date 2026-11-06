@@ -1,17 +1,12 @@
-// Hand-written from the Task 3/4 contract; replace with the router types when the backend merges.
 // Sprint 6 Task 4 (NEXT 6, FE): the pure logic of the Creative direction card on the Content profile screen.
 // Preset labels, summaries, parts and warnings are the server's and are shown as given; the app keeps no copy of any preset word.
-// The types are hand-written from the Task 4 contract (C1, C2, C3) because `channels.directionPresets` and `direction` are not in
-// the router types on main yet. Replace them with the inferred types when the Task 4 backend merges.
+// The preset type comes from the real AppRouter (Task 4 backend, #161); only the app's own draft shape is declared here.
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
 import { flags } from './feature-flags';
 
-export type DirectionPreset = {
-  key: string;
-  version: number;
-  label: string;
-  summary: string;
-  parts: { key: string; label: string; text: string }[];
-};
+export type DirectionPreset = inferRouterOutputs<AppRouter>['channels']['directionPresets'][number];
+/** The app's draft of the choice: the preset key and the optional note. */
 export type Direction = { preset: string; note: string };
 
 /** The server applies Neutral when nothing is saved (contract C4). The key is the server's own preset key, not a word. */
