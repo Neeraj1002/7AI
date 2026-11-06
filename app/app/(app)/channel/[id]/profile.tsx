@@ -13,7 +13,6 @@ import {
   savedDirectionOf,
   withDirection,
   type Direction,
-  type DirectionPreset,
 } from '../../../../lib/direction';
 import { DirectionCard } from '../../../../components/DirectionCard';
 import { useAuth } from '../../../../lib/auth';
@@ -67,12 +66,12 @@ export default function ContentProfileScreen() {
   const active = useQuery(trpc.channels.getActiveProfile.queryOptions({ channelId: id }));
   const versions = useQuery(trpc.channels.listProfileVersions.queryOptions({ channelId: id }));
   const createVersion = useMutation(trpc.channels.createProfileVersion.mutationOptions());
-  // Sprint 6 Task 4 (NEXT 6): the presets come from the server; the call is untyped until the Task 4 backend's router types land.
+  // Sprint 6 Task 4 (NEXT 6): the presets come from the server; the call is typed from the real AppRouter.
   const trpcClient = useTRPCClient();
   const presetsQuery = useQuery({
     queryKey: ['channels', 'directionPresets'],
     enabled: flags.creativeDirection,
-    queryFn: () => (trpcClient.channels as unknown as { directionPresets: { query: () => Promise<DirectionPreset[]> } }).directionPresets.query(),
+    queryFn: () => trpcClient.channels.directionPresets.query(),
   });
   const savedDirection = useMemo(() => savedDirectionOf(active.data?.data), [active.data]);
   const [directionEdit, setDirectionEdit] = useState<Direction | null>(null);

@@ -14,5 +14,5 @@ export const flags = {
   gateToggles: true, // B7 — per-channel Gate 1 / Gate 2 switches
   briefLength: true, // B10 — runs.create target length
   gate2PackageScreens: true, // Sprint 6 Task 1 PR C (#130) merged and deployed: the Gate 2 package screens are on
-  creativeDirection: false, // Sprint 6 Task 4 (NEXT 6): the Creative direction card on the Content profile. Off until the Task 4 backend is live and the three channels have presets.
+  creativeDirection: true, // Sprint 6 Task 4 (NEXT 6): the Creative direction card on the Content profile. Backend #161 merged (channels.directionPresets).
 };
