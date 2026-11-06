@@ -1641,7 +1641,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // Sprint 4 Task 10 (R3): the Gate 2 preview copy and the subtitle file are made before the run
     // can reach Gate 2. A failure here is a stage failure with the normal retry (the catch below).
     const longFormArtifacts =
-      isLongForm && outcome.verdict === 'pass'
+      isLongForm && outcome.verdict !== 'fail'
         ? await prepareLongFormGate2Artifacts({
             runId,
             tenantId: run.tenantId,
@@ -1653,8 +1653,10 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
 
     // A UsageEvent row only when the multimodal pass actually ran — a
     // deterministic-only fail has no LLM cost to meter.
-    if (outcome.multimodalRan && outcome.llm) {
-      for (const call of llmUsageRows(outcome.llm)) {
+    // Sprint 6 Task 1: the re-ask is a second billed call; each is booked, a 'not_run' review included.
+    const reviewCalls = outcome.llmCalls ?? (outcome.llm ? [outcome.llm] : []);
+    if (outcome.multimodalRan && reviewCalls.length > 0) {
+      for (const call of reviewCalls.flatMap(llmUsageRows)) {
         await insertUsageEvent({
           tenantId: run.tenantId,
           channelId: run.channelId,
@@ -1668,7 +1670,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
 
     // Sprint 3 Task 9 (R2) — only the passing verdict is affected; the regen
     // loop and the regen-cap-to-needs_attention fallback below are
-    // unaffected by the toggle.
+    // unaffected by the toggle. Sprint 6 Task 1: a 'not_run' review never auto-approves, even with Gate 2 off.
     const gate2AutoApprove = outcome.verdict === 'pass' && channel.approvalGateConfig.gate2Enabled === false;
     // Same create-before-the-completing-transaction split as every other
     // stage's own createStageAttempt call, and the same reasoning as R2's
@@ -1694,7 +1696,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // gets ONE extra attempt with AI stills. Once per run (persisted marker, so a restart, a resume or a
     // manual Retry can't trigger a second), only if the budget gate would allow the render, and it does
     // not count against the cap. Otherwise the run parks exactly as before.
-    const atRegenCap = outcome.verdict !== 'pass' && videoGenStage.attemptNumber > MAX_VIDEO_REGEN_ATTEMPTS;
+    // 'not_run' is not a rejection: it never counts toward the cap and never starts another video.
+    const atRegenCap = outcome.verdict === 'fail' && videoGenStage.attemptNumber > MAX_VIDEO_REGEN_ATTEMPTS;
     const stockFallback =
       atRegenCap &&
       visualSource === 'stock-footage' &&
@@ -1709,8 +1712,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
     // Sprint 5 Task 8 (D1): a failed review would normally start the next attempt by itself. When the run has
     // already spent its retry allowance, it waits for a person instead of spending more.
     const retryAllowance = run.creationOptions?.retryAllowanceUsd;
-    const spentSoFar = retryAllowance !== undefined && outcome.verdict !== 'pass' && !atRegenCap ? await sumUsageCostForRun(runId) : 0;
-    const overAllowance = retryAllowance !== undefined && outcome.verdict !== 'pass' && !atRegenCap && spentSoFar >= retryAllowance;
+    const spentSoFar = retryAllowance !== undefined && outcome.verdict === 'fail' && !atRegenCap ? await sumUsageCostForRun(runId) : 0;
+    const overAllowance = retryAllowance !== undefined && outcome.verdict === 'fail' && !atRegenCap && spentSoFar >= retryAllowance;
 
     const runPatch: Parameters<typeof updatePipelineRun>[1] = overAllowance
       ? { status: 'needs_attention', lastError: describeRetryAllowancePause(spentSoFar, retryAllowance!, outcome.rationale) }
@@ -1720,7 +1723,7 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
           currentStage: 'video_generation',
           creationOptionsMerge: { visualSource: 'ai-stills', videoFallbackUsed: true },
         }
-      : outcome.verdict === 'pass'
+      : outcome.verdict !== 'fail'
         ? gate2AutoApproveStage
           ? { status: 'running', currentStage: nextStageAfter('gate2') }
           : { status: 'paused_gate2', currentStage: nextStageAfter('video_review') }
@@ -1755,6 +1758,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
           ...(outcome.reasonCode && { reasonCode: outcome.reasonCode }),
           ...(outcome.qualityMetrics && { qualityMetrics: outcome.qualityMetrics }),
           ...(outcome.visualDefects?.length && { visualDefects: outcome.visualDefects }),
+          // Every unusable reply, capped (Sprint 6 Task 1): the evidence behind a 'not_run' verdict.
+          ...(outcome.reviewFailures?.length && { reviewFailures: outcome.reviewFailures }),
           ...(longFormArtifacts && longFormArtifacts),
           // Named field: why this long video will publish without a chapter list (also shown at Gate 2).
           ...(isLongForm && (() => { const l = buildChapterList(chapterTimings); return l.ok ? {} : { chapterWarning: l.warning }; })()),
@@ -1858,9 +1863,13 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
   if (!reviewOutput.verdict || !reviewOutput.rationale) {
     throw new Error(`PipelineRun ${runId}'s video_review output is missing verdict/rationale`);
   }
-  if ((videoGenStage.output as { visualRepairReceipt?: unknown }).visualRepairReceipt &&
-      ((videoReviewStage.input as { videoPath?: string } | null)?.videoPath !== videoPath || reviewOutput.verdict !== 'pass')) {
-    throw new NonTransientStageError('Repaired video must pass a fresh review before Gate 2');
+  const repaired = Boolean((videoGenStage.output as { visualRepairReceipt?: unknown }).visualRepairReceipt);
+  // Sprint 6 Task 1 (founder): a repaired video whose fresh review did not run still opens Gate 2, with the banner
+  // saying the repair is not verified. A failed review of it, or a review of a different file, still does not.
+  if (repaired &&
+      ((videoReviewStage.input as { videoPath?: string } | null)?.videoPath !== videoPath || reviewOutput.verdict === 'fail' ||
+        (reviewOutput.verdict !== 'pass' && reviewOutput.verdict !== 'not_run'))) {
+    throw new NonTransientStageError('Repaired video must pass a fresh review, or show that the review did not run, before Gate 2');
   }
 
   // Sprint 4 Task 10 (R4.1): a long run whose chapters do not meet YouTube's rules is published
@@ -1933,6 +1942,7 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
     channelName: channel.name,
     verdict: reviewOutput.verdict,
     rationale: reviewOutput.rationale,
+    repaired,
     qualityMetrics: reviewOutput.qualityMetrics,
     restarted: isRestartReopen,
     ...(gate2Warnings.length > 0 && { warnings: gate2Warnings }),
@@ -2003,6 +2013,24 @@ export async function runGate2Stage(runId: string): Promise<PipelineRun> {
           },
           tx,
         );
+      });
+    }
+
+    // Sprint 6 Task 1: "Run review again" on a 'not_run' review. No new video, so it is not a manual retry and is
+    // not counted by the cap; the run goes back to Video Review, which books its own new calls.
+    if (outcome.type === 'rereview') {
+      if (reviewOutput.verdict !== 'not_run') {
+        console.warn(`[gate2] run ${runId}: "run review again" ignored, the latest review verdict is ${reviewOutput.verdict}`);
+        return runGate2Stage(runId);
+      }
+      return await prisma.$transaction(async (tx) => {
+        await insertReviewLog(
+          { tenantId: run.tenantId, channelId: run.channelId, pipelineRunId: runId, stageId: stage.id, agent: 'human',
+            approvedByUserId: outcome.approvedByUserId, verdict: 'rereview', rationale: 'Asked for the automated review to run again' },
+          tx,
+        );
+        await completeStage(stage.id, { outcome: 'rereview', ...packagingField }, tx);
+        return await updatePipelineRun(runId, { status: 'running', currentStage: 'video_review' }, tx);
       });
     }
 
@@ -2142,7 +2170,8 @@ export async function runPublishingStage(runId: string): Promise<PipelineRun> {
     const reviewed = await findLatestAttempt(runId, 'video_review');
     if ((gate2Stage.input as { videoPath?: string } | null)?.videoPath !== videoPath ||
         (reviewed?.input as { videoPath?: string } | null)?.videoPath !== videoPath ||
-        (reviewed?.output as { verdict?: string } | null)?.verdict !== 'pass') {
+        // 'not_run' is allowed: the person approved this exact file at Gate 2 with the "repair is not verified" banner.
+        !['pass', 'not_run'].includes((reviewed?.output as { verdict?: string } | null)?.verdict ?? '')) {
       throw new NonTransientStageError('Repaired video has no matching fresh review and Gate 2 approval');
     }
   }

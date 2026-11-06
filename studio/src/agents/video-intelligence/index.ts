@@ -3,19 +3,10 @@ import fs from "node:fs/promises";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { env } from "../../config/env";
-import {
-  callLLM,
-  describeJsonError,
-  extractJsonText,
-  type LLMResponse,
-  type RetryGuard,
-} from "../../llm";
+import { type LLMResponse, type RetryGuard } from "../../llm";
+import { callLLMJson, type CallLLMJsonResult, type JsonAttemptFailure } from "../../llm/json";
 import type { ChapterTiming } from "../../long-form/chapters";
-import {
-  NonTransientStageError,
-  withRetryAndCircuitBreaker,
-} from "../../run-pipeline/retry-with-backoff";
-import { llmUsageContext } from "../../run-pipeline/stage-failure";
+import { withRetryAndCircuitBreaker } from "../../run-pipeline/retry-with-backoff";
 import type { VisualSource } from "../video-generation/plan";
 import {
   qualityProfileFor,
@@ -246,7 +237,7 @@ async function extractSampleFramesBase64(
   return frames;
 }
 
-const MultimodalVerdictSchema = z.object({
+export const MultimodalVerdictSchema = z.object({
   verdict: z.enum(["pass", "fail"]),
   notes: z.string().min(1),
   visualDefects: z.array(VisualDefectSchema).max(1).optional(),
@@ -291,11 +282,21 @@ Respond with raw JSON only — no markdown code fences, no commentary.${
   }`;
 }
 
+// Sprint 6 Task 1 (PR 2): 'not_run' means the automated review could not be completed (the model's reply was
+// still unusable after the one re-ask). It is never 'pass' and never 'fail': a reader that treats it as either
+// is a bug, so every reader switches on this type.
+export const REVIEW_VERDICTS = ["pass", "fail", "not_run"] as const;
+export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number];
+
 export type VideoIntelligenceOutcome = {
-  verdict: "pass" | "fail";
+  verdict: ReviewVerdict;
   rationale: string;
   multimodalRan: boolean;
   llm?: LLMResponse;
+  // Every billed model call (the first, and the re-ask when there was one); `llm` is the last of them.
+  llmCalls?: LLMResponse[];
+  // Each unusable reply, capped, kept in the stage output (the whole reason a verdict is 'not_run').
+  reviewFailures?: JsonAttemptFailure[];
   // Sprint 4 Task 8 (R7) — present whenever measurement ran (including on a
   // deterministic fail); undefined only when the failure came before it.
   qualityMetrics?: QualityMetrics;
@@ -379,14 +380,13 @@ export async function reviewVideo(params: {
   // object rather than throwing, which is exactly why a whole-function wrap
   // wouldn't compose with withRetryAndCircuitBreaker's retry-on-throw
   // semantics. A transient provider error here retries with backoff; a real
-  // 'fail' verdict never throws at all (unaffected); the JSON/schema
-  // validation below still throws NonTransientStageError, still uncaught by
-  // this retry wrapper, still propagating to runVideoReviewStage's own
-  // catch exactly as before.
-  const llm = await withRetryAndCircuitBreaker(() =>
-    callLLM({
+  // 'fail' verdict never throws at all (unaffected); an unusable reply is
+  // callLLMJson's one re-ask and then a 'not_run' verdict, not a throw.
+  const json = await withRetryAndCircuitBreaker(() =>
+    callLLMJson({
       purpose: "video-intelligence-own-draft",
       retryGuard: params.retryGuard,
+      schema: MultimodalVerdictSchema,
       system: buildSystemPrompt(
         params.visualSource,
         params.safetyChecks,
@@ -397,7 +397,11 @@ export async function reviewVideo(params: {
       messages: [
         {
           role: "user",
-          content: `Topic: ${params.topic}\nScript: ${params.scriptText}${params.flaggedStills?.length ? `\nPictures flagged before the render and not fixed (mention them in your notes if a sampled frame shows one): ${JSON.stringify(params.flaggedStills)}` : ''}${sampledSceneMap ? `\nScene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}\nSampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
+          content: `Topic: ${params.topic}
+Script: ${params.scriptText}${params.flaggedStills?.length ? `
+Pictures flagged before the render and not fixed (mention them in your notes if a sampled frame shows one): ${JSON.stringify(params.flaggedStills)}` : ''}${sampledSceneMap ? `
+Scene map for sampled frames (actual rendered seconds): ${JSON.stringify(sampledSceneMap)}
+Sampled frame timestamps: ${JSON.stringify(sampleTimestamps)}` : ''}`,
           attachments: framesBase64.map((dataBase64) => ({
             mediaType: "image/jpeg",
             dataBase64,
@@ -406,34 +410,41 @@ export async function reviewVideo(params: {
       ],
     }),
   );
+  return outcomeFromJson(json, deterministic.metrics, sampleTimestamps, sampledSceneMap);
+}
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(extractJsonText(llm.text));
-  } catch (error) {
-    throw new NonTransientStageError(
-      `Video Intelligence did not return valid JSON (${describeJsonError(error)})`,
-      error,
-      llmUsageContext(llm),
-    );
+// The model's reply (or its absence) as an outcome. Pure, so the not_run and re-ask paths are testable without a render.
+export function outcomeFromJson(
+  json: CallLLMJsonResult<z.infer<typeof MultimodalVerdictSchema>>,
+  qualityMetrics: QualityMetrics | undefined,
+  sampleTimestamps: number[],
+  sampledSceneMap?: Array<{ sceneId: string; startSec: number; endSec: number }>,
+): VideoIntelligenceOutcome {
+  const llm = json.calls[json.calls.length - 1];
+  // Still unusable after the one re-ask: no throw. The review did not run, and every reader of the verdict
+  // decides what that means (it is never a pass and never an automatic approval).
+  if (!json.ok) {
+    return {
+      verdict: "not_run",
+      rationale: `Automated review did not run: the reviewer's reply could not be used after one retry (${json.reason}).`,
+      multimodalRan: true,
+      llm,
+      llmCalls: json.calls,
+      reviewFailures: json.failures,
+      qualityMetrics,
+    };
   }
-
-  const result = MultimodalVerdictSchema.safeParse(parsedJson);
-  if (!result.success) {
-    throw new NonTransientStageError(
-      `Video Intelligence output failed schema validation: ${result.error.message}`,
-      undefined,
-      llmUsageContext(llm),
-    );
-  }
-  const locatedDefects = locatedVisualDefects(result.data.visualDefects, sampleTimestamps, sampledSceneMap);
-
+  // The provider takes the array bound, but a bound the model overshoots must not cost the review: keep the first.
+  const visualDefects = json.value.visualDefects?.slice(0, 1);
+  const locatedDefects = locatedVisualDefects(visualDefects, sampleTimestamps, sampledSceneMap);
   return {
-    verdict: result.data.verdict,
-    rationale: result.data.notes,
-    ...(result.data.verdict === 'fail' && locatedDefects?.length && { visualDefects: locatedDefects }),
+    verdict: json.value.verdict,
+    rationale: json.value.notes,
+    ...(json.value.verdict === 'fail' && locatedDefects?.length && { visualDefects: locatedDefects }),
     multimodalRan: true,
     llm,
-    qualityMetrics: deterministic.metrics,
+    llmCalls: json.calls,
+    ...(json.failures.length > 0 && { reviewFailures: json.failures }),
+    qualityMetrics,
   };
 }
