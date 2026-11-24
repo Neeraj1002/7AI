@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { checkStills, strongerPrompt, STILL_CHECK_BATCH, type StillCheckDeps } from './still-check';
+import { resolveChannelConfig } from '../../channel-profile/resolve';
 import { buildSystemPrompt as plannerPrompt } from './plan-long';
 import type { LLMResponse } from '../../llm';
 
@@ -58,6 +59,19 @@ describe('picture check (R6)', () => {
     const again = await checkStills({ topic: 't', stills: list, cacheDir: dir, deps: second });
     expect(second.ask).not.toHaveBeenCalled();
     expect(again.map((x) => x.issues.length)).toEqual([1, 0]);
+  });
+
+  it('changing the resolved direction or visual style rechecks cached images', async () => {
+    const d = deps(() => JSON.stringify({ results: [{ image: 1, issues: [] }] }));
+    const list = await stills(1);
+    const direction = resolveChannelConfig({ profile: { direction: { preset: 'explainer' } } }).direction;
+    await checkStills({ topic: 't', stills: list, cacheDir: dir, deps: d, direction, visualStyle: 'Watercolour' });
+    await checkStills({ topic: 't', stills: list, cacheDir: dir, deps: d, direction, visualStyle: 'Watercolour' });
+    expect(d.ask).toHaveBeenCalledTimes(1);
+    await checkStills({ topic: 't', stills: list, cacheDir: dir, deps: d, direction: { ...direction, note: 'Measured.' }, visualStyle: 'Watercolour' });
+    await checkStills({ topic: 't', stills: list, cacheDir: dir, deps: d, direction, visualStyle: 'Ink' });
+    expect(d.ask).toHaveBeenCalledTimes(3);
+    expect(d.ask.mock.calls[0][0]).toContain(direction.parts.visualReviewTone);
   });
 
   it('a reply that cannot be read leaves the stills unchecked and does not fail the video', async () => {

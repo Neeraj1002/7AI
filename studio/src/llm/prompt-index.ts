@@ -5,12 +5,12 @@ import type { Purpose } from './types';
 // fails when a purpose has no entry or a call site is missing from its entry.
 export const PROMPT_INDEX: Record<Purpose, string[]> = {
   'intake-parsing': ['run-pipeline/parse-brief.ts'],
-  'script-generation': ['agents/script-generation/index.ts', 'agents/script-generation/long-form.ts'],
-  'script-review': ['agents/script-review/index.ts', 'agents/script-review/rules.ts'],
+  'script-generation': ['agents/script-generation/index.ts', 'agents/script-generation/long-form.ts', 'channel-direction/prompts.ts', 'channel-direction/presets.ts'],
+  'script-review': ['agents/script-review/index.ts', 'agents/script-review/rules.ts', 'channel-direction/prompts.ts', 'channel-direction/presets.ts'],
   'hard-cap-confirmation': ['agents/script-review/hard-cap-confirmation.ts'],
-  'video-intelligence-own-draft': ['agents/video-intelligence/index.ts'],
-  'still-check': ['agents/video-generation/still-check.ts'],
-  'video-production-planning': ['agents/video-generation/plan.ts', 'agents/video-generation/plan-long.ts'],
+  'video-intelligence-own-draft': ['agents/video-intelligence/index.ts', 'channel-direction/prompts.ts', 'channel-direction/presets.ts'],
+  'still-check': ['agents/video-generation/still-check.ts', 'channel-direction/prompts.ts', 'channel-direction/presets.ts'],
+  'video-production-planning': ['agents/video-generation/plan.ts', 'agents/video-generation/plan-long.ts', 'channel-direction/prompts.ts', 'channel-direction/presets.ts'],
   'metadata-generation': ['agents/publishing/index.ts'],
   'packaging-brief': ['packaging/prompts.ts', 'packaging/generate.ts'],
   'packaging-concepts': ['packaging/prompts.ts', 'packaging/generate.ts'],

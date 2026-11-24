@@ -1,3 +1,5 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
+import { directionBlock } from '../../channel-direction/prompts';
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { MOOD_TAGS } from "../../audio-bed";
@@ -86,6 +88,7 @@ export const LONG_PLANNER_CONTRACT_VERSION = 4;
 export type LongPlanningInputs = {
   chapters: ScriptChapter[]; topic: string; targetSeconds: number;
   secondsPerStill?: number | null; audioLayerOverride?: AudioLayer;
+  direction?: ResolvedDirection;
   visualStyle?: string | null; scriptGuide?: string | null; fixNotes?: string;
 };
 export type LongPlanningCallMetadata = {
@@ -136,6 +139,7 @@ function sceneAnchors(text: string, count: number): string[] {
 }
 
 export function buildSystemPrompt(params: {
+  direction?: ResolvedDirection;
   visualStyle?: string | null;
   scriptGuide?: string | null;
   audioLayerOverride?: AudioLayer;
@@ -156,12 +160,12 @@ Respond with ONLY a JSON object: {"scenes": {"supplied_scene_id": {"prompt": str
 Rules for still prompts:
 1. Choose a meaningful frozen instant. State the subject, its pose or implied action at that instant, the setting and the relationship to the narration beat. Leave safe crop space for FFmpeg pan/zoom.
 2. Describe framing, viewpoint, lighting and depth as image composition. Do not request continuous physical action, generated camera tracking or drone traversal, lip sync, or a video model/provider.
-3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing historical facts. A reconstruction is an illustration, never documentary evidence of an event.
+3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing facts. A reconstruction is an illustration, never documentary evidence of an event.
 4. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The image provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus on the tense atmosphere just before a harmful action or the somber aftermath.
 5. Sprint 5 Task 8: even when the topic is a brand or company, never ask for its logo, name, signs or lettering; show products and places as plain shapes with no markings, and show signs, screens and documents blank or out of focus. Never ask for readable numbers, charts with figures, slogans or posters.
 6. A picture must not imply a fact the narration does not state. For a sentence about a fact (a site sold, a profit, a closure) show that fact or a neutral scene; no ruins, decay, abandonment, disaster or mourning imagery (an overgrown site, a flag at half-mast) unless the narration says so.
 
-${params.visualStyle ? `Visual style for every image: ${params.visualStyle}\n` : ""}${params.scriptGuide ? `Channel script guide (tone/context only; do not rewrite narration or override the scene-slot JSON contract): ${params.scriptGuide}\n` : ""}Respond with raw JSON only, no markdown code fences, no commentary.`;
+${params.visualStyle ? `Visual style for every image: ${params.visualStyle}\n` : ""}${params.scriptGuide ? `Channel script guide (tone/context only; do not rewrite narration or override the scene-slot JSON contract): ${params.scriptGuide}\n` : ""}Respond with raw JSON only, no markdown code fences, no commentary.` + directionBlock(params.direction, ['domain']);
 }
 
 async function planChapter(params: {
@@ -268,7 +272,7 @@ async function planChapter(params: {
 
 export function longPlanningInputHash(params: LongPlanningInputs, version = LONG_PLANNER_CONTRACT_VERSION): string {
   const counts = allocateStillsToChapters(params.chapters, longStillCount(params.targetSeconds, params.secondsPerStill));
-  return createHash("sha256").update(JSON.stringify({ version, chapters: params.chapters, topic: params.topic, counts,
+  return createHash("sha256").update(JSON.stringify({ version, direction: params.direction ?? null, chapters: params.chapters, topic: params.topic, counts,
     visualStyle: params.visualStyle ?? null, scriptGuide: params.scriptGuide ?? null,
     fixNotes: params.fixNotes ?? null, audioLayerOverride: params.audioLayerOverride ?? null,
     model: resolvePurpose("video-production-planning"),
@@ -296,6 +300,7 @@ export async function planLongVideoProduction(params: {
   targetSeconds: number;
   secondsPerStill?: number | null;
   audioLayerOverride?: AudioLayer;
+  direction?: ResolvedDirection;
   visualStyle?: string | null;
   scriptGuide?: string | null;
   fixNotes?: string;
@@ -363,7 +368,7 @@ export async function planLongVideoProduction(params: {
 
   const plan = ProductionPlanSchema.parse({
     visualSource: "ai-stills",
-    stockFootageQuery: params.topic.slice(0, 80) || "documentary",
+    stockFootageQuery: params.topic.slice(0, 80) || "video",
     stillScenePrompts: scenes.map((s) => s.prompt),
     longScenes: scenes,
     sceneMeanings: { version: 1, scenes: meanings },

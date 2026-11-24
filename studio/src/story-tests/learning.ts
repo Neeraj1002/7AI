@@ -1,3 +1,4 @@
+import type { ResolvedDirection } from '../channel-profile/resolve';
 import { sentenceSpans } from '../agents/script-review/numbers';
 import type { PackagingRecord } from '../packaging/record';
 import { readStoredScriptCheck, readStoredStoryTests } from './view';
@@ -39,6 +40,8 @@ export function hookShape(scriptText: string): HookShape | null {
 // before Part C has no `pipelineTags` and reads as untagged (null), never as "off".
 export type PipelineTags = {
   version: 1;
+  presetKey?: ResolvedDirection['presetKey'];
+  presetVersion?: number;
   storyTests: 'on' | 'off';
   // The stock-footage fix has no stable identifier code can read at run time (R0 item 7), so this is null on every run.
   // The build commit below is the stable handle: compare it with the fix's merge commit.
@@ -46,8 +49,8 @@ export type PipelineTags = {
   build: string | null;
 };
 
-export function buildPipelineTags(params: { storyTestsOn: boolean; buildCommit: string | null }): PipelineTags {
-  return { version: 1, storyTests: params.storyTestsOn ? 'on' : 'off', stockFootageFix: null, build: params.buildCommit };
+export function buildPipelineTags(params: { storyTestsOn: boolean; buildCommit: string | null; direction?: ResolvedDirection }): PipelineTags {
+  return { version: 1, storyTests: params.storyTestsOn ? 'on' : 'off', stockFootageFix: null, build: params.buildCommit, ...(params.direction ? { presetKey: params.direction.presetKey, presetVersion: params.direction.presetVersion } : {}) };
 }
 
 export function readPipelineTags(intakeOutput: unknown): PipelineTags | null {

@@ -2,7 +2,12 @@
 
 **Branch / worktree / PR A:** `SPRINT6_TASK4A_BE` / `D:\Study Material\7AI-SPRINT6\task4a` / #161
 **Task doc:** r6 on `origin/main` (founder selected r6; the base checkout's r1 copy is stale).
-**Status:** PR A is open. Architect review follow-up is prepared as a second local commit for the founder to push; merged: no; deployed: no.
+**Branch / worktree / PR B+C:** `SPRINT6_TASK4BC_BE` / `D:\Study Material\7AI\.worktrees\task4bc` / pending draft PR.
+**Current base:** fetched `origin/main` at `cad5b6c` on 2026-11-24 (Asia/Calcutta).
+**Current status:** Part A merged in #161 (`89fb06a`); picker #152 (`540c1c3`) and #165 (`bdafb89`) merged. B+C offline implementation complete; paid evaluation and production verification blocked. B+C merged: **no**; deployed: **no**.
+**Draft blocker:** No production connection or R5 evidence for the three active profile assignments and direction-only version comparisons; no five R8 baseline outputs, original briefs/profile snapshots, or frame inputs. Local database is localhost, with only a profile-less NIYT row among the three names. No paid calls were made. Do not merge until R5 and R8 evidence is attached and evaluated under the cumulative $6 ceiling.
+
+The PR A sections below are the historical 1–2 Nov record; their delivery/status statements describe that time, not the current merge status.
 
 ## PR A — R0 confirmed / wrong / unknown (recorded before implementation choices)
 
@@ -85,16 +90,555 @@ The packaging baseline adds 16 golden entries to `prompt-goldens.json` for the s
 
 **Final-head verification for this follow-up:** studio typecheck and ESLint passed; app web build passed on base `4222a53` (Expo web export, 1,274 modules). Before the suite, `Get-Process` showed only three pre-existing Node processes (PIDs 9988, 12372, 13912, all started 1 Nov), with no Vitest, FFmpeg, npm, ESLint, tsc or build process. The first Vitest command failed during config startup with `EPERM` creating a Vite temp file in the linked `node_modules`; it loaded no tests. With the required filesystem access, the one full studio run used `npm test -- --maxWorkers=1`, alone: **200 passed, 14 skipped files; 1,872 passed, 85 skipped tests; zero failures** (631.85 seconds). There are therefore no final-head failure names or isolated branch/clean-main comparisons to report. The earlier media timeouts described above are historical, not failures on this final head. **CI does not run the studio Vitest suite**, so these local counts are the only backend test evidence for this commit; the founder's push must trigger CI for the second commit.
 
-### PR B
+## Combined PR B+C — 24 Nov 2026
 
-Pending founder-run profile script and baseline evaluation.
+The founder requested one PR combining Parts B and C, starting from current main, with a draft if production or baseline evidence is missing. This supersedes the original three-PR delivery sequence. No app work, migration, native dependency, registry/model/limit change or new LLM purpose was needed. No database writes were performed.
 
-PR B adds `presetKey` and `presetVersion` to the Task 3 learning tags (`pipelineTags`), per architect ruling.
+### R0 refresh before implementation
 
-### PR C
+| Check | Current finding and disposition |
+|---|---|
+| Dependencies | #145, #161, #152 and #165 are in fetched main; r6 task doc and approved preset data already present. No task-doc commit needed. |
+| Consumer paths | Confirmed current shared history persona, long opening/ending/pacing/chapter rules, long review hook, frame topic/tone, planners and format hint; all changed below. Short writer still had a neutral platform role. |
+| Storage and saves | Still JSON profile data; existing row-lock transaction inserts a new version and changes active pointer atomically. No schema/persistence edits. |
+| Production profiles and fact policies | **Unverified.** Both available env files point to localhost. A read-only exact-name query returned NIYT with no active profile; Cold Open and Start to Shelf were absent. This is not production evidence and no profile was created/changed. The user SSH directory contains known-host files but no configured key; a BatchMode read-only command to the documented deploy server failed with `Permission denied (publickey,password)`. No server state was changed. Production profile IDs, fact policies, direction-only comparisons and deployed commit remain unknown. |
+| Profile-less behavior | Resolver gives neutral. All changed consumers now receive neutral by default as well. This is tested independently of the production assignment. |
+| Run version trace | Existing createRun pins profileVersionId and preset key/version in creationOptions. Intake pipelineTags now also carries resolved presetKey/presetVersion beside Task 3's build/version tags. Legacy tags remain readable with absent preset fields. |
+| Consumer transport | Writer/reviewer get config.direction from the pinned bundle, Short and long planners get the same object, frame reviewer gets it plus visual style, long still checker gets it plus visual style. Packaging/metadata keep their existing resolved packaging fields; no preset is added to them. |
+| Debug trace | Full prompts still are not stored per call. Goldens demonstrate assembly, not live calls. A live trace still needs pinned profile, preset version, code revision, brief/stage inputs and selected options; no trace subsystem added. |
+| Layer inventory | Task 4-owned rows moved to preset assembly or neutral mechanics. Review-rule examples/dead caps remain untouched; brief-only strengths and stage-context delimiters remain P22; prose caps remain P23. |
 
-Pending PR B merge.
+### Implementation and prompt layers
 
+`channel-direction/prompts.ts` is the sole assembly helper: approved part text is used verbatim, empty parts are skipped, and the channel note follows the selected parts. It explicitly labels creative direction as defaults beneath explicit brief/profile constraints and inside platform rules. Presets and versions are unchanged and still compare character for character with `PROMPT_LAYERS.md`.
+
+- **Layers 2/3:** both writers receive persona, domain, hookRule, storyShape, endingRule, chapterStyle, pacingCues and avoid. Both reviewers receive the exact same hook, story, ending, chapter, pacing and avoid parts. Platform JSON, length, fact-policy and production-fit rules stay. Long factual-grounding wording loses the niche adjective and dramatic intensification default; factual support remains mandatory. The Short review's separate generic hook recipe is replaced by assessment against hookRule.
+- **Layers 2/3:** planners receive domain (plus note); frame review and still check receive visualReviewTone (plus note and resolved visual style). The Short planner's event restriction stays as a source-selection mechanic, with the niche noun removed; fixed profile/run source still bypasses that free-choice rule. Named sports/fashion examples leave. Long planner's fallback query becomes `video`; factual-grounding sentence becomes topic-neutral.
+- **Layers 2/5:** long tag count stays 3–8; generic relevant search terms replace historical terms, and packaging.hashtagsBase reaches the writer user message. Hashtag words stay in the content profile, outside presets.
+- **Layer 4 / D1:** only manifest lines 33 and 103 change (base line numbers). `[Historical event/thing]` becomes `[Event/thing]`; long structure becomes `Ordered chapters with a title and spoken narration for each chapter, within the target length.` Chapter count/target limits still come from chapter-bounds and the resolved target. No other format wording changes. History forbids chapter questions; story-first permits them; explainer and neutral have empty chapterStyle and no shared question ban.
+- **D4:** hard-coded chapter-opening and generic sign-off bans leave the long writer. Each preset owns its approved ending; channel banned lists remain separate profile constraints and the brief's exact mandated wording takes precedence. This applies to all four presets. No future-topic cliffhanger remains.
+- **Layer 2 sweep:** packaging's typefaceMood options now come from TYPEFACE_MOODS, with no topic/brand examples assigning a font mood. Existing enum `historic` and font assets remain a compatibility/typography choice; no direction or niche gloss remains in the shared prompt source.
+
+**Prompt changes by channel:** NIYT receives history v1; Cold Open receives story-first v1; Start to Shelf receives explainer v1. For all three, Short/long writer and reviewer, both planners, frame review and still check change deliberately. Packaging's neutral enum wording changes for all channels; other packaging/metadata prompts are unchanged. These statements describe assembly with the intended saved assignments, not verified production profiles. No channel name is in consumer code. Exact approved text is retained verbatim in this report's final section and in the PR description.
+
+**Cache same-cause fix:** long planner input identity includes resolved direction (including note/version/parts), so a checkpoint for different direction cannot be carried forward. Still-check identity includes prompt text, topic, narration and image bytes; a different note, style or preset cannot reuse an earlier verdict. No new calls or flow were added; existing checks run on cache misses. Repair-only and timing-only rendering paths retain their existing eligibility and reuse behavior.
+
+### Prompt goldens and R10 enforcement
+
+Goldens were deliberately regenerated with UPDATE_PROMPT_GOLDENS=1. There are now **114** golden entries: the original 37 plus 76 direction-specific entries (19 per preset) and the format manifest. For every preset the fixture includes a note, style and profile constraints; covers both fact policies and packet/source Short writer, packet/source long writer, both assembled reviewers, writer/reviewer user messages, free/fixed Short planner, long planner, still/stock Short frame review, long frame review and still check. These are offline fixtures, not snapshots of production profiles. Existing packaging/metadata entries remain covered. Two existing chosen-angle snapshots are deliberately updated for the neutral preset block. The prompt index names the shared part assembler and preset data for every affected purpose.
+
+`layers.test.ts` checks all presets for writer/reviewer hook-ending-pacing equality; question-rule/format consistency; notes after parts; visual tone and look; no history wording in non-history frame review; neutral fallback; pipeline tag fields; and changed planner cache identity. Its consumer source scan covers agents, packaging and story-tests, rejects direct legacy channel fields, raw profile JSON and profile repository reads, and includes deliberate bad fixtures. Preset lint, schema/warnings/tenant tests and run pinning remain in the suite. Still-check regression test proves reuse for identical inputs and recheck on changed note/style.
+
+The neutrality source test is now a hard failure across the audited prompt files and story-tests prompts. Its only explicit debt is the unchanged review-rule example lines (`Lego rhetoric`, `salarium`, `Roman = Rome`) owned by the separate neutral-examples task. A deliberately inserted historical hook is rejected. The word `documentary` in statements that generated images are not documentary evidence is an unchanged platform factual-support distinction, not a channel persona. Prompt fixtures/goldens naturally contain approved historical preset text.
+
+### R8 evidence and spend — blocked, not passed
+
+| Required output | Baseline on cad5b6c | Branch on same brief | Blocker |
+|---|---|---|---|
+| NIYT Short, history | Missing | Not run | Production brief/profile/assignment and output absent |
+| Cold Open Short, story-first | Missing | Not run | Same |
+| Start to Shelf Short, explainer | Missing | Not run | Same |
+| NIYT long, history | Missing | Not run | Same, plus frame inputs |
+| Cold Open long, story-first | Missing | Not run | Same, plus frame inputs |
+| Neutral Short: lending library | Not required | Not run | Hold paid campaign until baseline set is auditable |
+| Neutral Short: kitchen timer | Not required | Not run | Same |
+
+`channel-direction/evaluation.ts` contains the exact two invented neutral briefs, a plain-code leak detector that reports words and offsets separately in script/review/frame text, and a finite/nonnegative reservation check against the visible **$6** ceiling. Offline tests inject leaks into all three fields and check the ceiling boundary. **These tests do not establish that generated outputs are leak-free.** No live script, review, frame-review or cold-reader result exists for this PR, no side-by-side quality conclusion is made, and there is no per-call usage receipt to report. Current campaign spend **$0.00**; reserved **$0.00**; remaining **$6.00**.
+
+The exact five briefs cannot be selected or costed from missing production inputs. No paid execution estimate is asserted as verified; the immediate offline phase is exactly $0. Before resuming, freeze the five original briefs, profile snapshots, target lengths/options and frame inputs; cost the selected existing registry calls (including Task 3's `runScriptStep` blind cold reader, which is on main) against one cumulative ledger. Reserve each call's worst case before dispatch, retain unresolved reservations, and refuse a call that could exceed $6. No paid runner or one-off money-spending script was left behind. Full media renders are not assumed affordable. Record any reduced evaluation scope as unverified, never as a full R8 pass.
+
+### R5 / rollout steps still unverified
+
+On the server, after confirming #161 is deployed, use the existing audited command (dry run first; append --live only if needed), or inspect the already-saved picker versions. Do not run it against the local profile-less fixture:
+
+```sh
+cd /var/www/7AI/studio
+NODE_ENV=production npx tsx scripts/set-channel-directions.ts --tenant <production-tenant-uuid> --channel "Not In Your Textbook=history" --channel "Cold Open=story-first" --channel "Start to Shelf=explainer"
+```
+
+Attach reopened active profile IDs/versions, expected direction, fact policy and field-by-field previous/current comparison proving every other field is unchanged. If there is no profile, the founder must create it in the app; the script refuses. Capture five baseline outputs with the actual deployed pre-B/C prompt code before merging this PR, then evaluate this branch on those exact inputs plus the two neutral briefs and the same blind reader. Founder reads all three channel pairs, including NIYT. This PR is draft until these steps and the cost/leak receipts are complete. #165 already enabled the picker; phone display, live save/warnings and alignment of that flag with deployed consumers were not rechecked. No deployment, feature-flag edit, merge or production run was performed here.
+
+### R9 same-cause sweep
+
+Searched studio, app and docs for history/niche/persona wording, chapter-opening rules, duplicated no-logos/no-text rules and misplaced model/output limits. Production non-history wording cannot be inferred from source scans.
+
+| Hits / cause | Disposition / owner |
+|---|---|
+| Long writer persona, streaming brand comparison, hook tension word count, pacing, question ban, loops and future-topic ending; long review historical hook; frame historical topic/tone | **Fixed here:** preset parts own style; neutral platform mechanics stay. |
+| Short reviewer independent hook recipe | **Fixed here:** hookRule is the criterion; same ending/pacing/story/chapter parts supplied. |
+| Short planner historical-event noun and sports/fashion examples; long planner historical adjective and documentary query fallback; still checker documentary-video role | **Fixed here:** neutral wording plus resolved domain/visual tone. |
+| Long manifest contradictory opening/forward-ending hint and historical brief placeholder | **Fixed here:** long format is structural and placeholder neutral. Other Short format skeletons still contain opening/order/style instructions (`question-surprising-answer`, `what-it-feels-like`, etc.). **Needs a separate format-design task:** task explicitly limits manifest edits; do not silently redesign those formats or their UI names. |
+| Long planning/still-review caches omitted new prompt inputs | **Fixed here:** input identities include direction/prompt context; regression tests cover changes. |
+| Packaging typefaceMood topic examples | **Fixed here:** use existing enum owner; `historic` enum and Cinzel assets left as typography compatibility, not channel direction. |
+| Review rules' Lego, salary/Roman, currency, Latin/archaic examples and dead score-cap prose (`rules.ts`) | **Left alone, separate neutral-examples/review-calibration task**, expressly excluded; file is byte-identical to main. Source scan debt allows only the identified lines. |
+| NO_MARKS_CLAUSE and SAFETY_NEGATIVE_CLAUSE in scene-prompts; Short/long planner instructions; strongerPrompt remediation; still-check defect categories; frame safety flag; packaging thumbnail restrictions | **Left alone with reason:** these have different jobs (image negatives, planning instructions, defect schema, retry remediation and frame verdict policy). All are neutral platform rules. Brand-mark exception vs unconditional checks/flag semantics needs a separate platform-safety decision (P22); unifying them here would change existing policy/flow and expand the evaluation. No new copies introduced. |
+| Brief-only rules in Short/long writers and packet policy | **Left alone, P22:** strengths and packet semantics unchanged. Numeric prose limits in profile guides remain P23; production guide contents unverified. |
+| Registry model/tier/persona comments; existing registry max-output and reasoning settings | **Left alone:** registry owns call settings, comments are not prompt text; no model/limit changes. Existing no-output-cap-outside-llm test remains required. |
+| App Step/Version history, database history, historical replay identifiers, test/fixture topics, channel bibles/task/audit/report descriptions | **Left alone:** UI/version/audit data or tests, not shared prompt direction. App code is unchanged. Source fixtures intentionally exercise real topics. |
+
+### Sweep evidence inventory
+
+Commands used (PowerShell/rg; generated outputs, fixtures and report text were classified separately):
+
+```text
+rg -n -i "histor|heist|crime|textbook|cold open|niyt|lego|roman|shelf|Netflix|no logos|no text|chapter opens|NEVER start a chapter" studio/src/agents studio/src/packaging studio/src/formats studio/src/story-tests app --glob *.ts --glob *.tsx --glob !*.test.*
+rg -l -i "histor|heist|crime|textbook|cold open|niyt|lego|roman|shelf|Netflix|no logos|no text|chapter opens|NEVER start a chapter" docs --glob *.md --glob !task4.md
+rg -n -i "logos|text|lettering|watermarks|marks" studio/src/agents/video-generation/plan.ts studio/src/agents/video-generation/plan-long.ts studio/src/agents/video-generation/scene-prompts.ts studio/src/agents/video-generation/still-check.ts studio/src/agents/video-intelligence/index.ts studio/src/packaging/prompts.ts
+```
+
+Remaining lexical source hits, with current line numbers (all left alone for the reason shown):
+
+| File / lines | Disposition |
+|---|---|
+| `packaging/constants.ts:43,48` | Existing `historic` typography enum/font, no niche instructions. |
+| `script-review/rules.ts:8,13,14` | Only three debt lines matched by the prompt-neutrality scan; separate task, file untouched. Its other examples/caps are excluded from editing too. |
+| `packaging/prompts.ts:70`; `scene-prompts.ts:7,14`; `still-check.ts:157` | Neutral no-marks planning/negative/remediation policies, not preset direction. |
+| `plan.ts:240–248`; `plan-long.ts:164–166`; `video-intelligence/index.ts:263` | Additional neutral logos/text/safety instructions found by the dedicated marks scan; distinct roles and flag semantics described above. |
+| `long-narration.ts:174` | Error text `has no text to narrate`, unrelated lexical hit. |
+| `script-review/score-audit.ts:42` | Archived replay-contract comment, not a prompt. |
+| `app/app/(app)/run/[id].tsx:32,58,422,429,981,982` | Step-history imports/UI/state, unrelated to creative history direction. |
+| Same file `:469,470,1085,1086` | `angleGoOff` contains the letters `lego` across a code identifier; false positive. |
+| `app/app/(app)/channel/[id].tsx:581`; `channel/[id]/profile.tsx:401` | Spend/version-history UI text. |
+| `app/lib/run-settings.ts:96,101`; `run-view.ts:115,127,135,213,219,228,236,253`; `components/StepHistory.tsx:4,10,20,41,87,92,101` | History types/UI/documentation, not prompts. |
+
+Docs search covered channel bibles, decisions, design/audit/review-tuning/competitor docs, server runbooks and execution reports/tasks/templates across sprints, bugs, admin and UI. Those hits describe actual channels, recorded audits/defects or operating instructions: **left alone**, architect-owned and not consumer direction. Task 4 docs were read separately in full; the report was excluded from the broad count to avoid recursive self-hits. No docs were modified except this report. The source scan also inspected comments and test/fixture matches: descriptive comments and explicit regression input data remain allowed. Registry models/limits were checked by owner and by the existing enforcement tests, not replaced from documentation.
+
+### Verification and delivery
+
+- Focused backend: **19 passed, 1 skipped files; 163 passed, 6 skipped tests**, --maxWorkers=4. Skipped file is dedicated-database R5 integration; not run against shared local development data.
+- Backend typecheck/lint/build: passed, including final rerun after the prompt grammar/cache/index changes.
+- App typecheck: passed; direct ESLint: zero errors, two existing array-type warnings in untouched `app/lib/gate2-packaging.ts:111,122`; Expo web build: passed, 1,274 modules.
+- Full backend suite: **208 passed, 14 skipped files; 1,915 passed, 85 skipped tests; zero failures**, `npm.cmd test -- --maxWorkers=4`, 304.79 seconds, alone with FFmpeg access. The first sandbox run was interrupted after FFmpeg execution was denied (`Access is denied`); no complete suite result is claimed for that attempt. The access-enabled full run supersedes it. No failing test remains to compare against clean main.
+- App suite: **35 files / 246 tests passed**, `npx.cmd vitest run --root ../app --maxWorkers=4`.
+- `git diff --check`: passed. Task doc, presets and `script-review/rules.ts` are unchanged from main. No migrations, lockfile or app source changes.
+- Final main sync: `git fetch origin` and `git pull --no-rebase origin main` in this session's own branch/worktree; already up to date at `cad5b6c4f37c085187df3ee3dcbc2115e5ed558c`, no conflicts. The final source equals the full-suite source; only report/PR bookkeeping follows. Docs scope is only this report.
+- CI: PR checks run backend typecheck/lint/build and app checks; they do not run the backend Vitest suite. Local full-suite evidence above remains necessary. PR link/CI result are recorded at the top/final delivery note.
+
+**Hard rules 5–9:** 5 — task doc r6 already identical to fetched main; no task-doc edits. 6 — fresh branch from fetched main; final sync/docs-scope check recorded below. 7 — only this report is edited under docs; no STATUS/PLAN changes. 8 — leave worktree/branch until founder confirms merge; no closure claimed. 9 — sweep dispositions above. No unresolved founder preset-text decisions; operational evidence is missing. Architect PLAN status: **P16 B+C offline implementation complete in draft; R5 production verification and R8 baseline/branch evaluation block readiness and merge.**
+
+### R7 offline grep proof
+
+The staged PR diff was scanned with the exact required lexical pattern, before committing; the committed `origin/main...HEAD` check is repeated at delivery:
+
+```text
+git diff --cached origin/main -- studio app | [added lines only] | rg -i "histor|heist|crime|textbook|cold open|niyt|lego|mary celeste|roman|shelf"
+```
+
+**37 matching added lines**, in only these files:
+
+| File | Count | Disposition |
+|---|---:|---|
+| `agents/prompt-goldens.json` | 28 | Captured approved history part strings and unchanged excluded review examples inside per-preset test fixtures. |
+| `channel-direction/evaluation.test.ts` | 5 | Deliberately leaking script/review/frame fixtures and expected detector output. |
+| `channel-direction/layers.test.ts` | 1 | `preset.key !== 'history'` assertion for non-history frame prompts. |
+| `channel-direction/evaluation.ts` | 3 | Two lexical detector lines (history exemption and regex), plus the fictional neutral library brief's ordinary word `shelf`. This module is offline evaluation tooling/data, not a consumer prompt contract or channel name. |
+
+No added match exists in a shared consumer/format/packaging prompt source; preset data itself is unchanged. The unchanged review-rule lines remain the only source-scan debt. This proof is **offline only**: R7's post-acceptable-R8/production assertions remain unverified because no paid output comparison has run. It must not be interpreted as a live-output leak pass.
+
+### Exact prompt diffs (same offline inputs)
+
+These diffs compare the original 37 baseline goldens on current main with the regenerated neutral-default goldens. The 76 new per-preset goldens add each approved preset's selected parts and note to these same task mechanics; their full strings are in `studio/src/agents/prompt-goldens.json`. This is prompt evidence only, distinct from the five missing R8 generated outputs.
+
+Changed existing keys (19): `script-short/base`, `script-short/brief-only`, `script-short/packet-default`, `script-short/packet-brief-only`, `script-long/source`, `script-long/packet`, `review-short/prompt`, `review-long/prompt`, `review-short/assembled`, `review-long/assembled`, `still-check`, `plan-short/free`, `plan-short/fixed`, `plan-long/free`, `plan-long/fixed`, `frame-short/stills`, `frame-short/stock`, `frame-long/stills`, `packaging/brief-system`. Unchanged existing keys: 18.
+
+#### `script-short/base`
+
+```diff
+--- main/script-short/base
++++ branch/script-short/base
+@@ -17,2 +17,9 @@
+
+-Respond with raw JSON only — no markdown code fences, no commentary.+Respond with raw JSON only — no markdown code fences, no commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++persona: A clear, engaging scriptwriter for online video.
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
+```
+
+#### `script-short/brief-only`
+
+```diff
+--- main/script-short/brief-only
++++ branch/script-short/brief-only
+@@ -19,2 +19,9 @@
+
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++persona: A clear, engaging scriptwriter for online video.
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
++
+ Facts and figures stated in the brief are authoritative: keep every one of them, with the numbers
+
+```
+
+#### `script-short/packet-default`
+
+```diff
+--- main/script-short/packet-default
++++ branch/script-short/packet-default
+@@ -19,2 +19,9 @@
+
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++persona: A clear, engaging scriptwriter for online video.
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
++
+ Use the evidence packet policy. Citation-only URLs supply no factual text and do not verify general knowledge.
+```
+
+#### `script-short/packet-brief-only`
+
+```diff
+--- main/script-short/packet-brief-only
++++ branch/script-short/packet-brief-only
+@@ -19,2 +19,9 @@
+
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++persona: A clear, engaging scriptwriter for online video.
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
++
+ For the supplied evidence packet, add no factual detail beyond its permitted text. A citation-only URL has not been fetched and supplies no factual text.
+```
+
+#### `script-long/source`
+
+```diff
+--- main/script-long/source
++++ branch/script-long/source
+@@ -1,2 +1,2 @@
+-You are a master historical documentary filmmaker and a high-retention YouTube scriptwriter. Your writing style is immersive, suspenseful, and deeply atmospheric, similar to high-end history productions (e.g., Netflix's historical epics or premium storytelling channels).
++You write chaptered scripts for long-form YouTube video.
+
+@@ -8,15 +8,18 @@
+ - Word Count: The "text" field of every single chapter must be spoken narration containing at least 26 words (10 seconds when read aloud).
+-- The Cold Open (Chapter 1): Drop the viewer directly into a high-stakes, dramatic, or mysterious moment in history. The first 50 to 100 words must build intense narrative tension *before* explaining the broader historical context. NEVER start with a generic question or an introductory greeting.
+-- Micro-Pacing & Pacing Cues: Write in short, rhythmic, punchy sentences. Use ellipses (...) to force natural dramatic pauses or breaths in speech synthesis, and en-dashes (—) to mark sudden, dramatic shifts in the historical narrative.
+-- Chapter Transitions: NEVER start a chapter with an explicit question. Instead, open chapters with active historical conflict, a turning point, or a shifting perspective. The "title" should be a highly compelling, cinematic label.
+-- Narrative Loops: Plant one or two deep historical mysteries or open loops early in the video, explicitly resolving them in a much later chapter to maintain viewer retention.
+-- The Climax & Outro: The final chapter must build to the ultimate historical resolution and close with a lingering, provocative thought or a cliffhanger that seamlessly bridges to a future topic. Absolute ban on generic sign-offs like "Thanks for watching."
++
+
+ Content Restrictions & Delivery:
+-- Strict Factual Grounding: Rely EXCLUSIVELY on facts explicitly provided in the brief and sources. Do not invent dates, statistics, names, or historical claims. If source material is thin, narrow the focus and intensify the dramatic depth of the existing facts rather than hallucinating details.
++- Strict Factual Grounding: Rely EXCLUSIVELY on facts explicitly provided in the brief and sources. Do not invent dates, statistics, names, or factual claims. If source material is thin, narrow the focus and develop the existing facts rather than hallucinating details.
+ - Technical Formatting: Spoken narration text only. NO stage directions, NO audio cues in brackets, and NO markdown headings inside the text strings.
+ - Escape Strings Safely: Never use the straight double-quote character (") inside a text value other than as the JSON delimiter. For internal quotes or dialogue, use curly quotes (“ ”) or single quotes. Apostrophes are permitted.
+-- Tags: "hashtags" must be an array of 3 to 8 relevant historical search terms, excluding the '#' character.
++- Tags: "hashtags" must be an array of 3 to 8 relevant search terms, excluding the '#' character.
+
+ Output Execution:
+-Respond with raw JSON only. Do not wrap the response in markdown code blocks (```json), and provide no pre-text or post-text commentary.+Respond with raw JSON only. Do not wrap the response in markdown code blocks (```json), and provide no pre-text or post-text commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++persona: A clear, engaging scriptwriter for online video.
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
+```
+
+#### `script-long/packet`
+
+```diff
+--- main/script-long/packet
++++ branch/script-long/packet
+@@ -1,2 +1,2 @@
+-You are a master historical documentary filmmaker and a high-retention YouTube scriptwriter. Your writing style is immersive, suspenseful, and deeply atmospheric, similar to high-end history productions (e.g., Netflix's historical epics or premium storytelling channels).
++You write chaptered scripts for long-form YouTube video.
+
+@@ -8,15 +8,18 @@
+ - Word Count: The "text" field of every single chapter must be spoken narration containing at least 26 words (10 seconds when read aloud).
+-- The Cold Open (Chapter 1): Drop the viewer directly into a high-stakes, dramatic, or mysterious moment in history. The first 50 to 100 words must build intense narrative tension *before* explaining the broader historical context. NEVER start with a generic question or an introductory greeting.
+-- Micro-Pacing & Pacing Cues: Write in short, rhythmic, punchy sentences. Use ellipses (...) to force natural dramatic pauses or breaths in speech synthesis, and en-dashes (—) to mark sudden, dramatic shifts in the historical narrative.
+-- Chapter Transitions: NEVER start a chapter with an explicit question. Instead, open chapters with active historical conflict, a turning point, or a shifting perspective. The "title" should be a highly compelling, cinematic label.
+-- Narrative Loops: Plant one or two deep historical mysteries or open loops early in the video, explicitly resolving them in a much later chapter to maintain viewer retention.
+-- The Climax & Outro: The final chapter must build to the ultimate historical resolution and close with a lingering, provocative thought or a cliffhanger that seamlessly bridges to a future topic. Absolute ban on generic sign-offs like "Thanks for watching."
++
+
+ Content Restrictions & Delivery:
+-- Strict Factual Grounding: Rely exclusively on factual text supplied in the evidence packet brief. Citation-only URLs are unfetched and provide no facts. Do not invent dates, statistics, names, or historical claims. If source material is thin, narrow the focus and intensify the dramatic depth of the existing facts rather than hallucinating details.
++- Strict Factual Grounding: Rely exclusively on factual text supplied in the evidence packet brief. Citation-only URLs are unfetched and provide no facts. Do not invent dates, statistics, names, or factual claims. If source material is thin, narrow the focus and develop the existing facts rather than hallucinating details.
+ - Technical Formatting: Spoken narration text only. NO stage directions, NO audio cues in brackets, and NO markdown headings inside the text strings.
+ - Escape Strings Safely: Never use the straight double-quote character (") inside a text value other than as the JSON delimiter. For internal quotes or dialogue, use curly quotes (“ ”) or single quotes. Apostrophes are permitted.
+-- Tags: "hashtags" must be an array of 3 to 8 relevant historical search terms, excluding the '#' character.
++- Tags: "hashtags" must be an array of 3 to 8 relevant search terms, excluding the '#' character.
+
+ Output Execution:
+-Respond with raw JSON only. Do not wrap the response in markdown code blocks (```json), and provide no pre-text or post-text commentary.+Respond with raw JSON only. Do not wrap the response in markdown code blocks (```json), and provide no pre-text or post-text commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++persona: A clear, engaging scriptwriter for online video.
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
+```
+
+#### `review-short/prompt`
+
+```diff
+--- main/review-short/prompt
++++ branch/review-short/prompt
+@@ -9,12 +9,5 @@
+ score well overall while still opening weak, and the opening disproportionately determines whether a
+-Short survives the first swipe before anything else about it matters. Judge the opening against known
+-Shorts retention patterns:
+-- A genuine cold open — does it start mid-thought/mid-action, not with a slow wind-up or preamble?
+-- No logo/branding/intro filler before real content starts — every second before the hook lands is a
+-  second a viewer can swipe away.
+-- Does it immediately state a question, a surprising claim, or a visual/conceptual surprise that
+-  creates a reason to keep watching, rather than easing in generically ("Today we're going to talk
+-  about...")?
+-Score high (8-10) only for an opening line that does real work on at least one of these; score low
+-(0-3) for a slow, generic, or logo/intro-first opening, even if the rest of the script is strong.
++Short survives the first swipe before anything else about it matters. Judge the opening against
++the supplied creative direction's hookRule. Score high (8-10) for an opening that fulfils that rule;
++score low (0-3) for an opening that does not. The brief's mandated wording takes precedence.
+ "hookNotes" explains the hookScore specifically — what the opening does or doesn't do, separate from
+
+```
+
+#### `review-long/prompt`
+
+```diff
+--- main/review-long/prompt
++++ branch/review-long/prompt
+@@ -7,4 +7,4 @@
+
+-"hookScore" is a SEPARATE 0-10 score judging ONLY the cold open (the first 50-100 words of narration):
+-does it immediately plunge the viewer into a high-stakes or high-tension historical moment? Does it completely avoid generic introductions, questions, greetings, or "Today we're going to explore..."? Score 8-10 only for an opening that commands absolute attention; 0-3 for a slow or textbook-style one. "hookNotes" explains the hookScore.
++"hookScore" is a SEPARATE 0-10 score judging ONLY the opening:
++judge it against the supplied creative direction's hookRule, preserving the brief's mandated wording. Score 8-10 for an opening that fulfils that rule; 0-3 for one that does not. "hookNotes" explains the hookScore.
+
+
+```
+
+#### `review-short/assembled`
+
+```diff
+--- main/review-short/assembled
++++ branch/review-short/assembled
+@@ -9,12 +9,5 @@
+ score well overall while still opening weak, and the opening disproportionately determines whether a
+-Short survives the first swipe before anything else about it matters. Judge the opening against known
+-Shorts retention patterns:
+-- A genuine cold open — does it start mid-thought/mid-action, not with a slow wind-up or preamble?
+-- No logo/branding/intro filler before real content starts — every second before the hook lands is a
+-  second a viewer can swipe away.
+-- Does it immediately state a question, a surprising claim, or a visual/conceptual surprise that
+-  creates a reason to keep watching, rather than easing in generically ("Today we're going to talk
+-  about...")?
+-Score high (8-10) only for an opening line that does real work on at least one of these; score low
+-(0-3) for a slow, generic, or logo/intro-first opening, even if the rest of the script is strong.
++Short survives the first swipe before anything else about it matters. Judge the opening against
++the supplied creative direction's hookRule. Score high (8-10) for an opening that fulfils that rule;
++score low (0-3) for an opening that does not. The brief's mandated wording takes precedence.
+ "hookNotes" explains the hookScore specifically — what the opening does or doesn't do, separate from
+@@ -65,2 +58,8 @@
+ A pass is represented by [] in the concern arrays, not a string explaining the pass. Do not include the examples in your review unless the ACTUAL script contains the same offending claim.
+-FINAL VALIDATION: The concern arrays contain FAILURES ONLY, never passed checks, acceptable wording, things to confirm, or general advice. Each finding must state an actual mismatch, quote it and give a repair. Put ALL SR-3/4/5 advice in notes only. Do not flag digit versus spelled-number formatting unless expressly verbatim. Inspect every brief fact, required key term and local qualifier, not just candidate hints. In notes explain actual findings, without inventing a model score reduction. Keep notes under 70 words, hookNotes under 20, each concern under 35, and each chapter note under 20; output valid complete JSON within the existing token limit.+FINAL VALIDATION: The concern arrays contain FAILURES ONLY, never passed checks, acceptable wording, things to confirm, or general advice. Each finding must state an actual mismatch, quote it and give a repair. Put ALL SR-3/4/5 advice in notes only. Do not flag digit versus spelled-number formatting unless expressly verbatim. Inspect every brief fact, required key term and local qualifier, not just candidate hints. In notes explain actual findings, without inventing a model score reduction. Keep notes under 70 words, hookNotes under 20, each concern under 35, and each chapter note under 20; output valid complete JSON within the existing token limit.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
+```
+
+#### `review-long/assembled`
+
+```diff
+--- main/review-long/assembled
++++ branch/review-long/assembled
+@@ -7,4 +7,4 @@
+
+-"hookScore" is a SEPARATE 0-10 score judging ONLY the cold open (the first 50-100 words of narration):
+-does it immediately plunge the viewer into a high-stakes or high-tension historical moment? Does it completely avoid generic introductions, questions, greetings, or "Today we're going to explore..."? Score 8-10 only for an opening that commands absolute attention; 0-3 for a slow or textbook-style one. "hookNotes" explains the hookScore.
++"hookScore" is a SEPARATE 0-10 score judging ONLY the opening:
++judge it against the supplied creative direction's hookRule, preserving the brief's mandated wording. Score 8-10 for an opening that fulfils that rule; 0-3 for one that does not. "hookNotes" explains the hookScore.
+
+@@ -50,2 +50,8 @@
+ A pass is represented by [] in the concern arrays, not a string explaining the pass. Do not include the examples in your review unless the ACTUAL script contains the same offending claim.
+-FINAL VALIDATION: The concern arrays contain FAILURES ONLY, never passed checks, acceptable wording, things to confirm, or general advice. Each finding must state an actual mismatch, quote it and give a repair. Put ALL SR-3/4/5 advice in notes only. Do not flag digit versus spelled-number formatting unless expressly verbatim. Inspect every brief fact, required key term and local qualifier, not just candidate hints. In notes explain actual findings, without inventing a model score reduction. Keep notes under 70 words, hookNotes under 20, each concern under 35, and each chapter note under 20; output valid complete JSON within the existing token limit.+FINAL VALIDATION: The concern arrays contain FAILURES ONLY, never passed checks, acceptable wording, things to confirm, or general advice. Each finding must state an actual mismatch, quote it and give a repair. Put ALL SR-3/4/5 advice in notes only. Do not flag digit versus spelled-number formatting unless expressly verbatim. Inspect every brief fact, required key term and local qualifier, not just candidate hints. In notes explain actual findings, without inventing a model score reduction. Keep notes under 70 words, hookNotes under 20, each concern under 35, and each chapter note under 20; output valid complete JSON within the existing token limit.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
++endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
++pacingCues: Write for the ear: one idea per sentence.
++avoid: Hype words and exclamation marks.
+```
+
+#### `still-check`
+
+```diff
+--- main/still-check
++++ branch/still-check
+@@ -1,2 +1,2 @@
+-You inspect AI-generated still images for a documentary video, one numbered image at a time. Each image comes with the narration line it illustrates. Report only real problems, in these kinds:
++You inspect AI-generated still images for a video, one numbered image at a time. Each image comes with the narration line it illustrates. Report only real problems, in these kinds:
+ - "logo": any brand logo, wordmark, trademark or brand name, including on a sign, building, product, packaging or screen.
+
+```
+
+#### `plan-short/free`
+
+```diff
+--- main/plan-short/free
++++ branch/plan-short/free
+@@ -13,3 +13,3 @@
+ "visualSource" — the founder/user did NOT request a specific visual style for this run. Default to
+-"ai-stills". A script centred on a specific named person, a historical event, or a story beat that needs a
++"ai-stills". A script centred on a specific named person, a specific event, or a story beat that needs a
+ specific scene MUST use "ai-stills" — stock footage cannot depict specific people or events (it shows an
+@@ -54,3 +54,3 @@
+ For scene prompts about real, named people: depict scenes, objects, places, settings and silhouettes
+-that evoke them (e.g. a boxing ring and gloves, a stadium track at dusk, a dress on a mannequin) rather
++that evoke the narrated subject rather
+ than a close-up photoreal likeness of their face. Never ask for text, captions, logos or watermarks
+@@ -65,2 +65,4 @@
+ "rationale" briefly explains your choices, and — on a regen attempt — how they address the feedback.
+-Respond with raw JSON only — no markdown code fences, no commentary.+Respond with raw JSON only — no markdown code fences, no commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
+
+```
+
+#### `plan-short/fixed`
+
+```diff
+--- main/plan-short/fixed
++++ branch/plan-short/fixed
+@@ -50,3 +50,3 @@
+ For scene prompts about real, named people: depict scenes, objects, places, settings and silhouettes
+-that evoke them (e.g. a boxing ring and gloves, a stadium track at dusk, a dress on a mannequin) rather
++that evoke the narrated subject rather
+ than a close-up photoreal likeness of their face. Never ask for text, captions, logos or watermarks
+@@ -61,2 +61,4 @@
+ "rationale" briefly explains your choices, and — on a regen attempt — how they address the feedback.
+-Respond with raw JSON only — no markdown code fences, no commentary.+Respond with raw JSON only — no markdown code fences, no commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
+
+```
+
+#### `plan-long/free`
+
+```diff
+--- main/plan-long/free
++++ branch/plan-long/free
+@@ -11,3 +11,3 @@
+ 2. Describe framing, viewpoint, lighting and depth as image composition. Do not request continuous physical action, generated camera tracking or drone traversal, lip sync, or a video model/provider.
+-3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing historical facts. A reconstruction is an illustration, never documentary evidence of an event.
++3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing facts. A reconstruction is an illustration, never documentary evidence of an event.
+ 4. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The image provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus on the tense atmosphere just before a harmful action or the somber aftermath.
+@@ -16,2 +16,4 @@
+
+-Respond with raw JSON only, no markdown code fences, no commentary.+Respond with raw JSON only, no markdown code fences, no commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
+
+```
+
+#### `plan-long/fixed`
+
+```diff
+--- main/plan-long/fixed
++++ branch/plan-long/fixed
+@@ -11,3 +11,3 @@
+ 2. Describe framing, viewpoint, lighting and depth as image composition. Do not request continuous physical action, generated camera tracking or drone traversal, lip sync, or a video model/provider.
+-3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing historical facts. A reconstruction is an illustration, never documentary evidence of an event.
++3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing facts. A reconstruction is an illustration, never documentary evidence of an event.
+ 4. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The image provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus on the tense atmosphere just before a harmful action or the somber aftermath.
+@@ -18,2 +18,4 @@
+ Channel script guide (tone/context only; do not rewrite narration or override the scene-slot JSON contract): clear
+-Respond with raw JSON only, no markdown code fences, no commentary.+Respond with raw JSON only, no markdown code fences, no commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
+
+```
+
+#### `frame-short/stills`
+
+```diff
+--- main/frame-short/stills
++++ branch/frame-short/stills
+@@ -1,4 +1,4 @@
+-You are reviewing 3 frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on. Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described historical topic and dramatic tone (the visuals are generated still compositions animated by supported FFmpeg pan/zoom and cuts. Judge whether each sampled image is an on-topic illustration of the narration; a reconstruction is not documentary source evidence. Do not expect generated physical action or camera traversal. Stylized or AI-rendered imagery is permitted. Fail for blank/corrupted content, severe image artifacts or content genuinely unrelated to the topic, while keeping the existing overall-frame verdict policy.).
++You are reviewing 3 frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on. Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described topic (the visuals are generated still compositions animated by supported FFmpeg pan/zoom and cuts. Judge whether each sampled image is an on-topic illustration of the narration; a reconstruction is not documentary source evidence. Do not expect generated physical action or camera traversal. Stylized or AI-rendered imagery is permitted. Fail for blank/corrupted content, severe image artifacts or content genuinely unrelated to the topic, while keeping the existing overall-frame verdict policy.).
+
+-A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the historical topic).
++A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the topic).
+
+@@ -7,2 +7,5 @@
+ Respond with raw JSON only — no markdown code fences, no commentary.
+-This channel enforces a strict safety and compliance rule on AI-generated stills. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.+This channel enforces a strict safety and compliance rule on AI-generated stills. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++visualReviewTone: Judge whether each picture fits what is being said at that moment.
+```
+
+#### `frame-short/stock`
+
+```diff
+--- main/frame-short/stock
++++ branch/frame-short/stock
+@@ -1,4 +1,4 @@
+-You are reviewing 3 frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on. Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described historical topic and dramatic tone (the background is real licensed stock footage chosen for the topic, not a custom shoot — judge whether it's a *reasonable* backdrop for this content, not whether it's visually impressive.).
++You are reviewing 3 frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on. Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described topic (the background is real licensed stock footage chosen for the topic, not a custom shoot — judge whether it's a *reasonable* backdrop for this content, not whether it's visually impressive.).
+
+-A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the historical topic).
++A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the topic).
+
+@@ -6,2 +6,5 @@
+ "notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.
+-Respond with raw JSON only — no markdown code fences, no commentary.+Respond with raw JSON only — no markdown code fences, no commentary.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++visualReviewTone: Judge whether each picture fits what is being said at that moment.
+```
+
+#### `frame-long/stills`
+
+```diff
+--- main/frame-long/stills
++++ branch/frame-long/stills
+@@ -1,4 +1,4 @@
+-You are reviewing 4 key frames, one sampled within each chapter's rendered still-image sequence, from a long-form 16:9 YouTube video before publishing, alongside the topic and script it's based on. Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described historical topic and dramatic tone (the visuals are generated still compositions animated by supported FFmpeg pan/zoom and cuts. Judge whether each sampled image is an on-topic illustration of the narration; a reconstruction is not documentary source evidence. Do not expect generated physical action or camera traversal. Stylized or AI-rendered imagery is permitted. Fail for blank/corrupted content, severe image artifacts or content genuinely unrelated to the topic, while keeping the existing overall-frame verdict policy.).
++You are reviewing 4 key frames, one sampled within each chapter's rendered still-image sequence, from a long-form 16:9 YouTube video before publishing, alongside the topic and script it's based on. Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described topic (the visuals are generated still compositions animated by supported FFmpeg pan/zoom and cuts. Judge whether each sampled image is an on-topic illustration of the narration; a reconstruction is not documentary source evidence. Do not expect generated physical action or camera traversal. Stylized or AI-rendered imagery is permitted. Fail for blank/corrupted content, severe image artifacts or content genuinely unrelated to the topic, while keeping the existing overall-frame verdict policy.).
+
+-A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the historical topic).
++A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the topic).
+
+@@ -8,2 +8,5 @@
+ Respond with raw JSON only — no markdown code fences, no commentary.
+-This channel enforces a strict safety and compliance rule on AI-generated stills. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.+This channel enforces a strict safety and compliance rule on AI-generated stills. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.
++
++Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
++visualReviewTone: Judge whether each picture fits what is being said at that moment.
+```
+
+#### `packaging/brief-system`
+
+```diff
+--- main/packaging/brief-system
++++ branch/packaging/brief-system
+@@ -10,3 +10,3 @@
+ 7. What is the picture about (subjectKind)? iconic-thing: a landmark, ship, object or place that is the subject by itself. named-person: a named person is central to the story. anonymous-person: unnamed people (a crew, a worker, a child) are there. no-focal-subject: nothing in the story is a clear thing to look at.
+-8. typefaceMood for the lettering: stakes (urgent, numbers, risk, business), editorial (people, human stories), historic (ancient or long-ago subjects).
++8. typefaceMood for the lettering: stakes, editorial, historic.
+ 9. promise: one sentence saying what the first 5 to 10 seconds of the video deliver.
+
+```
 
 ### Approved preset text copied from the implemented data
 

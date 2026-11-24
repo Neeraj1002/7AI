@@ -1,3 +1,4 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveMediaPurpose } from '../../media';
@@ -64,6 +65,8 @@ export type LongVideoParams = {
   // that contradicts its narration). A picture that fails is made again once, with a stronger instruction;
   // one that fails again is flagged, not looped on. Each paid vision call is reported through onCall.
   stillCheck?: {
+    direction?: ResolvedDirection;
+    visualStyle?: string | null;
     topic: string;
     beforeCall?: () => Promise<void>;
     onCall?: (llm: LLMResponse, info: { batchSize: number }) => Promise<void>;
@@ -216,6 +219,8 @@ export async function generateLongVideo(params: LongVideoParams): Promise<VideoG
     const runCheck = (items: Array<{ sceneIndex: number; imagePath: string }>) =>
       checkStills({
         topic: params.stillCheck!.topic,
+        direction: params.stillCheck!.direction,
+        visualStyle: params.stillCheck!.visualStyle,
         stills: items.map((it) => ({ ...it, narration: narrationFor(it.sceneIndex) })),
         cacheDir,
         retryGuard: params.stillCheck!.retryGuard,

@@ -282,7 +282,7 @@ export async function runIntakeStage(runId: string): Promise<PipelineRun> {
     const storyTests = await runAngleStepForRun({ run, stageId: stage.id, intake: output });
     const pauseForAngle = storyTests?.angleStep.status === 'waiting';
     // Sprint 6 Task 3 (Part C): the pipeline-version tags, written now and never edited. Present with the feature on or off.
-    const pipelineTags = buildPipelineTags({ storyTestsOn: true, buildCommit: await resolveCommit() });
+    const pipelineTags = buildPipelineTags({ storyTestsOn: true, buildCommit: await resolveCommit(), direction: (await loadResolvedConfig(run)).direction });
 
     // Persist-before-advance: the stage's completion and the run's advance are
     // written together, in one transaction — this is what makes resumability
@@ -368,6 +368,7 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
     topic: run.intakeParsed.topic,
     constraints: constraintsWithAngle(run.intakeParsed.constraints, chosenAngle),
     styleGuide: config.scriptGuide,
+    direction: config.direction,
     // Run override (Sprint 3 Task 9), else profile, else the platform default 45.
     targetSeconds: config.targetSeconds,
     fixNotes: fixNotes ?? null,
@@ -463,6 +464,8 @@ export async function runScriptGenerationStage(runId: string): Promise<PipelineR
         topic: stageInput.topic,
         constraints: stageInput.constraints,
         styleGuide: stageInput.styleGuide,
+        direction: stageInput.direction,
+        hashtagsBase: config.hashtagsBase,
         targetSeconds: stageInput.targetSeconds,
         fixNotes: fixNotes ?? undefined,
         briefText: stageInput.briefText,
@@ -542,6 +545,7 @@ export async function runScriptReviewStage(runId: string): Promise<PipelineRun> 
     captions: scriptOutput.captions,
     nicheDescription: channel.nicheDescription,
     styleGuide: config.scriptGuide,
+    direction: config.direction,
     ...(reviewEvidence.briefText !== undefined && { briefText: reviewEvidence.briefText }),
     ...(reviewEvidence.evidence && { evidence: reviewEvidence.evidence }),
     evidenceProvenance: reviewEvidence.provenance,
@@ -1116,7 +1120,7 @@ export async function runVideoGenerationStage(
     chapters: sanctionedChapters as ScriptChapter[], topic: run.intakeParsed.topic,
     targetSeconds: config.targetSeconds, secondsPerStill: config.visualSecondsPerStill,
     audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
-    visualStyle: config.visualStylePrompt, scriptGuide: config.scriptGuide, fixNotes: fixNotes ?? undefined,
+    direction: config.direction, visualStyle: config.visualStylePrompt, scriptGuide: config.scriptGuide, fixNotes: fixNotes ?? undefined,
   }, (previousAttempt?.output as { longPlanningCheckpoint?: unknown } | null)?.longPlanningCheckpoint) : undefined;
   const stage = await createStageAttempt({
     pipelineRunId: runId,
@@ -1164,6 +1168,7 @@ export async function runVideoGenerationStage(
         targetSeconds: config.targetSeconds,
         secondsPerStill: config.visualSecondsPerStill,
         audioLayerOverride: resolveAudioLayerOverride(config.audioDefaultMoodTag ?? undefined),
+        direction: config.direction,
         visualStyle: config.visualStylePrompt,
         scriptGuide: config.scriptGuide,
         fixNotes: fixNotes ?? undefined,
@@ -1194,6 +1199,7 @@ export async function runVideoGenerationStage(
     }
     try {
       const { plan, llm } = await planVideoProduction({
+        direction: config.direction,
         retryGuard: makeLlmRetryGuard(run),
         scriptText: sanctionedScriptText,
         topic: run.intakeParsed!.topic,
@@ -1347,6 +1353,8 @@ export async function runVideoGenerationStage(
             maxShotSeconds: qualityProfileFor('long', config.visualSecondsPerStill).maxShotSeconds,
             // Sprint 5 Task 8 (R6): every picture is looked at before the render; each vision call is booked.
             stillCheck: {
+              direction: config.direction,
+              visualStyle: config.visualStylePrompt,
               topic: run.intakeParsed!.topic,
               retryGuard: makeLlmRetryGuard(run),
               onCall: async (llm, info) => {
@@ -1623,6 +1631,8 @@ export async function runVideoReviewStage(runId: string): Promise<PipelineRun> {
   const flaggedStills = (videoGenStage.output as { flaggedStills?: Array<{ sceneId: string; issues: Array<{ kind: string; detail: string }> }> } | null)?.flaggedStills;
   try {
     const outcome = await reviewVideo({
+      direction: reviewConfig.direction,
+      visualStyle: reviewConfig.visualStylePrompt,
       retryGuard: makeLlmRetryGuard(run),
       videoPath: videoOutput.videoPath,
       topic: run.intakeParsed.topic,

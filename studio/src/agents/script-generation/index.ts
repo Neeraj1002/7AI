@@ -1,3 +1,5 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
+import { directionBlock, WRITER_PARTS } from '../../channel-direction/prompts';
 import { z } from 'zod';
 import { buildJsonRepairMessages, callLLM, CallLedger, describeJsonError, extractJsonObjectText, LLMCutOffError, spendLimitBeforeRetryError, type LLMMessage, type LLMResponse, type RetryGuard } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
@@ -86,9 +88,10 @@ exactly as given, and do not introduce claims beyond common, verifiably-safe gen
 export type FactPolicy = 'brief-only' | 'brief-plus-common';
 const PACKET_BRIEF_ONLY_RULE = `\n\nFor the supplied evidence packet, add no factual detail beyond its permitted text. A citation-only URL has not been fetched and supplies no factual text.`;
 
-export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common', packetMode = false): string {
-  if (packetMode) return SYSTEM_PROMPT + (factPolicy === 'brief-only' ? PACKET_BRIEF_ONLY_RULE : '\n\nUse the evidence packet policy. Citation-only URLs supply no factual text and do not verify general knowledge.');
-  return factPolicy === 'brief-only' ? SYSTEM_PROMPT + BRIEF_ONLY_RULE : SYSTEM_PROMPT;
+export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common', packetMode = false, direction?: ResolvedDirection): string {
+  const system = SYSTEM_PROMPT + directionBlock(direction, WRITER_PARTS);
+  if (packetMode) return system + (factPolicy === 'brief-only' ? PACKET_BRIEF_ONLY_RULE : '\n\nUse the evidence packet policy. Citation-only URLs supply no factual text and do not verify general knowledge.');
+  return factPolicy === 'brief-only' ? system + BRIEF_ONLY_RULE : system;
 }
 
 // The pace the length target is planned at. A word count stated in the brief wins over minutes x pace: it is
@@ -99,6 +102,8 @@ export function longPace(params: Pick<GenerateScriptParams, 'briefText' | 'words
 }
 
 export type GenerateScriptParams = {
+  direction?: ResolvedDirection;
+  hashtagsBase?: string[];
   topic: string;
   constraints: string[];
   styleGuide?: string | null;
@@ -160,6 +165,7 @@ export function buildUserMessage(params: GenerateScriptParams): string {
   if (params.styleGuide) {
     lines.push(`Style guide: ${params.styleGuide}`);
   }
+  if (params.hashtagsBase?.length) lines.push(`Base hashtags: ${params.hashtagsBase.join('; ')}`);
   // R7: only when non-empty, so a channel without these lists is unchanged.
   if (params.bannedOpeners && params.bannedOpeners.length > 0) {
     lines.push(`Do not open with any of: ${params.bannedOpeners.join('; ')}`);
@@ -369,7 +375,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   // A brief that lists its chapter titles sets the chapter count; otherwise the format's default applies.
   const bounds = chapterBoundsForBrief(params.briefText, targetSeconds);
   const newLedger = () => new CallLedger({ guard: params.retryGuard });
-  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds), LongScriptReplySchema, calls, newLedger);
+  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds, params.direction), LongScriptReplySchema, calls, newLedger);
 
   const first = await call([{ role: 'user', content: userMessage }]);
   let current: { llm: LLMResponse; output: ScriptGenerationOutput };
@@ -427,7 +433,7 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
   const calls: LLMResponse[] = [];
   const userMessage = buildUserMessage(params);
   const { call, takeRepair } = createCaller(
-    buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence)),
+    buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence), params.direction),
     ScriptGenerationOutputSchema,
     calls,
     () => new CallLedger({ guard: params.retryGuard }),

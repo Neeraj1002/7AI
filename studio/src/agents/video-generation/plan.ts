@@ -1,3 +1,5 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
+import { directionBlock } from '../../channel-direction/prompts';
 import { z } from 'zod';
 import { callLLM, describeJsonError, extractJsonText, type LLMResponse, type RetryGuard } from '../../llm';
 import { NonTransientStageError } from '../../run-pipeline/retry-with-backoff';
@@ -164,11 +166,12 @@ export function buildSystemPrompt(
   visualSourceOverride: VisualSource | undefined,
   audioLayerOverride: AudioLayer | undefined,
   stillCount: number,
+  direction?: ResolvedDirection,
 ): string {
   const visualSourceInstruction =
     visualSourceOverride === undefined
       ? `"visualSource" — the founder/user did NOT request a specific visual style for this run. Default to
-"ai-stills". A script centred on a specific named person, a historical event, or a story beat that needs a
+"ai-stills". A script centred on a specific named person, a specific event, or a story beat that needs a
 specific scene MUST use "ai-stills" — stock footage cannot depict specific people or events (it shows an
 anonymous lookalike that contradicts the narration). Choose "stock-footage" only for generic,
 non-specific subjects (nature, places, animals, abstract concepts, everyday activities) where ANY
@@ -233,7 +236,7 @@ describing one concrete, visually distinct scene matching the portion of the scr
 that moment — REQUIRED (non-empty) when visualSource is "ai-stills"; omit or leave empty when
 visualSource is "stock-footage".
 For scene prompts about real, named people: depict scenes, objects, places, settings and silhouettes
-that evoke them (e.g. a boxing ring and gloves, a stadium track at dusk, a dress on a mannequin) rather
+that evoke the narrated subject rather
 than a close-up photoreal likeness of their face. Never ask for text, captions, logos or watermarks
 inside an image. Whenever a scene shows a person, say who they are in the prompt itself (gender, rough age, era,
 setting) so the image matches the story's subject — an unspecific "athlete" can come back as the wrong
@@ -244,10 +247,11 @@ exams, hospital-gown/bodily-injury imagery, violence or anything graphic.
 "audioLayer" is exactly one of the mood tags listed above, or "none".
 "pacingNotes" is a brief instruction for the assembler (e.g. caption timing/readability adjustments).
 "rationale" briefly explains your choices, and — on a regen attempt — how they address the feedback.
-Respond with raw JSON only — no markdown code fences, no commentary.`;
+Respond with raw JSON only — no markdown code fences, no commentary.` + directionBlock(direction, ['domain']);
 }
 
 export async function planVideoProduction(params: {
+  direction?: ResolvedDirection;
   scriptText: string;
   topic: string;
   fixNotes?: string;
@@ -276,6 +280,7 @@ export async function planVideoProduction(params: {
       params.visualSourceOverride,
       params.audioLayerOverride,
       params.desiredStillCount ?? estimateStillCount(params.scriptText),
+      params.direction,
     ),
     messages: [{ role: 'user', content: `Topic: ${params.topic}\nScript: ${params.scriptText}\n\n${attemptContext}` }],
     retryGuard: params.retryGuard,

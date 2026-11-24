@@ -1,6 +1,7 @@
 import { buildStyledScenePrompts } from '../agents/video-generation/scene-prompts';
 import {
   CONCEPTS_MADE,
+  TYPEFACE_MOODS,
   LETTERING_MAX_WORDS,
   NEUTRAL_TITLE_LIMIT,
   PACKAGES_KEPT,
@@ -31,7 +32,7 @@ Work in this order.
 5. Pick one primary device: stake, scale, mystery, correction, how, person, countdown.
 6. Where does the script answer the question? Give the chapter number if the script has chapters, and a quote of the answer copied EXACTLY from the script (answeredIn).
 7. What is the picture about (subjectKind)? iconic-thing: a landmark, ship, object or place that is the subject by itself. named-person: a named person is central to the story. anonymous-person: unnamed people (a crew, a worker, a child) are there. no-focal-subject: nothing in the story is a clear thing to look at.
-8. typefaceMood for the lettering: stakes (urgent, numbers, risk, business), editorial (people, human stories), historic (ancient or long-ago subjects).
+8. typefaceMood for the lettering: ${TYPEFACE_MOODS.join(', ')}.
 9. promise: one sentence saying what the first 5 to 10 seconds of the video deliver.
 10. hookLine: a line for the very first frame of a short video: at most 8 words, it OPENS the question and does NOT state the answer, uses only figures the script states exactly (keep any hedge word), and no label such as 4K or Official. Empty string when weakGap is set.
 11. correction: fill it ONLY when the script itself states the popular version and then the documented record. Quote the sentence that states the record, copied exactly. Otherwise null.

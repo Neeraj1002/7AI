@@ -1,3 +1,5 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
+import { directionBlock } from '../../channel-direction/prompts';
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
@@ -264,14 +266,16 @@ export function buildSystemPrompt(
   visualSource: VisualSource,
   safetyChecks = false,
   longForm?: { frameCount: number },
+  direction?: ResolvedDirection,
+  visualStyle?: string | null,
 ): string {
   const framesIntro = longForm
     ? `You are reviewing ${longForm.frameCount} key frames, one sampled within each chapter's rendered still-image sequence, from a long-form 16:9 YouTube video before publishing, alongside the topic and script it's based on.`
     : `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on.`;
 
-  return `${framesIntro} Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described historical topic and dramatic tone (${visualContextInstruction(visualSource)}).
+  return `${framesIntro} Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described topic (${visualContextInstruction(visualSource)}).
 
-A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the historical topic).
+A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the topic).
 
 Respond with ONLY a JSON object: ${longForm
   ? '{"verdict": "pass" | "fail", "notes": string, "visualDefects"?: [{"sceneId"?: string, "timestampSeconds"?: number, "kind": "visual_mismatch" | "continuity" | "composition" | "artifact", "reason": string, "requiredVisualConstraints": string[]}]}'
@@ -279,7 +283,7 @@ Respond with ONLY a JSON object: ${longForm
 "notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.${longForm ? '\nOnly name one visual defect when a sampled frame clearly locates it in the supplied scene map. Include its exact scene ID and sampled timestamp. If the defect is factual, script, narration, timing, vague or unlocated, omit visualDefects. Do not infer a scene from a general chapter note.' : ''}
 Respond with raw JSON only — no markdown code fences, no commentary.${
     safetyChecks && visualSource === "ai-stills" ? SAFETY_CHECK_INSTRUCTION : ""
-  }`;
+  }` + directionBlock(direction, ['visualReviewTone']) + (visualStyle ? `\nVisual style: ${visualStyle}` : '');
 }
 
 // Sprint 6 Task 1 (PR 2): 'not_run' means the automated review could not be completed (the model's reply was
@@ -307,6 +311,8 @@ export type VideoIntelligenceOutcome = {
 };
 
 export async function reviewVideo(params: {
+  direction?: ResolvedDirection;
+  visualStyle?: string | null;
   // LLM Registry task (R5): the stage's budget check, asked before every extra provider call.
   retryGuard?: RetryGuard;
   videoPath: string;
@@ -393,6 +399,8 @@ export async function reviewVideo(params: {
         params.videoKind === "long"
           ? { frameCount: framesBase64.length }
           : undefined,
+        params.direction,
+        params.visualStyle,
       ),
       messages: [
         {
