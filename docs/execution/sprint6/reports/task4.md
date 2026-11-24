@@ -2,7 +2,7 @@
 
 **Branch / worktree / PR A:** `SPRINT6_TASK4A_BE` / `D:\Study Material\7AI-SPRINT6\task4a` / #161
 **Task doc:** r6 on `origin/main` (founder selected r6; the base checkout's r1 copy is stale).
-**Branch / worktree / PR B+C:** `SPRINT6_TASK4BC_BE` / `D:\Study Material\7AI\.worktrees\task4bc` / pending draft PR.
+**Branch / worktree / PR B+C:** `SPRINT6_TASK4BC_BE` / `D:\Study Material\7AI\.worktrees\task4bc` / [#166](https://github.com/Neeraj1002/7AI/pull/166) (draft).
 **Current base:** fetched `origin/main` at `cad5b6c` on 2026-11-24 (Asia/Calcutta).
 **Current status:** Part A merged in #161 (`89fb06a`); picker #152 (`540c1c3`) and #165 (`bdafb89`) merged. B+C offline implementation complete; paid evaluation and production verification blocked. B+C merged: **no**; deployed: **no**.
 **Draft blocker:** No production connection or R5 evidence for the three active profile assignments and direction-only version comparisons; no five R8 baseline outputs, original briefs/profile snapshots, or frame inputs. Local database is localhost, with only a profile-less NIYT row among the three names. No paid calls were made. Do not merge until R5 and R8 evidence is attached and evaluated under the cumulative $6 ceiling.
@@ -212,13 +212,13 @@ Docs search covered channel bibles, decisions, design/audit/review-tuning/compet
 - App suite: **35 files / 246 tests passed**, `npx.cmd vitest run --root ../app --maxWorkers=4`.
 - `git diff --check`: passed. Task doc, presets and `script-review/rules.ts` are unchanged from main. No migrations, lockfile or app source changes.
 - Final main sync: `git fetch origin` and `git pull --no-rebase origin main` in this session's own branch/worktree; already up to date at `cad5b6c4f37c085187df3ee3dcbc2115e5ed558c`, no conflicts. The final source equals the full-suite source; only report/PR bookkeeping follows. Docs scope is only this report.
-- CI: PR checks run backend typecheck/lint/build and app checks; they do not run the backend Vitest suite. Local full-suite evidence above remains necessary. PR link/CI result are recorded at the top/final delivery note.
+- CI: PR checks run backend typecheck/lint/build and app checks; they do not run the backend Vitest suite. Local full-suite evidence above remains necessary. PR #166 is draft against main; CI results are recorded in the delivery note below.
 
 **Hard rules 5–9:** 5 — task doc r6 already identical to fetched main; no task-doc edits. 6 — fresh branch from fetched main; final sync/docs-scope check recorded below. 7 — only this report is edited under docs; no STATUS/PLAN changes. 8 — leave worktree/branch until founder confirms merge; no closure claimed. 9 — sweep dispositions above. No unresolved founder preset-text decisions; operational evidence is missing. Architect PLAN status: **P16 B+C offline implementation complete in draft; R5 production verification and R8 baseline/branch evaluation block readiness and merge.**
 
 ### R7 offline grep proof
 
-The staged PR diff was scanned with the exact required lexical pattern, before committing; the committed `origin/main...HEAD` check is repeated at delivery:
+The staged PR diff was scanned with the exact required lexical pattern, before committing; the committed `origin/main...HEAD` check was repeated at delivery on `377f04f` with the identical 37 matches:
 
 ```text
 git diff --cached origin/main -- studio app | [added lines only] | rg -i "histor|heist|crime|textbook|cold open|niyt|lego|mary celeste|roman|shelf"
@@ -234,6 +234,10 @@ git diff --cached origin/main -- studio app | [added lines only] | rg -i "histor
 | `channel-direction/evaluation.ts` | 3 | Two lexical detector lines (history exemption and regex), plus the fictional neutral library brief's ordinary word `shelf`. This module is offline evaluation tooling/data, not a consumer prompt contract or channel name. |
 
 No added match exists in a shared consumer/format/packaging prompt source; preset data itself is unchanged. The unchanged review-rule lines remain the only source-scan debt. This proof is **offline only**: R7's post-acceptable-R8/production assertions remain unverified because no paid output comparison has run. It must not be interpreted as a live-output leak pass.
+
+### Delivery note
+
+Implementation committed as `377f04f` and pushed to `SPRINT6_TASK4BC_BE`; one combined draft PR opened: [#166](https://github.com/Neeraj1002/7AI/pull/166), base `main`. The docs diff contains only this report. Backend full suite and app suite are green locally. CI was triggered by the PR and is pending at this report update. The following bookkeeping commit changes only this report's PR/evidence references. Worktree/branch retained for review. Code-complete offline: **yes**; R5/R8 and rollout complete: **no**; merged: **no**; deployed: **no**. No paid evaluation result or production preset verification is claimed.
 
 ### Exact prompt diffs (same offline inputs)
 
