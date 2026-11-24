@@ -56,6 +56,15 @@ describe('Direction card states', () => {
     expect(html).toContain('Couldn&#x27;t load the creative directions');
     expect(html).not.toContain('Your note');
   });
+
+  it.each([[null], [[null]], [[{ ...presets[0], parts: null }]], [[{ ...presets[0], parts: [null] }]]])(
+    'shows the card error for malformed presets (%j)',
+    (response) => {
+      const html = draw({ presets: response as DirectionPreset[] });
+      expect(html).toContain('Couldn&#x27;t load the creative directions');
+      expect(html).not.toContain('Your note');
+    },
+  );
   it('save error and warnings show their own text', () => {
     expect(draw({ saveError: true })).toContain('Couldn&#x27;t save. Your choice is still here');
     expect(draw({ warnings: ['Careful with this'], savedVersion: 4 })).toContain('Saved as v4, with a warning:');

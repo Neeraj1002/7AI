@@ -9,6 +9,7 @@ import {
   counterAmber,
   counterText,
   effectiveDirection,
+  isDirectionPresetList,
   NOTE_HINT,
   NOTE_MAX,
   SAVE_ERROR,
@@ -20,7 +21,7 @@ import {
 // Sprint 6 Task 4 (NEXT 6, board T4Direction). Labels, summaries, parts and warnings are the server's, shown as given.
 // Choosing only selects: nothing is saved until the screen's own Save button.
 export function DirectionCard({
-  presets,
+  presets: presetData,
   loading,
   loadFailed,
   saved,
@@ -31,7 +32,7 @@ export function DirectionCard({
   warnings,
   saveError,
 }: {
-  presets: DirectionPreset[];
+  presets: DirectionPreset[] | undefined;
   loading: boolean;
   loadFailed: boolean;
   saved: Direction | null;
@@ -43,6 +44,9 @@ export function DirectionCard({
   saveError: boolean;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const validPresets = isDirectionPresetList(presetData);
+  const unavailable = loadFailed || (presetData !== undefined && !validPresets);
+  const presets = !loadFailed && validPresets ? presetData : [];
   const currentKey = effectiveDirection(saved).preset;
   const currentLabel = presets.find((p) => p.key === currentKey)?.label ?? '';
   const noteOpen = presets.some((p) => p.key === draft.preset);
@@ -56,7 +60,7 @@ export function DirectionCard({
 
       <View style={[styles.choices, saving && styles.dim]} pointerEvents={saving ? 'none' : 'auto'}>
         {loading ? <ActivityIndicator style={styles.loading} /> : null}
-        {loadFailed ? <Text style={styles.error}>Couldn&apos;t load the creative directions. Go back and try again.</Text> : null}
+        {unavailable ? <Text style={styles.error} accessibilityRole="alert">Couldn&apos;t load the creative directions. Go back and try again.</Text> : null}
         {presets.map((p) => {
           const selected = p.key === draft.preset;
           const tags = choiceTags(p.key, draft, saved);

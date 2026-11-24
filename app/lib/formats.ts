@@ -1,5 +1,20 @@
 // Sprint 4 FE N2 — helpers for "formats per channel": length labels and who may edit a channel's profile.
 
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '../../studio/src/api/router';
+
+type ProfileFormat = Pick<inferRouterOutputs<AppRouter>['channels']['listFormats'][number], 'key' | 'label' | 'videoKind' | 'targetSeconds'>;
+
+export function isProfileFormatList(value: unknown): value is ProfileFormat[] {
+  return Array.isArray(value) && value.every((format) =>
+    format &&
+    typeof format.key === 'string' &&
+    typeof format.label === 'string' &&
+    (format.videoKind === 'short' || format.videoKind === 'long') &&
+    Number.isFinite(format.targetSeconds),
+  );
+}
+
 // 45 -> "45 s"; 600 -> "10 min" (a Video format). Under two minutes is always seconds.
 export function formatLengthLabel(targetSeconds: number): string {
   if (targetSeconds < 120) return `${targetSeconds} s`;

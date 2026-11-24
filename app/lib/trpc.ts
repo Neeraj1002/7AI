@@ -1,4 +1,4 @@
-import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client';
+import { createTRPCClient, httpBatchLink, httpLink, splitLink, TRPCClientError } from '@trpc/client';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import superjson from 'superjson';
 import { fetchWithTimeout } from './auth-api';
@@ -16,14 +16,20 @@ export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRou
 // app/_layout.tsx. The auth header is attached per-request here, the same
 // single-shared-token model the API itself expects (no session, no refresh).
 export function createTrpcClient(apiUrl: string, token: string) {
+  const transport = {
+    url: `${apiUrl.replace(/\/$/, '')}/trpc`,
+    transformer: superjson,
+    headers: () => ({ authorization: `Bearer ${token}` }),
+    // Bugs Task 8 (R2) — bounded, so a dead server fails instead of hanging.
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => fetchWithTimeout(url, options),
+  };
   return createTRPCClient<AppRouter>({
     links: [
-      httpBatchLink({
-        url: `${apiUrl.replace(/\/$/, '')}/trpc`,
-        transformer: superjson,
-        headers: () => ({ authorization: `Bearer ${token}` }),
-        // Bugs Task 8 (R2) — bounded, so a dead server fails instead of hanging.
-        fetch: (url, options) => fetchWithTimeout(url, options as RequestInit),
+      splitLink({
+        // These catalogs made the Content profile batch exceed Fastify's 100-character route parameter.
+        condition: ({ path }) => path === 'channels.directionPresets' || path === 'channels.listFormats',
+        true: httpLink(transport),
+        false: httpBatchLink(transport),
       }),
     ],
   });

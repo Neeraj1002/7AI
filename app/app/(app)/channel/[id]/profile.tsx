@@ -31,7 +31,7 @@ import {
   type ProfileForm,
   type ProfileSection,
 } from '../../../../lib/profile-form';
-import { formatLengthLabel } from '../../../../lib/formats';
+import { formatLengthLabel, isProfileFormatList } from '../../../../lib/formats';
 import { color, font, radius, space, type } from '../../../../lib/theme';
 import { FormScreen } from '../../../../components/FormScreen';
 import { Card } from '../../../../components/Card';
@@ -81,7 +81,10 @@ export default function ContentProfileScreen() {
   const [saveWarnings, setSaveWarnings] = useState<string[]>([]);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
   const formatsQuery = useQuery(trpc.channels.listFormats.queryOptions());
-  const allFormats = useMemo(() => formatsQuery.data ?? [], [formatsQuery.data]);
+  const formatData = formatsQuery.data;
+  const validFormats = useMemo(() => (isProfileFormatList(formatData) ? formatData : null), [formatData]);
+  const formatsUnavailable = formatsQuery.isError || (formatData !== undefined && validFormats === null);
+  const allFormats = formatsUnavailable ? [] : (validFormats ?? []);
 
   // The form is the server's active version until the user edits; `edits` holds the working copy.
   const baseline = useMemo(() => profileToForm(active.data?.data ?? null), [active.data]);
@@ -265,7 +268,7 @@ export default function ContentProfileScreen() {
               <View ref={(n) => register('offeredFormatKeys', n)} collapsable={false} style={styles.sectionBody}>
                 <Text style={styles.helper}>Pick 2 to 4 formats this channel uses.</Text>
                 {formatsQuery.isLoading ? <ActivityIndicator /> : null}
-                {formatsQuery.isError ? <Text style={styles.fieldError}>Couldn&apos;t load the formats. Go back and try again.</Text> : null}
+                {formatsUnavailable ? <Text style={styles.fieldError} accessibilityRole="alert">Couldn&apos;t load the formats. Go back and try again.</Text> : null}
                 {(
                   [
                     ['Shorts', 'short'],
@@ -310,7 +313,7 @@ export default function ContentProfileScreen() {
 
           {flags.creativeDirection ? (
             <DirectionCard
-              presets={presetsQuery.data ?? []}
+              presets={presetsQuery.data}
               loading={presetsQuery.isLoading}
               loadFailed={presetsQuery.isError}
               saved={savedDirection}

@@ -6,6 +6,22 @@ import type { AppRouter } from '../../studio/src/api/router';
 import { flags } from './feature-flags';
 
 export type DirectionPreset = inferRouterOutputs<AppRouter>['channels']['directionPresets'][number];
+
+export function isDirectionPresetList(value: unknown): value is DirectionPreset[] {
+  return Array.isArray(value) && value.every((preset) =>
+    preset &&
+    typeof preset.key === 'string' &&
+    Number.isFinite(preset.version) &&
+    typeof preset.label === 'string' &&
+    typeof preset.summary === 'string' &&
+    Array.isArray(preset.parts) &&
+    preset.parts.every((part: unknown) => {
+      if (!part || typeof part !== 'object') return false;
+      const { key, label, text } = part as Record<string, unknown>;
+      return typeof key === 'string' && typeof label === 'string' && typeof text === 'string';
+    }),
+  );
+}
 /** The app's draft of the choice: the preset key and the optional note. */
 export type Direction = { preset: string; note: string };
 
