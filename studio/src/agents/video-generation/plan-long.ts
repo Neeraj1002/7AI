@@ -1,8 +1,6 @@
 import type { ResolvedDirection } from '../../channel-profile/resolve';
-import { directionBlock } from '../../channel-direction/prompts';
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { MOOD_TAGS } from "../../audio-bed";
 import {
   callLLM,
   CallLedger,
@@ -25,6 +23,8 @@ import {
   type ScenePurpose,
   type SceneMeaning,
 } from "./plan";
+import { buildLongPlannerSystemPrompt as buildSystemPrompt } from '../../prompts/system-prompts';
+export { buildLongPlannerSystemPrompt as buildSystemPrompt } from '../../prompts/system-prompts';
 
 // Sprint 4 Task 9 (R5.2/R5.3): the production plan for a long-form video. Long-form uses AI stills
 // only, so there is no visual-source or caption-style decision to make. The planner uses bounded
@@ -136,36 +136,6 @@ export function chapterSceneSlots(text: string, count: number): Array<{ startWor
 }
 function sceneAnchors(text: string, count: number): string[] {
   return chapterSceneSlots(text, count).map((slot) => slot.anchor);
-}
-
-export function buildSystemPrompt(params: {
-  direction?: ResolvedDirection;
-  visualStyle?: string | null;
-  scriptGuide?: string | null;
-  audioLayerOverride?: AudioLayer;
-}): string {
-  const audio =
-    params.audioLayerOverride === undefined
-      ? `Also include "audioLayer": exactly one of ${MOOD_TAGS.join(", ")}, or "none": the music mood that best fits the whole video's tone.`
-      : `Do not include "audioLayer".`;
-
-  return `You plan still-image compositions for a long-form landscape 16:9 YouTube video. One chapter of approved narration is given at a time. The renderer uses an ordered sequence of generated images, with supported FFmpeg pan/zoom; it does not generate moving footage.
-
-Respond with ONLY a JSON object: {"scenes": {"supplied_scene_id": {"prompt": string, "purpose": "context" | "illustration" | "explanation" | "emphasis" | "transition" | "reconstruction" | "unspecified"}}${params.audioLayerOverride === undefined ? ', "audioLayer": string' : ''}}
-- "scenes" has EXACTLY the number of scenes requested, in the supplied anchor order. Plan only this batch, using the full chapter as context.
-- Each prompt illustrates its supplied narration span. The application attaches the exact anchor and span to that scene ID; do not return an anchor or narration field. Choose one short purpose enum value explaining the visual's role, not whether its facts are verified.
-- "prompt" describes one visually distinct, renderable still composition for a wide landscape frame in about 80 to 140 words. Use concrete subjects and details that serve the supplied narration; avoid generic repetition.
-- ${audio}
-
-Rules for still prompts:
-1. Choose a meaningful frozen instant. State the subject, its pose or implied action at that instant, the setting and the relationship to the narration beat. Leave safe crop space for FFmpeg pan/zoom.
-2. Describe framing, viewpoint, lighting and depth as image composition. Do not request continuous physical action, generated camera tracking or drone traversal, lip sync, or a video model/provider.
-3. Use era and place details only when supported by the approved narration or actual profile. Maintain visual continuity without inventing facts. A reconstruction is an illustration, never documentary evidence of an event.
-4. If narration mentions children, depict adult caregivers or the setting instead. Never ask for text, captions, overlays, subtitles, logos, or watermarks inside the frame. The image provider's safety system rejects graphic content, so avoid depicting children/minors, medical exams, active physical violence, bodily injury, or blood. Focus on the tense atmosphere just before a harmful action or the somber aftermath.
-5. Sprint 5 Task 8: even when the topic is a brand or company, never ask for its logo, name, signs or lettering; show products and places as plain shapes with no markings, and show signs, screens and documents blank or out of focus. Never ask for readable numbers, charts with figures, slogans or posters.
-6. A picture must not imply a fact the narration does not state. For a sentence about a fact (a site sold, a profit, a closure) show that fact or a neutral scene; no ruins, decay, abandonment, disaster or mourning imagery (an overgrown site, a flag at half-mast) unless the narration says so.
-
-${params.visualStyle ? `Visual style for every image: ${params.visualStyle}\n` : ""}${params.scriptGuide ? `Channel script guide (tone/context only; do not rewrite narration or override the scene-slot JSON contract): ${params.scriptGuide}\n` : ""}Respond with raw JSON only, no markdown code fences, no commentary.` + directionBlock(params.direction, ['domain']);
 }
 
 async function planChapter(params: {

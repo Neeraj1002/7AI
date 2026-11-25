@@ -1,5 +1,3 @@
-import type { ResolvedDirection } from '../../channel-profile/resolve';
-import { directionBlock, WRITER_PARTS } from '../../channel-direction/prompts';
 import { z } from "zod";
 import {
   LONG_WORDS_PER_MINUTE,
@@ -8,6 +6,7 @@ import {
   describeAllowedChapters,
   type ChapterBounds,
 } from "../../long-form/chapter-bounds";
+export { buildLongSystemPrompt } from '../../prompts/system-prompts';
 
 // Sprint 4 Task 9 (R2): the pure half of long-form script generation: the prompt, the reply
 // shape, the length rule and the Gate 1 chapter edit sheet. No model calls here.
@@ -105,39 +104,6 @@ export function validateChapters(
     return `chapter ${short + 1} ("${chapters[short].title}") has ${countWords(chapters[short].text)} words; every chapter needs at least ${bounds.minWords} (10 seconds of narration)`;
   }
   return null;
-}
-
-function chapterStructureRule(bounds: ChapterBounds): string {
-  if (bounds.titles) {
-    const list = bounds.titles.map((t, i) => `${i + 1}. "${t}"`).join("; ");
-    return `Write exactly ${bounds.titles.length} chapters, in the order they will be narrated, with these exact titles: ${list}.`;
-  }
-  return `Write between ${bounds.min} and ${bounds.max} chapters, in the order they will be narrated. The format's default for this length is ${bounds.target}; use another number only if the brief says so.`;
-}
-
-export function buildLongSystemPrompt(
-  packetMode = false,
-  bounds: ChapterBounds = chapterBounds({ targetSeconds: 600 }),
-  direction?: ResolvedDirection,
-): string {
-  return `You write chaptered scripts for long-form YouTube video.
-
-Given a topic, a founder's brief, ${packetMode ? 'an evidence packet' : 'source materials'}, and optional style rules, respond with ONLY a raw JSON object matching this exact shape:
-{"chapters": [{"title": string, "text": string}], "hashtags": string[]}
-
-Narrative Architecture & Pacing Rules:
-- Structure: ${chapterStructureRule(bounds)}
-- Word Count: The "text" field of every single chapter must be spoken narration containing at least ${bounds.minWords} words (10 seconds when read aloud).
-
-
-Content Restrictions & Delivery:
-- Strict Factual Grounding: ${packetMode ? 'Rely exclusively on factual text supplied in the evidence packet brief. Citation-only URLs are unfetched and provide no facts.' : 'Rely EXCLUSIVELY on facts explicitly provided in the brief and sources.'} Do not invent dates, statistics, names, or factual claims. If source material is thin, narrow the focus and develop the existing facts rather than hallucinating details.
-- Technical Formatting: Spoken narration text only. NO stage directions, NO audio cues in brackets, and NO markdown headings inside the text strings.
-- Escape Strings Safely: Never use the straight double-quote character (") inside a text value other than as the JSON delimiter. For internal quotes or dialogue, use curly quotes (“ ”) or single quotes. Apostrophes are permitted.
-- Tags: "hashtags" must be an array of 3 to 8 relevant search terms, excluding the '#' character.
-
-Output Execution:
-Respond with raw JSON only. Do not wrap the response in markdown code blocks (\`\`\`json), and provide no pre-text or post-text commentary.` + directionBlock(direction, WRITER_PARTS);
 }
 
 export function buildLongTargetLine(targetSeconds: number, wordsPerMinute = LONG_WORDS_PER_MINUTE): string {

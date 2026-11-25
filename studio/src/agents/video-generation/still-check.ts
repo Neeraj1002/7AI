@@ -1,5 +1,4 @@
 import type { ResolvedDirection } from '../../channel-profile/resolve';
-import { directionBlock } from '../../channel-direction/prompts';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
@@ -7,6 +6,8 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { env } from '../../config/env';
 import { callLLM, extractJsonText, type LLMResponse, type RetryGuard } from '../../llm';
+import { buildStillCheckSystemPrompt } from '../../prompts/system-prompts';
+export { STILL_CHECK_SYSTEM_PROMPT, buildStillCheckSystemPrompt } from '../../prompts/system-prompts';
 
 const execFileAsync = promisify(execFile);
 
@@ -45,17 +46,6 @@ const ReplySchema = z.object({
     }),
   ),
 });
-
-export const STILL_CHECK_SYSTEM_PROMPT = `You inspect AI-generated still images for a video, one numbered image at a time. Each image comes with the narration line it illustrates. Report only real problems, in these kinds:
-- "logo": any brand logo, wordmark, trademark or brand name, including on a sign, building, product, packaging or screen.
-- "text": any readable letters, words or numbers anywhere in the picture (signs, screens, documents, banners, labels). Blurred, tiny or unreadable marks are fine.
-- "invented_figure": a chart, table, calculator display, document or slogan that shows figures or statements the picture should not be inventing.
-- "contradiction": the picture shows something that conflicts with, or implies a fact beyond, its narration line. Decay, abandonment, closure, ruin, disaster or mourning imagery (an overgrown or empty site, a flag at half-mast) is a contradiction unless the narration says it. Showing the stated fact or a neutral scene is fine.
-Be strict about "logo" and "text". Do not report style, quality or taste. Respond with ONLY JSON: {"results": [{"image": 1, "issues": [{"kind": "logo" | "text" | "invented_figure" | "contradiction", "detail": "what and where, in a few words"}]}]} with one entry per image and an empty issues array when the image is fine. Raw JSON only.`;
-
-export function buildStillCheckSystemPrompt(direction?: ResolvedDirection, visualStyle?: string | null): string {
-  return STILL_CHECK_SYSTEM_PROMPT + directionBlock(direction, ['visualReviewTone']) + (visualStyle ? `\nVisual style: ${visualStyle}` : '');
-}
 
 async function thumbnailBase64(imagePath: string): Promise<string> {
   const out = `${imagePath}.check.jpg`;

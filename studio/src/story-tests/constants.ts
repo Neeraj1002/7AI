@@ -23,7 +23,6 @@ export const SHORT_SWIPE_SENTENCES = 2;
 export const LONG_SWIPE_FRACTION = 0.15;
 
 // Decision 2: one neutral reader for every channel. A channel's own line, when it has one, replaces this sentence.
-export const DEFAULT_READER_PERSONA = 'a stranger scrolling their feed, no prior interest in this subject, ready to swipe if bored.';
 
 // Reader-facing ids: neutral and unrelated to position, so the order a reader sees carries no meaning.
 export const READER_ID_POOL = ['K', 'M', 'P', 'R', 'T', 'V', 'X'] as const;

@@ -1,3 +1,4 @@
+import { PROVIDER_PROBE_SYSTEM_PROMPT } from '../prompts/system-prompts';
 // Public surface of the LLM / text-completion layer. Call sites import only
 // from here — never from client.ts or registry.ts directly — and declare a
 // *purpose*, never a model, provider or output limit. See
@@ -278,7 +279,7 @@ export async function probeLLMProvider(): Promise<void> {
   await callProviderModel({
     provider,
     model,
-    system: 'Reply with OK.',
+    system: PROVIDER_PROBE_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: 'ping' }],
     maxOutputTokens: 1,
     reasoning: 'off',

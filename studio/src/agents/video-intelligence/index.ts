@@ -1,5 +1,4 @@
 import type { ResolvedDirection } from '../../channel-profile/resolve';
-import { directionBlock } from '../../channel-direction/prompts';
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
@@ -12,10 +11,13 @@ import { withRetryAndCircuitBreaker } from "../../run-pipeline/retry-with-backof
 import type { VisualSource } from "../video-generation/plan";
 import {
   qualityProfileFor,
+  FRAME_REVIEW_SAMPLE_FRACTIONS,
   type QualityMetrics,
 } from "../video-generation/quality-spec";
 import { classifyHardFailure, hardFailureReason, measureQualityMetrics, type HardFailureCode } from "./quality-metrics";
 import { VisualDefectSchema, type VisualDefect } from '../../run-pipeline/visual-repair';
+import { buildFrameReviewSystemPrompt as buildSystemPrompt } from '../../prompts/system-prompts';
+export { SAFETY_CHECK_INSTRUCTION, buildFrameReviewSystemPrompt as buildSystemPrompt } from '../../prompts/system-prompts';
 
 // Video Intelligence agent, own-draft mode — AGENT_FLEET_DESIGN.md Section
 // 4.2. Deterministic checks (ffprobe/FFmpeg, zero LLM cost) run first and
@@ -180,7 +182,6 @@ export async function runDeterministicChecks(
 // single-frame vulnerability, and doesn't help if a *different* momentary
 // artifact (a stock-footage transition, a dropped frame) lands on the one
 // sampled instant.
-const SAMPLE_FRACTIONS = [0.25, 0.5, 0.75];
 
 // Sprint 4 Task 10 (R2): long-form frames are taken inside every chapter (its midpoint), so no
 // chapter goes unseen. Capped so a many-chapter video does not send an unbounded number of images;
@@ -217,7 +218,7 @@ async function extractSampleFramesBase64(
   timestamps?: number[],
 ): Promise<string[]> {
   const frames: string[] = [];
-  const points = timestamps ?? SAMPLE_FRACTIONS.map((f) => durationSeconds * f);
+  const points = timestamps ?? FRAME_REVIEW_SAMPLE_FRACTIONS.map((f) => durationSeconds * f);
   for (const [index, point] of points.entries()) {
     const timestamp = Math.max(0, point);
     const framePath = `${videoPath}.frame${index}.jpg`;
@@ -250,42 +251,8 @@ export const MultimodalVerdictSchema = z.object({
 // visual-quality bar, same shape as the caption-style word-flash carve-out
 // above (don't fail a video for a known, expected characteristic of the
 // visual style it deliberately chose).
-function visualContextInstruction(visualSource: VisualSource): string {
-  if (visualSource === "ai-stills") {
-    return `the visuals are generated still compositions animated by supported FFmpeg pan/zoom and cuts. Judge whether each sampled image is an on-topic illustration of the narration; a reconstruction is not documentary source evidence. Do not expect generated physical action or camera traversal. Stylized or AI-rendered imagery is permitted. Fail for blank/corrupted content, severe image artifacts or content genuinely unrelated to the topic, while keeping the existing overall-frame verdict policy.`;
-  }
-  return `the background is real licensed stock footage chosen for the topic, not a custom shoot — judge whether it's a *reasonable* backdrop for this content, not whether it's visually impressive.`;
-}
-
 // Sprint 4 Task 3 (R11): only for AI-generated stills. Real stock footage can
 // legitimately show real people, so none of this applies there.
-export const SAFETY_CHECK_INSTRUCTION = `
-This channel enforces a strict safety and compliance rule on AI-generated stills. Also fail the video if any sampled frame clearly shows any of: a recognisable brand logo or trademark; legible gibberish text baked directly into the visual landscape (other than the burned-in captions); a photoreal depiction of an identifiable real modern person; graphic blood, gore, or extreme violence. Name the offending frame in the notes so the next rendering attempt can steer away from it.`;
-
-export function buildSystemPrompt(
-  visualSource: VisualSource,
-  safetyChecks = false,
-  longForm?: { frameCount: number },
-  direction?: ResolvedDirection,
-  visualStyle?: string | null,
-): string {
-  const framesIntro = longForm
-    ? `You are reviewing ${longForm.frameCount} key frames, one sampled within each chapter's rendered still-image sequence, from a long-form 16:9 YouTube video before publishing, alongside the topic and script it's based on.`
-    : `You are reviewing ${SAMPLE_FRACTIONS.length} frames sampled at different points (roughly 25%, 50%, and 75% through) from a short vertical video (a YouTube Short) before it's approved for publishing, alongside the topic and script it's based on.`;
-
-  return `${framesIntro} Judge the video as a whole across all the frames together — ensuring the visual narrative flows smoothly, is not blank, is free of severe AI artifacts, and is deeply consistent with the described topic (${visualContextInstruction(visualSource)}).
-
-A single frame catching a momentary presentation artifact (e.g. burned-in captions caught mid-transition between cues, showing a partial word) should NOT by itself fail the video if the other sampled frames look reasonable — judge the overall impression across all frames, not a single worst instant. Only fail if the pattern is consistent across the frames, or if a frame shows something genuinely wrong (blank/corrupted footage, severe physical clipping errors, or content completely unrelated to the topic).
-
-Respond with ONLY a JSON object: ${longForm
-  ? '{"verdict": "pass" | "fail", "notes": string, "visualDefects"?: [{"sceneId"?: string, "timestampSeconds"?: number, "kind": "visual_mismatch" | "continuity" | "composition" | "artifact", "reason": string, "requiredVisualConstraints": string[]}]}'
-  : '{"verdict": "pass" | "fail", "notes": string}'}
-"notes" briefly explains the verdict; on a fail, give specific, actionable fix guidance.${longForm ? '\nOnly name one visual defect when a sampled frame clearly locates it in the supplied scene map. Include its exact scene ID and sampled timestamp. If the defect is factual, script, narration, timing, vague or unlocated, omit visualDefects. Do not infer a scene from a general chapter note.' : ''}
-Respond with raw JSON only — no markdown code fences, no commentary.${
-    safetyChecks && visualSource === "ai-stills" ? SAFETY_CHECK_INSTRUCTION : ""
-  }` + directionBlock(direction, ['visualReviewTone']) + (visualStyle ? `\nVisual style: ${visualStyle}` : '');
-}
-
 // Sprint 6 Task 1 (PR 2): 'not_run' means the automated review could not be completed (the model's reply was
 // still unusable after the one re-ask). It is never 'pass' and never 'fail': a reader that treats it as either
 // is a bug, so every reader switches on this type.
@@ -378,7 +345,7 @@ export async function reviewVideo(params: {
     deterministic.meta.durationSeconds,
     chapterTimestamps,
   );
-  const sampleTimestamps = chapterTimestamps ?? SAMPLE_FRACTIONS.map(f => deterministic.meta.durationSeconds * f);
+  const sampleTimestamps = chapterTimestamps ?? FRAME_REVIEW_SAMPLE_FRACTIONS.map(f => deterministic.meta.durationSeconds * f);
   const sampledSceneMap = params.sceneMap?.filter(s => sampleTimestamps.some(t => s.startSec <= t && t < s.endSec));
 
   // B3 fix (KNOWN_ISSUES_AND_BLOCKERS.md §2): only this one call is wrapped,

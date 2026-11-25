@@ -9,8 +9,8 @@ import { uploadResumableVideo, type SessionHooks } from './resumable-upload';
 import { stubUploadVideo, stubSetThumbnail, stubUploadCaptions } from './stub';
 import { env } from '../../config/env';
 import { buildMetadataUserMessage, scrubDescription, type PackagingParams } from './packaging';
-import { TITLE_MAX_CHARS } from '../../packaging/constants';
 import { PublishingMetadataSchema, type PublishingMetadata, type UploadParams, type UploadResult } from './types';
+import { SHORT_METADATA_SYSTEM_PROMPT as SYSTEM_PROMPT, LONG_METADATA_SYSTEM_PROMPT as LONG_FORM_SYSTEM_PROMPT } from '../../prompts/system-prompts';
 
 const execFileAsync = promisify(execFile);
 
@@ -29,42 +29,9 @@ export { PrivacyStatusSchema, DEFAULT_PRIVACY_STATUS } from './types';
 export { subtitlesFailureMessage, thumbnailFailureMessage, CAPTIONS_INSERT_QUOTA_UNITS } from './youtube-client';
 
 // The reply shape, word for word the same in the Shorts and long-form metadata prompts.
-const METADATA_JSON_SHAPE = `Respond with ONLY a JSON object:
-{"title": string, "description": string, "tags": string[], "coverFrameTimestampRatio": number}`;
-
-const SYSTEM_PROMPT = `You are optimizing YouTube Shorts metadata (title, description, tags, and cover
-frame) from a sanctioned script and its hashtags — platform-specific optimization, not creative
-writing (the script itself is already finished and approved).
-
-${METADATA_JSON_SHAPE}
-"title" is under ${TITLE_MAX_CHARS} characters, attention-grabbing, and accurate to the content — no clickbait
-that misrepresents what the video actually shows.
-"description" is 1-3 sentences summarizing the content; can restate the hashtags inline.
-"tags" is 5-15 short keyword phrases relevant to the topic, no leading '#' character.
-"coverFrameTimestampRatio" is a number from 0 to 1 (0 = the very first frame, 1 = the very last)
-choosing where through the video to grab a still frame for the custom cover thumbnail — pick a
-moment that reads well as a static image outside the Shorts feed (a clear visual, ideally near the
-hook, not the first ~5% or last ~5% of the video where a fade-in/fade-out or a mid-word caption
-transition is more likely). This matters wherever the Short surfaces outside the Shorts feed itself
-(search results, channel page, embeds).
-Respond with raw JSON only — no markdown code fences, no commentary.`;
 
 // Sprint 4 Task 10 (R4): the 16:9 video is not a Short. Same JSON shape; a longer description, and
 // never a #shorts tag. The chapter list and credit lines are appended afterwards, in code.
-const LONG_FORM_SYSTEM_PROMPT = `You are optimizing YouTube metadata (title, description, tags, and cover
-frame) for a long-form 16:9 video from its sanctioned script and hashtags - platform-specific
-optimization, not creative writing (the script itself is finished and approved).
-
-${METADATA_JSON_SHAPE}
-"title" is under ${TITLE_MAX_CHARS} characters, specific, and accurate to the content - no clickbait that
-misrepresents what the video shows.
-"description" is 2-4 sentences summarizing what the viewer will learn; do not write a chapter list,
-timestamps, or the word "Shorts" - those are handled separately. Use only facts from the script.
-"tags" is 8-15 short keyword phrases relevant to the topic, no leading '#' character, and never "shorts".
-"coverFrameTimestampRatio" is a number from 0 to 1 choosing where through the video to grab a still
-frame for the cover: a clear visual, not the first or last ~5%.
-Respond with raw JSON only - no markdown code fences, no commentary.`;
-
 export async function generatePublishingMetadata(
   params: { scriptText: string; hashtags: string[]; videoKind?: 'short' | 'long'; fixNotes?: string; retryGuard?: RetryGuard } & PackagingParams,
 ): Promise<{ metadata: PublishingMetadata; llm: LLMResponse }> {

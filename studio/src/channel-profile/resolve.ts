@@ -2,9 +2,9 @@ import type { ChannelProfileData } from './schema';
 import { DEFAULT_TTS_VOICE } from '../media';
 import { findFormat, type VideoKind } from '../formats/manifest';
 import { LONG_DEFAULT_SEC, SHORT_DEFAULT_SEC, SHORT_MAX_SEC } from '../formats/video-kind';
-import { directionPreset, type DirectionParts, type DirectionPresetKey } from '../channel-direction/presets';
+import { directionPreset, FALLBACK_PRESET, type DirectionParts, type DirectionPresetKey } from '../channel-direction/presets';
 
-export const FALLBACK_PRESET: DirectionPresetKey = 'neutral';
+export { FALLBACK_PRESET } from '../channel-direction/presets';
 export type ResolvedDirection = {
   presetKey: DirectionPresetKey;
   presetVersion: number;
