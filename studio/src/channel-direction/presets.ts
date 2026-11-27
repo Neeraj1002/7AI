@@ -1,6 +1,7 @@
 // Founder-approved data. Keep text in sync with docs/decisions/PROMPT_LAYERS.md.
 export const DIRECTION_PRESET_KEYS = ['history', 'story-first', 'explainer', 'neutral'] as const;
 export type DirectionPresetKey = (typeof DIRECTION_PRESET_KEYS)[number];
+export const FALLBACK_PRESET: DirectionPresetKey = 'neutral';
 export const DIRECTION_PART_KEYS = ['persona', 'domain', 'hookRule', 'storyShape', 'endingRule', 'chapterStyle', 'pacingCues', 'avoid', 'visualReviewTone'] as const;
 export type DirectionPartKey = (typeof DIRECTION_PART_KEYS)[number];
 export type DirectionParts = Record<DirectionPartKey, string>;

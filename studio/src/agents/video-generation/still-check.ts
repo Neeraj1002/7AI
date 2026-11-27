@@ -1,3 +1,4 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
@@ -5,6 +6,8 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { env } from '../../config/env';
 import { callLLM, extractJsonText, type LLMResponse, type RetryGuard } from '../../llm';
+import { buildStillCheckSystemPrompt } from '../../prompts/system-prompts';
+export { STILL_CHECK_SYSTEM_PROMPT, buildStillCheckSystemPrompt } from '../../prompts/system-prompts';
 
 const execFileAsync = promisify(execFile);
 
@@ -44,13 +47,6 @@ const ReplySchema = z.object({
   ),
 });
 
-export const STILL_CHECK_SYSTEM_PROMPT = `You inspect AI-generated still images for a documentary video, one numbered image at a time. Each image comes with the narration line it illustrates. Report only real problems, in these kinds:
-- "logo": any brand logo, wordmark, trademark or brand name, including on a sign, building, product, packaging or screen.
-- "text": any readable letters, words or numbers anywhere in the picture (signs, screens, documents, banners, labels). Blurred, tiny or unreadable marks are fine.
-- "invented_figure": a chart, table, calculator display, document or slogan that shows figures or statements the picture should not be inventing.
-- "contradiction": the picture shows something that conflicts with, or implies a fact beyond, its narration line. Decay, abandonment, closure, ruin, disaster or mourning imagery (an overgrown or empty site, a flag at half-mast) is a contradiction unless the narration says it. Showing the stated fact or a neutral scene is fine.
-Be strict about "logo" and "text". Do not report style, quality or taste. Respond with ONLY JSON: {"results": [{"image": 1, "issues": [{"kind": "logo" | "text" | "invented_figure" | "contradiction", "detail": "what and where, in a few words"}]}]} with one entry per image and an empty issues array when the image is fine. Raw JSON only.`;
-
 async function thumbnailBase64(imagePath: string): Promise<string> {
   const out = `${imagePath}.check.jpg`;
   await execFileAsync(env.FFMPEG_PATH, [
@@ -59,9 +55,9 @@ async function thumbnailBase64(imagePath: string): Promise<string> {
   return (await fs.readFile(out)).toString('base64');
 }
 
-async function fileKey(imagePath: string, narration: string): Promise<string> {
+async function fileKey(imagePath: string, narration: string, system: string, topic: string): Promise<string> {
   const bytes = await fs.readFile(imagePath);
-  return createHash('sha256').update(bytes).update('\u0000').update(narration).digest('hex').slice(0, 32);
+  return createHash('sha256').update(bytes).update('\u0000').update(narration).update('\u0000').update(system).update('\u0000').update(topic).digest('hex').slice(0, 32);
 }
 
 type Cached = { issues: StillIssue[] };
@@ -88,6 +84,8 @@ export const defaultStillCheckDeps: StillCheckDeps = {
 // unchecked: a checker that fails must not fail a video, and the stills stay marked unchecked.
 export async function checkStills(params: {
   topic: string;
+  direction?: ResolvedDirection;
+  visualStyle?: string | null;
   stills: StillToCheck[];
   cacheDir: string;
   deps?: StillCheckDeps;
@@ -99,9 +97,10 @@ export async function checkStills(params: {
   const deps = params.deps ?? defaultStillCheckDeps;
   const results = new Map<number, StillCheckResult>();
   const pending: Array<StillToCheck & { key: string }> = [];
+  const system = buildStillCheckSystemPrompt(params.direction, params.visualStyle);
 
   for (const still of params.stills) {
-    const key = await fileKey(still.imagePath, still.narration);
+    const key = await fileKey(still.imagePath, still.narration, system, params.topic);
     try {
       const cached = JSON.parse(await fs.readFile(`${params.cacheDir}/${key}.check.json`, 'utf-8')) as Cached;
       results.set(still.sceneIndex, { sceneIndex: still.sceneIndex, checked: true, issues: cached.issues });
@@ -115,7 +114,7 @@ export async function checkStills(params: {
     await params.beforeCall?.();
     const images = await Promise.all(batch.map((s) => deps.thumbnail(s.imagePath)));
     const content = `Topic: ${params.topic}\n\n${batch.map((s, k) => `Image ${k + 1} narration: ${s.narration}`).join('\n')}`;
-    const llm = await deps.ask(STILL_CHECK_SYSTEM_PROMPT, content, images, params.retryGuard);
+    const llm = await deps.ask(system, content, images, params.retryGuard);
     await params.onCall?.(llm, { batchSize: batch.length });
     let parsed: z.infer<typeof ReplySchema> | null = null;
     try {

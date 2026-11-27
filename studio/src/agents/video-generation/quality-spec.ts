@@ -11,6 +11,8 @@
 // card (Shorts loop). 0 restores the old hard cut exactly.
 export const END_TAIL_SECONDS = 0.7;
 
+export const FRAME_REVIEW_SAMPLE_FRACTIONS = [0.25, 0.5, 0.75] as const;
+
 export const QUALITY_SPEC = {
   video: {
     width: 1080,

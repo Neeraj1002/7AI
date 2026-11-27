@@ -1,3 +1,4 @@
+import type { ResolvedDirection } from '../../channel-profile/resolve';
 import { z } from 'zod';
 import { buildJsonRepairMessages, callLLM, CallLedger, describeJsonError, extractJsonObjectText, LLMCutOffError, spendLimitBeforeRetryError, type LLMMessage, type LLMResponse, type RetryGuard } from '../../llm';
 import { getStageErrorContext, NonTransientStageError, TransientStageError } from '../../run-pipeline/retry-with-backoff';
@@ -21,6 +22,8 @@ import {
 } from './long-form';
 import { chapterBoundsForBrief, parseBriefChapterPlan } from '../../long-form/brief-chapter-plan';
 import type { ChapterBounds } from '../../long-form/chapter-bounds';
+import { buildShortWriterSystemPrompt as buildSystemPrompt } from '../../prompts/system-prompts';
+export { buildShortWriterSystemPrompt as buildSystemPrompt } from '../../prompts/system-prompts';
 
 // Script Generation agent — AGENT_FLEET_DESIGN.md Section 4.4. The first real
 // agent in the critical path: turns Intake's parsed brief into a script.
@@ -55,42 +58,7 @@ export type ScriptGenerationResult = {
   calls: LLMResponse[];
 };
 
-const SYSTEM_PROMPT = `You write scripts for short-form vertical video (YouTube Shorts).
-Given a topic, a list of constraints, and an optional style guide, respond with ONLY a JSON
-object of the shape:
-{"scriptText": string, "captions": string, "hashtags": string[]}
-
-"scriptText" is the full spoken narration, written to be read aloud — natural sentences, no
-scene-direction brackets or stage directions mixed into the narration itself.
-"captions" is the on-screen caption text, timed roughly to match the narration (plain text,
-not an SRT file — a captioning tool handles timing separately).
-"hashtags" is a short list (3-8) of relevant hashtags, without the '#' character.
-
-The target length is given in the user message; the narration must never exceed 60 seconds.
-Respect every listed constraint (length limits, tone, things to avoid, a specific angle).
-Never use the straight double-quote character (") inside "scriptText", "captions" or a hashtag, other than as
-the JSON string delimiters. To quote a word or phrase, write it with curly quotes (“ ”) instead, or with
-single quotes. Apostrophes in words like "weren't" are fine.
-
-Respond with raw JSON only — no markdown code fences, no commentary.`;
-
-// Sprint 4 Task 2 (R4): the fact policy is stated in the system prompt.
-// 'brief-plus-common' (the platform default) keeps today's wording, where the
-// model may draw on general knowledge; 'brief-only' makes the brief's own
-// facts authoritative.
-const BRIEF_ONLY_RULE = `
-
-Facts and figures stated in the brief are authoritative: keep every one of them, with the numbers
-exactly as given, and do not introduce claims beyond common, verifiably-safe general knowledge.`;
-
 export type FactPolicy = 'brief-only' | 'brief-plus-common';
-const PACKET_BRIEF_ONLY_RULE = `\n\nFor the supplied evidence packet, add no factual detail beyond its permitted text. A citation-only URL has not been fetched and supplies no factual text.`;
-
-export function buildSystemPrompt(factPolicy: FactPolicy = 'brief-plus-common', packetMode = false): string {
-  if (packetMode) return SYSTEM_PROMPT + (factPolicy === 'brief-only' ? PACKET_BRIEF_ONLY_RULE : '\n\nUse the evidence packet policy. Citation-only URLs supply no factual text and do not verify general knowledge.');
-  return factPolicy === 'brief-only' ? SYSTEM_PROMPT + BRIEF_ONLY_RULE : SYSTEM_PROMPT;
-}
-
 // The pace the length target is planned at. A word count stated in the brief wins over minutes x pace: it is
 // expressed as the pace that makes the target exactly that many words, so every length rule reads one number.
 export function longPace(params: Pick<GenerateScriptParams, 'briefText' | 'wordsPerMinute'>, targetSeconds: number): number | undefined {
@@ -99,6 +67,8 @@ export function longPace(params: Pick<GenerateScriptParams, 'briefText' | 'words
 }
 
 export type GenerateScriptParams = {
+  direction?: ResolvedDirection;
+  hashtagsBase?: string[];
   topic: string;
   constraints: string[];
   styleGuide?: string | null;
@@ -160,6 +130,7 @@ export function buildUserMessage(params: GenerateScriptParams): string {
   if (params.styleGuide) {
     lines.push(`Style guide: ${params.styleGuide}`);
   }
+  if (params.hashtagsBase?.length) lines.push(`Base hashtags: ${params.hashtagsBase.join('; ')}`);
   // R7: only when non-empty, so a channel without these lists is unchanged.
   if (params.bannedOpeners && params.bannedOpeners.length > 0) {
     lines.push(`Do not open with any of: ${params.bannedOpeners.join('; ')}`);
@@ -369,7 +340,7 @@ async function generateLongScript(params: GenerateScriptParams): Promise<ScriptG
   // A brief that lists its chapter titles sets the chapter count; otherwise the format's default applies.
   const bounds = chapterBoundsForBrief(params.briefText, targetSeconds);
   const newLedger = () => new CallLedger({ guard: params.retryGuard });
-  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds), LongScriptReplySchema, calls, newLedger);
+  const { call, takeRepair } = createCaller(buildLongSystemPrompt(Boolean(params.evidence), bounds, params.direction), LongScriptReplySchema, calls, newLedger);
 
   const first = await call([{ role: 'user', content: userMessage }]);
   let current: { llm: LLMResponse; output: ScriptGenerationOutput };
@@ -427,7 +398,7 @@ export async function generateScript(params: GenerateScriptParams): Promise<Scri
   const calls: LLMResponse[] = [];
   const userMessage = buildUserMessage(params);
   const { call, takeRepair } = createCaller(
-    buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence)),
+    buildSystemPrompt(params.evidence?.factPolicy ?? params.factPolicy, Boolean(params.evidence), params.direction),
     ScriptGenerationOutputSchema,
     calls,
     () => new CallLedger({ guard: params.retryGuard }),

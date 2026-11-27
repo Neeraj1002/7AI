@@ -16,7 +16,7 @@ describe('prompt index', () => {
   it('has an entry, with files that exist, for every purpose', () => {
     expect(Object.keys(PROMPT_INDEX).sort()).toEqual([...PURPOSES].sort());
     for (const purpose of PURPOSES) {
-      expect(PROMPT_INDEX[purpose].length, purpose).toBeGreaterThan(0);
+      expect(PROMPT_INDEX[purpose], purpose).toContain('prompts/system-prompts.ts');
       for (const file of PROMPT_INDEX[purpose]) expect(existsSync(join(SRC, file)), `${purpose}: ${file}`).toBe(true);
     }
   });

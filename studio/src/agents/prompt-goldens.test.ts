@@ -14,12 +14,11 @@ vi.mock('../llm', async (orig) => ({
   }),
 }));
 
-import { buildSystemPrompt } from './script-generation';
+import { buildUserMessage as writerUser, buildSystemPrompt } from './script-generation';
 import { buildLongSystemPrompt } from './script-generation/long-form';
-import { SYSTEM_PROMPT as SHORT_REVIEW, LONG_FORM_SYSTEM_PROMPT as LONG_REVIEW } from './script-review';
-import { reviewRules } from './script-review/rules';
+import { buildUserMessage as reviewUser, buildReviewSystemPrompt, SYSTEM_PROMPT as SHORT_REVIEW, LONG_FORM_SYSTEM_PROMPT as LONG_REVIEW } from './script-review';
 import { CONFIRM_SYSTEM_PROMPT, confirmHardCaps } from './script-review/hard-cap-confirmation';
-import { STILL_CHECK_SYSTEM_PROMPT, defaultStillCheckDeps } from './video-generation/still-check';
+import { buildStillCheckSystemPrompt, STILL_CHECK_SYSTEM_PROMPT, defaultStillCheckDeps } from './video-generation/still-check';
 import { generatePublishingMetadata } from './publishing';
 import { buildSystemPrompt as buildShortPlanPrompt } from './video-generation/plan';
 import { buildSystemPrompt as buildLongPlanPrompt } from './video-generation/plan-long';
@@ -34,6 +33,10 @@ import {
 } from '../packaging/prompts-vision';
 import type { Concept } from '../packaging/schemas';
 
+import { DIRECTION_PRESETS } from '../channel-direction/presets';
+import { resolveChannelConfig } from '../channel-profile/resolve';
+import { CONTENT_FORMATS, findFormat } from '../formats/manifest';
+
 const FILE = join(__dirname, 'prompt-goldens.json');
 
 async function capture(): Promise<Record<string, string>> {
@@ -46,8 +49,8 @@ async function capture(): Promise<Record<string, string>> {
     'script-long/packet': buildLongSystemPrompt(true),
     'review-short/prompt': SHORT_REVIEW,
     'review-long/prompt': LONG_REVIEW,
-    'review-short/assembled': SHORT_REVIEW + reviewRules(false),
-    'review-long/assembled': LONG_REVIEW + reviewRules(true),
+    'review-short/assembled': buildReviewSystemPrompt({}),
+    'review-long/assembled': buildReviewSystemPrompt({ videoKind: 'long' }),
     'hard-cap-confirmation': CONFIRM_SYSTEM_PROMPT,
     'still-check': STILL_CHECK_SYSTEM_PROMPT,
     'plan-short/free': buildShortPlanPrompt(undefined, undefined, 6),
@@ -78,6 +81,29 @@ async function capture(): Promise<Record<string, string>> {
     'packaging/payoff-user': payoffUser({ renderedScript: 'A test script.', title: 'A test title', lettering: 'ONE WORD', question: 'How?', answeredAtQuote: 'A test script.' }),
     'packaging/compare-user': compareUser('Title A', 'Title B'),
   };
+  out['formats/manifest'] = JSON.stringify(CONTENT_FORMATS, null, 2);
+  for (const preset of DIRECTION_PRESETS) {
+    const { direction } = resolveChannelConfig({ profile: { direction: { preset: preset.key, note: 'Use a measured voice.' } } });
+    const prefix = `direction/${preset.key}`;
+    for (const packet of [false, true]) {
+      for (const policy of ['brief-only', 'brief-plus-common'] as const) {
+        out[`${prefix}/writer-short/${policy}/${packet ? 'packet' : 'source'}`] = buildSystemPrompt(policy, packet, direction);
+      }
+      out[`${prefix}/writer-long/${packet ? 'packet' : 'source'}`] = buildLongSystemPrompt(packet, undefined, direction);
+    }
+    for (const videoKind of ['short', 'long'] as const) {
+      out[`${prefix}/review-${videoKind}`] = buildReviewSystemPrompt({ direction, videoKind });
+      out[`${prefix}/writer-${videoKind}/user`] = writerUser({ direction, videoKind, topic: 'A test topic', constraints: ['Keep the supplied facts.'], briefText: 'A supplied fact.', styleGuide: 'Plain language.', bannedOpeners: ['Welcome'], bannedEndings: ['Subscribe'], targetSeconds: videoKind === 'long' ? 600 : 45, hashtagsBase: ['topic'], ...(videoKind === 'long' ? { scriptStructure: findFormat('chaptered-explainer')!.scriptStructure } : {}) });
+      out[`${prefix}/review-${videoKind}/user`] = reviewUser({ direction, videoKind, scriptText: 'A test script.', captions: '', nicheDescription: 'A test topic', briefText: 'A supplied fact.', styleGuide: 'Plain language.', targetSeconds: videoKind === 'long' ? 600 : 45 });
+    }
+    out[`${prefix}/planner-short/free`] = buildShortPlanPrompt(undefined, undefined, 6, direction);
+    out[`${prefix}/planner-short/fixed`] = buildShortPlanPrompt('stock-footage', 'none', 6, direction);
+    out[`${prefix}/planner-long`] = buildLongPlanPrompt({ direction, visualStyle: 'Watercolour', scriptGuide: 'Plain language.' });
+    out[`${prefix}/frame-short/stills`] = buildFrameReviewPrompt('ai-stills', true, undefined, direction, 'Watercolour');
+    out[`${prefix}/frame-short/stock`] = buildFrameReviewPrompt('stock-footage', false, undefined, direction, 'Watercolour');
+    out[`${prefix}/frame-long/stills`] = buildFrameReviewPrompt('ai-stills', true, { frameCount: 4 }, direction, 'Watercolour');
+    out[`${prefix}/still-check`] = buildStillCheckSystemPrompt(direction, 'Watercolour');
+  }
   for (const videoKind of ['short', 'long'] as const) {
     llm.calls.length = 0;
     await generatePublishingMetadata({ scriptText: 's', hashtags: [], videoKind }).catch(() => undefined);

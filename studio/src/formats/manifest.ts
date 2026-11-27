@@ -30,7 +30,7 @@ export const CONTENT_FORMATS: ContentFormat[] = [
     label: '"X Was Worse Than You Thought"',
     videoKind: 'short',
     targetSeconds: 40,
-    briefTemplate: '[Historical event/thing] and why it was worse than most people realize...',
+    briefTemplate: '[Event/thing] and why it was worse than most people realize...',
     scriptStructure: 'Open with the common perception, then escalate with 2-3 specific worse facts.',
   },
   {
@@ -100,7 +100,7 @@ export const CONTENT_FORMATS: ContentFormat[] = [
     targetSeconds: 600,
     briefTemplate: 'A full explainer on [topic], built from these facts and sources...',
     scriptStructure:
-      'Cold open in the first 20 to 40 seconds, each chapter opens with the question it answers, one or two open loops answered by a later chapter, and a closing line that points forward.',
+      'Ordered chapters with a title and spoken narration for each chapter, within the target length.',
   },
 ];
 

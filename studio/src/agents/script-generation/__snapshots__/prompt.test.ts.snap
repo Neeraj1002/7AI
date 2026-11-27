@@ -19,6 +19,13 @@ the JSON string delimiters. To quote a word or phrase, write it with curly quote
 single quotes. Apostrophes in words like "weren't" are fine.
 
 Respond with raw JSON only — no markdown code fences, no commentary.
+
+Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
+persona: A clear, engaging scriptwriter for online video.
+hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
+endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
+pacingCues: Write for the ear: one idea per sentence.
+avoid: Hype words and exclamation marks.
 ---
 Topic: T
 Original brief (authoritative source for any facts or figures it states):
@@ -49,6 +56,13 @@ the JSON string delimiters. To quote a word or phrase, write it with curly quote
 single quotes. Apostrophes in words like "weren't" are fine.
 
 Respond with raw JSON only — no markdown code fences, no commentary.
+
+Creative direction (defaults; explicit brief constraints and content-profile rules take precedence within the platform contract):
+persona: A clear, engaging scriptwriter for online video.
+hookRule: Open with the most interesting true thing the brief gives. No greeting, no generic question.
+endingRule: End on the strongest point, then stop. No call to action, no question to the viewer.
+pacingCues: Write for the ear: one idea per sentence.
+avoid: Hype words and exclamation marks.
 ---
 Topic: T
 Original brief (authoritative source for any facts or figures it states):

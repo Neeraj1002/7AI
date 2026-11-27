@@ -2,6 +2,7 @@ import { callLLM, describeJsonError, extractJsonText, resolvePurpose, type LLMRe
 import { IntakeParsedSchema, type IntakeParsed } from '../types';
 import { NonTransientStageError } from './retry-with-backoff';
 import { llmUsageContext } from './stage-failure';
+import { INTAKE_SYSTEM_PROMPT as SYSTEM_PROMPT } from '../prompts/system-prompts';
 
 // Intake parsing — BUSINESS_LOGIC.md Section 2. Owned directly by the
 // Orchestrator, not a separate agent. A single LLM call: extraction only, no
@@ -12,19 +13,6 @@ import { llmUsageContext } from './stage-failure';
 // callLLM already normalizes provider failures to TransientStageError/
 // NonTransientStageError at the client.ts boundary, so there's no
 // provider-specific error handling left to do here.
-
-const SYSTEM_PROMPT = `You extract structured information from a short video-content brief.
-Given the human's brief text, respond with ONLY a JSON object of the shape:
-{"topic": string, "constraints": string[]}
-
-"topic" is the core subject of the video, in a short phrase.
-"constraints" is a list of any explicit constraints the brief mentions (length limits,
-tone, things to avoid, a specific angle) — an empty array if none are mentioned.
-
-If the brief is too vague or short to identify a topic at all, respond with ONLY:
-{"error": "unparseable"}
-
-Respond with raw JSON only — no markdown code fences, no commentary.`;
 
 export async function parseBrief(briefText: string, retryGuard?: RetryGuard): Promise<{ output: IntakeParsed; llm: LLMResponse }> {
   const llm = await callLLM({
