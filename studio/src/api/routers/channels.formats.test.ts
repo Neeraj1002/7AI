@@ -78,11 +78,21 @@ describe('channels.listFormats', () => {
 });
 
 describe('channels.directionPresets and profile contract', () => {
-  it('returns server wording and the four approved presets', async () => {
+  it('returns server wording and the five presets', async () => {
     const presets = await caller().directionPresets();
-    expect(presets.map((p) => p.key)).toEqual(['history', 'story-first', 'explainer', 'neutral']);
+    expect(presets.map((p) => p.key)).toEqual(['history', 'story-first', 'explainer', 'neutral', 'puzzle-reveal']);
     expect(presets[0]).toMatchObject({ version: 1, label: 'History documentary' });
     expect(presets[0]?.parts.find((part) => part.key === 'persona')?.text).toContain('documentary storyteller');
+  });
+
+  it.each(['puzzle-reveal', 'explainer'])('saves and reopens %s with and without a note', async (preset) => {
+    mocks.insertProfileVersion.mockImplementation(async ({ data }) => ({ id: 'saved', data }));
+    for (const note of [undefined, 'Let viewers inspect the evidence.']) {
+      const direction = note ? { preset, note } : { preset };
+      const saved = await caller().createProfileVersion({ channelId: CHANNEL_ID, data: { direction } });
+      mocks.findActiveProfileForChannel.mockResolvedValue(saved);
+      expect((await caller().getActiveProfile({ channelId: CHANNEL_ID }))?.data).toEqual({ direction });
+    }
   });
 
   it('rejects invalid direction data before saving', async () => {

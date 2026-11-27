@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { DIRECTION_PART_KEYS, DIRECTION_PRESETS, directionPreset } from './presets';
+import { DIRECTION_PART_KEYS, DIRECTION_PRESET_KEYS, DIRECTION_PRESETS, directionPreset } from './presets';
+import { CreationOptionsSchema } from '../types/pipeline.types';
 
 function approvedPresets() {
   const doc = readFileSync(resolve(__dirname, '../../../docs/decisions/PROMPT_LAYERS.md'), 'utf8').replace(/\r\n/g, '\n');
@@ -24,7 +25,8 @@ describe('approved creative direction data', () => {
     expect(DIRECTION_PRESETS).toEqual(approvedPresets());
   });
   it('has complete, concise, channel-generic parts', () => {
-    expect(DIRECTION_PRESETS.map((preset) => preset.key)).toEqual(['history', 'story-first', 'explainer', 'neutral']);
+    expect(DIRECTION_PRESETS.map((preset) => preset.key)).toEqual(['history', 'story-first', 'explainer', 'neutral', 'puzzle-reveal']);
+    expect(new Set(DIRECTION_PRESET_KEYS).size).toBe(5);
     for (const preset of DIRECTION_PRESETS) {
       expect(directionPreset(preset.key)).toBe(preset);
       for (const key of DIRECTION_PART_KEYS) {
@@ -36,6 +38,13 @@ describe('approved creative direction data', () => {
         expect(preset.parts[required]).not.toBe('');
       }
     }
+  });
+  it('reads historical options and every supported v1 key, rejecting the removed draft key', () => {
+    expect(CreationOptionsSchema.parse({})).toEqual({});
+    for (const presetKey of DIRECTION_PRESET_KEYS) {
+      expect(CreationOptionsSchema.parse({ presetKey, presetVersion: 1 })).toMatchObject({ presetKey, presetVersion: 1 });
+    }
+    expect(CreationOptionsSchema.safeParse({ presetKey: 'industrial-explainer', presetVersion: 1 }).success).toBe(false);
   });
   it('fails the preset lint on deliberately bad text', () => {
     expect(lintPart('Say this in 12 words for Netflix.')).toContain('digit');

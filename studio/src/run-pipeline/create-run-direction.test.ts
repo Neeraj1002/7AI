@@ -38,3 +38,13 @@ it('records neutral for a profile-less channel', async () => {
     null,
   );
 });
+
+it.each(['puzzle-reveal', 'explainer'] as const)('records %s and version on new runs', async (preset) => {
+  mocks.channel.mockResolvedValue({ id: 'channel', activeProfileVersionId: 'profile-new' });
+  mocks.profile.mockResolvedValue({ id: 'profile-new', data: { direction: { preset, note: 'Keep this note.' } } });
+  mocks.create.mockResolvedValue({ id: 'run' });
+  await createRun({ tenantId: 'tenant', channelId: 'channel', briefText: 'brief', creationOptions: {} });
+  expect(mocks.create).toHaveBeenLastCalledWith(
+    expect.objectContaining({ creationOptions: expect.objectContaining({ presetKey: preset, presetVersion: 1 }) }), 'profile-new',
+  );
+});

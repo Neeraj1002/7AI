@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DIRECTION_PRESET_KEYS } from '../channel-direction/presets';
 
 // Single source of truth for the stage-name/status enums. The CHECK constraints in
 // studio/src/models/migrations/*/migration.sql encode the same value lists — kept in sync
@@ -40,7 +41,7 @@ export type PipelineRunStatus = (typeof PIPELINE_RUN_STATUSES)[number];
 // parallel PipelineRun columns each time.
 export const CreationOptionsSchema = z.object({
   // Server-owned direction version captured when the run pins its profile.
-  presetKey: z.enum(['history', 'story-first', 'explainer', 'neutral']).optional(),
+  presetKey: z.enum(DIRECTION_PRESET_KEYS).optional(),
   presetVersion: z.number().int().positive().optional(),
   voice: z.string().optional(),
   visualSource: z.string().optional(),

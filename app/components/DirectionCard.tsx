@@ -8,7 +8,6 @@ import {
   clampNote,
   counterAmber,
   counterText,
-  effectiveDirection,
   isDirectionPresetList,
   NOTE_HINT,
   NOTE_MAX,
@@ -47,15 +46,9 @@ export function DirectionCard({
   const validPresets = isDirectionPresetList(presetData);
   const unavailable = loadFailed || (presetData !== undefined && !validPresets);
   const presets = !loadFailed && validPresets ? presetData : [];
-  const currentKey = effectiveDirection(saved).preset;
-  const currentLabel = presets.find((p) => p.key === currentKey)?.label ?? '';
   const noteOpen = presets.some((p) => p.key === draft.preset);
   return (
     <View style={styles.card}>
-      <View style={styles.head}>
-        <Text style={styles.title}>Creative direction</Text>
-        {currentLabel ? <Text style={styles.current}>{currentLabel}</Text> : null}
-      </View>
       <Text style={styles.meta}>How this channel&apos;s videos are told. Pick one.</Text>
 
       <View style={[styles.choices, saving && styles.dim]} pointerEvents={saving ? 'none' : 'auto'}>
@@ -154,7 +147,7 @@ export function DirectionCard({
 }
 
 const styles = StyleSheet.create({
-  card: { gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1.5, borderColor: color.ink, backgroundColor: color.bg },
+  card: { gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   title: { fontFamily: font.black, fontSize: 15, color: color.ink },
   current: { flexShrink: 1, fontFamily: font.regular, fontSize: 12, color: color.muted },

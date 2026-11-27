@@ -1,5 +1,5 @@
-// Founder-approved data. Keep text in sync with docs/decisions/PROMPT_LAYERS.md.
-export const DIRECTION_PRESET_KEYS = ['history', 'story-first', 'explainer', 'neutral'] as const;
+// Preset data. New text requires founder review; keep in sync with docs/decisions/PROMPT_LAYERS.md.
+export const DIRECTION_PRESET_KEYS = ['history', 'story-first', 'explainer', 'neutral', 'puzzle-reveal'] as const;
 export type DirectionPresetKey = (typeof DIRECTION_PRESET_KEYS)[number];
 export const FALLBACK_PRESET: DirectionPresetKey = 'neutral';
 export const DIRECTION_PART_KEYS = ['persona', 'domain', 'hookRule', 'storyShape', 'endingRule', 'chapterStyle', 'pacingCues', 'avoid', 'visualReviewTone'] as const;
@@ -55,18 +55,18 @@ export const DIRECTION_PRESETS: readonly DirectionPreset[] = [
   {
     "key": "explainer",
     "version": 1,
-    "label": "Explainer",
-    "summary": "A friendly, step-by-step explanation of how something works or is made.",
+    "label": "explainer",
+    "summary": "Show how something works, how it is made, or why it behaves the way it does. Follow the steps, explain the mechanism, or combine both.",
     "parts": {
-      "persona": "A friendly explainer who has just found out how this works and is a little amazed. Curious and lively, never stiff, never hype.",
-      "domain": "How something works or is made, explained one step at a time.",
-      "hookRule": "Open with the subject and the strangest true thing about it, in plain words. The first line must work with the sound off. No greeting, no generic question.",
-      "storyShape": "Walk through it in order, one step at a time. Each step is one action and one concrete detail the viewer can picture. Point at the oddest step and say why it matters. Vary the shape of the opening from video to video.",
-      "endingRule": "End on a line that echoes the opening. Then stop. No call to action, no question to the viewer, no moral.",
-      "chapterStyle": "",
-      "pacingCues": "Write for the ear: one idea per sentence, contractions are fine, commas where a voice should breathe, no semicolons. Let every step move the explanation forward.",
-      "avoid": "Hype words and exclamation marks.",
-      "visualReviewTone": "Judge the pictures by whether each one fits the step being narrated at that moment. The viewer should see the action or the thing the sentence names."
+      "persona": "Explain in a clear, approachable voice. Describe actions in order when sequence matters and show how parts interact when the viewer needs to understand a result.",
+      "domain": "Show how an object, process or system works, how it is made or why it behaves as it does. Make the important steps, transfers and resulting changes visible.",
+      "hookRule": "Open on a concrete action, visible result, design feature or operating limit. Show what the viewer gains by understanding this particular result.",
+      "storyShape": "Choose the order that best answers the brief. For a walkthrough, follow the important steps and show what changes at each one. For a mechanism, trace what causes the result and what it depends on. Combine both when the steps help explain the cause.",
+      "endingRule": "Return to the opening and show what the steps produce or why the observed behavior occurs. If a supported change in conditions would alter the result, explain how.",
+      "chapterStyle": "Give each chapter a step, change, constraint or decision to explain. Connect it to what follows or to its effect on the larger system.",
+      "pacingCues": "Slow down where a viewer could lose track of what changes or why. Use a visible before-and-after when it makes the transition easier to follow.",
+      "avoid": "Avoid catalogs of parts and unsupported precision. Say when a proposed cause or design rationale is an inference. Preserve the conditions and limits that make the explanation true.",
+      "visualReviewTone": "Check that the action or relationship is visible when the narration explains it. Flag missing or misleading steps, reversed transfers and inconsistent states."
     }
   },
   {
@@ -84,6 +84,23 @@ export const DIRECTION_PRESETS: readonly DirectionPreset[] = [
       "pacingCues": "Write for the ear: one idea per sentence.",
       "avoid": "Hype words and exclamation marks.",
       "visualReviewTone": "Judge whether each picture fits what is being said at that moment."
+    }
+  },
+  {
+    "key": "puzzle-reveal",
+    "version": 1,
+    "label": "Puzzle & Reveal",
+    "summary": "Choose this when viewers can spot a clue, trace a hidden connection or try a solution before seeing how the evidence supports the reveal.",
+    "parts": {
+      "persona": "Guide a curious viewer who is capable of working things out. Be precise about what they can observe, what they can infer and what remains open.",
+      "domain": "Show a question through the evidence or constraints the viewer can inspect. Establish the decisive detail before the answer and return to it with its identifying features intact.",
+      "hookRule": "Put a concrete situation, choice or apparent contradiction in view and make the question clear. Direct attention to the first observation or constraint while leaving its significance for the viewer to discover.",
+      "storyShape": "Give viewers a chance to inspect the evidence, predict the outcome or try their own solution before the explanation. Let each discovery confirm a prediction, change an interpretation or help the viewer compare options. When you promise a solvable puzzle, supply every essential clue before the solution.",
+      "endingRule": "Return to the opening evidence and show how it supports the answer. When alternatives fit, demonstrate a workable answer and its trade-off or say what the evidence leaves undecided.",
+      "chapterStyle": "Give each chapter an observation to test or a constraint to resolve. Carry the remaining question forward once the viewer has learned something concrete.",
+      "pacingCues": "Hold a visual clue long enough to inspect it, or leave a beat to weigh a choice before the explanation. Bring an earlier detail back when it changes what the viewer can conclude.",
+      "avoid": "Avoid empty teasing, concealed premises, premature spoilers and claims of a unique answer when alternatives fit.",
+      "visualReviewTone": "Check that the viewer can inspect the clue or constraint before the payoff and recognize it again at the explanation. Flag captions or crops that hide it, shots that change it and images that give away the answer too soon."
     }
   }
 ];

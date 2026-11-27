@@ -62,7 +62,7 @@ Read this before you write or change a content profile. You own layer 5, and the
 
 | You set | It is for | Keep out of it |
 |---|---|---|
-| `direction.preset` | The craft family: one of the four presets in the Presets section below | Nothing to keep out. You choose a preset; you do not edit one |
+| `direction.preset` | The craft family: one of the five presets in the Presets section below | Nothing to keep out. You choose a preset; you do not edit one |
 | `direction.note` (up to 300 characters) | One line that bends the preset for this channel | A copy of a preset sentence; numbers; a banned-phrase list |
 | `script.guide` | What is true of this channel only: truth layers, tense and person, rotation, sensitivity rules, the narrator's attitude where it differs from the preset | Hook, ending, chapter and pacing rules the preset already holds; numbers a field holds; one video's facts |
 | The fields: banned openers and endings, fact policy, target length, look (`stylePrompt`, `negativePrompt`), voice, mood, packaging (title guidance, description template, hashtags), formats | Every number and list a machine can check | Prose that restates them |
@@ -97,9 +97,9 @@ Plain words, not the prompt text. The text holds output shapes and mechanics and
 
 ## Presets
 
-Data, not prose. A test in `studio` reads this section and fails if the code's presets differ from it character for character. So edit it only through the Change procedure, keep the block format (`### preset: <key>`, then one `- **part:** text` bullet per line), and never reformat it. Each preset has a `version` (a text change bumps it), a `label` and `summary` (shown in the app's picker), and nine parts. **Required in every preset:** `persona`, `hookRule`, `endingRule`, `pacingCues`, `avoid`, `visualReviewTone`. `domain`, `storyShape` and `chapterStyle` may be `(empty)`. No part holds a digit, a channel or brand name, a banned-phrase list or a fact. The ordinary words of a craft family are allowed (the history preset says "historical").
+Data, not prose. A test in `studio` reads this section and fails if the code's presets differ from it character for character. So edit it only through the Change procedure, keep the block format (`### preset: <key>`, then one `- **part:** text` bullet per line), and never reformat it. Each preset has a `version` (normally a text change bumps it; the proposed Task 5 in-place Explainer revision requires an unused-key compatibility check before rollout), a `label` and `summary` (shown in the app's picker), and nine parts. **Required in every preset:** `persona`, `hookRule`, `endingRule`, `pacingCues`, `avoid`, `visualReviewTone`. `domain`, `storyShape` and `chapterStyle` may be `(empty)`. No part holds a digit, a channel or brand name, a banned-phrase list or a fact. The ordinary words of a craft family are allowed (the history preset says "historical").
 
-The founder approved all four texts on 1 Nov 2026. The labels and summaries were added the same day as proposed picker wording and are not part of the approved prompt text.
+The founder approved the original four texts on 1 Nov 2026 and approved the revised explainer and new Puzzle & Reveal wording on 27 Nov 2026.
 
 Planned assignment (set by Task 4, R5): NIYT `history`, Cold Open `story-first`, Start to Shelf `explainer`. A channel with no preset gets `neutral`. A channel's own rules stay in its content profile. For Cold Open that means the truth layers, "popular version, then record", the tense rules, the sentence caps, the case-type rotation, third-person voice, and the graphic and accusation lines.
 
@@ -133,17 +133,17 @@ Planned assignment (set by Task 4, R5): NIYT `history`, Cold Open `story-first`,
 
 ### preset: explainer
 - **version:** 1
-- **label:** Explainer
-- **summary:** A friendly, step-by-step explanation of how something works or is made.
-- **persona:** A friendly explainer who has just found out how this works and is a little amazed. Curious and lively, never stiff, never hype.
-- **domain:** How something works or is made, explained one step at a time.
-- **hookRule:** Open with the subject and the strangest true thing about it, in plain words. The first line must work with the sound off. No greeting, no generic question.
-- **storyShape:** Walk through it in order, one step at a time. Each step is one action and one concrete detail the viewer can picture. Point at the oddest step and say why it matters. Vary the shape of the opening from video to video.
-- **endingRule:** End on a line that echoes the opening. Then stop. No call to action, no question to the viewer, no moral.
-- **chapterStyle:** (empty)
-- **pacingCues:** Write for the ear: one idea per sentence, contractions are fine, commas where a voice should breathe, no semicolons. Let every step move the explanation forward.
-- **avoid:** Hype words and exclamation marks.
-- **visualReviewTone:** Judge the pictures by whether each one fits the step being narrated at that moment. The viewer should see the action or the thing the sentence names.
+- **label:** explainer
+- **summary:** Show how something works, how it is made, or why it behaves the way it does. Follow the steps, explain the mechanism, or combine both.
+- **persona:** Explain in a clear, approachable voice. Describe actions in order when sequence matters and show how parts interact when the viewer needs to understand a result.
+- **domain:** Show how an object, process or system works, how it is made or why it behaves as it does. Make the important steps, transfers and resulting changes visible.
+- **hookRule:** Open on a concrete action, visible result, design feature or operating limit. Show what the viewer gains by understanding this particular result.
+- **storyShape:** Choose the order that best answers the brief. For a walkthrough, follow the important steps and show what changes at each one. For a mechanism, trace what causes the result and what it depends on. Combine both when the steps help explain the cause.
+- **endingRule:** Return to the opening and show what the steps produce or why the observed behavior occurs. If a supported change in conditions would alter the result, explain how.
+- **chapterStyle:** Give each chapter a step, change, constraint or decision to explain. Connect it to what follows or to its effect on the larger system.
+- **pacingCues:** Slow down where a viewer could lose track of what changes or why. Use a visible before-and-after when it makes the transition easier to follow.
+- **avoid:** Avoid catalogs of parts and unsupported precision. Say when a proposed cause or design rationale is an inference. Preserve the conditions and limits that make the explanation true.
+- **visualReviewTone:** Check that the action or relationship is visible when the narration explains it. Flag missing or misleading steps, reversed transfers and inconsistent states.
 
 ### preset: neutral
 - **version:** 1
@@ -158,6 +158,21 @@ Planned assignment (set by Task 4, R5): NIYT `history`, Cold Open `story-first`,
 - **pacingCues:** Write for the ear: one idea per sentence.
 - **avoid:** Hype words and exclamation marks.
 - **visualReviewTone:** Judge whether each picture fits what is being said at that moment.
+
+### preset: puzzle-reveal
+- **version:** 1
+- **label:** Puzzle & Reveal
+- **summary:** Choose this when viewers can spot a clue, trace a hidden connection or try a solution before seeing how the evidence supports the reveal.
+- **persona:** Guide a curious viewer who is capable of working things out. Be precise about what they can observe, what they can infer and what remains open.
+- **domain:** Show a question through the evidence or constraints the viewer can inspect. Establish the decisive detail before the answer and return to it with its identifying features intact.
+- **hookRule:** Put a concrete situation, choice or apparent contradiction in view and make the question clear. Direct attention to the first observation or constraint while leaving its significance for the viewer to discover.
+- **storyShape:** Give viewers a chance to inspect the evidence, predict the outcome or try their own solution before the explanation. Let each discovery confirm a prediction, change an interpretation or help the viewer compare options. When you promise a solvable puzzle, supply every essential clue before the solution.
+- **endingRule:** Return to the opening evidence and show how it supports the answer. When alternatives fit, demonstrate a workable answer and its trade-off or say what the evidence leaves undecided.
+- **chapterStyle:** Give each chapter an observation to test or a constraint to resolve. Carry the remaining question forward once the viewer has learned something concrete.
+- **pacingCues:** Hold a visual clue long enough to inspect it, or leave a beat to weigh a choice before the explanation. Bring an earlier detail back when it changes what the viewer can conclude.
+- **avoid:** Avoid empty teasing, concealed premises, premature spoilers and claims of a unique answer when alternatives fit.
+- **visualReviewTone:** Check that the viewer can inspect the clue or constraint before the payoff and recognize it again at the explanation. Flag captions or crops that hide it, shots that change it and images that give away the answer too soon.
+
 
 ## Where things sit today (to be moved)
 
