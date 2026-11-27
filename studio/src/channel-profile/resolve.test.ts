@@ -93,7 +93,7 @@ describe('resolveChannelConfig', () => {
 
 describe('ChannelProfileDataSchema', () => {
   it('accepts each direction and rejects unknown keys, long notes and extra fields', () => {
-    for (const preset of ['history', 'story-first', 'explainer', 'neutral']) {
+    for (const preset of ['history', 'story-first', 'explainer', 'neutral', 'puzzle-reveal']) {
       expect(ChannelProfileDataSchema.safeParse({ direction: { preset } }).success).toBe(true);
     }
     expect(ChannelProfileDataSchema.safeParse({ direction: { preset: 'other' } }).success).toBe(false);

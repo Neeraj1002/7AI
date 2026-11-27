@@ -49,7 +49,7 @@ const FACT_POLICIES = [
 type SheetName = 'voice' | 'mood' | 'source' | 'fact' | null;
 
 // Formats is open by default; every other section starts folded with a one-line summary.
-type SectionName = 'formats' | ProfileSection;
+type SectionName = 'formats' | 'direction' | ProfileSection;
 
 // Sprint 4 FE E5 / N2 — the channel's Content profile (board N_S4ChannelProfile: Formats first, other sections fold). Fields are exactly
 // `ChannelProfileDataSchema`; saving always creates a new version (`channels.createProfileVersion`), and runs
@@ -98,6 +98,7 @@ export default function ContentProfileScreen() {
   const [sheet, setSheet] = useState<SheetName>(null);
   const [open, setOpen] = useState<Record<SectionName, boolean>>({
     formats: true,
+    direction: false,
     script: false,
     visual: false,
     audio: false,
@@ -312,7 +313,14 @@ export default function ContentProfileScreen() {
           </Card>
 
           {flags.creativeDirection ? (
-            <DirectionCard
+            <Card>
+              <SectionHeader
+                title="Creative direction"
+                summary={`${presetsQuery.data?.find((p) => p.key === directionDraft.preset)?.label ?? (presetsQuery.isError ? 'Unavailable' : 'Loading')}${directionChanged ? ' ? Unsaved draft' : ''}${saveWarnings.length ? ' ? Warning' : ''}${error === SAVE_ERROR ? ' ? Save failed' : ''}`}
+                open={open.direction}
+                onPress={() => toggleSection('direction')}
+              />
+              {open.direction ? <View style={styles.sectionBody}><DirectionCard
               presets={presetsQuery.data}
               loading={presetsQuery.isLoading}
               loadFailed={presetsQuery.isError}
@@ -328,7 +336,10 @@ export default function ContentProfileScreen() {
               savedVersion={savedVersion}
               warnings={saveWarnings}
               saveError={error === SAVE_ERROR}
-            />
+              /></View> : null}
+              {!open.direction && error === SAVE_ERROR ? <Text style={styles.error} accessibilityRole="alert">{SAVE_ERROR}</Text> : null}
+              {!open.direction && saveWarnings.length > 0 ? <Text style={styles.error} accessibilityRole="alert">Saved with a warning. Open Creative direction to read it.</Text> : null}
+            </Card>
           ) : null}
 
           <Card>

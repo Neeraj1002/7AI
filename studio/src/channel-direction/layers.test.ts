@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { resolveChannelConfig } from '../channel-profile/resolve';
 import { DIRECTION_PRESETS } from './presets';
 import { directionBlock, REVIEW_PARTS, WRITER_PARTS } from './prompts';
-import { buildSystemPrompt as shortWriter } from '../agents/script-generation';
+import { buildSystemPrompt as shortWriter, buildUserMessage as writerUser } from '../agents/script-generation';
 import { buildLongSystemPrompt as longWriter } from '../agents/script-generation/long-form';
 import { buildReviewSystemPrompt as reviewer } from '../agents/script-review';
 import { buildSystemPrompt as shortPlanner } from '../agents/video-generation/plan';
@@ -42,6 +42,36 @@ describe('one resolved direction through every consumer', () => {
       expect(buildPipelineTags({ storyTestsOn: true, buildCommit: 'abc', direction })).toMatchObject({ presetKey: preset.key, presetVersion: preset.version });
     });
   }
+
+  it.each(['puzzle-reveal', 'explainer'] as const)('%s keeps selected formats and optional note independent', (preset) => {
+    for (const note of [undefined, 'Inspect the evidence.']) {
+      for (const formatKey of ['question-surprising-answer', 'chaptered-explainer']) {
+        const config = resolveChannelConfig({ profile: { direction: { preset, note }, script: { guide: 'A distinct guide.' } }, formatKey });
+        expect(config.direction.note).toBe(note ?? null);
+        expect(config.scriptGuide).toBe('A distinct guide.');
+        expect(config.formatScriptStructure).toBe(findFormat(formatKey)?.scriptStructure);
+        for (const prompt of [shortWriter('brief-only', false, config.direction), longWriter(false, undefined, config.direction), reviewer({ direction: config.direction }), reviewer({ direction: config.direction, videoKind: 'long' })]) {
+          expect(prompt).toContain(config.direction.parts.storyShape);
+          if (note) expect(prompt).toContain(note);
+          else expect(prompt).not.toContain('Channel direction note:');
+        }
+      }
+    }
+  });
+
+  it.each([
+    ['process walkthrough', 'Follow the return, scan and shelving steps.', 'Explain the sequence clearly.'],
+    ['causal service', 'Explain why a full cart remains unavailable until scanning.', 'Emphasize the state change.'],
+    ['hybrid', 'Trace the return steps and explain how scanning changes availability.', 'Connect steps to their effects.'],
+  ])('delivers an Explainer %s brief and channel emphasis to the writer', (_name, brief, note) => {
+    const config = resolveChannelConfig({ profile: { direction: { preset: 'explainer', note }, script: { guide: 'Speak to a curious beginner.' } } });
+    const system = shortWriter('brief-only', false, config.direction);
+    const user = writerUser({ direction: config.direction, topic: 'A fictional library', constraints: [], briefText: brief, styleGuide: config.scriptGuide ?? undefined });
+    expect(system).toContain(config.direction.parts.storyShape);
+    expect(system).toContain(note);
+    expect(user).toContain(brief);
+    expect(user).toContain('Speak to a curious beginner.');
+  });
 
   it('an absent profile and an explicit neutral preset build identical prompts', () => {
     const { direction } = resolveChannelConfig({ profile: null });

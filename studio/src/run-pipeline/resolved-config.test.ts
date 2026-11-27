@@ -23,3 +23,15 @@ describe('loadResolvedConfig without a content profile', () => {
     expect((await loadResolvedConfig({ ...run, creationOptions: { voice: 'nova' } as never })).audioDefaultVoice).toBe('nova');
   });
 });
+
+it('resolves a resumed run from its pinned profile even after the active profile changes', async () => {
+  mocks.findProfileVersionById.mockImplementation(async (id) => ({ data: { direction: id === 'original'
+    ? { preset: 'puzzle-reveal', note: 'First note.' }
+    : { preset: 'explainer', note: 'Second note.' } } }));
+  const original = await loadResolvedConfig({ profileVersionId: 'original', creationOptions: null });
+  const newer = await loadResolvedConfig({ profileVersionId: 'new', creationOptions: null });
+  const resumed = await loadResolvedConfig({ profileVersionId: 'original', creationOptions: null });
+  expect(original.direction).toMatchObject({ presetKey: 'puzzle-reveal', note: 'First note.' });
+  expect(newer.direction).toMatchObject({ presetKey: 'explainer', note: 'Second note.' });
+  expect(resumed.direction).toEqual(original.direction);
+});

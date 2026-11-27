@@ -38,14 +38,13 @@ const draw = (over: Partial<ComponentProps<typeof DirectionCard>> = {}) =>
 describe('Direction card states', () => {
   it('presets present: shows each label and summary, the default tag, the note box and the change line', () => {
     const html = draw();
-    for (const t of ['Creative direction', 'Plain label', 'Plain summary', 'Other label', 'Other summary', 'Default, nothing saved', 'Your note', 'A change affects new videos only']) {
+    for (const t of ['Plain label', 'Plain summary', 'Other label', 'Other summary', 'Default, nothing saved', 'Your note', 'A change affects new videos only']) {
       expect(html).toContain(t);
     }
     expect(html).not.toContain('Couldn&#x27;t load');
   });
   it('presets empty: the card still draws, with no choices and no note box', () => {
     const html = draw({ presets: [] });
-    expect(html).toContain('Creative direction');
     expect(html).toContain('A change affects new videos only');
     expect(html).not.toContain('Your note');
     expect(html).not.toContain('Plain label');
